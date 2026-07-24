@@ -187,6 +187,16 @@ This quick review takes 5-10 minutes and helps you ask better clarifying questio
 
 All artifacts live under a top-level `benchmarks/` directory. Within it, every run gets its own `{model-name}/{repo-name}/{problem-name}/` subfolder. Grouping by model first keeps each model's full set of results together, while still letting multiple models be compared on the same `{repo-name}/{problem-name}` across sibling model folders.
 
+> **CRITICAL - write to the ABSOLUTE artifact path, never the bare relative string.** The `benchmarks/swe-benchmark-data/...` paths shown throughout this skill are written relative to the repository root for readability. Your working directory is often already inside `benchmarks/` (the harness runs there), so if you pass a bare relative path like `benchmarks/swe-benchmark-data/{model}/...` to Write/Edit it resolves against the cwd and doubles to `benchmarks/benchmarks/swe-benchmark-data/...` -- the files land in the wrong place, the run scores 0/4 artifacts despite "File created successfully", and the work is lost. Always resolve the repo root and build one absolute artifact directory up front, then write every artifact under it:
+>
+> ```bash
+> REPO_ROOT="$(git rev-parse --show-toplevel)"
+> ART_DIR="$REPO_ROOT/benchmarks/swe-benchmark-data/{model-name}/{repo-name}/{problem-name}"
+> mkdir -p "$ART_DIR"
+> ```
+>
+> Every `Write`/`Edit` in Steps 4-8 must use an **absolute** `file_path` of the form `$ART_DIR/github-issue.md` (i.e. the fully-expanded `/.../benchmarks/swe-benchmark-data/{model}/{repo}/{problem}/github-issue.md`), not a path beginning with `benchmarks/`. After writing each file, confirm it exists at the absolute path (e.g. `test -f "$ART_DIR/github-issue.md"`).
+
 The target repository's source code is **not** stored here. It is cloned locally at a specific tag by each contributor following the instructions in `benchmarks/swe-benchmark-data/README.md`, into a `repo/` subdirectory, or into a temporary clone (e.g. under `/tmp`, as the harness does). The `repo/` checkout is gitignored so it is never committed.
 
 ### Folder Structure
@@ -670,12 +680,14 @@ After producing the four artifacts, present a clear summary to the user. **Do no
 
 ### Documents Created
 
+Locations below are shown relative to the repo root; write them to the **absolute** `$ART_DIR/<file>` path from Step 3 (never a bare `benchmarks/...` path -- see the Step 3 warning).
+
 | Document | Location | Description |
 |----------|----------|-------------|
-| GitHub Issue | `benchmarks/swe-benchmark-data/{model}/{repo}/{problem}/github-issue.md` | Issue specification |
-| Low-Level Design | `benchmarks/swe-benchmark-data/{model}/{repo}/{problem}/lld.md` | Technical design |
-| Expert Review | `benchmarks/swe-benchmark-data/{model}/{repo}/{problem}/review.md` | Multi-persona review |
-| Testing Plan | `benchmarks/swe-benchmark-data/{model}/{repo}/{problem}/testing.md` | All test categories |
+| GitHub Issue | `$ART_DIR/github-issue.md` | Issue specification |
+| Low-Level Design | `$ART_DIR/lld.md` | Technical design |
+| Expert Review | `$ART_DIR/review.md` | Multi-persona review |
+| Testing Plan | `$ART_DIR/testing.md` | All test categories |
 
 ### Review Verdicts
 
