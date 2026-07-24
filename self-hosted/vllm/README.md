@@ -48,6 +48,7 @@ Weight memory = `params × bytes/param` (BF16 = 2 bytes). On 184 GB of VRAM, aft
 | Qwen3-32B | dense | 32.8B (all) | ~66 GB | ✅ (every param active → ~10× the per-token compute of a 3B-active MoE) |
 | Qwen3.6-35B-A3B | MoE | 35.9B (3B) | ~72 GB | ✅ |
 | Qwen3-Coder-Next | MoE (hybrid Mamba) | 79.6B (3B) | ~160 GB | ✅ tight — reduce `--max-model-len` **and** cap `--max-num-seqs` (Mamba cache), see [model file](models/qwen3-coder-next.md) |
+| Gemma-4-31B-it | dense, multimodal | 31B (all) | ~63 GB | ✅ comfortably (dense → higher per-token compute than a 3B-active MoE); needs vLLM >= 0.25.1 for the `Gemma4ForConditionalGeneration` arch + `gemma4_engine` parser |
 
 ⭐ The default is the **30B-A3B coder MoE**: only 3B parameters activate per token, so it is fast and leaves ~120 GB of VRAM for a large KV cache and high concurrency — exactly what a throughput benchmark wants.
 
@@ -57,6 +58,7 @@ Weight memory = `params × bytes/param` (BF16 = 2 bytes). On 184 GB of VRAM, aft
 - [Qwen3-32B](models/qwen3-32b.md) — dense chat model (`hermes` parser)
 - [Qwen3.6-35B-A3B](models/qwen3.6-35b-a3b.md) — 3.6-generation MoE
 - [Qwen3-Coder-Next (80B)](models/qwen3-coder-next.md) — largest fit, reduced context
+- [Gemma-4-31B-it](models/gemma-4-31b-it.md) — Google's dense, multimodal Gemma 4 (`gemma4_engine` parser)
 
 ---
 
