@@ -1186,6 +1186,7 @@ def _save_metrics(
         "provider": config.provider,
         "endpoint": config.endpoint if not config.is_bedrock else None,
         "aws_region": config.resolved_region() if config.is_bedrock else None,
+        "instance_type": config.resolved_instance_type(),
         "artifacts_produced": len(produced),
         "artifacts_expected": len(ARTIFACT_FILENAMES),
         "generation_tokens_per_sec": generation_tokens_per_sec,
@@ -1535,6 +1536,11 @@ def _parse_args() -> argparse.Namespace:
         "--aws-region",
         help="Override: AWS region for provider=bedrock (e.g. us-east-1)",
     )
+    parser.add_argument(
+        "--instance-type",
+        help="Override: EC2 instance type served on (e.g. p5en.48xlarge). "
+        "Defaults to the EC2 metadata service when unset.",
+    )
     parser.add_argument("--dataset", help="Override: dataset YAML path")
     parser.add_argument(
         "--tasks", help="Override: comma-separated task ids to run (default: all)"
@@ -1598,6 +1604,7 @@ def main() -> None:
         "endpoint": args.endpoint,
         "model": args.model,
         "aws_region": args.aws_region,
+        "instance_type": args.instance_type,
         "dataset": args.dataset,
         "max_turns": args.max_turns,
         "max_output_tokens": args.max_output_tokens,

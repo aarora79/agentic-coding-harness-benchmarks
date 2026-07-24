@@ -219,3 +219,27 @@ First boot: ~10-15 min weight download (~555 GB at ~1 GB/s with an HF token) + ~
 | `ld: cannot find -lnvrtc` -> `Ninja build failed` on `fp8_blockscale_gemm_90` -> `Engine core initialization failed` | FP8 model (GLM-5.2) FlashInfer kernel needs NVRTC, and FlashInfer's `-L` points at a non-existent `$CUDA_HOME/lib64` | Fix 3 (libnvrtc.so + populate `$CUDA_HOME/lib64`) |
 
 **Model -> which fixes:** Kimi-K2.7-Code = Fix 1 + Fix 2. GLM-5.2-FP8 = Fix 1 + Fix 2 + Fix 3. Applying all three is harmless for any model, so the combined launch block above is a safe default on this node.
+
+## Verified serve configs (what we actually ran on this p5en)
+
+These are the exact `vllm-serve.sh` settings used for each model benchmarked on this node (all with the CUDA env exports above, and the venv/caches on `/opt/dlami/nvme`). **`TP` is not always 8** - block-FP8 MoE models impose sharding constraints (see the note under the table).
+
+| Model | HF repo | TP | MAX_MODEL_LEN | GPU_MEM_UTIL | TOOL_PARSER | REASONING_PARSER | EXTRA_ARGS | Weights |
+|---|---|---:|---:|---:|---|---|---|---|
+| kimi-k2.7-code | `moonshotai/Kimi-K2.7-Code` | 8 | 131072 | 0.90 | `kimi_k2` | `kimi_k2` | `--trust-remote-code` | ~555 GB |
+| glm-5.2 | `zai-org/GLM-5.2-FP8` | 8 | 300000 | 0.95 | `glm47` | `glm47` | `--trust-remote-code` | ~750 GB FP8 |
+| minimax-m2.5 | `MiniMaxAI/MiniMax-M2.5` | **4** | 196608 | 0.92 | `minimax_m2` | `minimax_m2` | `--trust-remote-code` | ~466 GB FP8 |
+| qwen3-coder-480b | `Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8` | **4** | 200000 | 0.95 | `qwen3_coder` | (none) | `--trust-remote-code` | ~482 GB FP8 |
+
+Runtime observed: kimi 128K window / 740K-tok KV / 5.65x concurrency; glm-5.2 300K / 413K KV / 1.38x; minimax-m2.5 192K / 1.18M KV / 6.0x; qwen3-coder-480b 200K / 255K KV / 1.28x.
+
+### Why TP is 4 for MiniMax-M2.5 and Qwen3-Coder-480B (not 8)
+
+Block-quantized FP8 MoE models must satisfy **two** tensor-parallel divisibility constraints at once, and TP=8 fails both of these models:
+
+1. **KV-head constraint:** `num_key_value_heads % TP == 0`. Both models have `num_key_value_heads = 8`, so TP must divide 8 -> {1,2,4,8}. (Failing this aborts with `assert self.total_num_kv_heads % tp_size == 0`.)
+2. **FP8 MoE block constraint:** the per-GPU MoE shard `moe_intermediate_size / TP` must be divisible by the FP8 weight block size (128). MiniMax `moe_intermediate_size=1536` -> TP in {1,2,4,6}; Qwen-480B `moe_intermediate_size=2560` -> TP in {1,2,4}. (Failing this aborts with `ValueError: The output_size of gate's and up's weight = N is not divisible by weight quantization block_n = 128`.)
+
+The intersection for both models is **TP=4** (TP=8 fails constraint 2: MiniMax 1536/8=192, Qwen 2560/8=320, neither divisible by 128). Consequence worth knowing: since these run on 4 GPUs, **two replicas fit on one 8x H200 node** (GPUs 0-3 and 4-7 via `CUDA_VISIBLE_DEVICES`, different `PORT`) - useful for throughput, though the benchmark harness drives one endpoint at a time. Kimi and GLM-5.2 genuinely need all 8 GPUs (TP=8) and cannot be doubled here.
+
+To check a new model's viable TP before serving, read `num_key_value_heads` and `moe_intermediate_size` from its HF `config.json` and apply both rules above. BF16 (unquantized) models drop constraint 2 entirely (no weight blocks), so they follow only the KV-head rule - e.g. Qwen3-Coder-480B in BF16 (~960 GB) would run at TP=8, but does not fit at TP=4.

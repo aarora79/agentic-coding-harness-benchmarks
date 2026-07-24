@@ -19,6 +19,9 @@ import logging
 import os
 import re
 import sys
+import urllib.error
+import urllib.request
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -105,6 +108,34 @@ def model_to_slug(model: str) -> str:
     return slug
 
 
+@lru_cache(maxsize=1)
+def _imds_instance_type() -> str | None:
+    """Fetch the EC2 instance type from IMDSv2, or None if not on EC2.
+
+    Best-effort and cached: uses a short timeout, tolerates any failure
+    (no metadata service, disabled IMDS, non-EC2 host), and never raises so a
+    benchmark run is never blocked on this lookup.
+
+    Returns:
+        The instance type string (e.g. ``p5en.48xlarge``), or None.
+    """
+    base = "http://169.254.169.254/latest"
+    try:
+        token_req = urllib.request.Request(
+            f"{base}/api/token",
+            method="PUT",
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": "60"},
+        )
+        token = urllib.request.urlopen(token_req, timeout=1.0).read().decode()  # nosec B310 - hardcoded IMDS link-local URL
+        type_req = urllib.request.Request(
+            f"{base}/meta-data/instance-type",
+            headers={"X-aws-ec2-metadata-token": token},
+        )
+        return urllib.request.urlopen(type_req, timeout=1.0).read().decode().strip()  # nosec B310 - hardcoded IMDS link-local URL
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
 class RunnerConfigError(Exception):
     """Raised when the runner config is missing, unparseable, or invalid."""
 
@@ -142,6 +173,12 @@ class RunnerConfig(BaseModel):
         default=None,
         description="AWS region for provider=bedrock (e.g. us-east-1). Falls back "
         "to AWS_REGION/AWS_DEFAULT_REGION from the environment when unset.",
+    )
+    instance_type: str | None = Field(
+        default=None,
+        description="EC2 instance type the model is served on (e.g. p5en.48xlarge). "
+        "Recorded in each run's metrics.json for hardware provenance. Falls back to "
+        "the EC2 instance metadata service (IMDSv2) when unset; null if unavailable.",
     )
 
     # What to run and where outputs go.
@@ -245,6 +282,25 @@ class RunnerConfig(BaseModel):
             or os.environ.get("AWS_REGION")
             or os.environ.get("AWS_DEFAULT_REGION")
         )
+
+    def resolved_instance_type(self) -> str | None:
+        """Return the EC2 instance type the run executes on, for provenance.
+
+        Resolution order: the configured ``instance_type``, else the
+        ``EC2_INSTANCE_TYPE`` environment variable, else the EC2 instance
+        metadata service (IMDSv2). The IMDS lookup is best-effort with a short
+        timeout and never raises -- off EC2 (or if metadata is disabled) it
+        simply returns None, so the run is unaffected.
+
+        Returns:
+            The instance type (e.g. ``p5en.48xlarge``), or None if unknown.
+        """
+        if self.instance_type:
+            return self.instance_type
+        env = os.environ.get("EC2_INSTANCE_TYPE")
+        if env:
+            return env
+        return _imds_instance_type()
 
     def validate_semantics(self) -> None:
         """Check fields the type system cannot.
@@ -372,6 +428,7 @@ def _summarize(config: RunnerConfig) -> None:
     else:
         logger.info("  endpoint: %s", config.endpoint)
     logger.info("  model: %s", config.model)
+    logger.info("  instance_type: %s", config.resolved_instance_type())
     logger.info("  dataset: %s", config.dataset)
     logger.info("  output_dir: %s", config.output_dir)
     logger.info("  clone_dir: %s", config.clone_dir)
@@ -408,6 +465,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--aws-region", help="Override: AWS region for provider=bedrock"
     )
+    parser.add_argument(
+        "--instance-type",
+        help="Override: EC2 instance type served on (e.g. p5en.48xlarge)",
+    )
     return parser.parse_args()
 
 
@@ -420,6 +481,7 @@ def main() -> None:
         "model": args.model,
         "dataset": args.dataset,
         "aws_region": args.aws_region,
+        "instance_type": args.instance_type,
     }
     try:
         config = load_runner_config(args.config, overrides)
