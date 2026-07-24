@@ -149,9 +149,7 @@ The **Mean** row excludes any task that scored 0 -- a genuine model failure (mis
 
 ![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality.png)
 
-Mean estimated cost per task (x, token-based for self-hosted) against mean task score (y), one point per model. All three run on the cost/quality frontier so far. Regenerate from the run artifacts with `uv run scripts/plot_cost_quality.py` (add `--dark` for the dark theme) from `benchmarks/`.
-
-> Note: the chart above predates the GLM-5.2 run and shows the three Qwen models plus Kimi; GLM-5.2 (mean 72.75, 8x H200, see the table and footnote ⁶) is not yet plotted. The chart rebuilds only from run artifacts present locally, and the Qwen runs live on a different node, so regenerating it here would drop them -- it will be refreshed once all models' artifacts are collected in one place.
+Mean estimated cost per task (x, token-based for self-hosted) against mean task score (y), one point per model. All four scored models sit on the cost/quality frontier so far (Qwen3-Coder-Next is omitted -- it produced no scored run on this node). A model's mean excludes any 0-score failed task, matching the table (see footnote ⁵). Regenerate from the run artifacts with `uv run scripts/plot_cost_quality.py` (add `--dark` for the dark theme) from `benchmarks/`.
 
 ### Per-model leaderboard (self-hosted, so far)
 
