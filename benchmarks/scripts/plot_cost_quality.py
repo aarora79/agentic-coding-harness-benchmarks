@@ -281,24 +281,10 @@ def _plot(
             zorder=1,
         )
 
-    # Label placement: default up-and-right, but if a point has a near neighbor
-    # up-and-right of it (e.g. glm-5.2 just below-left of kimi on the rising
-    # frontier), its default label would sit on the frontier line and crowd the
-    # neighbor's label -- so flip it below-and-left, clear of both.
-    xr = (max(p.mean_cost for p in points) - min(p.mean_cost for p in points)) or 1.0
-    yr = (max(p.mean_score for p in points) - min(p.mean_score for p in points)) or 1.0
-
-    def _offset(point: ModelPoint) -> tuple[int, int, str, str]:
-        for other in points:
-            if other is point:
-                continue
-            dx = (other.mean_cost - point.mean_cost) / xr
-            dy = (other.mean_score - point.mean_score) / yr
-            # Neighbor close in x and above this point -> label goes below-left.
-            if abs(dx) < 0.18 and 0 <= dy < 0.25:
-                return -10, -16, "right", "top"
-        return 10, 6, "left", "bottom"
-
+    # Label placement: every label sits to the RIGHT of its dot at exactly the
+    # point's y-level (vertically centered). On a rising frontier this keeps the
+    # text off the line (which climbs up-and-right) and reads consistently
+    # horizontal for all points.
     # All models as dark neutral dots; frontier points already drawn in accent.
     frontier_ids = {id(p) for p in frontier}
     for point in points:
@@ -312,16 +298,15 @@ def _plot(
             linewidths=1.5,
             zorder=3,
         )
-        dx, dy, ha, va = _offset(point)
         ax.annotate(
             _label(point),
             (point.mean_cost, point.mean_score),
             textcoords="offset points",
-            xytext=(dx, dy),
+            xytext=(12, 0),
             fontsize=9,
             color=theme["ink"],
-            ha=ha,
-            va=va,
+            ha="left",
+            va="center",
             zorder=4,
         )
 
