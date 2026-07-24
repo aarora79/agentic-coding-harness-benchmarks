@@ -131,24 +131,34 @@ All cells are task scores (0-100), the mean of the 4 artifact totals per (task x
 | `remove-faiss` | Medium | **75.25** | 59.25 | 49.0 | n/a |
 | `remove-efs-from-terraform-aws-ecs` | Medium | **71.25** | 63.0 | 45.0 | n/a |
 | `ssrf-hardening-outbound-url-validation` | Medium | **72.75** | 55.75 | 0.0 ⁵ | n/a |
-| `migrate-ecs-env-vars-to-secrets-manager` | High | **75.5** | 54.5 | 43.5 | n/a |
+| `migrate-ecs-env-vars-to-secrets-manager` | High | **75.5** | 54.5 | 36.25 | n/a |
 | `replace-keycloak-db-password-with-rds-iam` | High | 0.0 ⁵ | **48.75** | 33.25 | n/a |
-| **Mean (5 tasks)** | | **58.95** | 56.25 | 34.15 | n/a |
+| **Mean (excl. failed task⁵)** | | **73.69** | **56.25** | 40.88 | n/a |
 
-**Hardware:** Kimi-K2.7-Code (1.06T-param MoE, ~1 TB weights, 128K native window) ran on **8x H200** (`p5en.48xlarge`); the three Qwen models (3B-active MoE) ran on a single **`g6e.12xlarge`** (4x L40S). All via vLLM.
+The **Mean** row excludes any task that scored 0 -- a genuine model failure (missing artifacts), which is an unresolved anomaly rather than a quality measurement, so it is left out of the average **pending further investigation** and flagged with `⁵`. Per-task 0.0 cells are still shown so the failure is visible; Kimi's mean is over the 4 tasks it completed, Qwen3-Coder-30B's over its 4, and Qwen3.6-35B's over all 5 (no failures).
 
-⁴ Qwen3-Coder-Next (79.6B, ~160 GB weights) **could not be benchmarked on the `g6e.12xlarge`.** There the weights leave room for only a ~16K context window, but agentic coding tasks need 100K-250K input tokens per request, so every task overflows the window on the first prompt. It needs a larger-VRAM node (e.g. `g6e.48xlarge`) to serve a >=200K window. The `/benchmark` skill now enforces a 200K-minimum gate and refuses to run below it. See [self-hosted/vllm/models/qwen3-coder-next.md](self-hosted/vllm/models/qwen3-coder-next.md).
+**Hardware:** Kimi-K2.7-Code (1.06T-param MoE, ~1 TB weights) ran on **8x H200** (`p5en.48xlarge`) at its full **131,072-token (128K) native context window**; the three Qwen models (3B-active MoE) ran on a single **`g6e.12xlarge`** (4x L40S) at a 200K window. All via vLLM. Note Kimi's 128K window is below the harness's 200K agentic-coding guideline, yet it completed 4 of 5 tasks -- the one failure (`keycloak-rds-iam`) was a turn-cap timeout, not a context overflow.
 
-⁵ **Genuine model failures, scored 0.** Kimi-K2.7-Code on `keycloak-rds-iam` and Qwen3-Coder-30B on `ssrf` both hit the 60-turn cap without writing all four required design artifacts (Kimi produced 2 of 4; Qwen3-Coder-30B spent every turn editing repo source instead of writing design docs and produced 0). The judge records a missing-artifact folder as a 0 with a `MODEL FAILURE` verdict rather than dropping it from the results. Excluding these single failed tasks, Kimi averages 73.69 and Qwen3-Coder-30B averages 42.7 over the tasks they completed.
+⁴ Qwen3-Coder-Next (79.6B, ~160 GB weights) **could not be benchmarked on the `g6e.12xlarge`.** There the weights leave room for only a ~16K context window, but agentic coding tasks need 100K-250K input tokens per request, so every task overflows the window on the first prompt. It needs a larger-VRAM node (e.g. `g6e.48xlarge`) to serve a >=200K window. The `/benchmark` skill enforces a 200K-minimum gate by default as a conservative guideline -- Kimi's 128K run shows a window somewhat below 200K can still work when the tasks fit, but 16K cannot. See [self-hosted/vllm/models/qwen3-coder-next.md](self-hosted/vllm/models/qwen3-coder-next.md).
+
+⁵ **Genuine model failures, scored 0.** Kimi-K2.7-Code on `keycloak-rds-iam` and Qwen3-Coder-30B on `ssrf` both hit the 60-turn cap without writing all four required design artifacts (Kimi produced 2 of 4; Qwen3-Coder-30B spent every turn editing repo source instead of writing design docs and produced 0). The judge records a missing-artifact folder as a 0 with a `MODEL FAILURE` verdict rather than dropping it from the results. Excluding these single failed tasks, Kimi averages 73.69 and Qwen3-Coder-30B averages 40.88 over the tasks they completed.
+
+### Cost vs. quality
+
+![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality.png)
+
+Mean estimated cost per task (x, token-based for self-hosted) against mean task score (y), one point per model. All three run on the cost/quality frontier so far. Regenerate from the run artifacts with `uv run scripts/plot_cost_quality.py` (add `--dark` for the dark theme) from `benchmarks/`.
 
 ### Per-model leaderboard (self-hosted, so far)
 
-| Rank | Model | Params (active) | Hardware | Mean (5) | Mean (completed) |
-|-----:|-------|----------------|----------|---------:|-----------------:|
-| 1 | Kimi-K2.7-Code | 1,058.6B (MoE) | 8x H200 | **58.95** | 73.69 (4/5) |
-| 2 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **56.25** | 56.25 (5/5) |
-| 3 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **34.15** | 42.7 (4/5) |
-| - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | - |
+Mean score is over the tasks each model completed (any 0-score failed task is excluded pending investigation; see the note above).
+
+| Rank | Model | Params (active) | Hardware | Mean score | Tasks scored |
+|-----:|-------|----------------|----------|-----------:|-------------:|
+| 1 | Kimi-K2.7-Code | 1,058.6B (MoE) | 8x H200 | **73.69** | 4/5 |
+| 2 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **56.25** | 5/5 |
+| 3 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **40.88** | 4/5 |
+| - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | 0 |
 
 **Coming soon:** Claude Opus/Sonnet/Haiku (Path 1, Bedrock) and the open-weight Bedrock models via the LiteLLM proxy (Path 2 -- DeepSeek, Mistral, GLM, MiniMax, …).
 
@@ -156,8 +166,8 @@ All cells are task scores (0-100), the mean of the 4 artifact totals per (task x
 
 These are early self-hosted numbers on differing hardware; treat them as a starting point, not a final ranking. Cross-path comparisons wait until the Bedrock paths are run.
 
-- **Kimi-K2.7-Code leads on the tasks it completed** (73.69 over 4), edging out Qwen3.6-35B -- but it needs a far larger box (8x H200 vs a single g6e.12xlarge). On a per-task-completed basis it is the strongest self-hosted model so far; on the strict 5-task mean the two are close (58.95 vs 56.25) because a turn-cap failure on `keycloak-rds-iam` cost it a 0.
-- **Qwen3.6-35B is the value story:** it comes within ~3 points of a trillion-parameter model on the 5-task mean while running on one mid-range GPU node, and it is the only model here that completed all five tasks.
+- **Kimi-K2.7-Code leads on the tasks it completed** (73.69 over 4), ahead of Qwen3.6-35B (56.25) -- but it needs a far larger box (8x H200 vs a single g6e.12xlarge) and it failed one task outright (a turn-cap timeout on `keycloak-rds-iam`, excluded from its mean pending investigation).
+- **Qwen3.6-35B is the value story:** the only model here that completed all five tasks, on one mid-range GPU node, at a mean of 56.25 -- roughly median on this judge's calibration, and it never failed a task.
 - **The judge is strict, and these are open-weight models on design (not coding) tasks.** Scores in the 45-75 range reflect artifacts that are serviceable but often light on the specificity and risk-analysis the rubric rewards; this is expected when smaller/coder-tuned models are asked to produce design documentation rather than code.
 - **The two 0s are real, not judging noise.** Both were the model exhausting its 60-turn budget without producing the full artifact set -- Qwen3-Coder-30B in particular kept trying to *implement* the SSRF fix instead of *designing* it. The harness caps turns and the judge scores the shortfall honestly.
 - **MoE economics are the reason to self-host these.** Every model here is a mixture-of-experts, so per-token compute (and cost) tracks the active-expert count, not the total -- the regime where a fixed-cost GPU node can beat per-token API pricing under load.
