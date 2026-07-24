@@ -97,7 +97,7 @@ A dataset is a single YAML file: a metadata header plus a list of tasks, each po
 
 ## Results: a worked example
 
-To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 tasks**, each scored by the judge. The numbers below are only for models **we have actually run end to end so far**: three open-weight Qwen models **self-hosted via vLLM on a single `g6e.12xlarge` (4x L40S)**. The other hosting paths (Anthropic on Bedrock, open-weight on Bedrock via the LiteLLM proxy) are **coming soon** -- we publish only what we have measured here. (The `mcp-gateway-registry` dataset ships in [benchmarks/dataset/](benchmarks/dataset/mcp-gateway-registry.yaml) so you can reproduce the run; the generated artifacts themselves are not committed, so a customer's own runs never risk landing in version control. The only committed worked example under [benchmarks/swe-benchmark-data/](benchmarks/swe-benchmark-data/) is the trivial `Hello-World` sanity run.)
+To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 tasks**, each scored by the judge. The numbers below are only for models **we have actually run end to end so far**, all **self-hosted via vLLM**: two frontier models (Kimi-K2.7-Code and GLM-5.2) on **8x H200 (`p5en.48xlarge`)**, and three open-weight Qwen models on a single **`g6e.12xlarge` (4x L40S)**. The other hosting paths (Anthropic on Bedrock, open-weight on Bedrock via the LiteLLM proxy) are **coming soon** -- we publish only what we have measured here. (The `mcp-gateway-registry` dataset ships in [benchmarks/dataset/](benchmarks/dataset/mcp-gateway-registry.yaml) so you can reproduce the run; the generated artifacts themselves are not committed, so a customer's own runs never risk landing in version control. The only committed worked example under [benchmarks/swe-benchmark-data/](benchmarks/swe-benchmark-data/) is the trivial `Hello-World` sanity run.)
 
 | # | Problem | Difficulty | Source |
 |---|---------|-----------|--------|
@@ -107,7 +107,7 @@ To show what the harness produces, we ran it against [agentic-community/mcp-gate
 | 4 | `migrate-ecs-env-vars-to-secrets-manager` | High | Upstream [#1134](https://github.com/agentic-community/mcp-gateway-registry/issues/1134) |
 | 5 | `replace-keycloak-db-password-with-rds-iam` | High | Upstream [#1303](https://github.com/agentic-community/mcp-gateway-registry/issues/1303) |
 
-**Models benchmarked so far (all Path 3, self-hosted on vLLM):** Kimi-K2.7-Code (on 8x H200), Qwen3.6-35B-A3B, Qwen3-Coder-30B-A3B-Instruct, and Qwen3-Coder-Next (the three Qwen models on `g6e.12xlarge` / 4x L40S). **Coming soon:** Path 1 (Anthropic family on Bedrock -- Claude Opus/Sonnet/Haiku) and Path 2 (open-weight on Bedrock via the LiteLLM proxy -- DeepSeek, Mistral, GLM, MiniMax, …).
+**Models benchmarked so far (all Path 3, self-hosted on vLLM):** Kimi-K2.7-Code and GLM-5.2 (both on 8x H200 / `p5en.48xlarge`), plus Qwen3.6-35B-A3B, Qwen3-Coder-30B-A3B-Instruct, and Qwen3-Coder-Next (the three Qwen models on `g6e.12xlarge` / 4x L40S). **Coming soon:** Path 1 (Anthropic family on Bedrock -- Claude Opus/Sonnet/Haiku) and Path 2 (open-weight on Bedrock via the LiteLLM proxy -- DeepSeek, Mistral, MiniMax, …).
 
 ### Scoring rubric (LLM-as-judge)
 
@@ -126,28 +126,32 @@ Each of the 4 artifacts is scored 0-100 by an independent judge session. Within 
 
 All cells are task scores (0-100), the mean of the 4 artifact totals per (task x model). All models were **self-hosted via vLLM** and scored by the same judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). Hardware differs by model size (see the row under the table). Bold = top score in row. Other hosting paths are **coming soon**.
 
-| Task | Difficulty | Kimi-K2.7-Code | Qwen3.6-35B | Qwen3-Coder-30B | Qwen3-Coder-Next⁴ |
-|------|-----------|---------------:|------------:|----------------:|:-----------------:|
-| `remove-faiss` | Medium | **75.25** | 59.25 | 49.0 | n/a |
-| `remove-efs-from-terraform-aws-ecs` | Medium | **71.25** | 63.0 | 45.0 | n/a |
-| `ssrf-hardening-outbound-url-validation` | Medium | **72.75** | 55.75 | 0.0 ⁵ | n/a |
-| `migrate-ecs-env-vars-to-secrets-manager` | High | **75.5** | 54.5 | 36.25 | n/a |
-| `replace-keycloak-db-password-with-rds-iam` | High | 0.0 ⁵ | **48.75** | 33.25 | n/a |
-| **Mean (excl. failed task⁵)** | | **73.69** | **56.25** | 40.88 | n/a |
+| Task | Difficulty | Kimi-K2.7-Code | GLM-5.2⁶ | Qwen3.6-35B | Qwen3-Coder-30B | Qwen3-Coder-Next⁴ |
+|------|-----------|---------------:|---------:|------------:|----------------:|:-----------------:|
+| `remove-faiss` | Medium | **75.25** | 66.0 | 59.25 | 49.0 | n/a |
+| `remove-efs-from-terraform-aws-ecs` | Medium | 71.25 | **79.0** | 63.0 | 45.0 | n/a |
+| `ssrf-hardening-outbound-url-validation` | Medium | 72.75 | **76.75** | 55.75 | 0.0 ⁵ | n/a |
+| `migrate-ecs-env-vars-to-secrets-manager` | High | **75.5** | 73.5 | 54.5 | 36.25 | n/a |
+| `replace-keycloak-db-password-with-rds-iam` | High | 0.0 ⁵ | **68.5** | 48.75 | 33.25 | n/a |
+| **Mean (excl. failed task⁵)** | | **73.69** | 72.75 | **56.25** | 40.88 | n/a |
 
 The **Mean** row excludes any task that scored 0 -- a genuine model failure (missing artifacts), which is an unresolved anomaly rather than a quality measurement, so it is left out of the average **pending further investigation** and flagged with `⁵`. Per-task 0.0 cells are still shown so the failure is visible; Kimi's mean is over the 4 tasks it completed, Qwen3-Coder-30B's over its 4, and Qwen3.6-35B's over all 5 (no failures).
 
-**Hardware:** Kimi-K2.7-Code (1.06T-param MoE, ~1 TB weights) ran on **8x H200** (`p5en.48xlarge`) at its full **131,072-token (128K) native context window**; the three Qwen models (3B-active MoE) ran on a single **`g6e.12xlarge`** (4x L40S) at a 200K window. All via vLLM. Note Kimi's 128K window is below the harness's 200K agentic-coding guideline, yet it completed 4 of 5 tasks -- the one failure (`keycloak-rds-iam`) was a turn-cap timeout, not a context overflow.
+**Hardware:** Kimi-K2.7-Code (1.06T-param MoE, ~1 TB weights) ran on **8x H200** (`p5en.48xlarge`) at its full **131,072-token (128K) native context window**; GLM-5.2 (744B MoE / 40B active, ~750 GB FP8 weights) ran on the same **8x H200** at a **300K window** with `max_turns=100` (see footnote ⁶); the three Qwen models (3B-active MoE) ran on a single **`g6e.12xlarge`** (4x L40S) at a 200K window. All via vLLM. Note Kimi's 128K window is below the harness's 200K agentic-coding guideline, yet it completed 4 of 5 tasks -- the one failure (`keycloak-rds-iam`) was a turn-cap timeout, not a context overflow.
 
 ⁴ Qwen3-Coder-Next (79.6B, ~160 GB weights) **could not be benchmarked on the `g6e.12xlarge`.** There the weights leave room for only a ~16K context window, but agentic coding tasks need 100K-250K input tokens per request, so every task overflows the window on the first prompt. It needs a larger-VRAM node (e.g. `g6e.48xlarge`) to serve a >=200K window. The `/benchmark` skill enforces a 200K-minimum gate by default as a conservative guideline -- Kimi's 128K run shows a window somewhat below 200K can still work when the tasks fit, but 16K cannot. See [self-hosted/vllm/models/qwen3-coder-next.md](self-hosted/vllm/models/qwen3-coder-next.md).
 
 ⁵ **Genuine model failures, scored 0.** Kimi-K2.7-Code on `keycloak-rds-iam` and Qwen3-Coder-30B on `ssrf` both hit the 60-turn cap without writing all four required design artifacts (Kimi produced 2 of 4; Qwen3-Coder-30B spent every turn editing repo source instead of writing design docs and produced 0). The judge records a missing-artifact folder as a 0 with a `MODEL FAILURE` verdict rather than dropping it from the results. Excluding these single failed tasks, Kimi averages 73.69 and Qwen3-Coder-30B averages 40.88 over the tasks they completed.
+
+⁶ **GLM-5.2 ran with more headroom than the others -- not strictly apples-to-apples.** GLM-5.2 (`zai-org/GLM-5.2-FP8`, 744B MoE / 40B active, ~750 GB FP8 weights) was served on **8x H200** at a **300K context window** and run with **`max_turns=100`**, whereas Kimi ran at its native 128K window and all models above used the default 60-turn cap. The larger turn budget is why GLM-5.2 completed all 5 tasks including `keycloak-rds-iam` (the task Kimi failed at the 60-turn cap): its mean is over 5/5 tasks with no failures. Treat the GLM-5.2 vs Kimi comparison as indicative rather than head-to-head until both are re-run under identical window/turn settings.
 
 ### Cost vs. quality
 
 ![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality.png)
 
 Mean estimated cost per task (x, token-based for self-hosted) against mean task score (y), one point per model. All three run on the cost/quality frontier so far. Regenerate from the run artifacts with `uv run scripts/plot_cost_quality.py` (add `--dark` for the dark theme) from `benchmarks/`.
+
+> Note: the chart above predates the GLM-5.2 run and shows the three Qwen models plus Kimi; GLM-5.2 (mean 72.75, 8x H200, see the table and footnote ⁶) is not yet plotted. The chart rebuilds only from run artifacts present locally, and the Qwen runs live on a different node, so regenerating it here would drop them -- it will be refreshed once all models' artifacts are collected in one place.
 
 ### Per-model leaderboard (self-hosted, so far)
 
@@ -156,11 +160,12 @@ Mean score is over the tasks each model completed (any 0-score failed task is ex
 | Rank | Model | Params (active) | Hardware | Mean score | Tasks scored |
 |-----:|-------|----------------|----------|-----------:|-------------:|
 | 1 | Kimi-K2.7-Code | 1,058.6B (MoE) | 8x H200 | **73.69** | 4/5 |
-| 2 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **56.25** | 5/5 |
-| 3 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **40.88** | 4/5 |
+| 2 | GLM-5.2⁶ | 744B (40B) | 8x H200 | **72.75** | 5/5 |
+| 3 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **56.25** | 5/5 |
+| 4 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **40.88** | 4/5 |
 | - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | 0 |
 
-**Coming soon:** Claude Opus/Sonnet/Haiku (Path 1, Bedrock) and the open-weight Bedrock models via the LiteLLM proxy (Path 2 -- DeepSeek, Mistral, GLM, MiniMax, …).
+**Coming soon:** Claude Opus/Sonnet/Haiku (Path 1, Bedrock) and the open-weight Bedrock models via the LiteLLM proxy (Path 2 -- DeepSeek, Mistral, MiniMax, …).
 
 ### What the data says (so far)
 
