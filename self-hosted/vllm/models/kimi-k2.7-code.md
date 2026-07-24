@@ -17,6 +17,8 @@
 
 ## Serve it
 
+**Benchmarked config:** instance `p5en.48xlarge` (8×H200 141GB) · **TP=8** (all 8 GPUs) · precision **FP8** (compressed-tensors / Marlin, as published) · 131072 (128K) window.
+
 Kimi-K2.7-Code on 8×H200 (p5en.48xlarge). Requires `--trust-remote-code` and benefits from `CUDA_HOME` set for DeepGemm JIT.
 
 ```bash

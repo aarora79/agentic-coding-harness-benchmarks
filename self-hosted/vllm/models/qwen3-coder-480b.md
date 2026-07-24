@@ -18,6 +18,8 @@
 
 ## Serve it
 
+**Benchmarked config:** instance `p5en.48xlarge` (8x H200 141GB) · **TP=4** (4 of 8 GPUs) · precision **FP8** (`Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8`) · 200000 (200K) window.
+
 Qwen3-Coder-480B-FP8 on the 8x H200 (p5en.48xlarge) node, using **4 GPUs** (TP=4 - see "Why TP=4" below). Requires `--trust-remote-code`. On this DLAMI, export the CUDA environment (ninja on PATH; unversioned `libcudart.so`/`libcuda.so`/`libnvrtc.so`) from [`p5en-h200-cuda-fixes.md`](../../../.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md) **before** running this, or FP8-kernel JIT fails at engine init.
 
 ```bash

@@ -18,6 +18,8 @@
 
 ## Serve it
 
+**Benchmarked config:** instance `p5en.48xlarge` (8×H200 141GB) · **TP=8** (all 8 GPUs) · precision **FP8** (`zai-org/GLM-5.2-FP8`) · 300000 (300K) window.
+
 GLM-5.2-FP8 on 8×H200 (p5en.48xlarge). The model requires `--trust-remote-code` and benefits from setting `CUDA_HOME` explicitly for DeepGemm kernel JIT compilation.
 
 > **Verified on this repo's p5en.48xlarge node (2026-07):** the "Serve it" block below is correct as-is, but the DLAMI here has **no `/usr/local/cuda`** (nvcc lives at `/opt/pytorch/cuda`), and GLM-5.2's FP8 path JIT-compiles a FlashInfer kernel that needs `ninja` on PATH plus **three** unversioned CUDA libs (`libcudart.so`, `libcuda.so`, **`libnvrtc.so`**) in `$CUDA_HOME/lib64`. Export the environment from [`.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md`](../../../.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md) (Fixes 1+2+3) **before** running the command below, or the server fails at engine init with `cannot find -lnvrtc`. The CUDA_HOME/libcudart tips in "Tuning notes" below assume a different DLAMI layout (`/usr/local/cuda`) and do not apply to this node.
