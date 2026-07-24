@@ -1561,6 +1561,13 @@ def _parse_args() -> argparse.Namespace:
         "whose window Claude Code cannot detect. 0 leaves it unset.",
     )
     parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        help="Override: wall-clock timeout for a single task's claude -p run. "
+        "Raise it for a slow (e.g. dense) model that produces artifacts but "
+        "does not return within the default before the harness kills it.",
+    )
+    parser.add_argument(
         "--concurrency",
         type=int,
         help="Override: how many tasks to run at once (default 1 = serial). "
@@ -1595,6 +1602,7 @@ def main() -> None:
         "max_turns": args.max_turns,
         "max_output_tokens": args.max_output_tokens,
         "context_window": args.context_window,
+        "timeout_seconds": args.timeout_seconds,
         "concurrency": args.concurrency,
     }
     if args.tasks:

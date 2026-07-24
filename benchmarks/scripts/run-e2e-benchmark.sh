@@ -43,6 +43,9 @@ set -euo pipefail
 #   --max-output-tokens N  override the per-response output cap for this run
 #                          (e.g. 4096 on a small-window model so the prompt has
 #                          usable input room; usable input ~= window - this)
+#   --timeout-seconds N    override the per-task wall-clock timeout (raise it for
+#                          a slow/dense model that produces artifacts but does not
+#                          return before the default cutoff)
 #   --skip-judge           run the harness only; score later
 #   --yes                  clear pre-existing artifact folders without asking
 # ---------------------------------------------------------------------------
@@ -58,6 +61,7 @@ MODEL=""
 DATASET=""
 COUNT="0"                 # 0 = all tasks
 MAX_OUTPUT_TOKENS=""      # empty = use the config value
+TIMEOUT_SECONDS=""        # empty = use the config value
 ENDPOINT=""               # derived from provider unless overridden
 AWS_REGION_ARG="${AWS_REGION:-us-east-1}"
 ASSUME_YES=0
@@ -89,6 +93,7 @@ while [[ $# -gt 0 ]]; do
         --dataset)  DATASET="${2:?--dataset needs a value}"; shift 2 ;;
         --count)    COUNT="${2:?--count needs a value}"; shift 2 ;;
         --max-output-tokens) MAX_OUTPUT_TOKENS="${2:?--max-output-tokens needs a value}"; shift 2 ;;
+        --timeout-seconds) TIMEOUT_SECONDS="${2:?--timeout-seconds needs a value}"; shift 2 ;;
         --endpoint) ENDPOINT="${2:?--endpoint needs a value}"; shift 2 ;;
         --aws-region) AWS_REGION_ARG="${2:?--aws-region needs a value}"; shift 2 ;;
         --config)   CONFIG="${2:?--config needs a value}"; shift 2 ;;
@@ -300,6 +305,7 @@ BENCH_ARGS=(--config "$CONFIG" --provider "$HARNESS_PROVIDER" --model "$MODEL" -
 # On the vllm path, calibrate auto-compaction to the live server's window.
 [[ -n "${VLLM_CONTEXT_WINDOW:-}" ]] && BENCH_ARGS+=(--context-window "$VLLM_CONTEXT_WINDOW")
 [[ -n "$MAX_OUTPUT_TOKENS" ]] && BENCH_ARGS+=(--max-output-tokens "$MAX_OUTPUT_TOKENS")
+[[ -n "$TIMEOUT_SECONDS" ]] && BENCH_ARGS+=(--timeout-seconds "$TIMEOUT_SECONDS")
 
 SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import model_to_slug; print(model_to_slug('$MODEL'))")"
 info "Command:"
