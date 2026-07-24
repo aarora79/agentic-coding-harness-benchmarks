@@ -100,6 +100,11 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
 
     # Identity/serving from the first task's metrics (uniform across a run).
     first = _read_json(folder / rows[0]["task"] / "metrics.json") or {}
+    # RUN-SUMMARY.json is committed to git, so drop the judge block's local-only
+    # temp path (repo_root, e.g. /tmp/swe-judge-repos/...); it is machine-specific
+    # noise, not provenance worth committing.
+    judge = dict((first.get("evaluation") or {}).get("judge") or {})
+    judge.pop("repo_root", None)
     scored = [r for r in rows if not r["failed"]]
     failed = [r for r in rows if r["failed"]]
     mean_score = (
@@ -115,7 +120,7 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
         "provider": first.get("provider"),
         "ref": first.get("ref"),
         "serving": first.get("serving"),
-        "judge": (first.get("evaluation") or {}).get("judge"),
+        "judge": judge or None,
         "num_tasks": len(rows),
         "num_scored": len(scored),
         "num_failed": len(failed),

@@ -16,17 +16,23 @@ self-hosted/vllm/benchmark-output/
 .env.*
 .scratchpad/
 
-# Benchmark run outputs (generated artifacts, metrics, and locally cloned target
-# repos) are produced per run and never committed. The double-glob form also
-# catches nested copies a tool/cwd mistake might create.
-benchmarks/swe-benchmark-data/
-**/benchmarks/swe-benchmark-data/
-# We commit ONLY the Hello-World example and the README under swe-benchmark-data
-# (force-added despite the ignore above, as a worked example). Everything else a
-# customer generates -- including their own runs against mcp-gateway-registry --
-# stays local so it can never be committed by accident.
-benchmarks/swe-benchmark-data/mcp-gateway-registry/
-**/benchmarks/swe-benchmark-data/mcp-gateway-registry/
+# Benchmark run outputs. Per-run design artifacts (github-issue/lld/review/
+# testing .md), eval.json, and raw metrics.json stay LOCAL -- they quote cloned
+# third-party source and metrics.json carries session ids / endpoints, so they
+# are never committed. The ONE committed result per run is RUN-SUMMARY.json: a
+# small, scrubbed rollup (scores, cost, serving block, judge metadata) that backs
+# the README leaderboard and is safe + reproducible in git. To allow that one
+# file deep inside the ignored tree, the intervening directories are re-included.
+benchmarks/swe-benchmark-data/**
+# Re-include subdirectories (so git can descend) and the committed files.
+!benchmarks/swe-benchmark-data/*/
+!benchmarks/swe-benchmark-data/**/
+!benchmarks/swe-benchmark-data/README.md
+!benchmarks/swe-benchmark-data/**/RUN-SUMMARY.json
+# The Hello-World worked example is an intentional exception: its full artifacts
+# (already committed) stay tracked so readers can see exactly what /swe produces.
+# New real runs commit only RUN-SUMMARY.json per the rule above.
+!benchmarks/swe-benchmark-data/*/Hello-World/**
 # Per-task target-repo clones. The harness clones into
 # <clone_dir>/swe-clone-<task-id>/ (clone_dir defaults to /tmp, outside the
 # repo) and deletes them after each task; this ignore is a backstop for a config
