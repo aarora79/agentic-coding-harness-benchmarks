@@ -30,7 +30,7 @@ Collect these three, in order. Do not guess -- ask if any is missing.
 2. **Bring up / confirm the backing service** for the chosen path. For **vllm**: check the HF token, then (re)start the vLLM server on the requested model -- stopping any other model first -- using the model guide's serve command at its largest context window; **check the served window against the 200K recommended floor** (>=200K proceed; somewhat below, e.g. 128K, warn and confirm; a tiny ~16K window is not benchmarkable and stops the run); then start the DuckDB collector. For litellm/bedrock: confirm the proxy/credentials.
 3. **Dry-run the pre-flight** so the user sees what will happen before anything runs.
 4. **Run the orchestrator**, streaming its output, and tell the user what to tail.
-5. **Wrap up and report**: (vllm) stop the collector and archive its DuckDB snapshot tagged with model/scope/timestamp; write a `RUN-SUMMARY.md` (results table + notes) into the run's `{model-slug}/{scope}/` folder; then report where the results landed.
+5. **Wrap up and report**: (vllm) stop the collector and archive its DuckDB snapshot tagged with model/scope/timestamp; run `summarize_run.py` to write `RUN-SUMMARY.json` (machine-readable, for charting) and `RUN-SUMMARY.md` into the run's `{model-slug}/{scope}/` folder; then report where the results landed.
 
 Keep the user informed at every step: before each long-running command, print it verbatim and give the tail/status command to watch it.
 
@@ -226,58 +226,17 @@ cd self-hosted/vllm && uv run python -m clients.build_dashboard \
   --output benchmark-output/dashboard_{model-slug}_{scope}_{timestamp}.html
 ```
 
-**5c. Write a run summary** to `benchmarks/swe-benchmark-data/{model-slug}/{scope}/RUN-SUMMARY.md` (one per model+dataset run, alongside the per-task folders) so the outcome is captured on disk, not just in the chat. Do this on **every** path (bedrock/litellm/vllm), after scoring. Gather the numbers from the artifacts rather than retyping them -- read each task's `metrics.json` (`metrics_that_matter`: `num_turns`, `input_tokens`, `output_tokens`, `latency_seconds`) and `eval.json` (`task_score`):
+**5c. Write the run summary** with the summarizer script, which reads the run's per-task `metrics.json` + `eval.json` and writes **both** a machine-readable `RUN-SUMMARY.json` (for later charting/aggregation) and a human-readable `RUN-SUMMARY.md`, into `benchmarks/swe-benchmark-data/{model-slug}/{scope}/`. Do this on **every** path (bedrock/litellm/vllm), after scoring. Do not hand-write the summary -- the script computes the failed-task-excluded mean, the serving block, and the per-task table consistently:
 
 ```bash
-cd benchmarks/swe-benchmark-data/{model-slug}/{scope}
-python3 - <<'PY'
-import json, os
-rows=[]
-for t in sorted(os.listdir('.')):
-    if not os.path.isdir(t):
-        continue
-    m=json.load(open(f'{t}/metrics.json')).get('metrics_that_matter',{})
-    e=json.load(open(f'{t}/eval.json'))
-    rows.append((t, m.get('num_turns'), m.get('input_tokens'),
-                 m.get('output_tokens'), m.get('latency_seconds'), e.get('task_score')))
-for r in sorted(rows, key=lambda r: -(r[5] or 0)):
-    print(r)
-PY
+cd benchmarks
+uv run python scripts/summarize_run.py \
+  --folder swe-benchmark-data/{model-slug}/{scope} --run-date "$(date -u +%Y-%m-%d)"
 ```
 
-Then write `RUN-SUMMARY.md` with this structure (fill the front-matter from the run's actual inputs; sort the table by judge score, highest first):
+The script treats a 0-score task as a model failure (missing artifacts) and excludes it from the headline mean, matching the leaderboard convention, while still listing it. Read the resulting `RUN-SUMMARY.md` back to the user; if a task failed, its 0 and the `failed_tasks` list make that visible -- do not present a partial run as a clean sweep.
 
-```markdown
-# Benchmark run summary: {model} on {scope}
-
-- Provider: {provider}
-- Model: {model}
-- Dataset: {dataset} ({N} tasks, ref {ref})
-- Served context window: {window if vllm/litellm, else n/a}; auto-compaction at {floor(window*0.9)}
-- Run date: {UTC date}
-
-{one-line headline: how many tasks succeeded (K/N with 4/4 artifacts), and whether any retries/crashes/compaction events occurred}
-
-## Results
-
-| Task | Turns | Input tokens | Output tokens | Latency (s) | Judge score |
-|---|---|---|---|---|---|
-| ... one row per task, sorted by judge score desc ... |
-
-Token counts are cumulative across all turns of a task, not a single request. The judge is calibrated so a median artifact lands around 60-70.
-
-## Notes
-
-- {anything notable: did compaction fire? were there failures and why? server/window changes made mid-run?}
-- Each task is a fresh `claude -p` process: independent context, per-task window, no cross-task carryover.
-
-## Artifacts
-
-- Per-task results under `benchmarks/swe-benchmark-data/{model-slug}/{scope}/<task>/` (four design artifacts + `metrics.json` + `eval.json`).
-- {if vllm: GPU time series snapshot path from 5b}
-```
-
-If a task failed (fewer than 4/4 artifacts, or `is_error`), say so in the headline and note the cause from its `metrics.json` (`error`/`api_error_status`). Do not present a partial run as a clean sweep.
+The `RUN-SUMMARY.json` carries the structured data (per-task scores/turns/cost, the `serving` block with instance_type / tensor_parallel_size / precision / context_window, mean_task_score_excl_failed, failed_tasks) so runs can be charted or aggregated later without re-parsing every task folder.
 
 **5d. Report** where the results are and what they contain:
 
