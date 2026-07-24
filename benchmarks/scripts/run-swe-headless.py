@@ -796,6 +796,12 @@ def _run_claude(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, 
         proc = subprocess.run(  # nosec B603 - hardcoded 'claude', list args, no shell
             cmd,
             env=env,
+            # Run from the repo root so the /swe skill's artifact paths (written
+            # relative to the repo root, e.g. benchmarks/swe-benchmark-data/...)
+            # resolve correctly. Without this, cwd is wherever the harness was
+            # invoked (typically benchmarks/), and a model that writes a relative
+            # path doubles it to benchmarks/benchmarks/... and the run scores 0/4.
+            cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -942,6 +948,10 @@ def _run_claude_streaming(
     proc = subprocess.Popen(  # nosec B603 - hardcoded 'claude', list args, no shell
         cmd,
         env=env,
+        # Run from the repo root so the /swe skill's relative artifact paths
+        # resolve correctly (see the note in _run_claude); otherwise a model that
+        # writes a relative path doubles it to benchmarks/benchmarks/...
+        cwd=str(REPO_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
