@@ -180,6 +180,18 @@ class RunnerConfig(BaseModel):
         "Recorded in each run's metrics.json for hardware provenance. Falls back to "
         "the EC2 instance metadata service (IMDSv2) when unset; null if unavailable.",
     )
+    tensor_parallel_size: int | None = Field(
+        default=None,
+        description="Tensor-parallel size (vLLM --tensor-parallel-size / TP) the "
+        "model is served with. Recorded in the metrics.json serving block for "
+        "provenance; null when unknown (e.g. Bedrock).",
+    )
+    precision: str | None = Field(
+        default=None,
+        description="Weight precision the model is served at, e.g. BF16 or FP8. "
+        "Recorded in the metrics.json serving block for provenance; null when "
+        "unknown.",
+    )
 
     # What to run and where outputs go.
     dataset: str | None = Field(
@@ -428,7 +440,12 @@ def _summarize(config: RunnerConfig) -> None:
     else:
         logger.info("  endpoint: %s", config.endpoint)
     logger.info("  model: %s", config.model)
-    logger.info("  instance_type: %s", config.resolved_instance_type())
+    logger.info(
+        "  serving: instance_type=%s tensor_parallel_size=%s precision=%s",
+        config.resolved_instance_type(),
+        config.tensor_parallel_size,
+        config.precision,
+    )
     logger.info("  dataset: %s", config.dataset)
     logger.info("  output_dir: %s", config.output_dir)
     logger.info("  clone_dir: %s", config.clone_dir)

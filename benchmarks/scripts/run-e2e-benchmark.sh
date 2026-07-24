@@ -46,6 +46,10 @@ set -euo pipefail
 #   --timeout-seconds N    override the per-task wall-clock timeout (raise it for
 #                          a slow/dense model that produces artifacts but does not
 #                          return before the default cutoff)
+#   --tensor-parallel-size N  record the vLLM tensor-parallel size in the metrics
+#                          serving block (provenance only; does not change serving)
+#   --precision NAME       record the served weight precision (e.g. BF16, FP8) in
+#                          the metrics serving block
 #   --skip-judge           run the harness only; score later
 #   --yes                  clear pre-existing artifact folders without asking
 # ---------------------------------------------------------------------------
@@ -62,6 +66,8 @@ DATASET=""
 COUNT="0"                 # 0 = all tasks
 MAX_OUTPUT_TOKENS=""      # empty = use the config value
 TIMEOUT_SECONDS=""        # empty = use the config value
+TENSOR_PARALLEL_SIZE=""   # empty = use the config value
+PRECISION=""              # empty = use the config value
 ENDPOINT=""               # derived from provider unless overridden
 AWS_REGION_ARG="${AWS_REGION:-us-east-1}"
 ASSUME_YES=0
@@ -94,6 +100,8 @@ while [[ $# -gt 0 ]]; do
         --count)    COUNT="${2:?--count needs a value}"; shift 2 ;;
         --max-output-tokens) MAX_OUTPUT_TOKENS="${2:?--max-output-tokens needs a value}"; shift 2 ;;
         --timeout-seconds) TIMEOUT_SECONDS="${2:?--timeout-seconds needs a value}"; shift 2 ;;
+        --tensor-parallel-size) TENSOR_PARALLEL_SIZE="${2:?--tensor-parallel-size needs a value}"; shift 2 ;;
+        --precision) PRECISION="${2:?--precision needs a value}"; shift 2 ;;
         --endpoint) ENDPOINT="${2:?--endpoint needs a value}"; shift 2 ;;
         --aws-region) AWS_REGION_ARG="${2:?--aws-region needs a value}"; shift 2 ;;
         --config)   CONFIG="${2:?--config needs a value}"; shift 2 ;;
@@ -306,6 +314,8 @@ BENCH_ARGS=(--config "$CONFIG" --provider "$HARNESS_PROVIDER" --model "$MODEL" -
 [[ -n "${VLLM_CONTEXT_WINDOW:-}" ]] && BENCH_ARGS+=(--context-window "$VLLM_CONTEXT_WINDOW")
 [[ -n "$MAX_OUTPUT_TOKENS" ]] && BENCH_ARGS+=(--max-output-tokens "$MAX_OUTPUT_TOKENS")
 [[ -n "$TIMEOUT_SECONDS" ]] && BENCH_ARGS+=(--timeout-seconds "$TIMEOUT_SECONDS")
+[[ -n "$TENSOR_PARALLEL_SIZE" ]] && BENCH_ARGS+=(--tensor-parallel-size "$TENSOR_PARALLEL_SIZE")
+[[ -n "$PRECISION" ]] && BENCH_ARGS+=(--precision "$PRECISION")
 
 SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import model_to_slug; print(model_to_slug('$MODEL'))")"
 info "Command:"
@@ -336,6 +346,17 @@ else
     ( cd scripts && uv run python codex_judge.py --recursive --no-overwrite --folder "../$JUDGE_TARGET" ) \
         || die "judge run failed. See the log above; re-run just the judge with the command shown."
     ok "Scoring complete."
+
+    # Write the machine-readable RUN-SUMMARY.json + human-readable RUN-SUMMARY.md
+    # from the scored artifacts, so the run is summarized on disk for later
+    # charting without re-parsing every task folder. Best-effort: a summary
+    # failure must not fail an otherwise-good scored run.
+    if uv run python scripts/summarize_run.py --folder "$JUDGE_TARGET" \
+        --run-date "$(date -u +%Y-%m-%d)"; then
+        ok "Run summary written: $JUDGE_TARGET/RUN-SUMMARY.{json,md}"
+    else
+        warn "Could not write RUN-SUMMARY (scores are still in each task's eval.json)."
+    fi
 fi
 
 # =============================================================================
