@@ -7,11 +7,15 @@ scores shown in the README leaderboard) on the y-axis. Non-dominated models --
 those where no other model is both cheaper and higher-scoring -- are connected by
 a highlighted frontier line, so the cost/quality trade-off is read at a glance.
 
-Each model's numbers come straight from its per-task ``metrics.json``
-(``total_cost_usd``) and ``eval.json`` (``task_score``). A task that scored 0 (a
-model failure -- missing artifacts) is an unresolved anomaly, not a quality
-reading, so it is EXCLUDED from both the score and cost means and noted on the
-chart, pending investigation.
+Each model's numbers come from its committed ``RUN-SUMMARY.json`` when present
+(the reproducible, machine-readable per-run record written by
+``summarize_run.py``), falling back to aggregating the per-task ``metrics.json``
+(``total_cost_usd``) and ``eval.json`` (``task_score``) when it is not. Using the
+summary means the chart plots every model in the repo -- including runs produced
+on a different node whose gitignored per-task files are not present locally. A
+task that scored 0 (a model failure -- missing artifacts) is an unresolved
+anomaly, not a quality reading, so it is EXCLUDED from both the score and cost
+means and noted on the chart, pending investigation.
 
 Note: for self-hosted vLLM runs ``total_cost_usd`` is a token-based *estimate*
 (the served model has no per-token bill), so the x-axis is labelled as estimated.
@@ -50,6 +54,12 @@ DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
 DEFAULT_OUTPUT = _REPO_ROOT / "docs" / "images" / "cost-quality.png"
 METRICS_FILENAME = "metrics.json"
 EVAL_FILENAME = "eval.json"
+# The committed, machine-readable per-run summary (written by summarize_run.py).
+# Preferred source: it carries the same excluded-failure means as the leaderboard
+# and, unlike the gitignored per-task metrics.json/eval.json, is present for every
+# model in the repo -- including runs produced on a different node. This is what
+# makes the chart reproducible from committed data alone.
+RUN_SUMMARY_FILENAME = "RUN-SUMMARY.json"
 
 # Palette (from the dataviz skill's validated reference instance). Marks are a
 # recessive dark neutral; the frontier is the warm accent. Text wears ink tokens.
@@ -111,20 +121,59 @@ def _task_score(eval_data: dict | None) -> float | None:
     return float(score) if isinstance(score, (int, float)) else None
 
 
-def _aggregate_model(model_repo_dir: Path) -> ModelPoint | None:
-    """Aggregate one model's per-task cost and score under a repo directory.
+def _point_from_summary(model_repo_dir: Path) -> ModelPoint | None:
+    """Build a ModelPoint from the committed RUN-SUMMARY.json, if present.
 
-    A task folder must have ``metrics.json`` (for cost) to count. Tasks that
-    scored 0 -- a genuine model failure (missing/empty artifacts) rather than a
-    quality measurement -- are **excluded** from both the score and cost means
-    and returned in ``excluded`` for a visible note, pending investigation.
+    RUN-SUMMARY.json already carries the leaderboard-convention means (failed
+    0-score tasks excluded) and is committed for every model, so it is the
+    preferred, fully reproducible source. Returns None when the file is absent
+    or lacks a usable mean score, so the caller can fall back to per-task files.
 
     Args:
         model_repo_dir: ``<data-dir>/<model>/<repo>`` directory.
 
     Returns:
-        The model's aggregate, or None if it has no task folders at all.
+        The model's aggregate, or None if no usable summary exists.
     """
+    summary = _read_json(model_repo_dir / RUN_SUMMARY_FILENAME)
+    if summary is None:
+        return None
+    score = summary.get("mean_task_score_excl_failed")
+    if not isinstance(score, (int, float)):
+        return None
+    cost = summary.get("mean_cost_usd_excl_failed")
+    excluded = summary.get("failed_tasks") or []
+    return ModelPoint(
+        model=model_repo_dir.parent.name,
+        mean_cost=float(cost) if isinstance(cost, (int, float)) else 0.0,
+        mean_score=float(score),
+        n_tasks=int(summary.get("num_tasks") or 0),
+        n_scored=int(summary.get("num_scored") or 0),
+        excluded=list(excluded),
+    )
+
+
+def _aggregate_model(model_repo_dir: Path) -> ModelPoint | None:
+    """Aggregate one model's cost and score under a repo directory.
+
+    Prefers the committed ``RUN-SUMMARY.json`` (present for every model and
+    reproducible from git). Falls back to aggregating the per-task
+    ``metrics.json`` / ``eval.json`` when no summary exists (e.g. a fresh run
+    not yet summarized). Tasks that scored 0 -- a genuine model failure
+    (missing/empty artifacts) rather than a quality measurement -- are
+    **excluded** from both means and returned in ``excluded`` for a visible
+    note, pending investigation.
+
+    Args:
+        model_repo_dir: ``<data-dir>/<model>/<repo>`` directory.
+
+    Returns:
+        The model's aggregate, or None if it has neither a summary nor tasks.
+    """
+    from_summary = _point_from_summary(model_repo_dir)
+    if from_summary is not None:
+        return from_summary
+
     model = model_repo_dir.parent.name
     costs: list[float] = []
     scores: list[float] = []
