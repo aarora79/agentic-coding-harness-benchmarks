@@ -154,6 +154,40 @@ fi
 VLLM_BIN="$VLLM_ENV/bin/vllm"
 [[ -x "$VLLM_BIN" ]] || fail "vLLM not found at $VLLM_BIN. Run ./vllm-install.sh first (or set VLLM_ENV)."
 
+# Fail fast on a bad tool-call parser name BEFORE the (multi-GB, multi-minute)
+# model download and engine load. vLLM only validates --tool-call-parser after
+# it starts loading, so a typo or a filename/registry mismatch (e.g. the Gemma4
+# parser file is gemma4_engine_tool_parser.py but the REGISTERED name is
+# "gemma4") otherwise wastes a full download. Query the installed vLLM's actual
+# registered names and check the requested one against them.
+if [[ -n "$TOOL_PARSER" && "$TOOL_PARSER" != "none" ]]; then
+  VALID_PARSERS="$("$VLLM_ENV/bin/python" - <<'PY' 2>/dev/null
+# Mirror vLLM's own check in validate_api_server_args: the registry is lazily
+# populated, so list_registered() is what actually triggers registration and
+# returns the real names (plain .keys() reads empty before that).
+names = []
+try:
+    from vllm.tool_parsers.abstract_tool_parser import ToolParserManager
+    names = list(ToolParserManager.list_registered())
+except Exception:
+    try:  # older vLLM layout
+        from vllm.entrypoints.openai.tool_parsers import ToolParserManager
+        names = list(ToolParserManager.list_registered())
+    except Exception:
+        names = []
+print(" ".join(sorted(names)))
+PY
+)"
+  if [[ -n "$VALID_PARSERS" && " $VALID_PARSERS " != *" $TOOL_PARSER "* ]]; then
+    fail "invalid TOOL_PARSER '$TOOL_PARSER' for the installed vLLM.
+       Valid parsers: $VALID_PARSERS
+       (Note: the registered name can differ from the parser's source filename --
+       e.g. use 'gemma4', not 'gemma4_engine'. Set TOOL_PARSER=none for a plain
+       completion server.)"
+  fi
+  [[ -z "$VALID_PARSERS" ]] && info "Could not enumerate tool parsers to pre-validate '$TOOL_PARSER'; vLLM will validate at load time."
+fi
+
 # Sanity: enough GPUs for the requested tensor-parallel size?
 GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l | xargs)
 [[ "$GPU_COUNT" -ge "$TP" ]] || fail "Requested TP=$TP but only $GPU_COUNT GPU(s) visible."
