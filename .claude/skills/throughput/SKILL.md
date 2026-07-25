@@ -1,6 +1,6 @@
 ---
 name: throughput
-description: "Measure the sustainable agentic-coding throughput of a self-hosted model on a specific EC2 GPU instance, and derive a realistic cost-per-token and cost-per-task from the instance's hourly price. Sweeps /swe concurrency (2,5,7,10,15,20 by default), driving real agentic sessions while a DuckDB collector captures vLLM's server-side token counters; then builds a PERFORMANCE-SUMMARY.json and a self-contained HTML dashboard (throughput / latency / KV-cache saturation / cost curves). Use when the user wants tokens/sec at concurrency, a saturation curve, or a hardware-derived cost per token / per task for a self-hosted (vLLM) model. Separate from the /benchmark quality skill. Wraps self-hosted/vllm/scripts/run-throughput-sweep.sh."
+description: "Measure the sustainable agentic-coding throughput of a self-hosted model on a specific EC2 GPU instance, and derive a realistic cost-per-token and cost-per-task from the instance's hourly price. Sweeps /swe concurrency (2,5,7,10,15,20 by default), driving real agentic sessions while a DuckDB collector captures vLLM's server-side token counters; then builds a performance-summary.json and a self-contained HTML dashboard (throughput / latency / KV-cache saturation / cost curves). Use when the user wants tokens/sec at concurrency, a saturation curve, or a hardware-derived cost per token / per task for a self-hosted (vLLM) model. Separate from the /benchmark quality skill. Wraps self-hosted/vllm/scripts/run-throughput-sweep.sh."
 license: Apache-2.0
 metadata:
   author: Amit Arora
@@ -90,10 +90,10 @@ uv run python -m clients.build_performance_summary \
   --model {model} --db "$DB" --instance-type g6e.12xlarge \
   --dollars-per-hour 10.49 --output-tokens-per-task {N-from-step-2}
 uv run python -m clients.build_performance_dashboard \
-  --summary benchmark-output/throughput/{model}/PERFORMANCE-SUMMARY.json
+  --summary benchmark-output/throughput/{model}/performance-summary.json
 ```
 
-This writes `PERFORMANCE-SUMMARY.json` (machine-readable: per-level throughput, TTFT/TPOT, KV-cache/running/waiting, cost/token, cost/task; plus peak throughput and cheapest $/1M) and `performance-dashboard.html` (self-contained, offline).
+This writes `performance-summary.json` (machine-readable: per-level throughput, TTFT/TPOT, KV-cache/running/waiting, cost/token, cost/task; plus peak throughput and cheapest $/1M) and `performance-dashboard.html` (self-contained, offline).
 
 ### Step 5 — Report
 

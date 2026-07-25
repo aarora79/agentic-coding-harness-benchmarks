@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build PERFORMANCE-SUMMARY.json for a throughput sweep of one model+instance.
+"""Build performance-summary.json for a throughput sweep of one model+instance.
 
 Reads the shared DuckDB written by the concurrency sweep (one named collector
 session per level, ``{model}_c{N}``) and derives, per concurrency level, the
@@ -306,7 +306,7 @@ def _build(
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     p = argparse.ArgumentParser(
-        description="Build PERFORMANCE-SUMMARY.json from a throughput-sweep DuckDB."
+        description="Build performance-summary.json from a throughput-sweep DuckDB."
     )
     p.add_argument("--model", required=True, help="Served model name (session prefix)")
     p.add_argument("--db", required=True, type=Path, help="Sweep DuckDB path")
@@ -342,7 +342,7 @@ def _parse_args() -> argparse.Namespace:
         "--out",
         type=Path,
         default=None,
-        help="Output path (default: <db dir>/PERFORMANCE-SUMMARY.json)",
+        help="Output path (default: <db dir>/performance-summary.json)",
     )
     return p.parse_args()
 
@@ -362,7 +362,7 @@ def main() -> None:
         args.input_tokens_per_task,
         args.input_weight,
     )
-    out = args.out or (db.parent / "PERFORMANCE-SUMMARY.json")
+    out = args.out or (db.parent / "performance-summary.json")
     out.write_text(json.dumps(summary, indent=2, default=str) + "\n", encoding="utf-8")
     logger.info(
         "wrote %s: %d levels, peak %s tok/s @ c=%s | blended $%.2f/1M | "

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a self-contained HTML dashboard from a PERFORMANCE-SUMMARY.json.
+"""Render a self-contained HTML dashboard from a performance-summary.json.
 
 Takes the throughput-sweep summary (see build_performance_summary.py) and writes
 a single static HTML file -- no external assets, no CDN, works offline -- showing,
@@ -19,7 +19,7 @@ offline, and diffable.
 
 Usage:
     uv run python -m clients.build_performance_dashboard \\
-        --summary benchmark-output/throughput/gemma-4-31b/PERFORMANCE-SUMMARY.json
+        --summary benchmark-output/throughput/gemma-4-31b/performance-summary.json
 """
 
 from __future__ import annotations
@@ -466,10 +466,10 @@ def _render(summary: dict[str, Any]) -> str:
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     p = argparse.ArgumentParser(
-        description="Render an HTML dashboard from a PERFORMANCE-SUMMARY.json."
+        description="Render an HTML dashboard from a performance-summary.json."
     )
     p.add_argument(
-        "--summary", required=True, type=Path, help="PERFORMANCE-SUMMARY.json"
+        "--summary", required=True, type=Path, help="performance-summary.json"
     )
     p.add_argument(
         "--output",
