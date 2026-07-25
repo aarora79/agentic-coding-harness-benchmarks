@@ -5,13 +5,17 @@ Takes the throughput-sweep summary (see build_performance_summary.py) and writes
 a single static HTML file -- no external assets, no CDN, works offline -- showing,
 for one model on one EC2 instance:
 
-  * headline tiles: peak throughput, cheapest $/1M output tokens, cost per task;
-  * throughput vs concurrency (output + prompt tokens/s);
-  * cost per 1M output tokens vs concurrency;
-  * latency vs concurrency (TTFT, TPOT);
-  * saturation vs concurrency (KV-cache %, running/waiting requests).
+  * headline tiles: peak throughput, cost per task (both lenses), instance;
+  * output + prompt throughput vs concurrency (separate charts -- their scales
+    differ ~150x, so single-axis small multiples, never a dual y-axis);
+  * TTFT + TPOT vs concurrency (separate charts, same reason);
+  * cost per 1M tokens vs concurrency (blended + lab-split input/output);
+  * saturation vs concurrency (KV-cache %, running/waiting requests);
+  * an interactive N:M / w blended-task cost calculator.
 
-Charts are inline SVG built from the JSON, so the file is portable and diffable.
+Every data point is clickable: it opens a popover with that concurrency level's
+full metrics. Charts are inline SVG built from the JSON, so the file is portable,
+offline, and diffable.
 
 Usage:
     uv run python -m clients.build_performance_dashboard \\
@@ -95,17 +99,24 @@ def _line_chart(
         f'<text x="16" y="{_H / 2:.0f}" text-anchor="middle" font-size="12" '
         f'fill="{_INK}" transform="rotate(-90 16 {_H / 2:.0f})">{html.escape(y_label)}</text>'
     )
-    # series
+    # series. Each data point is clickable: a visible marker plus a larger
+    # transparent hit-target that calls showDetail(concurrency) so the whole
+    # level's numbers pop up. xs ARE the concurrency levels, so cval = the x.
     for name, ys, color in series:
-        pts = [(px(x), py(y)) for x, y in zip(xs, ys) if y is not None]
+        pts = [(x, px(x), py(y)) for x, y in zip(xs, ys) if y is not None]
         if not pts:
             continue
-        path = "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+        path = "M" + " L".join(f"{sx:.1f},{sy:.1f}" for _, sx, sy in pts)
         parts.append(
             f'<path d="{path}" fill="none" stroke="{color}" stroke-width="2.5"/>'
         )
-        for x, y in pts:
-            parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{color}"/>')
+        for cval, sx, sy in pts:
+            parts.append(
+                f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="4.5" fill="{color}"/>'
+                f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="12" fill="transparent" '
+                f'style="cursor:pointer" onclick="showDetail({int(cval)})">'
+                f"<title>concurrency {int(cval)} -- click for details</title></circle>"
+            )
     parts.append("</svg>")
     legend = " ".join(
         f'<span class="key"><span class="dot" style="background:{c}"></span>{html.escape(n)}</span>'
@@ -139,23 +150,35 @@ def _render(summary: dict[str, Any]) -> str:
         return [(r.get(key, {}).get(sub) if sub else r.get(key)) for r in levels]
 
     charts = [
+        # Throughput split into two single-axis charts: prompt (~thousands/s) and
+        # output (~tens/s) differ by ~150x, so a shared axis flattens output to
+        # zero. Separate axes (small multiples) keep each honest and legible --
+        # a dual y-axis would make their relative positions arbitrary.
         _line_chart(
-            "Throughput vs concurrency",
+            "Output throughput vs concurrency",
             xs,
-            [
-                ("output tokens/s", col("output_tokens_per_second"), _ACCENT),
-                ("prompt tokens/s", col("prompt_tokens_per_second"), _BLUE),
-            ],
-            "tokens / second",
+            [("output tokens/s", col("output_tokens_per_second"), _ACCENT)],
+            "output tokens / s",
         ),
         _line_chart(
-            "Latency vs concurrency",
+            "Prompt throughput vs concurrency",
             xs,
-            [
-                ("TTFT (ms)", col("ttft_ms_mean"), _ACCENT),
-                ("TPOT (ms)", col("tpot_ms_mean"), _BLUE),
-            ],
-            "milliseconds",
+            [("prompt tokens/s", col("prompt_tokens_per_second"), _BLUE)],
+            "prompt tokens / s",
+        ),
+        # Latency likewise: TTFT (thousands of ms) dwarfs TPOT (hundreds), so
+        # split rather than dual-axis.
+        _line_chart(
+            "TTFT vs concurrency",
+            xs,
+            [("TTFT (ms)", col("ttft_ms_mean"), _ACCENT)],
+            "time to first token (ms)",
+        ),
+        _line_chart(
+            "TPOT vs concurrency",
+            xs,
+            [("TPOT (ms)", col("tpot_ms_mean"), _BLUE)],
+            "time per output token (ms)",
         ),
         _line_chart(
             "Cost per 1M tokens vs concurrency",
@@ -267,6 +290,32 @@ def _render(summary: dict[str, Any]) -> str:
         ]
     )
     dps = (summary.get("dollars_per_hour") or 0) / 3600.0
+    # Full per-level metrics for the click-to-detail popover (keyed by concurrency).
+    detail_levels = json.dumps(
+        {
+            r["concurrency"]: {
+                "output_tokens_per_second": r.get("output_tokens_per_second"),
+                "prompt_tokens_per_second": r.get("prompt_tokens_per_second"),
+                "ttft_ms_mean": r.get("ttft_ms_mean"),
+                "tpot_ms_mean": r.get("tpot_ms_mean"),
+                "kv_cache_peak": (r.get("kv_cache_usage") or {}).get("peak"),
+                "requests_running_peak": (r.get("requests_running") or {}).get("peak"),
+                "requests_waiting_peak": (r.get("requests_waiting") or {}).get("peak"),
+                "blended_cost_per_1m_tokens_usd": r.get(
+                    "blended_cost_per_1m_tokens_usd"
+                ),
+                "split_cost_per_1m_output_tokens_usd": r.get(
+                    "split_cost_per_1m_output_tokens_usd"
+                ),
+                "split_cost_per_1m_input_tokens_usd": r.get(
+                    "split_cost_per_1m_input_tokens_usd"
+                ),
+                "task_cost_blended_usd": r.get("task_cost_blended_usd"),
+                "task_cost_split_usd": r.get("task_cost_split_usd"),
+            }
+            for r in levels
+        }
+    )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -298,6 +347,16 @@ def _render(summary: dict[str, Any]) -> str:
   th:first-child, td:first-child {{ text-align: left; }}
   th {{ color: {_MUTED}; font-weight: 600; }}
   .muted {{ color: {_MUTED}; }}
+  #detail {{ position: fixed; right: 20px; bottom: 20px; max-width: 340px;
+            background: #fff; border: 1px solid {_GRID}; border-radius: 10px;
+            padding: 14px 16px; box-shadow: 0 6px 24px rgba(0,0,0,.12);
+            font-size: 13px; display: none; z-index: 20; }}
+  #detail h4 {{ margin: 0 0 8px; font-size: 14px; }}
+  #detail .row {{ display: flex; justify-content: space-between; gap: 16px;
+                 padding: 2px 0; }}
+  #detail .row span:last-child {{ font-variant-numeric: tabular-nums; }}
+  #detail .close {{ position: absolute; top: 8px; right: 12px; cursor: pointer;
+                   color: {_MUTED}; border: none; background: none; font-size: 16px; }}
   .calc {{ background: #fff; border: 1px solid {_GRID}; border-radius: 10px;
           padding: 16px 20px; margin: 24px 0; }}
   .calc h3 {{ font-size: 14px; margin: 0 0 10px; }}
@@ -316,8 +375,11 @@ def _render(summary: dict[str, Any]) -> str:
      charges every processed token the same measured GPU-slice; <b>split</b> (Lens B)
      weights an input token at {w}&times; an output token (a lab-style convention,
      not measured). Cost is hardware-derived, not a per-token bill.</p>
+  <p class="sub">Tip: click any point on a chart for that concurrency level's full numbers.</p>
   <div class="tiles">{"".join(tiles)}</div>
   <div class="grid">{"".join(charts)}</div>
+  <div id="detail"><button class="close" onclick="hideDetail()">&times;</button>
+    <h4 id="detail-title"></h4><div id="detail-body"></div></div>
 
   <div class="calc">
     <h3>Blended-task cost calculator (at the cheapest / peak-throughput level)</h3>
@@ -342,6 +404,31 @@ def _render(summary: dict[str, Any]) -> str:
   // Per-level measured per-token costs; recompute task cost as N:M and w change.
   const LEVELS = {calc_levels};
   const DPS = {dps};
+  const DETAIL = {detail_levels};
+  const DETAIL_LABELS = {{
+    output_tokens_per_second: "output tokens/s",
+    prompt_tokens_per_second: "prompt tokens/s",
+    ttft_ms_mean: "TTFT (ms)",
+    tpot_ms_mean: "TPOT (ms)",
+    kv_cache_peak: "KV-cache peak",
+    requests_running_peak: "running reqs (peak)",
+    requests_waiting_peak: "waiting reqs (peak)",
+    blended_cost_per_1m_tokens_usd: "blended $/1M tok",
+    split_cost_per_1m_output_tokens_usd: "split $/1M output",
+    split_cost_per_1m_input_tokens_usd: "split $/1M input",
+    task_cost_blended_usd: "$/task (blended)",
+    task_cost_split_usd: "$/task (split)",
+  }};
+  function showDetail(c) {{
+    const d = DETAIL[c];
+    if (!d) return;
+    document.getElementById("detail-title").textContent = "Concurrency " + c;
+    document.getElementById("detail-body").innerHTML = Object.keys(DETAIL_LABELS)
+      .map(k => '<div class="row"><span>' + DETAIL_LABELS[k] +
+        '</span><span>' + (d[k] == null ? "-" : d[k]) + '</span></div>').join("");
+    document.getElementById("detail").style.display = "block";
+  }}
+  function hideDetail() {{ document.getElementById("detail").style.display = "none"; }}
   function fmt(x) {{ return x == null ? "-" : "$" + x.toFixed(2); }}
   function recompute() {{
     const N = parseFloat(document.getElementById("nIn").value) || 0;
