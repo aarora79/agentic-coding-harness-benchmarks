@@ -143,12 +143,56 @@ def _levels(con: duckdb.DuckDBPyConnection, model: str) -> list[tuple[int, str]]
     return sorted(out)
 
 
+def _level_costs(
+    dps: float, prompt_tps: float | None, gen_tps: float | None, w: float
+) -> dict[str, Any]:
+    """Two cost lenses for one level from the machine's $/second.
+
+    On a fixed-cost machine the $/hr is not itemized per token, so cost per token
+    depends on how the GPU-second is attributed:
+
+    * Lens A -- **blended / measured** (no assumption): every processed token
+      costs the same GPU slice, so ``blended = $/s / (prompt_tps + gen_tps)``.
+      Input and output cost the same per token.
+    * Lens B -- **lab-style split** (one convention ``w``): an input token counts
+      as ``w`` of an output token when dividing GPU time, giving the familiar
+      input-cheaper-than-output shape. ``cost_out = $/s / (gen_tps + w*prompt_tps)``
+      and ``cost_in = w * cost_out``. ``w`` is a chosen convention, not measured.
+
+    Args:
+        dps: Dollars per second (instance $/hr / 3600).
+        prompt_tps: Prompt (input) tokens/s served at this level.
+        gen_tps: Generation (output) tokens/s at this level.
+        w: Lens-B input weight (input token = w x output token).
+
+    Returns:
+        A dict of both lenses' per-token costs (USD), or Nones when no throughput.
+    """
+    p = prompt_tps or 0.0
+    g = gen_tps or 0.0
+    total = p + g
+    blended = dps / total if total > 0 else None
+    denom_b = g + w * p
+    cost_out_b = dps / denom_b if denom_b > 0 else None
+    cost_in_b = w * cost_out_b if cost_out_b is not None else None
+    return {
+        # Lens A: blended, measured -- input == output.
+        "blended_cost_per_token_usd": blended,
+        # Lens B: lab-style split with input weight w.
+        "split_input_weight": w,
+        "split_cost_per_input_token_usd": cost_in_b,
+        "split_cost_per_output_token_usd": cost_out_b,
+    }
+
+
 def _build(
     db: Path,
     model: str,
     instance_type: str,
     dph: float,
     out_tokens_per_task: int | None,
+    input_tokens_per_task: int | None,
+    input_weight: float,
 ) -> dict[str, Any]:
     """Assemble the performance summary from the DuckDB sweep sessions."""
     con = duckdb.connect(str(db), read_only=True)
@@ -156,38 +200,62 @@ def _build(
         levels = _levels(con, model)
         if not levels:
             raise SystemExit(f"no sweep sessions '{model}_c*' found in {db}")
-        dollars_per_second = dph / 3600.0
+        dps = dph / 3600.0
+        n_in = input_tokens_per_task
+        m_out = out_tokens_per_task
         rows: list[dict[str, Any]] = []
         for concurrency, session in levels:
             gen = _counter_rate(con, session, GEN_TOKENS)
             prompt = _counter_rate(con, session, PROMPT_TOKENS)
             out_tps = gen["tokens_per_second"]
-            cost_per_out_tok = (
-                dollars_per_second / out_tps if out_tps and out_tps > 0 else None
-            )
-            rows.append(
-                {
-                    "concurrency": concurrency,
-                    "session_name": session,
-                    "output_tokens_per_second": out_tps,
-                    "prompt_tokens_per_second": prompt["tokens_per_second"],
-                    "window_seconds": gen["window_seconds"],
-                    "kv_cache_usage": _gauge_stats(con, session, KV_USAGE),
-                    "requests_running": _gauge_stats(con, session, REQ_RUNNING),
-                    "requests_waiting": _gauge_stats(con, session, REQ_WAITING),
-                    "ttft_ms_mean": _hist_mean_ms(con, session, TTFT),
-                    "tpot_ms_mean": _hist_mean_ms(con, session, TPOT),
-                    "cost_per_output_token_usd": cost_per_out_tok,
-                    "cost_per_1m_output_tokens_usd": round(cost_per_out_tok * 1e6, 2)
-                    if cost_per_out_tok
-                    else None,
-                    "cost_per_task_usd": round(
-                        cost_per_out_tok * out_tokens_per_task, 4
-                    )
-                    if cost_per_out_tok and out_tokens_per_task
-                    else None,
-                }
-            )
+            prompt_tps = prompt["tokens_per_second"]
+            costs = _level_costs(dps, prompt_tps, out_tps, input_weight)
+
+            # cost-per-task under each lens, using the measured N:M token counts.
+            def _task_cost(per_in: float | None, per_out: float | None) -> float | None:
+                if per_out is None or m_out is None:
+                    return None
+                total = per_out * m_out
+                if per_in is not None and n_in is not None:
+                    total += per_in * n_in
+                return round(total, 4)
+
+            blended = costs["blended_cost_per_token_usd"]
+            row = {
+                "concurrency": concurrency,
+                "session_name": session,
+                "output_tokens_per_second": out_tps,
+                "prompt_tokens_per_second": prompt_tps,
+                "window_seconds": gen["window_seconds"],
+                "kv_cache_usage": _gauge_stats(con, session, KV_USAGE),
+                "requests_running": _gauge_stats(con, session, REQ_RUNNING),
+                "requests_waiting": _gauge_stats(con, session, REQ_WAITING),
+                "ttft_ms_mean": _hist_mean_ms(con, session, TTFT),
+                "tpot_ms_mean": _hist_mean_ms(con, session, TPOT),
+                **costs,
+                # Convenience per-1M figures for the dashboard axes.
+                "blended_cost_per_1m_tokens_usd": round(blended * 1e6, 2)
+                if blended
+                else None,
+                "split_cost_per_1m_output_tokens_usd": round(
+                    costs["split_cost_per_output_token_usd"] * 1e6, 2
+                )
+                if costs["split_cost_per_output_token_usd"]
+                else None,
+                "split_cost_per_1m_input_tokens_usd": round(
+                    costs["split_cost_per_input_token_usd"] * 1e6, 2
+                )
+                if costs["split_cost_per_input_token_usd"]
+                else None,
+                # cost per blended task (N input + M output) under both lenses.
+                "task_cost_blended_usd": _task_cost(blended, blended),
+                "task_cost_split_usd": _task_cost(
+                    costs["split_cost_per_input_token_usd"],
+                    costs["split_cost_per_output_token_usd"],
+                ),
+            }
+            rows.append(row)
+
         # Peak sustained throughput across levels (the saturation ceiling).
         best = max(
             (r for r in rows if r["output_tokens_per_second"]),
@@ -198,17 +266,35 @@ def _build(
             "model": model,
             "instance_type": instance_type,
             "dollars_per_hour": dph,
-            "output_tokens_per_task": out_tokens_per_task,
+            # The "blended task" definition (N:M input:output), from real /swe runs.
+            "task_input_tokens": n_in,
+            "task_output_tokens": m_out,
+            "task_input_output_ratio": round(n_in / m_out, 1)
+            if n_in and m_out
+            else None,
+            "split_input_weight": input_weight,
             "peak_output_tokens_per_second": best["output_tokens_per_second"]
             if best
             else None,
             "peak_at_concurrency": best["concurrency"] if best else None,
-            "min_cost_per_1m_output_tokens_usd": min(
+            "min_blended_cost_per_1m_tokens_usd": min(
                 (
-                    r["cost_per_1m_output_tokens_usd"]
+                    r["blended_cost_per_1m_tokens_usd"]
                     for r in rows
-                    if r["cost_per_1m_output_tokens_usd"]
+                    if r["blended_cost_per_1m_tokens_usd"]
                 ),
+                default=None,
+            ),
+            "min_task_cost_blended_usd": min(
+                (
+                    r["task_cost_blended_usd"]
+                    for r in rows
+                    if r["task_cost_blended_usd"]
+                ),
+                default=None,
+            ),
+            "min_task_cost_split_usd": min(
+                (r["task_cost_split_usd"] for r in rows if r["task_cost_split_usd"]),
                 default=None,
             ),
             "levels": rows,
@@ -237,7 +323,20 @@ def _parse_args() -> argparse.Namespace:
         "--output-tokens-per-task",
         type=int,
         default=None,
-        help="Mean output tokens per agentic task, for cost-per-task (from metrics).",
+        help="Mean OUTPUT tokens per agentic task (the M in the N:M blended task).",
+    )
+    p.add_argument(
+        "--input-tokens-per-task",
+        type=int,
+        default=None,
+        help="Mean INPUT tokens per agentic task (the N in the N:M blended task).",
+    )
+    p.add_argument(
+        "--input-weight",
+        type=float,
+        default=0.25,
+        help="Lens B: an input token counts as this fraction of an output token "
+        "when splitting GPU cost (lab convention; default 0.25).",
     )
     p.add_argument(
         "--out",
@@ -260,16 +359,24 @@ def main() -> None:
         args.instance_type,
         args.dollars_per_hour,
         args.output_tokens_per_task,
+        args.input_tokens_per_task,
+        args.input_weight,
     )
     out = args.out or (db.parent / "PERFORMANCE-SUMMARY.json")
     out.write_text(json.dumps(summary, indent=2, default=str) + "\n", encoding="utf-8")
     logger.info(
-        "wrote %s: %d levels, peak %s tok/s @ c=%s, min $%.2f/1M output tokens",
+        "wrote %s: %d levels, peak %s tok/s @ c=%s | blended $%.2f/1M | "
+        "task $%.2f blended / $%.2f split (N:M=%s:%s, w=%s)",
         out,
         len(summary["levels"]),
         summary["peak_output_tokens_per_second"],
         summary["peak_at_concurrency"],
-        summary["min_cost_per_1m_output_tokens_usd"] or 0.0,
+        summary["min_blended_cost_per_1m_tokens_usd"] or 0.0,
+        summary["min_task_cost_blended_usd"] or 0.0,
+        summary["min_task_cost_split_usd"] or 0.0,
+        summary["task_input_tokens"],
+        summary["task_output_tokens"],
+        summary["split_input_weight"],
     )
 
 

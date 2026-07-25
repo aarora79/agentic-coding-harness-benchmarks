@@ -70,10 +70,14 @@ done
 
 [[ -n "$MODEL" ]] || die "--model is required"
 [[ -z "$OUT_DIR" ]] && OUT_DIR="$VLLM_DIR/benchmark-output/throughput/$MODEL"
-DB="$OUT_DIR/throughput-metrics.duckdb"
 
 command -v uv >/dev/null 2>&1 || die "uv not on PATH"
 mkdir -p "$OUT_DIR"
+# Resolve OUT_DIR to an ABSOLUTE path: the throughput harness runs from
+# BENCHMARKS_DIR (a different cwd), so a relative --out-dir would otherwise make
+# its --out land under benchmarks/ instead of here. mkdir first so realpath works.
+OUT_DIR="$( cd "$OUT_DIR" && pwd )"
+DB="$OUT_DIR/throughput-metrics.duckdb"
 
 # The server must already be serving the requested model.
 step "Pre-flight"
