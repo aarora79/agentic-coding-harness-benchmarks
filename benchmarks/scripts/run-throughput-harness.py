@@ -15,7 +15,11 @@ How it differs from the quality run:
     agentic sessions in flight, refilling a slot as soon as one finishes, for a
     fixed ``--duration-seconds`` window -- so a saturation curve can be built by
     sweeping N.
-  * **Tasks repeat to fill N slots.** The dataset's few tasks are cycled; each
+  * **Each slot picks a task at RANDOM.** As a slot frees up it is filled by a
+    task drawn at random (with replacement) from the dataset -- so with a
+    multi-repo dataset (e.g. dataset/multi-repo-throughput.yaml) each concurrent
+    slot tends to clone and reason over a DIFFERENT repo, simulating N developers
+    each working on their own project rather than N sessions on one repo. Each
     running instance gets a unique slot id so its clone dir and (throwaway)
     artifact dir never collide with a sibling running the same task.
   * **Artifacts are load, not results.** We measure server throughput (via the
@@ -39,6 +43,7 @@ import argparse
 import importlib.util
 import json
 import logging
+import random
 import shutil
 import sys
 import threading
@@ -166,8 +171,11 @@ def run_level(
     """Hold ``concurrency`` agentic sessions in flight for ``duration_seconds``.
 
     A thread pool of width ``concurrency`` is kept saturated: each time a session
-    finishes, the next task (cycled from ``tasks``) is submitted, until the
-    wall-clock window elapses. Sessions still running at window close are **cut
+    finishes, a task drawn at RANDOM (with replacement) from ``tasks`` is
+    submitted, until the wall-clock window elapses. Random selection means that
+    with a multi-repo dataset the in-flight slots spread across different repos,
+    simulating many developers on different projects rather than one shared
+    repo. Sessions still running at window close are **cut
     off** (their ``claude -p`` timeout is bounded by the remaining window) rather
     than drained to completion -- because throughput is measured server-side from
     vLLM's counters over the level's time window, a session need not finish to
@@ -206,7 +214,11 @@ def run_level(
 
         def _submit() -> None:
             nonlocal submitted
-            task = tasks[submitted % len(tasks)]
+            # Random draw (with replacement) so a multi-repo dataset spreads the
+            # in-flight slots across different repos; a single-repo dataset is
+            # unaffected (every draw is the same lone task). Load balancing only,
+            # not security -- the pseudo-random generator is fine here.
+            task = random.choice(tasks)  # nosec B311 - load-slot selection, not crypto
             slot = f"c{concurrency}#{submitted + 1}"
             fut = executor.submit(
                 _run_one_session, config, task, refs[task.id], slot, deadline
