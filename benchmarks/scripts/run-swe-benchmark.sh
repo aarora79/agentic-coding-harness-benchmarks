@@ -4,7 +4,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # run-swe-benchmark.sh - Convenience wrapper around the headless SWE harness.
 #
-# Drives claude -p through the /swe skill for every task in a dataset, using a
+# Drives claude -p through the /swe2 skill for every task in a dataset, using a
 # runner config for endpoint/model/flags. All task data (repos, problem
 # statements, clarifying answers, ground truth) lives in the dataset YAML - not
 # in this script. This wrapper only forwards arguments to run-swe-headless.py.

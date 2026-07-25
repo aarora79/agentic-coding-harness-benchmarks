@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Throughput harness: drive N concurrent agentic /swe sessions for a fixed window.
+"""Throughput harness: drive N concurrent agentic /swe2 sessions for a fixed window.
 
 This is the SEPARATE, throughput-oriented sibling of ``run-swe-headless.py``. It
 answers a different question -- *how much agentic-coding load can this model on
@@ -27,7 +27,7 @@ How it differs from the quality run:
     written artifacts are not scored and their dirs are cleaned up.
 
 The real request shape (large read-heavy prompts, short outputs) comes for free
-because each session is a genuine /swe run against a real cloned repo -- the same
+because each session is a genuine /swe2 run against a real cloned repo -- the same
 workload the quality harness produces, just driven at a controlled concurrency.
 
 Usage (normally invoked by run-throughput-sweep.sh, one concurrency per call):
@@ -87,7 +87,7 @@ def _run_one_session(
     slot_label: str,
     deadline: float,
 ) -> dict[str, Any]:
-    """Run one agentic /swe session for load and return its per-request record.
+    """Run one agentic /swe2 session for load and return its per-request record.
 
     Throughput is measured server-side (vLLM counters in DuckDB), so a session
     does NOT need to finish to count -- the tokens it generated while running are
@@ -280,7 +280,7 @@ def run_level(
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Drive N concurrent /swe sessions for a fixed window (throughput).",
+        description="Drive N concurrent /swe2 sessions for a fixed window (throughput).",
     )
     parser.add_argument("--config", help="Runner config YAML path")
     parser.add_argument("--model", help="Served model name / id")

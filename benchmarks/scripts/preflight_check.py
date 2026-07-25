@@ -3,7 +3,7 @@
 
 Enumerates the artifact directories a SWE benchmark run would write to, for a
 given dataset and model, and either reports which already exist (so a headless
-run does not stall on the /swe skill's overwrite prompt) or clears them.
+run does not stall on the /swe2 skill's overwrite prompt) or clears them.
 
 The directory layout mirrors the harness exactly -- it reuses the dataset
 loader, ``model_to_slug`` (the folder-name normalization), and ``_repo_name``
@@ -42,7 +42,7 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 from dataset_loader import DatasetError, load_dataset  # noqa: E402
 from runner_config import model_to_slug  # noqa: E402
 
-# The four artifacts the /swe skill writes; their presence is what makes the
+# The four design artifacts the /swe2 skill writes; their presence is what makes the
 # skill stop and ask before overwriting.
 _ARTIFACT_FILENAMES = ("github-issue.md", "lld.md", "review.md", "testing.md")
 
@@ -115,7 +115,7 @@ def _run_check(dirs: list[Path]) -> int:
         return 0
     logger.warning(
         "%d of %d target folder(s) already contain artifacts and would make the "
-        "headless /swe run stall on its overwrite prompt:",
+        "headless /swe2 run stall on its overwrite prompt:",
         len(existing),
         len(dirs),
     )

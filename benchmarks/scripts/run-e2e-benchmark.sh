@@ -20,7 +20,7 @@ set -euo pipefail
 # What it does, failing LOUDLY at the first problem:
 #   0. Pre-flight: tools present, endpoint reachable, model served/valid,
 #      AWS creds if needed, and -- key -- no pre-existing artifact folders that
-#      would stall the headless /swe overwrite prompt.
+#      would stall the headless /swe2 overwrite prompt.
 #   1. Run the SWE benchmark harness over every task in the dataset.
 #   2. Score the produced artifacts with the codex judge.
 # At every step it prints the exact command to watch progress (tail / status).
@@ -253,8 +253,8 @@ print(w if w else "")' 2>/dev/null || true)"
         ;;
 esac
 
-# The critical check: pre-existing artifact folders stall the headless /swe run.
-info "Checking for pre-existing artifact folders (these stall the headless /swe overwrite prompt)..."
+# The critical check: pre-existing artifact folders stall the headless /swe2 run.
+info "Checking for pre-existing artifact folders (these stall the headless /swe2 overwrite prompt)..."
 set +e
 uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --check
 PREFLIGHT_RC=$?

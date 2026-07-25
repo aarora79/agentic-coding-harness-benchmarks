@@ -106,7 +106,7 @@ TOOL_PARSER="<parser from the guide>" \
 
 If there is no guide for `{model}` under `self-hosted/vllm/models/`, tell the user and ask for the HF repo id, tool-call parser, and desired context window rather than guessing.
 
-**2d. Context-window gate -- 200K recommended; below it, WARN and confirm; a tiny window fails outright.** Agentic coding tasks on real repositories routinely need 100K-250K input tokens in a single request (the `/swe` skill prompt alone is ~12K, and reading repo files pushes far higher). **200K is the recommended floor.** A window well below that risks overflowing on turn 1 (before auto-compaction can help, since the first prompt already does not fit). This is a node/VRAM limitation, not a model-quality signal. Note this is a guideline, not a hard law: Kimi-K2.7-Code completed 4 of 5 tasks at a **128K** window, so a window somewhat under 200K can still work when the tasks fit -- but a tiny window (e.g. ~16K, all a 79.6B model fits on a 4x L40S node) cannot hold even the first prompt and every task fails.
+**2d. Context-window gate -- 200K recommended; below it, WARN and confirm; a tiny window fails outright.** Agentic coding tasks on real repositories routinely need 100K-250K input tokens in a single request (the `/swe2` skill prompt alone is ~12K, and reading repo files pushes far higher). **200K is the recommended floor.** A window well below that risks overflowing on turn 1 (before auto-compaction can help, since the first prompt already does not fit). This is a node/VRAM limitation, not a model-quality signal. Note this is a guideline, not a hard law: Kimi-K2.7-Code completed 4 of 5 tasks at a **128K** window, so a window somewhat under 200K can still work when the tasks fit -- but a tiny window (e.g. ~16K, all a 79.6B model fits on a 4x L40S node) cannot hold even the first prompt and every task fails.
 
 After the server reports ready, read the window it actually booted with:
 
@@ -121,7 +121,7 @@ Decide by how far below 200K it is:
 
 - **>= 200000:** proceed to Step 2e, no caveat.
 - **Between ~100000 and 200000 (e.g. Kimi's 128K):** **warn the user and ask them to confirm** before proceeding. Do not silently run, and do not hard-stop -- state the window, note the overflow risk on the largest tasks, and let the user decide. Example: "`{model}` booted at a {WINDOW}-token window, below the 200K recommended floor. Sub-200K can still complete these tasks (Kimi did at 128K) but larger tasks may overflow. Proceed anyway?"
-- **Far below (roughly < ~64000, and certainly ~16K):** treat as not benchmarkable -- the `/swe` prompt plus a single file read will not fit, so every task fails on turn 1. Do not run; tell the user, e.g.:
+- **Far below (roughly < ~64000, and certainly ~16K):** treat as not benchmarkable -- the `/swe2` prompt plus a single file read will not fit, so every task fails on turn 1. Do not run; tell the user, e.g.:
 
   > `{model}` booted at only a {WINDOW}-token context window on this node -- too small for agentic coding, where the prompt alone plus one file read exceeds the window and every task fails on turn 1. This is a VRAM limitation of the current machine, not the model. Options: benchmark a model that fits a larger window on this node (e.g. `qwen3.6-35b` or `qwen3-coder-30b`), or serve `{model}` on a larger-VRAM node (see its model guide for the required instance).
 
@@ -162,7 +162,7 @@ State this expectation to the user **loudly**, because the skill does not config
 
 > Heads-up: this benchmark assumes `claude` and `codex` on this machine are already wired to Amazon Bedrock (credentials/region). The judge always calls Bedrock; on the bedrock path claude does too. I do not configure them -- if either is pointed elsewhere, the run or scoring will fail.
 
-**3b.** Show the user which artifact folders already exist for this model+dataset (a pre-existing folder makes the headless `/swe` run stall on its overwrite prompt). This is a read-only check:
+**3b.** Show the user which artifact folders already exist for this model+dataset (a pre-existing folder makes the headless `/swe2` run stall on its overwrite prompt). This is a read-only check:
 
 ```bash
 cd benchmarks
@@ -241,7 +241,7 @@ The `RUN-SUMMARY.json` carries the structured data (per-task scores/turns/cost, 
 **5d. Report** where the results are and what they contain:
 
 - Point the user at the `RUN-SUMMARY.md` you just wrote first.
-- Each `benchmarks/swe-benchmark-data/{model-slug}/<repo>/<task>/` holds the four artifacts, `metrics.json` (cost + any vLLM server metrics), and `eval.json` (quality scores).
+- Each `benchmarks/swe-benchmark-data/{model-slug}/<repo>/<task>/` holds the four design artifacts plus the implementation artifact (`patch.diff` + `implementation.md`), `metrics.json` (cost + any vLLM server metrics), and `eval.json` (quality scores; `task_score` is the mean of the five artifact totals).
 - The same task run by another model lands under a sibling top-level `{model-slug}/` folder, directly comparable.
 - Suggest inspecting one result:
   ```bash

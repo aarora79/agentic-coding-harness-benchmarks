@@ -94,7 +94,9 @@ def evaluate_artifact_folder(
     """Evaluate one folder with exactly one Bedrock Mantle Responses request.
 
     Args:
-        folder: Directory containing the four required Markdown artifacts.
+        folder: Directory containing the four required Markdown artifacts, plus
+            optionally the /swe2 implementation artifact (implementation.md +
+            patch.diff); when absent, the implementation is judged 0.
         model: Raw model ID accepted by the configured Bedrock endpoint.
         base_url: OpenAI-compatible API base URL ending at ``/openai/v1``.
         api_key: Bearer token; defaults to ``MANTLE_API_KEY``.
@@ -234,7 +236,7 @@ def evaluate_artifact_folder(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Score four SWE artifacts with one Bedrock Mantle Responses request."
+        description="Score five SWE artifacts with one Bedrock Mantle Responses request."
     )
     parser.add_argument("--folder", required=True, help="Artifact folder")
     parser.add_argument("--model", required=True, help="Raw Bedrock judge model ID")

@@ -2,9 +2,10 @@
 """Shared core for the SWE artifact judges.
 
 Both judge backends -- the direct Bedrock Mantle call (``llm_as_judge.py``) and
-the agentic ``codex exec`` run (``codex_judge.py``) -- score the same four
-artifacts against the same rubric and must produce identically-shaped,
-identically-validated ``eval.json`` output. That common ground lives here:
+the agentic ``codex exec`` run (``codex_judge.py``) -- score the same five
+artifacts (four design documents plus the /swe2 implementation) against the same
+rubric and must produce identically-shaped, identically-validated ``eval.json``
+output. That common ground lives here:
 
   * the strict score schema (``EvaluationResult`` and friends),
   * prompt rendering from ``judge_prompt.txt`` (``render_judge_prompt``),
@@ -27,12 +28,28 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+# The four design artifacts every run must produce. These -- and only these --
+# drive the missing-artifact folder-zeroing check: a run that fails to produce
+# one of them is a genuine candidate failure and scores 0 for the whole folder.
 ARTIFACT_FILES = {
     "github_issue": "github-issue.md",
     "lld": "lld.md",
     "review": "review.md",
     "testing": "testing.md",
 }
+# The /swe2 implementation artifact, scored as a fifth artifact on the same
+# 0-100 scale. It is OPTIONAL: a design-only (/swe) run, or a /swe2 run that did
+# not land a patch, simply scores the implementation artifact 0 (empty content)
+# while the four design artifacts are still judged normally. It therefore does
+# NOT belong to ARTIFACT_FILES / the folder-zeroing set.
+IMPLEMENTATION_FILES = {
+    "summary": "implementation.md",
+    "patch": "patch.diff",
+}
+# Cap the embedded patch so a large diff cannot blow the judge context. The head
+# of the patch carries the substantive change; the tail is truncated with a
+# marker so the judge knows content was elided rather than absent.
+MAX_PATCH_CHARS = 200_000
 DEFAULT_TEMPLATE_PATH = Path(__file__).with_name("judge_prompt.txt")
 Score = Annotated[int, Field(strict=True, ge=0, le=25)]
 
@@ -67,7 +84,13 @@ class ArtifactScore(BaseModel):
 
 
 class ScoreSet(BaseModel):
-    """The fixed four-artifact score set."""
+    """The fixed five-artifact score set.
+
+    The first four are the design artifacts (github issue, LLD, review, testing
+    plan); ``implementation`` scores the /swe2 code change (``patch.diff`` plus
+    ``implementation.md``) on the same 0-100 scale. For a design-only run the
+    implementation artifact is scored 0.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -75,6 +98,7 @@ class ScoreSet(BaseModel):
     lld: ArtifactScore
     review: ArtifactScore
     testing: ArtifactScore
+    implementation: ArtifactScore
 
 
 class EvaluationResult(BaseModel):
@@ -95,6 +119,7 @@ class EvaluationResult(BaseModel):
             self.scores.lld.total,
             self.scores.review.total,
             self.scores.testing.total,
+            self.scores.implementation.total,
         ]
         expected = round(sum(totals) / len(totals), 2)
         if abs(self.task_score - expected) > 0.001:
@@ -168,6 +193,7 @@ def zero_score_result(
                 "lld": dict(zero_artifact),
                 "review": dict(zero_artifact),
                 "testing": dict(zero_artifact),
+                "implementation": dict(zero_artifact),
             },
             "task_score": 0.0,
             "verdict": verdict,
@@ -247,6 +273,45 @@ def _load_json_object(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
+def _read_implementation(artifact_dir: Path) -> str:
+    """Assemble the /swe2 implementation artifact text for the judge.
+
+    Combines ``implementation.md`` (the human summary) and ``patch.diff`` (the
+    actual code change) into one labeled block. Both are OPTIONAL: a design-only
+    run has neither, and this returns an empty string so the judge scores the
+    implementation artifact 0 without erroring. The patch is truncated to
+    ``MAX_PATCH_CHARS`` so a large diff cannot blow the judge context.
+
+    Args:
+        artifact_dir: The resolved artifact directory.
+
+    Returns:
+        The combined implementation text, or an empty string when neither the
+        summary nor the patch is present/non-empty.
+    """
+    parts: list[str] = []
+    summary_path = artifact_dir / IMPLEMENTATION_FILES["summary"]
+    patch_path = artifact_dir / IMPLEMENTATION_FILES["patch"]
+    try:
+        summary = summary_path.read_text(encoding="utf-8").strip()
+    except (FileNotFoundError, OSError):
+        summary = ""
+    try:
+        patch = patch_path.read_text(encoding="utf-8").strip()
+    except (FileNotFoundError, OSError):
+        patch = ""
+    if summary:
+        parts.append("## Implementation summary (implementation.md)\n\n" + summary)
+    if patch:
+        if len(patch) > MAX_PATCH_CHARS:
+            patch = (
+                patch[:MAX_PATCH_CHARS]
+                + f"\n\n[... patch truncated at {MAX_PATCH_CHARS} chars for length ...]"
+            )
+        parts.append("## Code change (patch.diff)\n\n```diff\n" + patch + "\n```")
+    return "\n\n".join(parts)
+
+
 def _default_task_context(metadata: dict[str, Any]) -> str:
     for key in ("task_context", "problem_statement", "task_description"):
         value = metadata.get(key)
@@ -282,7 +347,9 @@ def render_judge_prompt(
     """Load an artifact folder and render ``judge_prompt.txt``.
 
     Args:
-        folder: Directory containing the four required Markdown artifacts.
+        folder: Directory containing the four required Markdown artifacts, plus
+            optionally the /swe2 implementation artifact (``implementation.md`` +
+            ``patch.diff``); when absent, the implementation is judged 0.
         template_path: Judge prompt template path.
         task_context: Optional independent task requirements. Defaults from
             ``metrics.json`` when present, else a documented evidence-gap notice.
@@ -320,6 +387,8 @@ def render_judge_prompt(
         name: read_text(artifact_dir / filename, filename)
         for name, filename in ARTIFACT_FILES.items()
     }
+    # The implementation artifact is optional: empty string -> judge scores it 0.
+    implementation = _read_implementation(artifact_dir)
     template = Template(
         read_text(Path(template_path).expanduser().resolve(), "prompt template")
     )
@@ -342,6 +411,7 @@ def render_judge_prompt(
         "LLD_JSON": json.dumps(artifacts["lld"], ensure_ascii=False),
         "REVIEW_JSON": json.dumps(artifacts["review"], ensure_ascii=False),
         "TESTING_JSON": json.dumps(artifacts["testing"], ensure_ascii=False),
+        "IMPLEMENTATION_JSON": json.dumps(implementation, ensure_ascii=False),
     }
     try:
         prompt = template.substitute(values)
@@ -356,8 +426,8 @@ def parse_and_validate_result(
     """Parse a model reply into a validated evaluation dict.
 
     Tolerates a single fenced code block wrapping the JSON. Enforces the strict
-    schema (criteria 0-25, totals = sums, task_score = mean) and that the
-    returned identifiers match the submission exactly.
+    schema (criteria 0-25, totals = sums, task_score = mean of the five artifact
+    totals) and that the returned identifiers match the submission exactly.
 
     Args:
         text: The model's reply text.

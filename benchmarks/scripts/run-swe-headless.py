@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Run the SWE benchmark headless: drive `claude -p /swe` over a dataset.
+"""Run the SWE benchmark headless: drive `claude -p /swe2` over a dataset.
 
 Given a dataset YAML and a runner config (endpoint, model, claude flags), this
 harness runs each task end to end:
 
   1. Clone the task's repo at its pinned ref into a temporary directory.
-  2. Invoke `claude -p "/swe repo: ... problem: ... model: ... answers: ..."`
-     non-interactively, letting the /swe skill produce the four design
-     artifacts (github-issue.md, lld.md, review.md, testing.md).
+  2. Invoke `claude -p "/swe2 repo: ... problem: ... model: ... answers: ..."`
+     non-interactively, letting the /swe2 skill produce the four design
+     artifacts (github-issue.md, lld.md, review.md, testing.md) AND implement
+     the change, capturing patch.diff + implementation.md.
   3. Parse the run's JSON result for the six benchmark metrics (input/output/
      cache tokens, latency, and the number of LLM turns the agent took) and
      write them to metrics.json next to the artifacts.
@@ -185,8 +186,10 @@ def _clone_repo(task: Task, ref: str, clone_dir: str, log_prefix: str = "") -> P
 
 
 def _build_prompt(task: Task, clone_path: Path, ref: str, model: str) -> str:
-    """Build the non-interactive /swe prompt for a task.
+    """Build the non-interactive /swe2 prompt for a task.
 
+    Uses /swe2 (design plus implementation): the skill produces the four design
+    artifacts AND implements the change, capturing patch.diff + implementation.md.
     Includes the four keys the skill needs to enter non-interactive mode
     (repo, problem, model, answers) plus the full problem statement and, when
     present, the reference issue URL.
@@ -205,7 +208,7 @@ def _build_prompt(task: Task, clone_path: Path, ref: str, model: str) -> str:
         "information is in the task description below."
     )
     lines = [
-        f"/swe repo: {clone_path} problem: {task.id} model: {model} "
+        f"/swe2 repo: {clone_path} problem: {task.id} model: {model} "
         f'tag: {ref} answers: "{answers.strip()}"',
         "",
         "Task description:",
