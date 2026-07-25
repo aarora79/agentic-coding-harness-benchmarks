@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Evaluate one folder of SWE design artifacts with an agentic ``codex exec`` judge.
 
-The direct-API sibling (``llm_as_judge.py``) embeds the four artifacts in a
+The direct-API sibling (``llm_as_judge.py``) embeds the five artifacts in a
 single stateless Bedrock request and scores them in isolation. This judge runs
 ``codex exec`` non-interactively instead, so the model can additionally open the
 candidate's repository (read-only) with its own file tools and verify the
-factual claims in ``lld.md``/``testing.md`` against the real source before
-scoring. The judge prompt, the strict schema, and the score validation are
+factual claims in ``lld.md``/``testing.md`` -- and the ``patch.diff``
+implementation -- against the real source before scoring. The judge prompt, the strict schema, and the score validation are
 shared with ``llm_as_judge.py`` via ``judge_common.py`` so the two backends stay
 comparable.
 
@@ -16,7 +16,7 @@ clones that repository at that ref into a reusable checkout and points codex at
 it. A missing ``metrics.json`` (or a missing ``repo``/``ref``) fails loudly.
 
 The flow:
-  1. Render ``judge_prompt.txt`` with the four artifacts (shared code).
+  1. Render ``judge_prompt.txt`` with the five artifacts (shared code).
   2. Clone ``repo`` at ``ref`` from ``metrics.json`` (reusing an existing
      checkout), or use an explicit local ``--repo`` path when given.
   3. Run ``codex exec`` with that repository as a read-only working root.
@@ -94,8 +94,15 @@ _REPO_PREAMBLE = (
     "candidate's repository at your current working directory. Use your file "
     "tools to inspect that repository and verify the factual claims in the "
     "artifacts (paths, symbols, APIs, commands) before scoring. Do not modify "
-    "any file. Your final message must be the single strict JSON object the "
-    "instructions below require, with no surrounding prose.\n\n"
+    "any file. When an implementation artifact (patch.diff) is present, ground "
+    "your implementation score in the real source: check that the diff's target "
+    "files, line context, symbols, and surrounding code actually exist and match "
+    "the repository, that the change is correct and consistent with the design, "
+    "and that it follows the repository's own conventions. You may dry-run "
+    "`git apply --check` against the working tree to confirm the patch applies, "
+    "but do not leave any modification behind. Your final message must be the "
+    "single strict JSON object the instructions below require, with no "
+    "surrounding prose.\n\n"
 )
 
 

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Run the SWE benchmark headless: drive `claude -p /swe` over a dataset.
+"""Run the SWE benchmark headless: drive `claude -p /swe2` over a dataset.
 
 Given a dataset YAML and a runner config (endpoint, model, claude flags), this
 harness runs each task end to end:
 
   1. Clone the task's repo at its pinned ref into a temporary directory.
-  2. Invoke `claude -p "/swe repo: ... problem: ... model: ... answers: ..."`
-     non-interactively, letting the /swe skill produce the four design
-     artifacts (github-issue.md, lld.md, review.md, testing.md).
+  2. Invoke `claude -p "/swe2 repo: ... problem: ... model: ... answers: ..."`
+     non-interactively, letting the /swe2 skill produce the four design
+     artifacts (github-issue.md, lld.md, review.md, testing.md) AND implement
+     the change, capturing patch.diff + implementation.md.
   3. Parse the run's JSON result for the six benchmark metrics (input/output/
      cache tokens, latency, and the number of LLM turns the agent took) and
      write them to metrics.json next to the artifacts.
@@ -51,7 +52,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-ARTIFACT_FILENAMES = ("github-issue.md", "lld.md", "review.md", "testing.md")
+# The four design artifacts every /swe2 run must produce. These are the ones
+# whose presence defines a "complete" design and gate the ok flag / retry.
+DESIGN_ARTIFACT_FILENAMES = ("github-issue.md", "lld.md", "review.md", "testing.md")
+# The /swe2 implementation artifacts (the actual code change plus its summary).
+IMPLEMENTATION_ARTIFACT_FILENAMES = ("patch.diff", "implementation.md")
+# Everything a full /swe2 run emits, in produced-count order.
+ARTIFACT_FILENAMES = DESIGN_ARTIFACT_FILENAMES + IMPLEMENTATION_ARTIFACT_FILENAMES
 GIT_CLONE_TIMEOUT_SECONDS = 300
 
 # The harness scrapes vLLM's entire Prometheus /metrics surface (every family
@@ -185,8 +192,10 @@ def _clone_repo(task: Task, ref: str, clone_dir: str, log_prefix: str = "") -> P
 
 
 def _build_prompt(task: Task, clone_path: Path, ref: str, model: str) -> str:
-    """Build the non-interactive /swe prompt for a task.
+    """Build the non-interactive /swe2 prompt for a task.
 
+    Uses /swe2 (design plus implementation): the skill produces the four design
+    artifacts AND implements the change, capturing patch.diff + implementation.md.
     Includes the four keys the skill needs to enter non-interactive mode
     (repo, problem, model, answers) plus the full problem statement and, when
     present, the reference issue URL.
@@ -205,7 +214,7 @@ def _build_prompt(task: Task, clone_path: Path, ref: str, model: str) -> str:
         "information is in the task description below."
     )
     lines = [
-        f"/swe repo: {clone_path} problem: {task.id} model: {model} "
+        f"/swe2 repo: {clone_path} problem: {task.id} model: {model} "
         f'tag: {ref} answers: "{answers.strip()}"',
         "",
         "Task description:",
@@ -396,6 +405,11 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
         "num_turns": result.get("num_turns", 0),
         "total_cost_usd": result.get("total_cost_usd"),
         "is_error": is_error,
+        # claude -p's result subtype: "success", "error_max_turns" (hit the
+        # --max-turns cap), "error_during_execution", etc. Recorded so the retry
+        # logic can tell an exhausted turn budget (not retryable) from a
+        # transient failure (retryable).
+        "result_subtype": result.get("subtype"),
         "session_id": result.get("session_id"),
     }
     # Only report cache-token fields the backend actually returned. vLLM's
@@ -1297,7 +1311,13 @@ def _run_task(
     metrics_path = _save_metrics(config, task, ref, metrics, vllm_block)
     out_dir = metrics_path.parent
     produced = [f for f in ARTIFACT_FILENAMES if (out_dir / f).exists()]
-    ok = len(produced) == len(ARTIFACT_FILENAMES) and not metrics["is_error"]
+    # Completeness is gated on the four DESIGN artifacts plus the implementation
+    # patch: a /swe2 task is "ok" only when it both designed and implemented the
+    # change (patch.diff present) and claude did not report an error. The banner
+    # still shows the full produced count over all six artifacts.
+    design_done = all((out_dir / f).exists() for f in DESIGN_ARTIFACT_FILENAMES)
+    patch_done = (out_dir / "patch.diff").exists()
+    ok = design_done and patch_done and not metrics["is_error"]
 
     # One-line outcome banner: artifacts, turns, tokens, latency, and (when
     # available) the vLLM prefix-cache hit rate for the run's window.
@@ -1334,7 +1354,14 @@ def _run_task(
             metrics.get("error"),
         )
     logger.info("  Metrics: %s", metrics_path)
-    return {"task": task.id, "ok": ok, "artifacts": len(produced), "metrics": metrics}
+    return {
+        "task": task.id,
+        "ok": ok,
+        "artifacts": len(produced),
+        "design_done": design_done,
+        "patch_done": patch_done,
+        "metrics": metrics,
+    }
 
 
 def _select_tasks(dataset: Dataset, task_ids: list[str], count: int = 0) -> list[Task]:
@@ -1386,6 +1413,59 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
         print(" ".join(cmd))
 
 
+def _summary_is_retryable(summary: dict[str, Any]) -> bool:
+    """Decide whether a failed task summary warrants a retry.
+
+    A task is retried only when it failed for a TRANSIENT reason. It is NOT
+    retried when it simply exhausted its turn budget: another attempt at the
+    same ``max_turns`` will hit the same wall, so the fix is a larger budget,
+    not a retry.
+
+    Turn exhaustion is identified by claude -p's result subtype
+    ``error_max_turns``, or, defensively, by a run that used up (near) all of its
+    turns without producing the design artifacts. Everything else that left the
+    task not-ok (a stream/JSON/timeout RuntimeError, an api/execution error, an
+    empty result) is treated as transient and retryable.
+
+    Args:
+        summary: A task outcome dict from :func:`_run_task` (or the RuntimeError
+            fallback below), possibly carrying a ``metrics`` block.
+
+    Returns:
+        True if the task should be retried, False otherwise.
+    """
+    if summary.get("ok"):
+        return False
+    metrics = summary.get("metrics") or {}
+    if metrics.get("result_subtype") == "error_max_turns":
+        return False
+    # Defensive fallback: no subtype recorded but the run clearly ran the turn
+    # budget dry (e.g. an older claude that omits the subtype). Treat a run that
+    # burned >=95% of max_turns without finishing the design as turn exhaustion.
+    max_turns = summary.get("max_turns")
+    num_turns = metrics.get("num_turns")
+    if (
+        max_turns
+        and num_turns is not None
+        and num_turns >= 0.95 * max_turns
+        and not summary.get("design_done", False)
+    ):
+        return False
+    return True
+
+
+def _clear_partial_artifacts(config: RunnerConfig, task: Task) -> None:
+    """Remove a task's partially-written artifacts before a retry.
+
+    A transiently-failed attempt may have left some artifacts (and a
+    metrics.json) behind. Clearing them keeps the retry a clean run and prevents
+    a stale partial file from masking what the retry actually produced.
+    """
+    out_dir = _artifact_dir(config, task)
+    for filename in (*ARTIFACT_FILENAMES, "metrics.json"):
+        (out_dir / filename).unlink(missing_ok=True)
+
+
 def _run_task_safe(
     config: RunnerConfig,
     dataset: Dataset,
@@ -1396,25 +1476,64 @@ def _run_task_safe(
     total: int,
     verbose: bool = False,
 ) -> dict[str, Any]:
-    """Run one task, converting a RuntimeError into a failed-summary dict.
+    """Run one task with transient-failure retries, returning its outcome.
 
-    Used as the unit of work for both the serial loop and the thread pool so a
-    single task's failure never aborts the whole run.
+    Wraps :func:`_run_task` so a single task's failure never aborts the whole
+    run. Retries up to ``config.max_retries`` times, but ONLY for transient
+    failures (see :func:`_summary_is_retryable`): a task that exhausted its turn
+    budget is returned as-is without retrying. A RuntimeError from ``_run_task``
+    (timeout, empty/non-JSON output, clone failure) is a transient failure and
+    counts as an attempt.
+
+    Used as the unit of work for both the serial loop and the thread pool.
     """
-    try:
-        return _run_task(
-            config,
-            dataset,
-            task,
-            stream=stream,
-            concurrent=concurrent,
-            position=position,
-            total=total,
-            verbose=verbose,
-        )
-    except RuntimeError:
-        logger.exception("[task=%s] %s of %s failed", task.id, position, total)
-        return {"task": task.id, "ok": False, "artifacts": 0}
+    attempts = config.max_retries + 1
+    last: dict[str, Any] = {"task": task.id, "ok": False, "artifacts": 0}
+    for attempt in range(1, attempts + 1):
+        if attempt > 1:
+            logger.warning(
+                "[task=%s] %s of %s: transient failure, retry %s of %s",
+                task.id,
+                position,
+                total,
+                attempt - 1,
+                config.max_retries,
+            )
+            _clear_partial_artifacts(config, task)
+        try:
+            summary = _run_task(
+                config,
+                dataset,
+                task,
+                stream=stream,
+                concurrent=concurrent,
+                position=position,
+                total=total,
+                verbose=verbose,
+            )
+        except RuntimeError:
+            logger.exception("[task=%s] %s of %s failed", task.id, position, total)
+            # A thrown RuntimeError is transient (timeout / no output / clone
+            # error); record it as a retryable attempt.
+            summary = {
+                "task": task.id,
+                "ok": False,
+                "artifacts": 0,
+                "metrics": {"is_error": True, "error": "run raised RuntimeError"},
+            }
+        summary["max_turns"] = config.max_turns
+        summary["attempts"] = attempt
+        last = summary
+        if summary.get("ok") or not _summary_is_retryable(summary):
+            return summary
+    logger.error(
+        "[task=%s] %s of %s: still failing after %s attempt(s)",
+        task.id,
+        position,
+        total,
+        attempts,
+    )
+    return last
 
 
 def _run(
@@ -1573,6 +1692,13 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-turns", type=int, help="Override: cap on the agent loop")
     parser.add_argument(
+        "--max-retries",
+        type=int,
+        help="Override: retries for a task that fails TRANSIENTLY (stream/JSON/"
+        "timeout/api error). A task that ran out of turns is never retried. "
+        "0 disables retries.",
+    )
+    parser.add_argument(
         "--max-output-tokens",
         type=int,
         help="Override: per-response output-token cap (CLAUDE_CODE_MAX_OUTPUT_TOKENS). "
@@ -1629,6 +1755,7 @@ def main() -> None:
         "precision": args.precision,
         "dataset": args.dataset,
         "max_turns": args.max_turns,
+        "max_retries": args.max_retries,
         "max_output_tokens": args.max_output_tokens,
         "context_window": args.context_window,
         "timeout_seconds": args.timeout_seconds,

@@ -20,7 +20,7 @@ set -euo pipefail
 # What it does, failing LOUDLY at the first problem:
 #   0. Pre-flight: tools present, endpoint reachable, model served/valid,
 #      AWS creds if needed, and -- key -- no pre-existing artifact folders that
-#      would stall the headless /swe overwrite prompt.
+#      would stall the headless /swe2 overwrite prompt.
 #   1. Run the SWE benchmark harness over every task in the dataset.
 #   2. Score the produced artifacts with the codex judge.
 # At every step it prints the exact command to watch progress (tail / status).
@@ -43,6 +43,8 @@ set -euo pipefail
 #   --max-output-tokens N  override the per-response output cap for this run
 #                          (e.g. 4096 on a small-window model so the prompt has
 #                          usable input room; usable input ~= window - this)
+#   --max-retries N        override retries for a TRANSIENT task failure (a task
+#                          that ran out of turns is never retried); 0 = none
 #   --timeout-seconds N    override the per-task wall-clock timeout (raise it for
 #                          a slow/dense model that produces artifacts but does not
 #                          return before the default cutoff)
@@ -66,6 +68,7 @@ DATASET=""
 COUNT="0"                 # 0 = all tasks
 MAX_OUTPUT_TOKENS=""      # empty = use the config value
 TIMEOUT_SECONDS=""        # empty = use the config value
+MAX_RETRIES=""            # empty = use the config value
 TENSOR_PARALLEL_SIZE=""   # empty = use the config value
 PRECISION=""              # empty = use the config value
 ENDPOINT=""               # derived from provider unless overridden
@@ -99,6 +102,7 @@ while [[ $# -gt 0 ]]; do
         --dataset)  DATASET="${2:?--dataset needs a value}"; shift 2 ;;
         --count)    COUNT="${2:?--count needs a value}"; shift 2 ;;
         --max-output-tokens) MAX_OUTPUT_TOKENS="${2:?--max-output-tokens needs a value}"; shift 2 ;;
+        --max-retries) MAX_RETRIES="${2:?--max-retries needs a value}"; shift 2 ;;
         --timeout-seconds) TIMEOUT_SECONDS="${2:?--timeout-seconds needs a value}"; shift 2 ;;
         --tensor-parallel-size) TENSOR_PARALLEL_SIZE="${2:?--tensor-parallel-size needs a value}"; shift 2 ;;
         --precision) PRECISION="${2:?--precision needs a value}"; shift 2 ;;
@@ -253,8 +257,8 @@ print(w if w else "")' 2>/dev/null || true)"
         ;;
 esac
 
-# The critical check: pre-existing artifact folders stall the headless /swe run.
-info "Checking for pre-existing artifact folders (these stall the headless /swe overwrite prompt)..."
+# The critical check: pre-existing artifact folders stall the headless /swe2 run.
+info "Checking for pre-existing artifact folders (these stall the headless /swe2 overwrite prompt)..."
 set +e
 uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --check
 PREFLIGHT_RC=$?
@@ -313,6 +317,7 @@ BENCH_ARGS=(--config "$CONFIG" --provider "$HARNESS_PROVIDER" --model "$MODEL" -
 # On the vllm path, calibrate auto-compaction to the live server's window.
 [[ -n "${VLLM_CONTEXT_WINDOW:-}" ]] && BENCH_ARGS+=(--context-window "$VLLM_CONTEXT_WINDOW")
 [[ -n "$MAX_OUTPUT_TOKENS" ]] && BENCH_ARGS+=(--max-output-tokens "$MAX_OUTPUT_TOKENS")
+[[ -n "$MAX_RETRIES" ]] && BENCH_ARGS+=(--max-retries "$MAX_RETRIES")
 [[ -n "$TIMEOUT_SECONDS" ]] && BENCH_ARGS+=(--timeout-seconds "$TIMEOUT_SECONDS")
 [[ -n "$TENSOR_PARALLEL_SIZE" ]] && BENCH_ARGS+=(--tensor-parallel-size "$TENSOR_PARALLEL_SIZE")
 [[ -n "$PRECISION" ]] && BENCH_ARGS+=(--precision "$PRECISION")
