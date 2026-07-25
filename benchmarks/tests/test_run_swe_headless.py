@@ -109,6 +109,67 @@ class BuildPromptTest(unittest.TestCase):
         )
         self.assertIn("best judgment", prompt)
 
+    def test_prompt_invokes_swe2_skill(self) -> None:
+        prompt = harness._build_prompt(
+            _task(), Path("/tmp/x/mcp-gateway-registry"), "1.24.4", "m"
+        )
+        # The harness drives /swe2 (design + implementation), not /swe.
+        self.assertTrue(prompt.startswith("/swe2 "))
+
+
+class ArtifactFilenamesTest(unittest.TestCase):
+    def test_full_set_is_six_design_plus_implementation(self) -> None:
+        # /swe2 emits the four design docs plus patch.diff + implementation.md.
+        self.assertEqual(len(harness.DESIGN_ARTIFACT_FILENAMES), 4)
+        self.assertEqual(
+            harness.IMPLEMENTATION_ARTIFACT_FILENAMES,
+            ("patch.diff", "implementation.md"),
+        )
+        self.assertEqual(len(harness.ARTIFACT_FILENAMES), 6)
+        for name in ("patch.diff", "implementation.md"):
+            self.assertIn(name, harness.ARTIFACT_FILENAMES)
+
+
+class SummaryIsRetryableTest(unittest.TestCase):
+    def test_ok_task_is_not_retried(self) -> None:
+        self.assertFalse(harness._summary_is_retryable({"ok": True}))
+
+    def test_turn_exhaustion_subtype_is_not_retried(self) -> None:
+        summary = {
+            "ok": False,
+            "metrics": {"result_subtype": "error_max_turns", "num_turns": 250},
+        }
+        self.assertFalse(harness._summary_is_retryable(summary))
+
+    def test_near_full_turns_without_design_is_not_retried(self) -> None:
+        # Defensive fallback when no subtype is recorded: burned >=95% of the
+        # budget and never finished the design -> treat as turn exhaustion.
+        summary = {
+            "ok": False,
+            "design_done": False,
+            "max_turns": 100,
+            "metrics": {"result_subtype": None, "num_turns": 99},
+        }
+        self.assertFalse(harness._summary_is_retryable(summary))
+
+    def test_transient_api_error_is_retried(self) -> None:
+        summary = {
+            "ok": False,
+            "design_done": False,
+            "max_turns": 250,
+            "metrics": {"result_subtype": "error_during_execution", "num_turns": 12},
+        }
+        self.assertTrue(harness._summary_is_retryable(summary))
+
+    def test_runtime_error_fallback_is_retried(self) -> None:
+        # The RuntimeError branch of _run_task_safe produces this shape.
+        summary = {
+            "ok": False,
+            "max_turns": 250,
+            "metrics": {"is_error": True, "error": "run raised RuntimeError"},
+        }
+        self.assertTrue(harness._summary_is_retryable(summary))
+
 
 class MetricsFromResultTest(unittest.TestCase):
     def test_extracts_six_metrics(self) -> None:

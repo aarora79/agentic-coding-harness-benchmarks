@@ -31,7 +31,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ARTIFACT_FILENAMES = ("github-issue.md", "lld.md", "review.md", "testing.md")
+# Everything a full /swe2 run emits: the four design artifacts plus the
+# implementation artifact (patch.diff + implementation.md). The produced count
+# in the run summary is out of all six.
+ARTIFACT_FILENAMES = (
+    "github-issue.md",
+    "lld.md",
+    "review.md",
+    "testing.md",
+    "patch.diff",
+    "implementation.md",
+)
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:

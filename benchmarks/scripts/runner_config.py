@@ -55,6 +55,12 @@ VALID_PERMISSION_MODES = {"default", "acceptEdits", "plan"}
 DEFAULT_MAX_TURNS = 60
 DEFAULT_MAX_OUTPUT_TOKENS = 16000
 DEFAULT_TIMEOUT_SECONDS = 1800
+# How many times to retry a task that failed for a TRANSIENT reason (stream
+# error, empty/non-JSON output, timeout, an api/execution error). A task that
+# simply ran out of turns (subtype "error_max_turns") is NOT retried -- more
+# attempts at the same turn budget will not help; raise max_turns instead.
+# 0 disables retries (one attempt per task).
+DEFAULT_MAX_RETRIES = 0
 # The model's true context window, in tokens. Claude Code cannot learn the
 # window of a custom model served over a custom base URL, so it never triggers
 # auto-compaction and the conversation grows until the endpoint rejects the
@@ -227,6 +233,12 @@ class RunnerConfig(BaseModel):
     max_turns: int = Field(default=DEFAULT_MAX_TURNS, ge=1)
     max_output_tokens: int = Field(default=DEFAULT_MAX_OUTPUT_TOKENS, ge=1)
     timeout_seconds: int = Field(default=DEFAULT_TIMEOUT_SECONDS, ge=1)
+    max_retries: int = Field(
+        default=DEFAULT_MAX_RETRIES,
+        ge=0,
+        description="Retries for a task that failed transiently (not for a "
+        "turn-budget exhaustion, which is never retried). 0 disables retries.",
+    )
     context_window: int = Field(
         default=DEFAULT_CONTEXT_WINDOW,
         ge=0,
@@ -453,6 +465,7 @@ def _summarize(config: RunnerConfig) -> None:
     logger.info("  concurrency: %s", config.concurrency)
     logger.info("  permission_mode: %s", config.permission_mode)
     logger.info("  max_turns: %s", config.max_turns)
+    logger.info("  max_retries: %s", config.max_retries)
     if config.auto_compact_window is not None:
         logger.info(
             "  context_window: %s (auto-compact at %s, fraction %s)",

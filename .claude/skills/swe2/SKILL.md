@@ -55,8 +55,9 @@ The `repo:` path may be a checkout the caller already cloned (including a tempor
 5. **Deep Codebase Analysis** - Thoroughly explore relevant code
 6. **Write Low-Level Design** - Create `lld.md` with technical details
 7. **Expert Review** - Create `review.md` with multi-persona feedback
+7.5. **Address Review Findings in the LLD** - if any reviewer raised a critical / must-fix / should-fix item, loop back and revise `lld.md` to resolve it BEFORE implementing; record the resolution in `review.md`
 8. **Write Testing Plan** - Create `testing.md` with functional, backwards-compat, UX, deployment, and E2E tests
-8.5. **Implement the Change** - Edit the cloned repo in place to realize the LLD, then capture `patch.diff` and `implementation.md`
+8.5. **Implement the Change** - Edit the cloned repo in place to realize the (revised) LLD, then capture `patch.diff` and `implementation.md`
 9. **Present Summary & Seek Guidance** - Present the six artifacts and ask for direction
 
 ---
@@ -606,6 +607,19 @@ For each reviewer, capture:
 - **Verdict:** APPROVED / APPROVED WITH CHANGES / NEEDS REVISION
 
 End with a Review Summary table and Next Steps. Reviews must be realistic, identifying actual issues rather than just praise.
+
+## Step 7.5: Address Review Findings in the LLD (MANDATORY feedback loop)
+
+The expert review is not decorative - it must change the design when it finds real problems. After assembling `review.md`, triage every finding by severity and **loop back into `lld.md` before writing any code**:
+
+1. **Collect the blockers.** Gather every finding the reviewers marked as **critical**, **must-fix**, **NEEDS REVISION**, or an explicit "should fix" (including any concrete vulnerability, correctness bug, or bypass, regardless of the label a persona used). A single reviewer raising a critical/should-fix item is enough to trigger this loop - do not require consensus.
+2. **If there are none** (every verdict is APPROVED with only optional/nice-to-have suggestions), record that in `review.md` ("No blocking findings; proceeding to implementation") and continue to Step 8.
+3. **If there are any, revise `lld.md` to resolve each one before proceeding.** For every blocker: update the affected LLD sections (architecture, implementation steps, file changes, data models, non-goals) so the design actually addresses it, not just acknowledges it. Where a finding is a genuine limitation you are deliberately deferring, move it to the LLD's Non-Goals / Open Questions with an explicit, honest justification rather than silently dropping it - a deferred risk must be documented as unmitigated, never implied to be fixed.
+4. **Re-validate the revised design against the codebase.** If a fix touches new files or call sites, confirm them in the cloned repo (a targeted re-read or a short Explore subagent) so the revised LLD stays grounded, exactly as in Step 5.
+5. **Reflect the resolutions in `review.md`.** Under each blocking finding, add a short "Resolution:" line stating how the revised LLD now addresses it (or why it is deferred). The review document should show the design responding to the critique, not a static snapshot.
+6. **Only then proceed to Step 8 (testing plan) and Step 8.5 (implementation).** The code you implement in Step 8.5 must realize the *revised* LLD, so the patch already incorporates the review's must-fix items instead of shipping the flaws the reviewers caught.
+
+This loop is what makes the review meaningful: the implementation reflects a design that has already survived critique. Do not skip it, and do not implement against the pre-review LLD when blocking findings exist. (If, while implementing in Step 8.5, you discover a further problem the review missed, the same rule applies: fix the LLD, note it, then continue - the design and the code must not diverge.)
 
 ## Step 8: Write Testing Plan (testing.md)
 
