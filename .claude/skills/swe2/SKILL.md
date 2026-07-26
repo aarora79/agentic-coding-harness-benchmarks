@@ -22,7 +22,7 @@ When ALL required parameters are provided upfront in a single message, skip all 
 **Required parameters for non-interactive mode:**
 
 ```
-/swe2 repo: <local-path-to-repo> problem: <problem-slug> model: <model-name> tag: <git-tag> answers: "<answers-block>"
+/swe2 repo: <local-path-to-repo> problem: <problem-slug> model: <model-name> tag: <git-tag> [artifacts_dir: <absolute-artifact-dir>] answers: "<answers-block>"
 ```
 
 Example:
@@ -30,7 +30,7 @@ Example:
 /swe2 repo: benchmarks/swe-benchmark-data/mcp-gateway-registry/repo problem: ssrf-hardening-outbound-url-validation model: kimi-k2.7-code tag: 1.24.4 answers: "1. Security audit finding — the registry fetches user-supplied URLs with no SSRF guard. 2. Operators and downstream teams. 3. Python/FastAPI, ECS, no deadline, backwards-compatible. 4. Medium."
 ```
 
-The `repo:` path may be a checkout the caller already cloned (including a temporary directory such as one under `/tmp`) or a path that does not exist yet. If it does not exist, clone it at `tag:` per Step 1.4 without asking. Either way, `{repo-name}` is the basename of the `repo:` path.
+The `repo:` path may be a checkout the caller already cloned (including a temporary directory such as one under `/tmp`) or a path that does not exist yet. If it does not exist, clone it at `tag:` per Step 1.4 without asking. Either way, `{repo-name}` is the basename of the `repo:` path. **If the caller passed `repo:` as an existing checkout, it is ALREADY cloned — do NOT run `git clone`, and do NOT `cd` into any other repository; treat that path as the sole code source.**
 
 **When non-interactive mode is triggered:**
 - Do NOT ask for model confirmation — use the `model:` parameter directly
@@ -41,6 +41,7 @@ The `repo:` path may be a checkout the caller already cloned (including a tempor
 - Do NOT ask before creating folders or overwriting — proceed directly
 - Do NOT ask before editing the cloned repo in Step 8.5 — implement directly (the clone is a disposable temp checkout; edits are captured as patch.diff, never committed)
 - Do NOT present summary or seek guidance at the end — just write all 6 artifacts (including patch.diff and implementation.md) and exit
+- **If `artifacts_dir:` is provided, use it VERBATIM as `$ART_DIR` (see Step 3). Do NOT recompute the artifact directory from `git rev-parse --show-toplevel` — that returns the wrong root if you have `cd`-ed into another repo, sending artifacts into a phantom tree.**
 
 **Detection rule:** If the user message contains ALL of `repo:`, `problem:`, `model:`, AND `answers:` — enter non-interactive mode. If any are missing, fall back to the normal interactive flow below.
 
@@ -200,7 +201,16 @@ This quick review takes 5-10 minutes and helps you ask better clarifying questio
 
 All artifacts live under a top-level `benchmarks/` directory. Within it, every run gets its own `{model-name}/{repo-name}/{problem-name}/` subfolder. Grouping by model first keeps each model's full set of results together, while still letting multiple models be compared on the same `{repo-name}/{problem-name}` across sibling model folders.
 
-> **CRITICAL - write to the ABSOLUTE artifact path, never the bare relative string.** The `benchmarks/swe-benchmark-data/...` paths shown throughout this skill are written relative to the repository root for readability. Your working directory is often already inside `benchmarks/` (the harness runs there), so if you pass a bare relative path like `benchmarks/swe-benchmark-data/{model}/...` to Write/Edit it resolves against the cwd and doubles to `benchmarks/benchmarks/swe-benchmark-data/...` -- the files land in the wrong place, the run scores 0/4 artifacts despite "File created successfully", and the work is lost. Always resolve the repo root and build one absolute artifact directory up front, then write every artifact under it:
+> **CRITICAL - write to the ABSOLUTE artifact path, never the bare relative string.** The `benchmarks/swe-benchmark-data/...` paths shown throughout this skill are written relative to the repository root for readability. Your working directory is often already inside `benchmarks/` (the harness runs there), so if you pass a bare relative path like `benchmarks/swe-benchmark-data/{model}/...` to Write/Edit it resolves against the cwd and doubles to `benchmarks/benchmarks/swe-benchmark-data/...` -- the files land in the wrong place, the run scores 0/4 artifacts despite "File created successfully", and the work is lost.
+>
+> **If the caller passed `artifacts_dir:`, that IS `$ART_DIR` -- use it verbatim and skip the `git rev-parse` derivation below entirely:**
+>
+> ```bash
+> ART_DIR="<the absolute path from the artifacts_dir: parameter>"
+> mkdir -p "$ART_DIR"
+> ```
+>
+> Otherwise (no `artifacts_dir:` given), resolve the repo root and build the directory yourself -- but ONLY if your working directory is still inside the harness's repository. If you have `cd`-ed into the cloned target repo (or any other git repo), `git rev-parse --show-toplevel` returns THAT repo's root, not the harness root, and every artifact lands in a phantom tree:
 >
 > ```bash
 > REPO_ROOT="$(git rev-parse --show-toplevel)"

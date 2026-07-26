@@ -191,7 +191,9 @@ def _clone_repo(task: Task, ref: str, clone_dir: str, log_prefix: str = "") -> P
     return dest
 
 
-def _build_prompt(task: Task, clone_path: Path, ref: str, model: str) -> str:
+def _build_prompt(
+    task: Task, clone_path: Path, ref: str, model: str, artifacts_dir: Path
+) -> str:
     """Build the non-interactive /swe2 prompt for a task.
 
     Uses /swe2 (design plus implementation): the skill produces the four design
@@ -200,11 +202,20 @@ def _build_prompt(task: Task, clone_path: Path, ref: str, model: str) -> str:
     (repo, problem, model, answers) plus the full problem statement and, when
     present, the reference issue URL.
 
+    Passes ``artifacts_dir`` as an ABSOLUTE path the skill must write to verbatim.
+    This is the drift guard: the skill would otherwise derive the artifact dir
+    from ``git rev-parse --show-toplevel``, which returns the WRONG repo root if
+    the model has ``cd``-ed into another git repo (e.g. a stray clone it made
+    under /tmp) -- sending every artifact into a phantom tree and scoring the run
+    0/6. Handing it the resolved absolute path removes that computation entirely.
+    We also tell the model the repo is already cloned and not to clone or cd out.
+
     Args:
         task: The task to run.
-        clone_path: Local path to the cloned repo.
+        clone_path: Local path to the already-cloned repo (the sole code source).
         ref: The git ref checked out.
         model: The model name (also the artifact subfolder name).
+        artifacts_dir: Absolute directory the six artifacts must be written to.
 
     Returns:
         The prompt string to pass to `claude -p`.
@@ -215,7 +226,16 @@ def _build_prompt(task: Task, clone_path: Path, ref: str, model: str) -> str:
     )
     lines = [
         f"/swe2 repo: {clone_path} problem: {task.id} model: {model} "
-        f'tag: {ref} answers: "{answers.strip()}"',
+        f'tag: {ref} artifacts_dir: {artifacts_dir} answers: "{answers.strip()}"',
+        "",
+        # Drift guards (see docstring). Stated explicitly because bypassPermissions
+        # lets the model clone/cd freely, which otherwise re-roots artifact paths.
+        f"IMPORTANT: The repository is ALREADY cloned at {clone_path} -- treat it "
+        "as the sole code source. Do NOT run `git clone` and do NOT `cd` out of it "
+        "to another repository.",
+        f"IMPORTANT: Write ALL six artifacts to the absolute path given in "
+        f"artifacts_dir ({artifacts_dir}) verbatim. Do NOT recompute the artifact "
+        "directory from `git rev-parse`; use artifacts_dir exactly as given.",
         "",
         "Task description:",
         task.problem_statement or "(see reference issue)",
@@ -1280,7 +1300,9 @@ def _run_task(
     clone_path = _clone_repo(task, ref, config.clone_dir, log_prefix=label)
     clone_parent = clone_path.parent
     try:
-        prompt = _build_prompt(task, clone_path, ref, config.model_slug)
+        prompt = _build_prompt(
+            task, clone_path, ref, config.model_slug, _artifact_dir(config, task)
+        )
         cmd = _build_claude_cmd(config, prompt, stream=stream, clone_path=clone_path)
         env = _build_env(config)
         logger.info("  %s Running claude -p (max_turns=%s)...", label, config.max_turns)
@@ -1420,7 +1442,9 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
             / f"swe-clone-{_safe_task_slug(task.id)}"
             / _repo_name(task.repo)
         )
-        prompt = _build_prompt(task, placeholder, ref, config.model_slug)
+        prompt = _build_prompt(
+            task, placeholder, ref, config.model_slug, _artifact_dir(config, task)
+        )
         cmd = _build_claude_cmd(config, prompt, clone_path=placeholder)
         print(f"\n=== {task.id} [{task.complexity}] ref={ref} ===")
         print("PROMPT:")
