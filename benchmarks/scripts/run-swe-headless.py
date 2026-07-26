@@ -973,8 +973,19 @@ def _run_claude_streaming(
     )
     final: dict[str, Any] | None = None
     thinking_tokens = 0
+    # Latest estimate of the current extended-thinking burst, held back so we log
+    # ONE summary line per burst instead of a line per streamed estimate. Flushed
+    # when the next non-thinking event arrives (burst ended) and at stream end.
+    pending_thinking: int | None = None
     if proc.stdout is None:  # pragma: no cover - stdout is always a pipe here
         raise RuntimeError("claude -p produced no stdout stream")
+
+    def _flush_thinking() -> None:
+        nonlocal pending_thinking
+        if pending_thinking is not None:
+            logger.info("  [system] thinking ~%s tokens", f"{pending_thinking:,}")
+            pending_thinking = None
+
     try:
         for line in proc.stdout:
             if time.time() - start > timeout:
@@ -988,18 +999,23 @@ def _run_claude_streaming(
             except json.JSONDecodeError:
                 continue  # Non-JSON progress noise; skip.
             if event.get("type") == "result":
+                _flush_thinking()
                 final = event
+            elif event.get("subtype") == "thinking_tokens":
+                # Reasoning models stream a running token estimate every few
+                # tokens. Track the peak (the result event omits it) and hold the
+                # latest value; do NOT log per event -- _flush_thinking prints one
+                # summary line once the burst ends.
+                est = event.get("estimated_tokens")
+                if isinstance(est, int):
+                    thinking_tokens = max(thinking_tokens, est)
+                    pending_thinking = est
             else:
-                # Track the peak running estimate of extended-thinking tokens
-                # emitted by reasoning models; the result event does not report
-                # it separately, so we carry it over from the stream.
-                if event.get("subtype") == "thinking_tokens":
-                    est = event.get("estimated_tokens")
-                    if isinstance(est, int):
-                        thinking_tokens = max(thinking_tokens, est)
+                _flush_thinking()
                 trace = _format_stream_event(event, verbose=verbose)
                 if trace:
                     logger.info("  %s", trace)
+        _flush_thinking()
         proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
         proc.kill()
