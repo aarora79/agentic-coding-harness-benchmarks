@@ -51,7 +51,10 @@ class LoadRunnerConfigTest(unittest.TestCase):
             {"model": "qwen3-coder-30b", "dataset": "dataset/example.yaml"},
         )
         self.assertEqual(config.model, "qwen3-coder-30b")
-        self.assertEqual(config.permission_mode, "acceptEdits")
+        # The shipped config uses bypassPermissions: /swe2 (implementation) needs
+        # it so Claude Code's built-in Bash guard does not block the `cd <repo> &&
+        # git ...` idiom, against throwaway clones. See runner_config.py.
+        self.assertEqual(config.permission_mode, "bypassPermissions")
         self.assertIn("Read", config.allowed_tools)
 
     def test_missing_dataset_raises(self) -> None:
@@ -63,7 +66,7 @@ class LoadRunnerConfigTest(unittest.TestCase):
         config = load_runner_config(_write(_MINIMAL))
         self.assertEqual(config.api_key, "local")
         self.assertEqual(config.permission_mode, "acceptEdits")
-        self.assertEqual(config.max_turns, 60)
+        self.assertEqual(config.max_turns, 250)
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.concurrency, 1)
 
@@ -98,8 +101,16 @@ class LoadRunnerConfigTest(unittest.TestCase):
         with self.assertRaisesRegex(RunnerConfigError, "not found"):
             load_runner_config("/nonexistent/runner.yaml")
 
-    def test_bypass_permissions_rejected(self) -> None:
+    def test_bypass_permissions_accepted(self) -> None:
+        # bypassPermissions is now a valid mode: /swe2 (implementation) requires
+        # it against throwaway clones so Claude Code's Bash guard does not block
+        # the `cd <repo> && git ...` idiom. It must load without error.
         text = _MINIMAL + "permission_mode: bypassPermissions\n"
+        config = load_runner_config(_write(text))
+        self.assertEqual(config.permission_mode, "bypassPermissions")
+
+    def test_invalid_permission_mode_rejected(self) -> None:
+        text = _MINIMAL + "permission_mode: nonsense\n"
         with self.assertRaisesRegex(RunnerConfigError, "permission_mode"):
             load_runner_config(_write(text))
 
