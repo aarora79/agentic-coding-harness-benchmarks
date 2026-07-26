@@ -1,6 +1,6 @@
 # Cost per task: methodology, the two lenses, and what agentic coding does to it
 
-How the throughput skill turns a fixed instance price into a **cost per token** and **cost per task** for a self-hosted (vLLM) model, why there are two ways to express it, and what the agentic-coding workload shape means for user experience and for scaling. Companion to [serving-optimization-notes.md](serving-optimization-notes.md); produced by [clients/build_performance_summary.py](clients/build_performance_summary.py) and surfaced by [clients/build_performance_dashboard.py](clients/build_performance_dashboard.py) and [clients/cost_for_task.py](clients/cost_for_task.py).
+How the throughput skill turns a fixed instance price into a **cost per token** and **cost per task** for a self-hosted (vLLM) model, why there are two ways to express it, and what the agentic-coding workload shape means for user experience and for scaling. Companion to [serving-optimization-notes.md](serving-optimization-notes.md); produced by [clients/build_performance_summary.py](../self-hosted/vllm/clients/build_performance_summary.py) and surfaced by [clients/build_performance_dashboard.py](../self-hosted/vllm/clients/build_performance_dashboard.py) and [clients/cost_for_task.py](../self-hosted/vllm/clients/cost_for_task.py).
 
 ## The starting point: a fixed-cost machine, not a per-token bill
 
@@ -46,7 +46,7 @@ task_cost = cost_per_input_token * N + cost_per_output_token * M      # Lens B
 task_cost = blended_cost_per_token * (N + M)                          # Lens A (per-token equal)
 ```
 
-The dashboard exposes `N`, `M`, and `w` as adjustable inputs so you can price any task shape. [clients/cost_for_task.py](clients/cost_for_task.py) does the same from the CLI for any task run **outside** the harness — because per-token cost is a property of the model + hardware + load, not of the tasks the sweep happened to run.
+The dashboard exposes `N`, `M`, and `w` as adjustable inputs so you can price any task shape. [clients/cost_for_task.py](../self-hosted/vllm/clients/cost_for_task.py) does the same from the CLI for any task run **outside** the harness — because per-token cost is a property of the model + hardware + load, not of the tasks the sweep happened to run.
 
 ### The trade-off between the lenses
 
