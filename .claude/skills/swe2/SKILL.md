@@ -718,6 +718,11 @@ Edit the files in `{repo-path}` to realize the design in `lld.md`. Treat the LLD
 - **Keep the diff minimal and on-topic.** Change only what the task requires. Do not reformat unrelated files, bump unrelated dependencies, or leave debug prints. A tight diff is what makes cross-model comparison meaningful.
 - **Parallelize independent edits** the same way analysis is parallelized: if several files change independently, dispatch subagents to draft the edits, but the main loop owns applying and reconciling them so the final tree is coherent.
 - **Do NOT run the target repo's tests, linters, builds, or any command against it.** Consistent with `/swe`, this skill reads and edits code but does not execute the target project (no `pytest`, `ruff`, `mypy`, `npm`, `cargo`, `go build`, `terraform`, `docker`, ...). The `testing.md` plan describes how a human would verify; running it is out of scope and keeps every model on an equal, execution-free footing. (You MAY run `git` on the clone - `status`, `diff`, `add` - since that inspects your own edits, not the project.)
+- **Know the tool sandbox, and do not fight it.** This run executes with a fixed allowlist; only these tools work without a prompt: `Read`, `Glob`, `Grep`, `Write`, `Edit`, `Task`, and Bash **only** in the forms `git*`, `cd*`, `ls*`, `cat*`, `find*`, `head*`, `tail*`, `wc*`, `mktemp*`. Every other Bash command - `sed`, `awk`, `echo >`, `python`/`python -m py_compile`, `bash -n`, `uv`, `pip`, `pytest`, package managers - is **denied by design**, not by accident. Work within it:
+  - **Make all file changes with the `Edit` and `Write` tools, never with shell.** Do not reach for `sed -i`, `echo >`, or a heredoc to edit or create files - those are `Bash` and will be denied. `Edit` (use `replace_all: true` when a string occurs more than once) and `Write` are always available and are the intended way to change code.
+  - **Do not try to compile, syntax-check, or lint your edits.** `python -m py_compile`, `bash -n`, `ruff`, `mypy` are execution and are out of scope. Verify by re-reading your own edit and by `git -C "{repo-path}" diff`; that is the only check this benchmark expects.
+  - **A denial is final - adapt or move on, do not retry the same command.** If a tool call is denied, do not re-issue it, reword it slightly, or loop trying variants (that just burns turns). Switch to an allowed tool (usually `Edit`/`Write` instead of shell), or accept the step cannot be done here and continue. Only stop and surface it if it is truly essential and has no allowed-tool equivalent.
+  - **`.claude/` paths may be blocked by a built-in guard even though `Edit`/`Write` are allowed elsewhere.** If an edit to a `.claude/...` file in the clone is denied, do not retry it - note it as skipped in `implementation.md` and move on. Editing a repo's own skill/config files is rarely load-bearing for the task.
 
 ### 8.5.2 Capture the patch
 
@@ -871,8 +876,9 @@ Do not run the target repo's tests, push, commit, or open a PR until the user ex
 ### Hard Stops
 1. **Implement the change (Step 8.5), but only in the disposable clone.** Edit `{repo-path}` to realize the LLD; the change is delivered as `patch.diff`, never as a commit on any real branch.
 2. **Do not run the target repo's tests, linters, or builds.** Read and edit the code; do not execute the project (no `pytest`/`ruff`/`mypy`/`npm`/`cargo`/`go`/`terraform`/`docker`). `git status`/`diff`/`add` on the clone is allowed (it inspects your own edits).
-3. **Do not commit, push, create a branch in the clone, or open a PR.** `git add` is used only to stage the diff for capture.
-4. **Do not touch anything outside the clone and `$ART_DIR`.** The six artifacts and the in-place edits to `{repo-path}` are the only writes.
+3. **Edit only via `Edit`/`Write`; the Bash allowlist is `git*`/`cd*`/`ls*`/`cat*`/`find*`/`head*`/`tail*`/`wc*`/`mktemp*` and nothing else.** `sed`/`awk`/`echo >`/`python`/`py_compile`/`bash -n`/`uv`/`pip` are denied by design. A denial is final - do not retry the same command; switch to an allowed tool or move on (see Step 8.5.1).
+4. **Do not commit, push, create a branch in the clone, or open a PR.** `git add` is used only to stage the diff for capture.
+5. **Do not touch anything outside the clone and `$ART_DIR`.** The six artifacts and the in-place edits to `{repo-path}` are the only writes.
 
 ## Example Usage
 

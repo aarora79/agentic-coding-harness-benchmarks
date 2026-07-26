@@ -147,7 +147,15 @@ allowed_tools:
   - Bash(wc*)
   - Bash(mktemp*)
   - Task
-max_turns: 60
+# Raised from 100 for /swe2: the agent now also implements the change (explore
+# -> edit files -> capture patch) on top of the four design artifacts, which the
+# old design-only budget could not fit on a large repo.
+max_turns: 250
+# Retries for a task that fails for a TRANSIENT reason (stream error, empty or
+# non-JSON output, timeout, an api/execution error). A task that merely ran out
+# of turns (subtype "error_max_turns") is NOT retried -- raise max_turns for
+# that instead. 0 disables retries (one attempt per task).
+max_retries: 1
 max_output_tokens: 16000
 
 # Model context window, in tokens, used to calibrate Claude Code's
@@ -157,7 +165,10 @@ max_output_tokens: 16000
 context_window: 0
 auto_compact_fraction: 0.9
 
-timeout_seconds: 1800
+# Wall-clock ceiling per task. 3600s (60 min) accommodates slow, heavy-thinking
+# reasoning models (e.g. GLM-5.2 at full effort) that can exceed 30 min on a
+# large repo; a task that finishes sooner still exits as soon as it is done.
+timeout_seconds: 3600
 
 # Point claude -p at the local vLLM server's Claude Code settings. Relative to
 # the repo root. Uncomment to use it; leave commented to rely on the
