@@ -24,7 +24,10 @@ set -euo pipefail
 # Options (with defaults):
 #   --model NAME             served-model-name (required)
 #   --dataset PATH           dataset YAML relative to benchmarks/ (multi-repo-throughput)
-#   --concurrencies "L..."   space-separated levels (default: "2 5 7 10 15 20")
+#   --concurrencies "L..."   space-separated levels (default: "1 2 5 7 10 15 20";
+#                            the c=1 baseline is the uncontended reference -- if its
+#                            TTFT is not small, the server is backed up and the run
+#                            should be discarded)
 #   --duration-seconds N     wall-clock window per level (default: 600)
 #   --context-window N       served window, calibrates auto-compaction (default: 200000)
 #   --endpoint URL           vLLM base URL (default: http://127.0.0.1:8000)
@@ -42,7 +45,7 @@ MODEL=""
 # concurrent slots each clone a DIFFERENT codebase (see the harness's distinct-
 # task-per-slot selection). Override with --dataset for a single-repo run.
 DATASET="dataset/multi-repo-throughput.yaml"
-CONCURRENCIES="2 5 7 10 15 20"
+CONCURRENCIES="1 2 5 7 10 15 20"
 DURATION_SECONDS="600"
 CONTEXT_WINDOW="200000"
 ENDPOINT="http://127.0.0.1:8000"

@@ -32,7 +32,7 @@ cost_per_task         = cost_per_output_token × output_tokens_per_task
 
 1. **model** — the served-model-name already running on the local vLLM server (e.g. `gemma-4-31b`). This skill does **not** start the server; serve it first (use the `/vllm-setup` or `/benchmark` flow, or `vllm-serve.sh`).
 2. **instance + $/hr** — the EC2 instance type (for provenance) and its on-demand hourly price. Default reference: `g6e.12xlarge` at **$10.49/hr** (us-east-1 on-demand). Use the user's actual spot/reserved/negotiated rate if they give one.
-3. **concurrency levels + window** — default sweep `2 5 7 10 15 20`, `--duration-seconds 600` (10 min) per level (~60-70 min total) for good coverage. Shorten (e.g. 300) for a quick look.
+3. **concurrency levels + window** — default sweep `1 2 5 7 10 15 20`, `--duration-seconds 600` (10 min) per level (~60-70 min total) for good coverage. Shorten (e.g. 300) for a quick look.
 
 ## Workflow
 
@@ -71,7 +71,7 @@ By default it uses **`dataset/multi-repo-throughput.yaml`** (25 tasks across 25 
 ```bash
 cd self-hosted/vllm
 ./scripts/run-throughput-sweep.sh --model {model} \
-  --concurrencies "2 5 7 10 15 20" --duration-seconds 600 [--context-window N] [--endpoint URL]
+  --concurrencies "1 2 5 7 10 15 20" --duration-seconds 600 [--context-window N] [--endpoint URL]
 ```
 
 Tell the user, before it runs:
