@@ -41,7 +41,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _task_cost(level: dict[str, Any], in_tokens: int, out_tokens: int) -> dict[str, Any]:
+def _task_cost(
+    level: dict[str, Any], in_tokens: int, out_tokens: int
+) -> dict[str, Any]:
     """Cost one task at one concurrency level under both lenses.
 
     Args:
@@ -82,9 +84,7 @@ def _cost_across_levels(
         levels = [level for level in levels if level["concurrency"] == concurrency]
         if not levels:
             have = ", ".join(str(level["concurrency"]) for level in summary["levels"])
-            raise SystemExit(
-                f"concurrency {concurrency} not in summary (have: {have})"
-            )
+            raise SystemExit(f"concurrency {concurrency} not in summary (have: {have})")
     return [_task_cost(level, in_tokens, out_tokens) for level in levels]
 
 

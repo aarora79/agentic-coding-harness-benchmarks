@@ -323,8 +323,7 @@ def run_level(
                 by_status_now[r["status"]] = by_status_now.get(r["status"], 0) + 1
             active = sorted(in_flight.values())
             logger.info(
-                "  [c%s heartbeat] %.0fs/%ss elapsed | in-flight=%s %s | "
-                "done=%s %s%s",
+                "  [c%s heartbeat] %.0fs/%ss elapsed | in-flight=%s %s | done=%s %s%s",
                 concurrency,
                 min(now - wall_start, duration_seconds),
                 duration_seconds,
