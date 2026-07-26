@@ -51,10 +51,16 @@ DEFAULT_ALLOWED_TOOLS = [
 # refusing anything not covered by the allowlist. We never default to
 # bypassPermissions.
 DEFAULT_PERMISSION_MODE = "acceptEdits"
-VALID_PERMISSION_MODES = {"default", "acceptEdits", "plan"}
-DEFAULT_MAX_TURNS = 60
+# bypassPermissions is allowed because the benchmark runs against THROWAWAY
+# clones (fresh git clone into a temp dir, deleted after each task, no secrets).
+# It is required for /swe2 (implementation): Claude Code's built-in Bash guard
+# blocks the `cd <repo> && git ...` idiom that non-Claude models emit ("changes
+# directory before running git, can execute untrusted hooks"), which otherwise
+# burns the whole turn budget on denied commands and prevents any patch.diff.
+VALID_PERMISSION_MODES = {"default", "acceptEdits", "plan", "bypassPermissions"}
+DEFAULT_MAX_TURNS = 250
 DEFAULT_MAX_OUTPUT_TOKENS = 16000
-DEFAULT_TIMEOUT_SECONDS = 1800
+DEFAULT_TIMEOUT_SECONDS = 3600
 # How many times to retry a task that failed for a TRANSIENT reason (stream
 # error, empty/non-JSON output, timeout, an api/execution error). A task that
 # simply ran out of turns (subtype "error_max_turns") is NOT retried -- more
@@ -350,8 +356,7 @@ class RunnerConfig(BaseModel):
         if self.permission_mode not in VALID_PERMISSION_MODES:
             raise RunnerConfigError(
                 f"permission_mode '{self.permission_mode}' not in "
-                f"{sorted(VALID_PERMISSION_MODES)}. bypassPermissions and "
-                "dangerously-skip-permissions are intentionally not allowed."
+                f"{sorted(VALID_PERMISSION_MODES)}."
             )
         self._validate_routing()
 
