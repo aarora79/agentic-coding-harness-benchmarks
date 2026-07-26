@@ -721,6 +721,19 @@ This is the one step that distinguishes `/swe2` from `/swe`. Having designed the
 
 ### 8.5.1 Implement against the LLD
 
+> **CRITICAL - the code lives in `{repo-path}`, NOT your working directory. Anchor every edit to it or you will loop and run out of turns.** The cloned repo you are editing is a **separate folder** (a temp checkout, e.g. `/tmp/swe-clone-<task>/<repo-name>`), *not* the directory the harness runs you from. This is the single most common way this step fails: the model edits a guessed or working-dir-relative path (e.g. `src/registry/api/server_routes.py`), the file does not exist there, the `Edit`/`Write` silently no-ops or errors, the model re-describes the same edit, gets told "the file still contains the original code," tries again, and burns the entire turn budget without landing a single change - producing 4/6 artifacts (design only, no `patch.diff`). Avoid it with this discipline:
+>
+> 1. **Record the absolute repo root once, up front, and treat it as fixed for the whole step.** At the start of 8.5, resolve and remember it:
+>    ```bash
+>    REPO="{repo-path}"            # the exact clone path from Step 1.4, e.g. /tmp/swe-clone-remove-faiss/mcp-gateway-registry
+>    git -C "$REPO" rev-parse --show-toplevel   # confirm it IS the clone root; use this value as $REPO
+>    ```
+>    Keep `$REPO` in mind for every file operation below. Never let it drift to your cwd, to `benchmarks/...`, or to a path you guessed from the LLD.
+> 2. **Every file path you Read/Edit/Write in the target repo MUST be the absolute `$REPO/<path-relative-to-repo-root>`.** The LLD may write paths relative to the repo root (e.g. `registry/api/server_routes.py`); prepend `$REPO/` to get the real location (`$REPO/registry/api/server_routes.py`). Do **not** invent prefixes like `src/` that the LLD did not state.
+> 3. **VERIFY THE PATH EXISTS BEFORE EDITING IT.** Before the first edit to any file, confirm it is really there - `ls "$REPO/<path>"` or `Read` it. If it is missing, do not guess variants; `find "$REPO" -name '<basename>'` (allowed) to locate the true path, then edit that. A `git -C "$REPO" ls-files | grep <name>` also finds the canonical path fast.
+> 4. **If an edit does not land, STOP and re-locate - never retry the same path.** If `Edit`/`Write` errors, or a follow-up `Read`/`git diff` shows the file unchanged, the path or the `old_string` is wrong. Do **not** re-issue the same edit or reword it in a loop (that is exactly what exhausts the turn budget). Instead: re-find the file under `$REPO`, re-read its current contents, and issue the edit against the confirmed path/text. Two failed attempts on one file = re-locate, do not try a third blind.
+> 5. **Periodically re-ground.** After a batch of edits, run `git -C "$REPO" diff --stat` to confirm your changes are actually accumulating in the clone. If it is empty when you believe you have edited files, your paths are wrong - fix the anchor before continuing, do not keep editing into the void.
+
 Edit the files in `{repo-path}` to realize the design in `lld.md`. Treat the LLD's "Implementation Details" and "File Changes" sections as the plan of record:
 
 - **Follow the LLD.** Make the edits the LLD calls out - new files, modified files, dependency and config changes. If while implementing you discover the LLD is wrong or incomplete, make the smallest correct change AND record the deviation in `implementation.md` (8.5.4); do not silently diverge.
