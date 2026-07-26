@@ -92,11 +92,11 @@ def _line_chart(
             f'font-size="11" fill="{_MUTED}">{int(x)}</text>'
         )
     parts.append(
-        f'<text x="{_W / 2:.0f}" y="{_H - 6}" text-anchor="middle" font-size="12" '
+        f'<text x="{_W / 2:.0f}" y="{_H - 6}" text-anchor="middle" font-size="14" '
         f'fill="{_INK}">{html.escape(x_label)}</text>'
     )
     parts.append(
-        f'<text x="16" y="{_H / 2:.0f}" text-anchor="middle" font-size="12" '
+        f'<text x="16" y="{_H / 2:.0f}" text-anchor="middle" font-size="14" '
         f'fill="{_INK}" transform="rotate(-90 16 {_H / 2:.0f})">{html.escape(y_label)}</text>'
     )
     # series. Each data point is clickable: a visible marker plus a larger
@@ -180,27 +180,50 @@ def _render(summary: dict[str, Any]) -> str:
             [("TPOT (ms)", col("tpot_ms_mean"), _BLUE)],
             "time per output token (ms)",
         ),
+        # Blended (Lens A) on its OWN chart: it sits at ~0.3-0.5 $/1M, so sharing
+        # an axis with the split output line (~1-2 $/1M) flattens it against zero
+        # and it disappears. Separate single-axis charts (small multiples) keep
+        # each lens legible -- never a shared axis across different magnitudes.
         _line_chart(
-            "Cost per 1M tokens vs concurrency",
+            "Blended cost per 1M tokens (Lens A)",
             xs,
             [
                 (
-                    "blended $/1M (Lens A)",
+                    "blended $/1M",
                     col("blended_cost_per_1m_tokens_usd"),
                     _ACCENT,
                 ),
+            ],
+            "USD / 1M tokens",
+        ),
+        _line_chart(
+            "Split cost per 1M tokens (Lens B)",
+            xs,
+            [
                 (
-                    "output $/1M (Lens B)",
+                    "output $/1M",
                     col("split_cost_per_1m_output_tokens_usd"),
                     _BLUE,
                 ),
                 (
-                    "input $/1M (Lens B)",
+                    "input $/1M",
                     col("split_cost_per_1m_input_tokens_usd"),
                     _MUTED,
                 ),
             ],
             "USD / 1M tokens",
+        ),
+        # Cost per task (the headline number) under both lenses. They are close in
+        # magnitude ($/task blended vs split), so one shared axis is honest here.
+        # Also keeps the chart count even (8 -> tidy 4x2 grid).
+        _line_chart(
+            "Cost per task vs concurrency",
+            xs,
+            [
+                ("blended $/task (Lens A)", col("task_cost_blended_usd"), _ACCENT),
+                ("split $/task (Lens B)", col("task_cost_split_usd"), _BLUE),
+            ],
+            "USD / task",
         ),
         _line_chart(
             "Saturation vs concurrency",
@@ -220,6 +243,18 @@ def _render(summary: dict[str, Any]) -> str:
             "value",
         ),
     ]
+
+    # Recommended operating point: the concurrency with the cheapest blended
+    # cost per 1M tokens (best cost efficiency = most work per GPU-dollar). This
+    # is the level to run the server at. We surface it loudly AND note its TTFT,
+    # since the cheapest level is often the busiest and thus the slowest to first
+    # token -- the operator needs both numbers to make the call.
+    costed = [r for r in levels if r.get("blended_cost_per_1m_tokens_usd") is not None]
+    rec = (
+        min(costed, key=lambda r: r["blended_cost_per_1m_tokens_usd"])
+        if costed
+        else None
+    )
 
     peak_tps = summary.get("peak_output_tokens_per_second")
     min_blended_task = summary.get("min_task_cost_blended_usd")
@@ -260,6 +295,29 @@ def _render(summary: dict[str, Any]) -> str:
 
     model = html.escape(str(summary.get("model", "?")))
     instance = html.escape(str(summary.get("instance_type", "?")))
+
+    # Loud recommended-concurrency banner (cheapest blended $/1M point).
+    if rec is not None:
+        rc = rec["concurrency"]
+        rc_cost = rec.get("blended_cost_per_1m_tokens_usd")
+        rc_ttft = rec.get("ttft_ms_mean")
+        rc_task = rec.get("task_cost_blended_usd")
+        ttft_txt = (
+            f"~{rc_ttft / 1000:.0f}s time-to-first-token"
+            if rc_ttft is not None
+            else "TTFT n/a"
+        )
+        rec_banner = (
+            f'<div class="rec"><div class="big">Recommended concurrency: '
+            f"run this server at ~{rc} concurrent sessions</div>"
+            f'<div class="why">Cheapest blended cost (${rc_cost}/1M tokens'
+            + (f", ${rc_task:.2f}/task" if rc_task is not None else "")
+            + f") -- the most work per GPU-dollar. At this load expect {ttft_txt}; "
+            "raise concurrency only if you can tolerate higher first-token latency, "
+            "lower it for a snappier interactive feel at higher cost per token.</div></div>"
+        )
+    else:
+        rec_banner = ""
     rows = "".join(
         "<tr>"
         + f"<td>{r['concurrency']}</td>"
@@ -326,6 +384,10 @@ def _render(summary: dict[str, Any]) -> str:
   .wrap {{ max-width: 1360px; margin: 0 auto; padding: 28px; }}
   h1 {{ font-size: 20px; margin: 0 0 4px; }}
   .sub {{ color: {_MUTED}; margin: 0 0 20px; font-size: 13px; }}
+  .rec {{ background: {_ACCENT}; color: #fff; border-radius: 10px;
+         padding: 16px 22px; margin: 0 0 24px; }}
+  .rec .big {{ font-size: 22px; font-weight: 700; }}
+  .rec .why {{ font-size: 13px; opacity: .95; margin-top: 4px; }}
   .tiles {{ display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }}
   .tile {{ background: #fff; border: 1px solid {_GRID}; border-radius: 10px;
           padding: 16px 20px; min-width: 150px; }}
@@ -376,6 +438,7 @@ def _render(summary: dict[str, Any]) -> str:
      weights an input token at {w}&times; an output token (a lab-style convention,
      not measured). Cost is hardware-derived, not a per-token bill.</p>
   <p class="sub">Tip: click any point on a chart for that concurrency level's full numbers.</p>
+  {rec_banner}
   <div class="tiles">{"".join(tiles)}</div>
   <div class="grid">{"".join(charts)}</div>
   <div id="detail"><button class="close" onclick="hideDetail()">&times;</button>
