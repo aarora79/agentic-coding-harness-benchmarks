@@ -83,13 +83,13 @@ def _line_chart(
         )
         parts.append(
             f'<text x="{_PAD_L - 8}" y="{y + 4:.1f}" text-anchor="end" '
-            f'font-size="11" fill="{_MUTED}">{yv:.0f}</text>'
+            f'font-size="13" fill="{_MUTED}">{yv:.0f}</text>'
         )
     # x labels at each concurrency point
     for x in xs:
         parts.append(
             f'<text x="{px(x):.1f}" y="{_H - _PAD_B + 18:.1f}" text-anchor="middle" '
-            f'font-size="11" fill="{_MUTED}">{int(x)}</text>'
+            f'font-size="13" fill="{_MUTED}">{int(x)}</text>'
         )
     parts.append(
         f'<text x="{_W / 2:.0f}" y="{_H - 6}" text-anchor="middle" font-size="14" '
