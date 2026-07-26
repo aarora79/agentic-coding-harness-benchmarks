@@ -45,9 +45,22 @@ PROMPT_TOKENS = "vllm:prompt_tokens_total"
 KV_USAGE = "vllm:kv_cache_usage_perc"
 REQ_RUNNING = "vllm:num_requests_running"
 REQ_WAITING = "vllm:num_requests_waiting"
-# Histogram sum/count pairs -> mean latency over the window's requests.
+# Histogram metrics -> latency over the window's requests. We report PERCENTILES
+# (p50/p90) from the _bucket series, not just the _sum/_count mean: the mean is
+# distorted by outliers and by how many requests happen to complete in the
+# window (at low concurrency, few completions let a handful of cold-cache
+# prefills dominate, making the mean fall as concurrency rises -- an artifact,
+# not a real improvement). Percentiles from cumulative buckets are robust.
 TTFT = "vllm:time_to_first_token_seconds"
 TPOT = "vllm:request_time_per_output_token_seconds"
+# TTFT decomposes into scheduler QUEUE wait + actual PREFILL. For an input-heavy
+# agentic workload TTFT is dominated by queue wait once the server saturates, so
+# splitting them out is the honest UX story (see cost-per-task-methodology.md).
+QUEUE_TIME = "vllm:request_queue_time_seconds"
+PREFILL_TIME = "vllm:request_prefill_time_seconds"
+
+# Percentiles to report from each latency histogram.
+_PERCENTILES = (50, 90, 99)
 
 
 def _counter_rate(con: duckdb.DuckDBPyConnection, session: str, metric: str) -> dict:
@@ -127,6 +140,70 @@ def _hist_mean_ms(
     if count_delta <= 0:
         return None
     return round((sum_delta / count_delta) * 1000, 1)
+
+
+def _hist_percentiles_ms(
+    con: duckdb.DuckDBPyConnection, session: str, base: str
+) -> dict[str, float | None]:
+    """Percentiles (ms) over a window from a Prometheus histogram's buckets.
+
+    Reads the cumulative ``_bucket`` series (one per ``le`` upper-edge), takes the
+    last-minus-first delta per edge to get this window's per-bucket counts, then
+    walks the cumulative distribution to find each target percentile's bucket
+    edge. Robust to outliers and to how many requests completed, unlike the mean.
+
+    The reported value is the bucket's upper edge (Prometheus histograms bound,
+    not interpolate), so it is an upper estimate within that bucket. ``+Inf`` maps
+    to ``None`` -- if a percentile lands in the overflow bucket, more than that
+    fraction of requests exceeded the largest finite edge (report as ">edge").
+
+    Args:
+        con: Open DuckDB connection.
+        session: Collector session name (one concurrency level).
+        base: Histogram metric base (without the ``_bucket`` suffix).
+
+    Returns:
+        ``{"p50": ms, "p90": ms, "p99": ms}``; a value is None when that
+        percentile falls in the ``+Inf`` overflow bucket or there is no data.
+    """
+    rows = con.execute(
+        """
+        SELECT labels, scraped_at, value
+        FROM vllm_metric_samples
+        WHERE session_name = ? AND metric = ?
+        ORDER BY scraped_at
+        """,
+        [session, base + "_bucket"],
+    ).fetchall()
+
+    # Per-edge window delta = last cumulative count - first cumulative count.
+    first: dict[str, float] = {}
+    last: dict[str, float] = {}
+    for labels, _scraped_at, value in rows:
+        edge = json.loads(labels).get("le")
+        if edge is None:
+            continue
+        val = float(value)
+        first.setdefault(edge, val)
+        last[edge] = val
+
+    def _edge_key(edge: str) -> float:
+        return float("inf") if edge == "+Inf" else float(edge)
+
+    edges = sorted(first, key=_edge_key)
+    cumulative = [(edge, last[edge] - first[edge]) for edge in edges]
+    total = cumulative[-1][1] if cumulative else 0.0
+    out: dict[str, float | None] = {f"p{p}": None for p in _PERCENTILES}
+    if total <= 0:
+        return out
+
+    for p in _PERCENTILES:
+        target = total * p / 100.0
+        for edge, cum in cumulative:
+            if cum >= target:
+                out[f"p{p}"] = None if edge == "+Inf" else round(float(edge) * 1000, 1)
+                break
+    return out
 
 
 def _levels(con: duckdb.DuckDBPyConnection, model: str) -> list[tuple[int, str]]:
@@ -230,8 +307,15 @@ def _build(
                 "kv_cache_usage": _gauge_stats(con, session, KV_USAGE),
                 "requests_running": _gauge_stats(con, session, REQ_RUNNING),
                 "requests_waiting": _gauge_stats(con, session, REQ_WAITING),
+                # TTFT/TPOT: percentiles from buckets (robust) plus the mean for
+                # continuity. TTFT is also decomposed into queue wait vs prefill.
                 "ttft_ms_mean": _hist_mean_ms(con, session, TTFT),
+                "ttft_ms_pctl": _hist_percentiles_ms(con, session, TTFT),
                 "tpot_ms_mean": _hist_mean_ms(con, session, TPOT),
+                "tpot_ms_pctl": _hist_percentiles_ms(con, session, TPOT),
+                "queue_ms_mean": _hist_mean_ms(con, session, QUEUE_TIME),
+                "queue_ms_pctl": _hist_percentiles_ms(con, session, QUEUE_TIME),
+                "prefill_ms_mean": _hist_mean_ms(con, session, PREFILL_TIME),
                 **costs,
                 # Convenience per-1M figures for the dashboard axes.
                 "blended_cost_per_1m_tokens_usd": round(blended * 1e6, 2)

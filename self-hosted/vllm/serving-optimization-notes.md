@@ -17,7 +17,21 @@ A running log of serving-configuration findings for the self-hosted (vLLM) path.
 
 ---
 
+## 2026-07-26 — CORRECTION: the "prefill-saturated" run below was a backed-up server, not the model
+
+A clean re-run of the same sweep (same model, hardware, dataset, windows) — this time with a **c=1 baseline** and **TTFT reported as p50/p90 with a queue-vs-prefill split** — showed the server is **healthy**, not saturated:
+
+- TTFT p50 **~1-2s uncontended, ~5-8s at c=20** (not minutes); prefill mean a flat ~2-4s; queue-wait p50 ~0s until c=7, ~2s by c=20.
+- Generation throughput ~90-145 tok/s, prompt ~9-13K tok/s, KV never saturated, zero preemptions.
+- At c=10 the clean run completed **171 requests** in the window vs **23** in the run below — the earlier run's requests were stuck in a **stale scheduler backlog** (queue mean 135s vs 5.5s).
+
+So the entry below correctly ruled out KV pressure, but its "prefill saturation / 2-4 minute TTFT" conclusion was measuring a **transient backed-up server state**, not the workload's true behavior. **Lesson baked into the tooling:** always run a **c=1 baseline** and watch the **queue-vs-prefill decomposition** — if c=1 TTFT is not small, or queue-wait dominates prefill at low concurrency, the server is not clean and the run must be discarded. See [cost-per-task-methodology.md](cost-per-task-methodology.md) for the corrected curve. The portable serving defaults (top of this file) are unchanged and remain correct.
+
+---
+
 ## 2026-07-25 — Agentic coding is prefill-bound, not KV-bound (qwen3.6-35b on g6e.12xlarge, 4xL40S)
+
+> **Superseded — see the 2026-07-26 correction above.** This investigation's KV-vs-prefill reasoning is sound, but its headline numbers came from a backed-up server and overstate the problem. Kept for the reasoning and the metric-artifact lesson.
 
 **Context.** Running the throughput skill against qwen3.6-35b. Switched the load dataset from `mcp-gateway-registry` (5 tasks, ONE repo) to `multi-repo-throughput` (25 tasks, 25 DIFFERENT repos) and saw generation throughput drop sharply and *fall* with concurrency. Investigated whether it was KV-cache pressure. **It is not** — it is prefill (prompt-processing) saturation, and it is the true cost of this workload, not a mistuning.
 

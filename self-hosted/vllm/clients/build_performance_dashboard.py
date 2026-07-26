@@ -166,12 +166,22 @@ def _render(summary: dict[str, Any]) -> str:
             [("prompt tokens/s", col("prompt_tokens_per_second"), _BLUE)],
             "prompt tokens / s",
         ),
-        # Latency likewise: TTFT (thousands of ms) dwarfs TPOT (hundreds), so
-        # split rather than dual-axis.
+        # TTFT: report PERCENTILES, not the mean. The mean falls as concurrency
+        # rises purely because more requests complete in the window (diluting a
+        # few cold-cache outliers) -- an artifact, not a real speedup. p50/p90 are
+        # robust. We also overlay queue-wait p50 and prefill mean (all seconds,
+        # same axis) to show TTFT is dominated by QUEUE wait once saturated, not
+        # by prefill compute. Values are bucket upper edges; the top bucket is
+        # 640s, so a line pinned there means ">640s" (see the detail popover).
         _line_chart(
-            "TTFT vs concurrency",
+            "Time to first token vs concurrency (p50/p90; queue vs prefill)",
             xs,
-            [("TTFT (ms)", col("ttft_ms_mean"), _ACCENT)],
+            [
+                ("TTFT p50 (ms)", col("ttft_ms_pctl", "p50"), _ACCENT),
+                ("TTFT p90 (ms)", col("ttft_ms_pctl", "p90"), _BLUE),
+                ("queue wait p50 (ms)", col("queue_ms_pctl", "p50"), _MUTED),
+                ("prefill mean (ms)", col("prefill_ms_mean"), _INK),
+            ],
             "time to first token (ms)",
         ),
         _line_chart(
@@ -300,12 +310,12 @@ def _render(summary: dict[str, Any]) -> str:
     if rec is not None:
         rc = rec["concurrency"]
         rc_cost = rec.get("blended_cost_per_1m_tokens_usd")
-        rc_ttft = rec.get("ttft_ms_mean")
+        rc_ttft = (rec.get("ttft_ms_pctl") or {}).get("p50")
         rc_task = rec.get("task_cost_blended_usd")
         ttft_txt = (
-            f"~{rc_ttft / 1000:.0f}s time-to-first-token"
+            f"~{rc_ttft / 1000:.0f}s median time-to-first-token"
             if rc_ttft is not None
-            else "TTFT n/a"
+            else ">640s median time-to-first-token (queue-saturated)"
         )
         rec_banner = (
             f'<div class="rec"><div class="big">Recommended concurrency: '
@@ -323,8 +333,9 @@ def _render(summary: dict[str, Any]) -> str:
         + f"<td>{r['concurrency']}</td>"
         + f"<td>{r.get('output_tokens_per_second') or '-'}</td>"
         + f"<td>{r.get('prompt_tokens_per_second') or '-'}</td>"
-        + f"<td>{r.get('ttft_ms_mean') or '-'}</td>"
-        + f"<td>{r.get('tpot_ms_mean') or '-'}</td>"
+        + f"<td>{(r.get('ttft_ms_pctl') or {}).get('p50') or '>640000'}</td>"
+        + f"<td>{(r.get('queue_ms_pctl') or {}).get('p50') or '>640000'}</td>"
+        + f"<td>{(r.get('tpot_ms_pctl') or {}).get('p50') or '-'}</td>"
         + f"<td>{(r.get('kv_cache_usage') or {}).get('peak') or '-'}</td>"
         + f"<td>{r.get('blended_cost_per_1m_tokens_usd') or '-'}</td>"
         + f"<td>{r.get('task_cost_blended_usd') or '-'}</td>"
@@ -354,8 +365,12 @@ def _render(summary: dict[str, Any]) -> str:
             r["concurrency"]: {
                 "output_tokens_per_second": r.get("output_tokens_per_second"),
                 "prompt_tokens_per_second": r.get("prompt_tokens_per_second"),
+                "ttft_ms_p50": (r.get("ttft_ms_pctl") or {}).get("p50"),
+                "ttft_ms_p90": (r.get("ttft_ms_pctl") or {}).get("p90"),
+                "queue_ms_p50": (r.get("queue_ms_pctl") or {}).get("p50"),
+                "prefill_ms_mean": r.get("prefill_ms_mean"),
+                "tpot_ms_p50": (r.get("tpot_ms_pctl") or {}).get("p50"),
                 "ttft_ms_mean": r.get("ttft_ms_mean"),
-                "tpot_ms_mean": r.get("tpot_ms_mean"),
                 "kv_cache_peak": (r.get("kv_cache_usage") or {}).get("peak"),
                 "requests_running_peak": (r.get("requests_running") or {}).get("peak"),
                 "requests_waiting_peak": (r.get("requests_waiting") or {}).get("peak"),
@@ -458,7 +473,7 @@ def _render(summary: dict[str, Any]) -> str:
 
   <table>
     <thead><tr><th>concurrency</th><th>out tok/s</th><th>prompt tok/s</th>
-      <th>TTFT ms</th><th>TPOT ms</th><th>KV peak</th>
+      <th>TTFT p50 ms</th><th>queue p50 ms</th><th>TPOT p50 ms</th><th>KV peak</th>
       <th>blended $/1M</th><th>$/task blended</th><th>$/task split</th></tr></thead>
     <tbody>{rows}</tbody>
   </table>
@@ -471,8 +486,12 @@ def _render(summary: dict[str, Any]) -> str:
   const DETAIL_LABELS = {{
     output_tokens_per_second: "output tokens/s",
     prompt_tokens_per_second: "prompt tokens/s",
-    ttft_ms_mean: "TTFT (ms)",
-    tpot_ms_mean: "TPOT (ms)",
+    ttft_ms_p50: "TTFT p50 (ms)",
+    ttft_ms_p90: "TTFT p90 (ms)",
+    queue_ms_p50: "queue wait p50 (ms)",
+    prefill_ms_mean: "prefill mean (ms)",
+    tpot_ms_p50: "TPOT p50 (ms)",
+    ttft_ms_mean: "TTFT mean (ms, outlier-prone)",
     kv_cache_peak: "KV-cache peak",
     requests_running_peak: "running reqs (peak)",
     requests_waiting_peak: "waiting reqs (peak)",
