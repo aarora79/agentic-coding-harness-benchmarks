@@ -59,37 +59,35 @@ Agentic coding (Claude Code driving `/swe2`) has an extreme request shape: **ver
 
 That shape has three consequences:
 
-1. **The server is prefill-bound, not decode-bound.** The GPU spends ~99% of its time processing prompt tokens; generation is a rounding error on the compute. Measured prefill:decode ran **130:1 to 280:1**. See [serving-optimization-notes.md](serving-optimization-notes.md) for the full investigation (it is a workload property, not a mistuning).
+1. **The server is prefill-heavy: it spends far more compute on reading prompts than on generating.** Prompt throughput (~9-13K tok/s) dwarfs generation (~90-145 tok/s). But "prefill-heavy" is not the same as "saturated" — on a healthy server the prefill still completes in a few seconds (measured **prefill ~2-4s mean** across the sweep), because the prompt is processed in large batched chunks, not token-by-token.
 
-2. **User experience = time-to-first-token dominated, and it is severe.** Because each request must prefill ~100K+ tokens before the first output token appears, **TTFT is the felt latency**. Measured on the realistic multi-repo sweep it was **~138 to 248 seconds** (2-4 minutes) across concurrency 2-20 — the user waits minutes for the first token, then generation itself is fast. Per-output-token latency (TPOT) stays modest; the wait is almost entirely prefill. "More concurrent users" does not degrade gracefully — each additional heavy prompt lengthens everyone's wait for a prefill slot. **This, not cost, is the real product constraint for agentic coding on a single self-hosted instance.**
+2. **User experience = time-to-first-token, and on a healthy server it is fine and degrades gracefully.** Because each request must prefill ~100K+ tokens before the first output token, **TTFT is the felt latency**. Measured (median) it is **~1-2s uncontended and rises to ~5-8s at concurrency 20** — good, and it degrades gracefully, not off a cliff. TTFT = **queue wait + prefill**; the decomposition shows prefill is a flat ~2-4s and queue wait stays near zero until higher concurrency (p50 0s up to c=7, ~2s by c=20). Report **TTFT as p50/p90**, never the mean: the mean is distorted by a few cold-cache outliers and by how many requests complete in the window, which can make it move in the wrong direction.
 
-   Full realistic curve (qwen3.6-35b, multi-repo, 25 repos, 10-min windows per level):
+   Full curve (qwen3.6-35b, multi-repo, 25 repos, 10-min windows per level, healthy server):
 
-   | c | gen t/s | prompt t/s | blended $/1M | task $ (blended) | KV% peak | TTFT |
-   |--:|--:|--:|--:|--:|--:|--:|
-   | 2 | 44.5 | 5936 | 0.49 | 0.75 | 62.6 | 248 s |
-   | 5 | 19.6 | 5568 | 0.52 | 0.80 | 47.9 | 241 s |
-   | 7 | 21.1 | 6466 | 0.45 | 0.69 | 38.2 | 234 s |
-   | 10 | 24.4 | 6602 | 0.44 | 0.68 | 36.3 | 211 s |
-   | 15 | 24.8 | 6734 | 0.43 | 0.66 | 39.5 | 196 s |
-   | 20 | 49.3 | 8195 | 0.35 | 0.54 | 50.7 | 138 s |
+   | c | gen t/s | prompt t/s | TTFT p50 | TTFT p90 | queue p50 | prefill mean | blended $/1M | task $ |
+   |--:|--:|--:|--:|--:|--:|--:|--:|--:|
+   | 1 | 145 | 12202 | 2s | 20s | 0s | 4s | 0.24 | 0.36 |
+   | 2 | 114 | 13252 | 1s | 20s | 0s | 3s | 0.22 | 0.34 |
+   | 5 | 87 | 9441 | 2s | 20s | 0s | 3s | 0.31 | 0.47 |
+   | 7 | 111 | 10168 | 5s | 20s | 0s | 3s | 0.28 | 0.44 |
+   | 10 | 103 | 10326 | 5s | 40s | 1s | 3s | 0.28 | 0.43 |
+   | 15 | 109 | 10667 | 8s | 80s | 2s | 3s | 0.27 | 0.42 |
+   | 20 | 134 | 11705 | 5s | 40s | 2s | 2s | 0.25 | 0.38 |
 
-   Note how **generation tok/s is erratic and low (20-49) while prompt tok/s is stable and high (5.9-8.2K), KV never saturates (50-63% peak), and there are zero preemptions** — the blended cost (which counts both token types) is the only smooth, interpretable column. Cheapest blended task cost ~$0.54 at c=20.
+   > **Watch the server state when you measure.** An earlier run of this same sweep reported TTFT p50 pegged at the histogram ceiling (>640s) with queue-wait means of ~135-240s. That was **not** the model's true behavior — the server was in a backed-up state (a stale scheduler backlog from prior experimentation): it completed ~7x fewer requests per window (23 vs 171 at c=10) because they sat queued. A clean re-run gave the healthy 1-8s numbers above. The lesson: the c=1 baseline and the queue-vs-prefill split exist precisely to catch this — if the c=1 TTFT is not a small number, or queue-wait dominates prefill at low concurrency, the server is not in a clean state and the run should be discarded.
 
-3. **Generation tokens/sec is the wrong headline.** It *falls* with concurrency here (the prefix cache stops masking the prefill cost across diverse repos), which makes a healthy, fully-utilized server look broken. The machine is doing more useful work as concurrency rises — it is just prefill work. **Blended cost per processed token stays stable (~5-8K processed tok/s across the whole sweep)** because it counts the work actually done. That is why blended is the honest headline for cost.
+3. **Report cost on the blended (per processed token) lens.** Generation tok/s alone is a poor headline for an input-heavy workload; blended cost counts prompt + generation, i.e. the work the machine actually does. Blended cost stayed in a tight **$0.22-0.31/1M** band across the whole sweep, cheapest at low concurrency, which is the stable, comparable figure.
 
-## Why the answer to "make it faster/cheaper" is horizontal scaling
+## Scaling: vertical first (the instance has real headroom), then horizontal
 
-Given a fixed workload shape (input-heavy) and fixed serving defaults (already correct — chunked prefill on, batch budget auto), a single instance has a **prefill throughput ceiling** set by its GPU FLOPs. You cannot tune your way past it per model:
+On a **healthy** server this workload is not at a hard ceiling — TTFT p50 is only 5-8s at c=20, KV cache never saturates, and there are no preemptions. So there is genuine vertical headroom: this instance can take more concurrency before latency becomes a problem, and the serving defaults (chunked prefill on, batch budget auto) already use it well. Push concurrency up until p90 TTFT or KV pressure crosses your latency budget — that is the per-instance operating point (the dashboard's recommended-concurrency banner picks the cheapest-blended point; temper it with the p90 TTFT you can tolerate).
 
-- Vertical knobs (`max_num_batched_tokens`, window size, `max_num_seqs`) redistribute the same fixed FLOPs; they do not add prefill capacity. Lowering the context window does not help because the bottleneck is prefill compute, not KV memory.
-- The workload is embarrassingly parallel: N developers on N repos are N independent sessions with no shared state. There is nothing to synchronize.
-
-So the scaling story is **horizontal**: to serve more concurrent agentic users at acceptable TTFT, add more replicas (more instances behind a load balancer), not a bigger single box. The **blended cost per token is roughly flat across replicas** — each instance has the same $/hr and the same prefill ceiling — so cost scales linearly with load and the per-task cost you measure on one instance is the per-task cost at fleet scale. That is the property that makes the blended number a useful planning figure: **measure once on one instance, multiply by replicas for capacity.**
+Beyond that per-instance limit, scale **horizontally**: the workload is embarrassingly parallel (N developers on N repos are N independent sessions, nothing to synchronize), so add replicas behind a load balancer. The **blended cost per token is roughly flat across replicas** — each instance has the same $/hr and the same throughput profile — so cost scales linearly with load and the per-task cost measured on one instance is the per-task cost at fleet scale: **measure once, multiply by replicas for capacity.**
 
 ## Summary
 
 - Cost is derived from `instance $/hr / measured tokens/sec` — real, not a quoted price.
 - **Blended** (per processed token, input == output) is the honest primary lens; **split** (`w`-weighted, API-shaped) is a familiar-but-misleading secondary lens for input-heavy work.
-- Agentic coding is input-heavy (~50:1) -> prefill-bound -> TTFT-dominated UX that degrades under concurrency, and generation tok/s is a misleading metric.
-- You cannot tune the ceiling away per model; the lever is **horizontal scaling**, and blended per-task cost is flat across replicas, so it is the right figure to plan capacity with.
+- Agentic coding is input-heavy (~50:1), so the server is prefill-heavy — but on a healthy instance TTFT is a few seconds and degrades gracefully; **report TTFT as p50/p90 (not mean) and decompose queue vs prefill**, and always include a c=1 baseline to catch a backed-up server.
+- Blended per-task cost (~$0.34-0.47 here) is flat across replicas: use vertical headroom on one instance up to your latency budget, then scale horizontally, and plan capacity from the measured per-task cost.
