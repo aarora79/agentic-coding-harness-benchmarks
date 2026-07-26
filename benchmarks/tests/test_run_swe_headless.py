@@ -88,7 +88,11 @@ class SafeTaskSlugTest(unittest.TestCase):
 class BuildPromptTest(unittest.TestCase):
     def test_prompt_has_all_swe_keys(self) -> None:
         prompt = harness._build_prompt(
-            _task(), Path("/tmp/x/mcp-gateway-registry"), "1.24.4", "qwen3.6-35b"
+            _task(),
+            Path("/tmp/x/mcp-gateway-registry"),
+            "1.24.4",
+            "qwen3.6-35b",
+            Path("/tmp/art"),
         )
         for key in ("repo:", "problem:", "model:", "answers:"):
             self.assertIn(key, prompt)
@@ -100,21 +104,24 @@ class BuildPromptTest(unittest.TestCase):
             Path("/tmp/x/bar"),
             "main",
             "m",
+            Path("/tmp/art"),
         )
         self.assertIn("Reference issue:", prompt)
 
     def test_prompt_has_fallback_answers_when_absent(self) -> None:
         prompt = harness._build_prompt(
-            _task(clarifying_answers=None), Path("/tmp/x/r"), "main", "m"
+            _task(clarifying_answers=None), Path("/tmp/x/r"), "main", "m", Path("/tmp/art")
         )
         self.assertIn("best judgment", prompt)
 
     def test_prompt_invokes_swe2_skill(self) -> None:
         prompt = harness._build_prompt(
-            _task(), Path("/tmp/x/mcp-gateway-registry"), "1.24.4", "m"
+            _task(), Path("/tmp/x/mcp-gateway-registry"), "1.24.4", "m", Path("/tmp/art")
         )
         # The harness drives /swe2 (design + implementation), not /swe.
         self.assertTrue(prompt.startswith("/swe2 "))
+        # The absolute artifacts dir is passed through verbatim as a drift guard.
+        self.assertIn("/tmp/art", prompt)
 
 
 class ArtifactFilenamesTest(unittest.TestCase):
