@@ -15,13 +15,15 @@ How it differs from the quality run:
     agentic sessions in flight, refilling a slot as soon as one finishes, for a
     fixed ``--duration-seconds`` window -- so a saturation curve can be built by
     sweeping N.
-  * **Each slot picks a task at RANDOM.** As a slot frees up it is filled by a
-    task drawn at random (with replacement) from the dataset -- so with a
-    multi-repo dataset (e.g. dataset/multi-repo-throughput.yaml) each concurrent
-    slot tends to clone and reason over a DIFFERENT repo, simulating N developers
-    each working on their own project rather than N sessions on one repo. Each
-    running instance gets a unique slot id so its clone dir and (throwaway)
-    artifact dir never collide with a sibling running the same task.
+  * **Each slot picks a DISTINCT task at random.** Tasks are drawn at random
+    WITHOUT replacement, cycling: a shuffled ordering of the dataset is consumed
+    one task per slot, reshuffling once exhausted. So the N in-flight slots hold N
+    *different* tasks whenever the dataset has at least N of them -- never N copies
+    of the same task -- and only once every task is already in flight do repeats
+    begin, spread as evenly as possible. With a multi-repo dataset that means each
+    concurrent slot clones and reasons over a DIFFERENT repo, simulating N
+    developers each on their own project. Each running instance still gets a
+    unique slot id so its clone dir and (throwaway) artifact dir never collide.
   * **Artifacts are load, not results.** We measure server throughput (via the
     DuckDB metrics collector) and client-side per-request tokens/latency; the
     written artifacts are not scored and their dirs are cleaned up.
@@ -48,10 +50,18 @@ import shutil
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+# Live-heartbeat cadence: how often run_level logs window progress + throughput.
+_HEARTBEAT_SECONDS = 30
+# vLLM Prometheus counters the heartbeat reads for a live tokens/sec readout.
+_GEN_TOKENS_METRIC = "vllm:generation_tokens_total"
+_PROMPT_TOKENS_METRIC = "vllm:prompt_tokens_total"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -78,6 +88,65 @@ from runner_config import RunnerConfig, load_runner_config  # noqa: E402
 def _utc_now() -> str:
     """Return the current UTC time as an ISO 8601 string with a trailing Z."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _scrape_token_counters(endpoint: str | None) -> dict[str, float] | None:
+    """Read vLLM's cumulative gen/prompt token counters from ``/metrics``.
+
+    Best-effort and fast: used only to give the heartbeat a live tokens/sec
+    readout. Returns None (heartbeat degrades gracefully) if the endpoint is
+    unset or unreachable -- authoritative throughput still comes from the DuckDB
+    collector, not from here.
+
+    Args:
+        endpoint: The vLLM base URL (e.g. ``http://127.0.0.1:8000``).
+
+    Returns:
+        ``{"gen": <tokens>, "prompt": <tokens>}`` summed across label sets, or None.
+    """
+    if not endpoint:
+        return None
+    url = endpoint.rstrip("/") + "/metrics"
+    totals = {"gen": 0.0, "prompt": 0.0}
+    try:
+        with urllib.request.urlopen(url, timeout=3) as resp:  # nosec B310 - fixed http(s) metrics URL
+            body = resp.read().decode("utf-8", "replace")
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    for line in body.splitlines():
+        if line.startswith("#") or " " not in line:
+            continue
+        name, _, value = line.partition(" ")
+        metric = name.split("{", 1)[0]
+        try:
+            val = float(value)
+        except ValueError:
+            continue
+        if metric == _GEN_TOKENS_METRIC:
+            totals["gen"] += val
+        elif metric == _PROMPT_TOKENS_METRIC:
+            totals["prompt"] += val
+    return totals
+
+
+def _task_cycler(tasks: list[Task]):
+    """Yield tasks in a random order WITHOUT replacement, reshuffling each pass.
+
+    Drawing without replacement guarantees the next ``len(tasks)`` picks are all
+    distinct, so N concurrent slots never hold duplicate tasks while the dataset
+    still has unused ones; once every task has been handed out, a fresh shuffle
+    starts the next pass. Load-slot selection only -- ``random`` is fine here.
+
+    Args:
+        tasks: The non-empty task pool to cycle through.
+
+    Yields:
+        The next ``Task`` to run, forever.
+    """
+    while True:
+        order = list(tasks)
+        random.shuffle(order)  # nosec B311 - load-slot ordering, not crypto
+        yield from order
 
 
 def _run_one_session(
@@ -171,9 +240,11 @@ def run_level(
     """Hold ``concurrency`` agentic sessions in flight for ``duration_seconds``.
 
     A thread pool of width ``concurrency`` is kept saturated: each time a session
-    finishes, a task drawn at RANDOM (with replacement) from ``tasks`` is
-    submitted, until the wall-clock window elapses. Random selection means that
-    with a multi-repo dataset the in-flight slots spread across different repos,
+    finishes, the next task from a shuffled cycle of ``tasks`` (random WITHOUT
+    replacement, reshuffled each pass) is submitted, until the wall-clock window
+    elapses. Drawing without replacement means the N in-flight slots hold N
+    distinct tasks whenever the dataset has at least N -- never N copies of one
+    task -- so with a multi-repo dataset the slots spread across different repos,
     simulating many developers on different projects rather than one shared
     repo. Sessions still running at window close are **cut
     off** (their ``claude -p`` timeout is bounded by the remaining window) rather
@@ -196,6 +267,7 @@ def run_level(
         A level summary: config, wall-clock window bounds, and per-session records.
     """
     refs = {t.id: dataset.resolved_ref(t) for t in tasks}
+    task_cycle = _task_cycler(tasks)
     records: list[dict[str, Any]] = []
     lock = threading.Lock()
     submitted = 0
@@ -211,20 +283,58 @@ def run_level(
     )
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
         futures: set[Any] = set()
+        in_flight: dict[Any, str] = {}  # future -> "slot task" for the heartbeat
 
         def _submit() -> None:
             nonlocal submitted
-            # Random draw (with replacement) so a multi-repo dataset spreads the
-            # in-flight slots across different repos; a single-repo dataset is
-            # unaffected (every draw is the same lone task). Load balancing only,
-            # not security -- the pseudo-random generator is fine here.
-            task = random.choice(tasks)  # nosec B311 - load-slot selection, not crypto
+            # Random draw WITHOUT replacement (shuffled cycle) so a multi-repo
+            # dataset spreads the in-flight slots across DISTINCT repos and never
+            # runs N copies of one task while others sit idle; a single-repo
+            # dataset is unaffected (its lone task is picked every time).
+            task = next(task_cycle)
             slot = f"c{concurrency}#{submitted + 1}"
             fut = executor.submit(
                 _run_one_session, config, task, refs[task.id], slot, deadline
             )
             futures.add(fut)
+            in_flight[fut] = f"{slot} {task.id}"
             submitted += 1
+
+        # Heartbeat state: emit a live progress line every _HEARTBEAT_SECONDS so
+        # the log is not silent during the long window (at low concurrency no
+        # session finishes until cutoff). Live tokens/sec is derived from the
+        # vLLM counter delta since the last beat -- a preview of the DuckDB
+        # collector's authoritative figure, not a replacement for it.
+        last_beat = wall_start
+        beat_counters = _scrape_token_counters(config.endpoint)
+
+        def _heartbeat() -> None:
+            nonlocal last_beat, beat_counters
+            now = time.time()
+            interval = now - last_beat
+            counters = _scrape_token_counters(config.endpoint)
+            rate = ""
+            if counters and beat_counters and interval > 0:
+                gen_tps = (counters["gen"] - beat_counters["gen"]) / interval
+                prompt_tps = (counters["prompt"] - beat_counters["prompt"]) / interval
+                rate = f" | server ~{gen_tps:.0f} gen tok/s, ~{prompt_tps:.0f} prompt tok/s"
+            by_status_now: dict[str, int] = {}
+            for r in records:
+                by_status_now[r["status"]] = by_status_now.get(r["status"], 0) + 1
+            active = sorted(in_flight.values())
+            logger.info(
+                "  [c%s heartbeat] %.0fs/%ss elapsed | in-flight=%s %s | "
+                "done=%s %s%s",
+                concurrency,
+                min(now - wall_start, duration_seconds),
+                duration_seconds,
+                len(futures),
+                active,
+                len(records),
+                by_status_now or "{}",
+                rate,
+            )
+            last_beat, beat_counters = now, counters
 
         for _ in range(concurrency):
             _submit()
@@ -236,6 +346,7 @@ def run_level(
             done = {f for f in futures if f.done()}
             for fut in done:
                 futures.discard(fut)
+                in_flight.pop(fut, None)
                 rec = fut.result()
                 with lock:
                     records.append(rec)
@@ -251,6 +362,8 @@ def run_level(
                 )
                 if time.time() < deadline:
                     _submit()
+            if time.time() - last_beat >= _HEARTBEAT_SECONDS:
+                _heartbeat()
             if not done:
                 time.sleep(0.5)
 

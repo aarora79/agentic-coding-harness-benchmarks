@@ -32,7 +32,7 @@ cost_per_task         = cost_per_output_token × output_tokens_per_task
 
 1. **model** — the served-model-name already running on the local vLLM server (e.g. `gemma-4-31b`). This skill does **not** start the server; serve it first (use the `/vllm-setup` or `/benchmark` flow, or `vllm-serve.sh`).
 2. **instance + $/hr** — the EC2 instance type (for provenance) and its on-demand hourly price. Default reference: `g6e.12xlarge` at **$10.49/hr** (us-east-1 on-demand). Use the user's actual spot/reserved/negotiated rate if they give one.
-3. **concurrency levels + window** — default sweep `2 5 7 10 15 20`, `--duration-seconds 300` (5 min) per level (~30-40 min total). Fewer/shorter for a quick look.
+3. **concurrency levels + window** — default sweep `2 5 7 10 15 20`, `--duration-seconds 600` (10 min) per level (~60-70 min total) for good coverage. Shorten (e.g. 300) for a quick look.
 
 ## Workflow
 
@@ -64,12 +64,14 @@ Pass that as `--output-tokens-per-task` in Step 4. If unknown, skip it (cost-per
 
 ### Step 3 — Run the sweep
 
-The sweep drives real `/swe` load at each concurrency level and captures the vLLM server metrics into one shared DuckDB (one named session per level). It does not score anything.
+The sweep drives real `/swe2` load at each concurrency level and captures the vLLM server metrics into one shared DuckDB (one named session per level). It does not score anything.
+
+By default it uses **`dataset/multi-repo-throughput.yaml`** (25 tasks across 25 different repos in six languages). The harness fills each in-flight slot with a *distinct* task (random draw without replacement), so at concurrency `N <= 25` the N slots each clone and reason over a **different** repo — simulating N developers on their own projects rather than N copies of one task. Use `--dataset dataset/mcp-gateway-registry.yaml` only if you deliberately want single-repo load.
 
 ```bash
 cd self-hosted/vllm
 ./scripts/run-throughput-sweep.sh --model {model} \
-  --concurrencies "2 5 7 10 15 20" --duration-seconds 300 [--context-window N] [--endpoint URL]
+  --concurrencies "2 5 7 10 15 20" --duration-seconds 600 [--context-window N] [--endpoint URL]
 ```
 
 Tell the user, before it runs:
@@ -100,6 +102,19 @@ This writes `performance-summary.json` (machine-readable: per-level throughput, 
 - Headline: peak sustained output tokens/s and the concurrency it occurs at; cheapest $/1M output tokens; cost per task.
 - The saturation story: where KV-cache % and waiting-requests climb (the practical concurrency ceiling), and how TTFT/TPOT degrade with load — the "acceptable latency" knee that anchors the cost figure.
 - Point the user at the dashboard HTML and the JSON.
+
+### Cost an arbitrary task (outside the harness)
+
+The per-token cost in the summary is a property of the **model + hardware + load**, not of the tasks the harness ran. So any task on the same served model can be costed from just its input/output token counts — a `/benchmark` quality run, a production trace, a hypothetical workload:
+
+```bash
+cd self-hosted/vllm
+uv run python -m clients.cost_for_task \
+  --summary benchmark-output/throughput/{model}/performance-summary.json \
+  --input-tokens {N} --output-tokens {M}   # [--concurrency 20] [--json]
+```
+
+It reports both lenses (blended and lab-split) at every concurrency level plus the cheapest point, reusing the exact per-token costs `build_performance_summary.py` derived. The dashboard's interactive N:M calculator does the same thing in the browser.
 
 ## Notes
 
