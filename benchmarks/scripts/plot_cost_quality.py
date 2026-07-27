@@ -94,6 +94,7 @@ def _blended_cost_per_token(model: str) -> float | None:
     ]
     return min(rates) if rates else None
 
+
 # Palette (from the dataviz skill's validated reference instance). Marks are a
 # recessive dark neutral; the frontier is the warm accent. Text wears ink tokens.
 _THEME = {
