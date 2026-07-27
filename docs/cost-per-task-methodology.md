@@ -53,6 +53,32 @@ The dashboard exposes `N`, `M`, and `w` as adjustable inputs so you can price an
 - **Blended** is assumption-free and workload-honest, but it prices input and output identically — which looks unfamiliar next to a commercial API invoice.
 - **Split** looks like an API bill, but its output-heavy pricing (`cost_out = 4x cost_in` at `w=0.25`) **understates the true cost of an input-heavy workload**. Agentic coding is exactly that (see below), so the split lens's headline "cost per output token" can be misleading — a task that is 98% input tokens is cheap under split's logic but is really consuming the machine's prefill capacity. Report both; **trust blended for this workload.**
 
+## Prompt caching, and why self-hosted vs API costs are not measured the same way
+
+Comparing a self-hosted model's `$/task` against a hosted API model's (e.g. Claude on Bedrock) is the most error-prone part of this analysis, because **the two paths account for cached tokens completely differently.** This is not a modeling choice — it is what each backend reports back to the client.
+
+- **Anthropic API / Bedrock** implements explicit prompt caching and returns `cache_read_input_tokens` / `cache_creation_input_tokens` in every response's `usage`. Claude Code records those, so on a Bedrock run the reused context lands in `cache_read_tokens` (billed at ~10% of the input rate) and the fresh, full-price `input_tokens` is tiny. Example from an Opus-4.8 `/swe2` task: **`input_tokens: 15`, `cache_read_tokens: 315,567`** — 99.99% of the prompt served from cache. Opus's per-task cost is therefore dominated by *output* tokens (verbose, priced high), not input.
+- **vLLM's OpenAI-compatible endpoint does not populate those Anthropic-specific cache fields** in the `usage` it returns. So Claude Code records **`cache_read_tokens: 0`** and books the entire (re-fed, growing) conversation as fresh `input_tokens`. Example from a GLM-5.2 task: **`input_tokens: 2,528,799`, `cache_read_tokens: 0`.**
+
+**This does NOT mean the self-hosted model failed to cache.** vLLM's `--enable-prefix-caching` (on by default here) caches the KV of repeated prefixes server-side and reuses them across the growing agentic conversation — it simply is not surfaced back to the client. So Claude Code cannot attribute it, and the client-side `input_tokens` overstates the work the GPU actually did.
+
+**The good news: the caching IS measured server-side, and we can recover an estimate.** vLLM exposes `vllm:prompt_tokens_cached_total` and `vllm:prefix_cache_hits_total` / `vllm:prefix_cache_queries_total` in its Prometheus metrics, and the benchmark archives a DuckDB snapshot of those for every run (`self-hosted/vllm/benchmark-output/vllm-metrics_<model>_<scope>_<timestamp>.duckdb`). Over the actual `/swe2` quality runs on `mcp-gateway-registry`, the server-side prompt-cache hit rate — the self-hosted analogue of Anthropic's `cache_read_tokens` fraction — was:
+
+| Model (self-hosted) | Node | `prompt_tokens_cached` / `prompt_tokens` |
+|---|---|--:|
+| qwen3-coder-30b | g6e.12xlarge | **84.5%** (40.6M / 48.0M) |
+| qwen3.6-35b | g6e.12xlarge | **71.3%** (54.8M / 76.9M) |
+| gemma-4-31b | g6e.12xlarge | **69.1%** (22.4M / 32.5M) |
+| glm-5.2, kimi-k2.7-code, minimax-m2.5, qwen3-coder-480b | p5en.48xlarge | **not captured** (see below) |
+
+So on the models we have data for, roughly **70-85% of the prompt tokens Claude Code counted as fresh input were actually served from vLLM's prefix cache** — exactly the tokens Anthropic would have reported (and discounted) as `cache_read`. To estimate an API-style billable-input for a self-hosted run: `billable_input ~= input_tokens x (1 - hit_rate)`; to compute the hit rate for a run, read the archived snapshot (the `throughput` module in `self-hosted/vllm/clients` has the SQL, or query `vllm:prompt_tokens_cached_total` minus/over `vllm:prompt_tokens_total` deltas).
+
+**We only have this for the g6e.12xlarge models.** The four p5en.48xlarge models (GLM-5.2, Kimi-K2.7-Code, MiniMax-M2.5, Qwen3-Coder-480B) were benchmarked on a separate 8×H200 node; only their scrubbed `RUN-SUMMARY.json` and `performance-summary.json` were committed back, not the DuckDB metric snapshots (gitignored, and they stayed on that node). The committed `performance-summary.json` records `kv_cache_usage` but not the prefix-cache hit counters, so their cache rates are recoverable only if that node still holds the raw DuckDBs. Given the same `--enable-prefix-caching` default and the same single-repo agentic workload, expect them in a similar 60-90% band, but we have not measured it — treat those p5en per-task input counts as un-cache-credited upper bounds.
+
+**Why the hardware-derived cost is still fair despite the 0 in the client.** The blended `$/token` already bakes the caching in: it comes from *measured throughput* (tokens/sec the server actually sustained), and that throughput was achieved *with* prefix caching active (the throughput sweeps ran at 52-90% hit rates). So a self-hosted `$/task` is not penalized for the un-credited `input_tokens` — the cheap per-token rate reflects a GPU that was mostly reusing cached prefills. The client-side token *count* is inflated; the *cost* is not.
+
+**Bottom line for cross-path comparison.** When a hosted-API model (small billable input, cached) lands near a self-hosted model (huge counted input, cheap per token) on `$/task`, treat it as an **order-of-magnitude** result, not an exact tie — the two token counts are measured on different bases. State the provenance (metered API bill vs hardware-derived) alongside the number, as the README leaderboard does.
+
 ## What agentic coding does to all of this
 
 Agentic coding (Claude Code driving `/swe2`) has an extreme request shape: **very large, read-heavy prompts and small outputs.** Measured on qwen3.6-35b across 5 real runs: **~1.51M input : ~30K output tokens per task — roughly 50:1 input:output.** The model reads the repo, tool-calls, reasons over big files, and emits a comparatively tiny design/patch.
