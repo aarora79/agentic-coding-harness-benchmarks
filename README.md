@@ -109,19 +109,6 @@ To show what the harness produces, we ran it against [agentic-community/mcp-gate
 
 **Models benchmarked so far:** **Path 1 (Bedrock):** Claude-Opus-4.8. **Path 3 (self-hosted on vLLM):** Kimi-K2.7-Code, GLM-5.2, MiniMax-M2.5, and Qwen3-Coder-480B-A35B-Instruct (all on 8x H200 / `p5en.48xlarge`), plus Qwen3.6-35B-A3B, Qwen3-Coder-30B-A3B-Instruct, Qwen3-Coder-Next, and Gemma-4-31B-it (on `g6e.12xlarge` / 4x L40S). **Coming soon:** the rest of the Anthropic family on Bedrock (Sonnet/Haiku) and Path 2 (open-weight on Bedrock via the LiteLLM proxy -- DeepSeek, Mistral, …).
 
-### Scoring rubric (LLM-as-judge)
-
-Each of the 4 artifacts is scored 0-100 by an independent judge session. Within each artifact the judge applies the same 4-criterion rubric, **25 points per criterion, summing to 100**:
-
-| Criterion | 0-25 each | What the judge evaluates |
-|-----------|-----------|--------------------------|
-| **Completeness** | 25 | Did the artifact identify all affected files, dependencies, and components? Any obvious touchpoints (Terraform, IAM, Docker, tests, docs) missed? |
-| **Correctness** | 25 | Are the proposed changes technically right? Would the design actually work? Are AWS service patterns idiomatic (e.g. ECS `secrets` block vs custom boto3 code)? |
-| **Specificity** | 25 | Concrete file paths, line numbers, code snippets, resource names -- or vague hand-waving? Could a junior engineer implement this artifact alone? |
-| **Risk awareness** | 25 | Rollback strategy, backwards-compat, deployment cutover, edge cases (cold start, secret rotation, token expiry, etc.) -- enumerated or ignored? |
-
-**Artifact total = sum of 4 criteria (0-100). Task score = mean of the 4 artifact totals (also 0-100).** The judge is calibrated so a median artifact scores around 60-70, not 85; 90+ is reserved for genuinely excellent work; hallucinated files or functions lose at least 10 points off Correctness. Per-cell JSON with criterion breakdowns and judge notes lives at `{model}/{repo}/{task}/eval.json`. The judge itself is documented in the [harness reference](benchmarks/docs/harness-reference.md#scoring-the-artifacts-the-judge).
-
 ### Results -- 5 tasks x models
 
 All cells are task scores (0-100), the mean of the artifact totals per (task x model). These are **`/swe2` runs -- design *and* implementation** (six artifacts: the four design docs plus `patch.diff` + `implementation.md`), scored by the same judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). **Claude-Opus-4.8** is the first **Path 1** result (Anthropic on Amazon Bedrock); every other column is **Path 3, self-hosted via vLLM** (hardware differs by model size -- see the row under the table). Bold = top score in row. The other Bedrock paths are still **coming soon**.
@@ -155,7 +142,7 @@ The **Mean** row excludes any task that scored 0 -- a genuine model failure (mis
 
 Mean cost per task (x) against mean task score (y), one point per model. For **self-hosted** models cost is **hardware-derived**: each model's blended cost per token (from its throughput sweep -- instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](self-hosted/vllm/cost-per-task-methodology.md)) times that model's *actual* input+output tokens per task, averaged over its non-failed tasks. For **Claude-Opus-4.8** (Path 1, Bedrock) cost is the **real token-metered API bill** -- comparable as spend, different in kind (footnote ⁹). The cost/quality frontier runs **Qwen3.6-35B ($0.59 / 49.28) -> MiniMax-M2.5 ($1.55 / 51.56) -> Kimi-K2.7-Code ($11.09 / 65.55) -> GLM-5.2 ($18.10 / 66.80) -> Claude-Opus-4.8 ($18.21 / 67.56)**; Gemma-4-31B ($3.18 / 50.32), Qwen3-Coder-30B ($1.29 / 26.47), and Qwen3-Coder-480B ($9.98 / 44.95) sit **below** the frontier (dominated), and Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task, matching the table (see footnote ⁵). Regenerate from the committed run + performance summaries with `uv run scripts/plot_cost_quality.py` (add `--dark` for the dark theme) from `benchmarks/`.
 
-### Per-model leaderboard (self-hosted, so far)
+### Per-model leaderboard (so far)
 
 Mean score is over the tasks each model completed (any 0-score failed task is excluded pending investigation; see the note above). **$/task** is the hardware-derived blended cost (instance $/hr / measured tokens/sec x this run's actual per-task tokens); lower is better.
 
@@ -187,6 +174,19 @@ These are early self-hosted numbers on differing hardware; treat them as a start
 - **MoE economics are the reason to self-host these.** Nearly every model here is a mixture-of-experts, so per-token compute (and cost) tracks the active-expert count, not the total -- the regime where a fixed-cost GPU node can beat per-token API pricing under load. The 3B-active Qwen MoEs on a single L40S node are the clearest example: sub-$1.50/task.
 
 > **The example repo is the example, not the contract.** `/swe` works against any GitHub URL -- clone the target you actually care about, write the task description, and run.
+
+### How the scores are produced (LLM-as-judge rubric)
+
+Each artifact is scored 0-100 by an independent judge session (`codex exec`, `gpt-5.6-sol`, high reasoning effort). Within each artifact the judge applies the same 4-criterion rubric, **25 points per criterion, summing to 100**:
+
+| Criterion | 0-25 each | What the judge evaluates |
+|-----------|-----------|--------------------------|
+| **Completeness** | 25 | Did the artifact identify all affected files, dependencies, and components? Any obvious touchpoints (Terraform, IAM, Docker, tests, docs) missed? |
+| **Correctness** | 25 | Are the proposed changes technically right? Would the design actually work? Are AWS service patterns idiomatic (e.g. ECS `secrets` block vs custom boto3 code)? |
+| **Specificity** | 25 | Concrete file paths, line numbers, code snippets, resource names -- or vague hand-waving? Could a junior engineer implement this artifact alone? |
+| **Risk awareness** | 25 | Rollback strategy, backwards-compat, deployment cutover, edge cases (cold start, secret rotation, token expiry, etc.) -- enumerated or ignored? |
+
+**Artifact total = sum of 4 criteria (0-100). Task score = mean of the artifact totals (also 0-100).** The judge is calibrated so a median artifact scores around 60-70, not 85; 90+ is reserved for genuinely excellent work; hallucinated files or functions lose at least 10 points off Correctness. Per-cell JSON with criterion breakdowns and judge notes lives at `{model}/{repo}/{task}/eval.json`. The judge itself is documented in the [harness reference](benchmarks/docs/harness-reference.md#scoring-the-artifacts-the-judge).
 
 ## Prerequisites
 
@@ -260,6 +260,25 @@ claude-code-multi-model/
         ├── tests/             unittest suite for the clients
         └── config/            claude-code.json, opencode.json
 ```
+
+## Documentation map
+
+Where to read more, by topic:
+
+| Document | What it covers |
+|----------|----------------|
+| [benchmarks/README.md](benchmarks/README.md) | The benchmark harness landing page: the three hosting paths, how a run works, and how to reproduce the results above. |
+| [benchmarks/docs/harness-reference.md](benchmarks/docs/harness-reference.md) | Full harness reference: config, the `/swe2` flow, context-window/auto-compaction, and the LLM-as-judge scoring. |
+| [benchmarks/docs/path-anthropic-on-bedrock.md](benchmarks/docs/path-anthropic-on-bedrock.md) | Path 1 setup: benchmarking the Anthropic family (Claude Opus/Sonnet/Haiku) directly on Amazon Bedrock. |
+| [benchmarks/docs/path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) | Path 2 setup: open-weight models on Amazon Bedrock through the LiteLLM proxy. |
+| [benchmarks/docs/path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) | Path 3 setup: self-hosting a model on vLLM and pointing the harness at it. |
+| [benchmarks/docs/end-to-end-self-hosted-run.md](benchmarks/docs/end-to-end-self-hosted-run.md) | The full manual run-book for an end-to-end self-hosted benchmark. |
+| [self-hosted/vllm/README.md](self-hosted/vllm/README.md) | Standing up a vLLM server: install, tensor parallelism, tool-call parsers, and the serving-config reference. |
+| [self-hosted/vllm/models/](self-hosted/vllm/models/) | Per-model serving guides (HF repo, context window, TP size, tool parser, hardware fit) for every benchmarked model. |
+| [docs/agentic-coding-model-comparison.md](docs/agentic-coding-model-comparison.md) | Serving-economics comparison across models: throughput, saturation, and hardware-derived cost per token / per task. |
+| [docs/cost-per-task-methodology.md](docs/cost-per-task-methodology.md) | How the cost numbers are derived: the two cost lenses, prompt-caching accounting (API vs self-hosted), and why agentic coding is prefill-bound. |
+| [docs/serving-optimization-notes.md](docs/serving-optimization-notes.md) | Portable vLLM serving defaults and why we do not tune the prefill knobs per model. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) / [SECURITY.md](SECURITY.md) / [SUPPORT.md](SUPPORT.md) | How to contribute, report a vulnerability, and get help. |
 
 ## See also
 
