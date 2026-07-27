@@ -124,49 +124,51 @@ Each of the 4 artifacts is scored 0-100 by an independent judge session. Within 
 
 ### Results -- 5 tasks x self-hosted models
 
-All cells are task scores (0-100), the mean of the 4 artifact totals per (task x model). All models were **self-hosted via vLLM** and scored by the same judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). Hardware differs by model size (see the row under the table). Bold = top score in row. Other hosting paths are **coming soon**.
+All cells are task scores (0-100), the mean of the artifact totals per (task x model). These are **`/swe2` runs -- design *and* implementation** (six artifacts: the four design docs plus `patch.diff` + `implementation.md`), scored by the same judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). All models were **self-hosted via vLLM**; hardware differs by model size (see the row under the table). Bold = top score in row. Other hosting paths are **coming soon**.
 
-| Task | Difficulty | Kimi-K2.7-Code | GLM-5.2⁶ | Qwen3.6-35B | Gemma-4-31B | MiniMax-M2.5 | Qwen3-Coder-480B⁷ | Qwen3-Coder-30B | Qwen3-Coder-Next⁴ |
-|------|-----------|---------------:|---------:|------------:|------------:|-------------:|------------------:|----------------:|:-----------------:|
-| `remove-faiss` | Medium | **75.25** | 66.0 | 59.25 | 0.0 ⁵ | 55.75 | 0.0 ⁵ | 49.0 | n/a |
-| `remove-efs-from-terraform-aws-ecs` | Medium | 71.25 | **79.0** | 63.0 | 59.5 | 58.5 | 52.25 | 45.0 | n/a |
-| `ssrf-hardening-outbound-url-validation` | Medium | 72.75 | **76.75** | 55.75 | 63.25 | 49.5 | 56.0 | 0.0 ⁵ | n/a |
-| `migrate-ecs-env-vars-to-secrets-manager` | High | **75.5** | 73.5 | 54.5 | 45.75 | 45.0 | 44.75 | 36.25 | n/a |
-| `replace-keycloak-db-password-with-rds-iam` | High | 0.0 ⁵ | **68.5** | 48.75 | 52.0 | 48.0 | 44.25 | 33.25 | n/a |
-| **Mean (excl. failed task⁵)** | | **73.69** | 72.75 | **56.25** | 55.12 | 51.35 | 49.31 | 40.88 | n/a |
+| Task | Difficulty | GLM-5.2⁶ | Kimi-K2.7-Code | MiniMax-M2.5 | Gemma-4-31B | Qwen3.6-35B | Qwen3-Coder-480B⁷ | Qwen3-Coder-30B | Qwen3-Coder-Next⁴ |
+|------|-----------|---------:|---------------:|-------------:|------------:|------------:|------------------:|----------------:|:-----------------:|
+| `remove-faiss` | Medium | 62.8 | 0.0 ⁵ | 44.2 | 49.4 | **57.6** | 45.6 | 24.4 | n/a |
+| `remove-efs-from-terraform-aws-ecs` | Medium | **73.8** | 70.8 | 62.0 | 60.4 | 59.0 | 55.4 | 0.0 ⁵ | n/a |
+| `ssrf-hardening-outbound-url-validation` | Medium | 64.6 | **72.0** | 58.2 | 49.4 | 54.6 | 0.0 ⁵ | 0.0 ⁵ | n/a |
+| `migrate-ecs-env-vars-to-secrets-manager` | High | **68.6** | 67.2 | 53.6 | (re-running)⁸ | 39.2 | 41.0 | 32.2 | n/a |
+| `replace-keycloak-db-password-with-rds-iam` | High | **64.2** | 52.2 | 39.8 | 40.0 | 36.0 | 37.8 | 22.8 | n/a |
+| **Mean (excl. failed task⁵)** | | **66.80** | 65.55 | 51.56 | 49.80 | 49.28 | 44.95 | 26.47 | n/a |
 
-The **Mean** row excludes any task that scored 0 -- a genuine model failure (missing artifacts), which is an unresolved anomaly rather than a quality measurement, so it is left out of the average **pending further investigation** and flagged with `⁵`. Per-task 0.0 cells are still shown so the failure is visible; Kimi's mean is over the 4 tasks it completed, Gemma-4-31B's over its 4, Qwen3-Coder-30B's over its 4, Qwen3-Coder-480B's over its 4, and GLM-5.2 / Qwen3.6-35B / MiniMax-M2.5 over all 5 (no failures).
+The **Mean** row excludes any task that scored 0 -- a genuine model failure (missing artifacts), which is an unresolved anomaly rather than a quality measurement, so it is left out of the average **pending further investigation** and flagged with `⁵`. Per-task 0.0 cells are still shown so the failure is visible. GLM-5.2 / MiniMax-M2.5 / Qwen3.6-35B score over all 5 tasks (no failures); Kimi over 4 (one failed), Qwen3-Coder-480B over 4, Qwen3-Coder-30B over 3 (two failed), Gemma-4-31B over the 4 it has completed (the fifth is re-running -- see `⁸`).
 
 **Hardware:** Kimi-K2.7-Code (1.06T-param MoE, ~1 TB weights) ran on **8x H200** (`p5en.48xlarge`) at its full **131,072-token (128K) native context window**; GLM-5.2 (744B MoE / 40B active, ~750 GB FP8 weights), MiniMax-M2.5, and Qwen3-Coder-480B (480B MoE / 35B active, FP8, TP=4) also ran on **8x H200** (`p5en.48xlarge`); the three smaller Qwen models (3B-active MoE) and Gemma-4-31B (dense, ~63 GB) ran on a single **`g6e.12xlarge`** (4x L40S) at a 200K window. All via vLLM. Gemma-4-31B is dense and slow, so it used a raised per-task timeout (`--timeout-seconds 3600`); the default 1800s was not enough for it to return. Note Kimi's 128K window is below the harness's 200K agentic-coding guideline, yet it completed 4 of 5 tasks -- the one failure (`keycloak-rds-iam`) was a turn-cap timeout, not a context overflow.
 
 ⁴ Qwen3-Coder-Next (79.6B, ~160 GB weights) **could not be benchmarked on the `g6e.12xlarge`.** There the weights leave room for only a ~16K context window, but agentic coding tasks need 100K-250K input tokens per request, so every task overflows the window on the first prompt. It needs a larger-VRAM node (e.g. `g6e.48xlarge`) to serve a >=200K window. The `/benchmark` skill enforces a 200K-minimum gate by default as a conservative guideline -- Kimi's 128K run shows a window somewhat below 200K can still work when the tasks fit, but 16K cannot. See [self-hosted/vllm/models/qwen3-coder-next.md](self-hosted/vllm/models/qwen3-coder-next.md).
 
-⁵ **Genuine model failures, scored 0.** Kimi-K2.7-Code on `keycloak-rds-iam`, Qwen3-Coder-30B on `ssrf`, and Gemma-4-31B on `remove-faiss` each failed to produce all four required design artifacts (Kimi 2 of 4 and Qwen3-Coder-30B 0 of 4 -- both hit the 60-turn cap; Gemma-4-31B produced 3 of 4). The judge records a missing-artifact folder as a 0 with a `MODEL FAILURE` verdict rather than dropping it from the results. Excluding these single failed tasks, Kimi averages 73.69, Gemma-4-31B 55.12, and Qwen3-Coder-30B 40.88 over the tasks they completed.
+⁵ **Genuine model failures, scored 0.** On these `/swe2` runs the failures are: Kimi-K2.7-Code on `remove-faiss`, Qwen3-Coder-480B on `ssrf`, and Qwen3-Coder-30B on `remove-efs` and `ssrf`. Each failed to produce a scorable artifact set (typically the model exhausted its turn budget on the implementation step without landing edits, so no `patch.diff`). The judge records a missing/empty-artifact folder as a 0 with a `MODEL FAILURE` verdict rather than dropping it. The **Mean** row excludes these tasks (over the tasks each model completed): GLM-5.2 66.80 (5/5), Kimi 65.55 (4/5), MiniMax-M2.5 51.56 (5/5), Gemma-4-31B 49.80 (4 completed), Qwen3.6-35B 49.28 (5/5), Qwen3-Coder-480B 44.95 (4/5), Qwen3-Coder-30B 26.47 (3/5).
 
-⁶ **GLM-5.2 ran with more headroom than the others -- not strictly apples-to-apples.** GLM-5.2 (`zai-org/GLM-5.2-FP8`, 744B MoE / 40B active, ~750 GB FP8 weights) was served on **8x H200** at a **300K context window** and run with **`max_turns=100`**, whereas Kimi ran at its native 128K window and all models above used the default 60-turn cap. The larger turn budget is why GLM-5.2 completed all 5 tasks including `keycloak-rds-iam` (the task Kimi failed at the 60-turn cap): its mean is over 5/5 tasks with no failures. Treat the GLM-5.2 vs Kimi comparison as indicative rather than head-to-head until both are re-run under identical window/turn settings.
+⁶ **GLM-5.2 ran with more headroom than the others -- not strictly apples-to-apples.** GLM-5.2 (`zai-org/GLM-5.2-FP8`, 744B MoE / 40B active, ~750 GB FP8 weights) was served on **8x H200** at a **300K context window**. It leads on quality (66.80 over 5/5) but on the biggest, most expensive box measured (~$18/task, see the cost section). Treat cross-instance comparisons as indicative until normalized.
 
-⁷ **Qwen3-Coder-480B intermittently fails to produce artifacts -- the failure is nondeterministic, not task-specific.** Qwen3-Coder-480B (`Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8`, 480B MoE / 35B active) was served on the **8x H200** node at **TP=4** (a block-FP8 MoE sharding constraint forces TP=4, not 8 -- see [its model guide](self-hosted/vllm/models/qwen3-coder-480b.md)), 200K window, `max_turns=100`. Like the smaller Qwen3-Coder-30B, it periodically explores/edits the repo instead of writing the four design artifacts (or runs away and exhausts the turn cap), scoring 0. Re-running does **not** reliably fix a given task: across two full runs, four of the five tasks flipped pass/fail state -- the three that failed the first run all recovered, while `remove-faiss` (which passed run 1) failed run 2 at the turn cap. The table shows the second run (4/5, mean 49.31). It is a harness-conformance instability of a coder-tuned model in a design-only harness, not a serving or context problem.
+⁷ **Qwen3-Coder-480B intermittently fails to produce artifacts -- the failure is nondeterministic, not task-specific.** Qwen3-Coder-480B (`Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8`, 480B MoE / 35B active) was served on the **8x H200** node at **TP=4** (a block-FP8 MoE sharding constraint forces TP=4, not 8 -- see [its model guide](self-hosted/vllm/models/qwen3-coder-480b.md)), 200K window. Like the smaller Qwen3-Coder-30B, it periodically explores/edits the repo instead of completing the artifact chain (or exhausts the turn cap), scoring 0 on some tasks. It is a harness-conformance instability of a coder-tuned model, not a serving or context problem.
+
+⁸ **Gemma-4-31B's `migrate-ecs` task is being re-run.** On the sweep it produced only the four design artifacts for this task (no `patch.diff`/`implementation.md` -- the model stopped after design), so `summarize_run.py` excluded it; Gemma's 49.80 mean is over the 4 tasks it completed. The task is re-running under the updated `/swe2` skill (which added explicit implementation-step discipline); this row and Gemma's mean will update when it lands.
 
 ### Cost vs. quality
 
 ![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality.png)
 
-Mean estimated cost per task (x, token-based for self-hosted) against mean task score (y), one point per model. The cost/quality frontier runs MiniMax-M2.5 -> Gemma-4-31B -> Qwen3.6-35B -> GLM-5.2 -> Kimi-K2.7-Code; Qwen3-Coder-30B and Qwen3-Coder-480B both sit **below** the frontier (dominated -- each costs more than a frontier model at its score yet scores lower; the 480B in particular lands at ~$22.7/49.31, well inside the frontier), and Qwen3-Coder-Next is omitted (no scored run on this node). A model's mean excludes any 0-score failed task, matching the table (see footnote ⁵). Regenerate from the run artifacts with `uv run scripts/plot_cost_quality.py` (add `--dark` for the dark theme) from `benchmarks/`.
+Mean **hardware-derived** cost per task (x) against mean task score (y), one point per model. **Cost is now measured, not estimated:** each model's blended cost per token (from its throughput sweep -- instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](self-hosted/vllm/cost-per-task-methodology.md)) times that model's *actual* input+output tokens per task on this quality run, averaged over its non-failed tasks. The cost/quality frontier runs **Qwen3.6-35B ($0.59 / 49.28) -> MiniMax-M2.5 ($1.55 / 51.56) -> Kimi-K2.7-Code ($11.09 / 65.55) -> GLM-5.2 ($18.10 / 66.80)**; Gemma-4-31B ($3.43), Qwen3-Coder-30B ($1.29 / 26.47), and Qwen3-Coder-480B ($9.98 / 44.95) sit **below** the frontier (dominated), and Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task, matching the table (see footnote ⁵). Regenerate from the committed run + performance summaries with `uv run scripts/plot_cost_quality.py` (add `--dark` for the dark theme) from `benchmarks/`.
 
 ### Per-model leaderboard (self-hosted, so far)
 
-Mean score is over the tasks each model completed (any 0-score failed task is excluded pending investigation; see the note above).
+Mean score is over the tasks each model completed (any 0-score failed task is excluded pending investigation; see the note above). **$/task** is the hardware-derived blended cost (instance $/hr / measured tokens/sec x this run's actual per-task tokens); lower is better.
 
-| Rank | Model | Params (active) | Hardware | Mean score | Tasks scored |
-|-----:|-------|----------------|----------|-----------:|-------------:|
-| 1 | Kimi-K2.7-Code | 1,058.6B (MoE) | 8x H200 | **73.69** | 4/5 |
-| 2 | GLM-5.2⁶ | 744B (40B) | 8x H200 | **72.75** | 5/5 |
-| 3 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **56.25** | 5/5 |
-| 4 | Gemma-4-31B-it | 31B (dense) | g6e.12xlarge | **55.12** | 4/5 |
-| 5 | MiniMax-M2.5 | -- | 8x H200 | **51.35** | 5/5 |
-| 6 | Qwen3-Coder-480B-A35B-Instruct⁷ | 480B (35B) | 8x H200 (TP=4) | **49.31** | 4/5 |
-| 7 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **40.88** | 4/5 |
-| - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | 0 |
+| Rank | Model | Params (active) | Hardware | Mean score | $/task | Tasks scored |
+|-----:|-------|----------------|----------|-----------:|-------:|-------------:|
+| 1 | GLM-5.2⁶ | 744B (40B) | 8x H200 | **66.80** | $18.10 | 5/5 |
+| 2 | Kimi-K2.7-Code | 1,058.6B (MoE) | 8x H200 | **65.55** | $11.09 | 4/5 |
+| 3 | MiniMax-M2.5 | 230B (10B) | 8x H200 (TP=4) | **51.56** | $1.55 | 5/5 |
+| 4 | Gemma-4-31B-it⁸ | 31B (dense) | g6e.12xlarge | **49.80** | $3.43 | 4 done |
+| 5 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **49.28** | **$0.59** | 5/5 |
+| 6 | Qwen3-Coder-480B-A35B-Instruct⁷ | 480B (35B) | 8x H200 (TP=4) | **44.95** | $9.98 | 4/5 |
+| 7 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **26.47** | $1.29 | 3/5 |
+| - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | -- | 0 |
 
 **Coming soon:** Claude Opus/Sonnet/Haiku (Path 1, Bedrock) and the open-weight Bedrock models via the LiteLLM proxy (Path 2 -- DeepSeek, Mistral, …).
 
@@ -174,12 +176,12 @@ Mean score is over the tasks each model completed (any 0-score failed task is ex
 
 These are early self-hosted numbers on differing hardware; treat them as a starting point, not a final ranking. Cross-path comparisons wait until the Bedrock paths are run.
 
-- **Kimi-K2.7-Code leads on the tasks it completed** (73.69 over 4), ahead of Qwen3.6-35B (56.25) -- but it needs a far larger box (8x H200 vs a single g6e.12xlarge) and it failed one task outright (a turn-cap timeout on `keycloak-rds-iam`, excluded from its mean pending investigation).
-- **Qwen3.6-35B is the value story:** on one mid-range GPU node (a single g6e.12xlarge, not an 8x H200 box) it scores 56.25 over all 5 tasks with no failures -- roughly median on this judge's calibration, and it edges out much larger models like MiniMax-M2.5 and the dense Gemma-4-31B.
-- **MiniMax-M2.5 is the cost story:** at ~$7.4 estimated per task it is the cheapest model measured (roughly a quarter of the ~$28-29 the trillion-parameter models cost), yet it scores 51.35 over 5/5 tasks -- on the cost/quality frontier and comfortably ahead of the more expensive Qwen3-Coder-30B, which it dominates.
-- **The judge is strict, and these are open-weight models on design (not coding) tasks.** Scores in the 45-75 range reflect artifacts that are serviceable but often light on the specificity and risk-analysis the rubric rewards; this is expected when smaller/coder-tuned models are asked to produce design documentation rather than code.
-- **The two 0s are real, not judging noise.** Both were the model exhausting its 60-turn budget without producing the full artifact set -- Qwen3-Coder-30B in particular kept trying to *implement* the SSRF fix instead of *designing* it. The harness caps turns and the judge scores the shortfall honestly.
-- **MoE economics are the reason to self-host these.** Every model here is a mixture-of-experts, so per-token compute (and cost) tracks the active-expert count, not the total -- the regime where a fixed-cost GPU node can beat per-token API pricing under load.
+- **GLM-5.2 leads on quality (66.80 over 5/5), Kimi-K2.7-Code is close behind (65.55 over 4/5)** -- but both need an 8x H200 box and cost **$11-18 per task**, an order of magnitude more than the small-node models. On this `/swe2` (design + implementation) benchmark the trillion-parameter models are the quality ceiling but the expensive corner of the frontier.
+- **Qwen3.6-35B is the value story, now with a measured price:** on one mid-range GPU node (a single g6e.12xlarge) it scores 49.28 over all 5 tasks with no failures at a **hardware-derived $0.59 per task** -- the cheapest measured, ~30x under GLM-5.2, and on the cost/quality frontier.
+- **MiniMax-M2.5 is the best quality-per-dollar in the upper half:** 51.56 over 5/5 at **$1.55/task** -- it beats the dense Gemma-4-31B ($3.43) and the much pricier Qwen3-Coder-480B ($9.98) while costing a fraction, sitting on the frontier just above Qwen3.6-35B.
+- **Cost is now measured, not estimated.** Every $/task above is `instance $/hr / measured tokens/sec` (from each model's throughput sweep) times that model's real per-task token load -- so the cost axis reflects actual serving economics on the benchmarked hardware, not a token-price guess. See [cost-per-task-methodology.md](self-hosted/vllm/cost-per-task-methodology.md).
+- **The judge is strict, and implementation is harder than design.** These `/swe2` runs score design *and* code; scores in the 40-67 range reflect artifacts that are serviceable but often light on the specificity, risk-analysis, and complete implementation the rubric rewards. Coder-tuned models (Qwen3-Coder-30B/480B) are the least reliable here -- they tend to burn the turn budget implementing instead of completing the full artifact set, producing the 0-score failures.
+- **MoE economics are the reason to self-host these.** Nearly every model here is a mixture-of-experts, so per-token compute (and cost) tracks the active-expert count, not the total -- the regime where a fixed-cost GPU node can beat per-token API pricing under load. The 3B-active Qwen MoEs on a single L40S node are the clearest example: sub-$1.50/task.
 
 > **The example repo is the example, not the contract.** `/swe` works against any GitHub URL -- clone the target you actually care about, write the task description, and run.
 

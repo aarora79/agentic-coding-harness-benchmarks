@@ -17,8 +17,12 @@ task that scored 0 (a model failure -- missing artifacts) is an unresolved
 anomaly, not a quality reading, so it is EXCLUDED from both the score and cost
 means and noted on the chart, pending investigation.
 
-Note: for self-hosted vLLM runs ``total_cost_usd`` is a token-based *estimate*
-(the served model has no per-token bill), so the x-axis is labelled as estimated.
+Cost is HARDWARE-DERIVED, not token-priced: when a model has a throughput sweep
+(``self-hosted/vllm/benchmark-output/throughput/<model>/performance-summary.json``)
+its cost per task is the cheapest blended $/token there (instance $/hr / measured
+tokens/sec) times this run's actual input+output tokens per task, averaged over
+the non-failed tasks. Only when no performance summary exists does it fall back
+to RUN-SUMMARY's token-priced ``total_cost_usd`` estimate.
 
 Usage:
     uv run scripts/plot_cost_quality.py
@@ -60,6 +64,35 @@ EVAL_FILENAME = "eval.json"
 # model in the repo -- including runs produced on a different node. This is what
 # makes the chart reproducible from committed data alone.
 RUN_SUMMARY_FILENAME = "RUN-SUMMARY.json"
+# Hardware-derived per-token cost lives in the throughput sweep's summary, one
+# per model. Cost per task = (this model's cheapest blended $/token) x (this
+# run's actual input+output tokens for the task) -- so cost reflects BOTH the
+# measured serving economics AND the real token load of the quality run, rather
+# than the token-priced estimate that RUN-SUMMARY.total_cost_usd carries for
+# self-hosted models. See self-hosted/vllm/cost-per-task-methodology.md.
+PERF_SUMMARY_DIR = (
+    _REPO_ROOT / "self-hosted" / "vllm" / "benchmark-output" / "throughput"
+)
+PERF_SUMMARY_FILENAME = "performance-summary.json"
+
+
+def _blended_cost_per_token(model: str) -> float | None:
+    """Return the cheapest blended $/token for a model from its perf summary.
+
+    The blended lens charges every processed token (prompt + generation) the
+    same measured GPU slice; the cheapest concurrency level is the model's best
+    sustainable per-token cost on its benchmarked instance. Returns None when no
+    performance summary exists for the model (e.g. not swept for throughput).
+    """
+    summary = _read_json(PERF_SUMMARY_DIR / model / PERF_SUMMARY_FILENAME)
+    if summary is None:
+        return None
+    rates = [
+        r["blended_cost_per_token_usd"]
+        for r in summary.get("levels", [])
+        if isinstance(r.get("blended_cost_per_token_usd"), (int, float))
+    ]
+    return min(rates) if rates else None
 
 # Palette (from the dataviz skill's validated reference instance). Marks are a
 # recessive dark neutral; the frontier is the warm accent. Text wears ink tokens.
@@ -141,16 +174,49 @@ def _point_from_summary(model_repo_dir: Path) -> ModelPoint | None:
     score = summary.get("mean_task_score_excl_failed")
     if not isinstance(score, (int, float)):
         return None
-    cost = summary.get("mean_cost_usd_excl_failed")
+    model = model_repo_dir.parent.name
     excluded = summary.get("failed_tasks") or []
+
+    # Cost: prefer the hardware-derived blended figure (per-token rate from the
+    # throughput sweep x this run's actual per-task tokens, averaged over the
+    # non-failed tasks). Fall back to RUN-SUMMARY's token-priced estimate only
+    # when no performance summary exists for the model.
+    cost = _blended_mean_cost(summary, model)
+    if cost is None:
+        est = summary.get("mean_cost_usd_excl_failed")
+        cost = float(est) if isinstance(est, (int, float)) else 0.0
+
     return ModelPoint(
-        model=model_repo_dir.parent.name,
-        mean_cost=float(cost) if isinstance(cost, (int, float)) else 0.0,
+        model=model,
+        mean_cost=cost,
         mean_score=float(score),
         n_tasks=int(summary.get("num_tasks") or 0),
         n_scored=int(summary.get("num_scored") or 0),
         excluded=list(excluded),
     )
+
+
+def _blended_mean_cost(summary: dict, model: str) -> float | None:
+    """Mean blended cost per task from perf-summary per-token rate x run tokens.
+
+    Uses the model's cheapest blended $/token (hardware-derived, from the
+    throughput sweep) and this run's actual input+output tokens per task,
+    averaged over the tasks that were NOT failed -- matching the score mean's
+    exclusion convention. Returns None when the model has no performance summary
+    (so the caller falls back to the token-priced estimate).
+    """
+    per_token = _blended_cost_per_token(model)
+    if per_token is None:
+        return None
+    failed = set(summary.get("failed_tasks") or [])
+    costs: list[float] = []
+    for task in summary.get("tasks", []):
+        if task.get("failed") or task.get("task") in failed:
+            continue
+        tokens = (task.get("input_tokens") or 0) + (task.get("output_tokens") or 0)
+        if tokens > 0:
+            costs.append(tokens * per_token)
+    return sum(costs) / len(costs) if costs else None
 
 
 def _aggregate_model(model_repo_dir: Path) -> ModelPoint | None:
@@ -452,7 +518,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--cost-label",
-        default="Estimated cost per task (mean $, token-based for self-hosted)",
+        default="Cost per task (mean $, hardware-derived: instance $/hr / measured tokens/sec)",
         help="X-axis label; make cost provenance explicit",
     )
     return parser.parse_args()
