@@ -71,28 +71,43 @@ def _repo_name_from_harness() -> "callable":
     return module._repo_name
 
 
-def _target_dirs(dataset_path: str, model: str) -> list[Path]:
+def _target_dirs(
+    dataset_path: str, model: str, only_tasks: list[str] | None = None
+) -> list[Path]:
     """Return the artifact directory for every task in the dataset.
 
     Args:
         dataset_path: Path to the dataset YAML (relative to benchmarks/).
         model: The model id passed to the harness (full id, not the slug).
+        only_tasks: If given, restrict to these task ids (the same filter the
+            harness applies with --tasks), so a scoped run only checks/clears
+            the folders it will actually write. Unknown ids raise DatasetError.
 
     Returns:
-        Absolute artifact directories, one per task, in dataset order.
+        Absolute artifact directories, one per selected task, in dataset order.
 
     Raises:
-        DatasetError: If the dataset is missing or invalid.
+        DatasetError: If the dataset is missing/invalid or an id is unknown.
     """
     benchmarks_dir = _SCRIPTS_DIR.parent
     resolved = Path(dataset_path)
     if not resolved.is_absolute():
         resolved = benchmarks_dir / dataset_path
     dataset = load_dataset(resolved)
+    tasks = list(dataset.tasks)
+    if only_tasks:
+        wanted = {t.strip() for t in only_tasks if t.strip()}
+        known = {t.id for t in tasks}
+        unknown = wanted - known
+        if unknown:
+            raise DatasetError(
+                f"unknown task id(s): {sorted(unknown)}; dataset has {sorted(known)}"
+            )
+        tasks = [t for t in tasks if t.id in wanted]
     repo_name = _repo_name_from_harness()
     slug = model_to_slug(model)
     root = benchmarks_dir / _OUTPUT_DIR
-    return [root / slug / repo_name(task.repo) / task.id for task in dataset.tasks]
+    return [root / slug / repo_name(task.repo) / task.id for task in tasks]
 
 
 def _existing(dirs: list[Path]) -> list[Path]:
@@ -156,10 +171,20 @@ def main() -> None:
     group.add_argument(
         "--clear", action="store_true", help="Remove existing artifact folders."
     )
+    parser.add_argument(
+        "--tasks",
+        default=None,
+        help="Comma-separated task ids to scope to (default: all tasks in the "
+        "dataset). Matches the harness's --tasks so a scoped run only "
+        "checks/clears the folders it will write.",
+    )
     args = parser.parse_args()
 
+    only_tasks = (
+        [t.strip() for t in args.tasks.split(",") if t.strip()] if args.tasks else None
+    )
     try:
-        dirs = _target_dirs(args.dataset, args.model)
+        dirs = _target_dirs(args.dataset, args.model, only_tasks)
     except DatasetError as exc:
         logger.error("Dataset error: %s", exc)
         sys.exit(1)

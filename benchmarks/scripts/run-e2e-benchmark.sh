@@ -40,6 +40,10 @@ set -euo pipefail
 #
 # Optional flags:
 #   --count N              run only the first N tasks (0 = all, default)
+#   --tasks a,b,c          run only these task ids (comma-separated); scopes the
+#                          folder-clear and the judge to the same set. Useful to
+#                          re-run a single task that failed. Mutually informative
+#                          with --count; --tasks selects by id, --count by position.
 #   --max-output-tokens N  override the per-response output cap for this run
 #                          (e.g. 4096 on a small-window model so the prompt has
 #                          usable input room; usable input ~= window - this)
@@ -66,6 +70,7 @@ PROVIDER=""
 MODEL=""
 DATASET=""
 COUNT="0"                 # 0 = all tasks
+TASKS=""                  # comma-separated task ids; empty = all
 MAX_OUTPUT_TOKENS=""      # empty = use the config value
 TIMEOUT_SECONDS=""        # empty = use the config value
 MAX_RETRIES=""            # empty = use the config value
@@ -101,6 +106,7 @@ while [[ $# -gt 0 ]]; do
         --model)    MODEL="${2:?--model needs a value}"; shift 2 ;;
         --dataset)  DATASET="${2:?--dataset needs a value}"; shift 2 ;;
         --count)    COUNT="${2:?--count needs a value}"; shift 2 ;;
+        --tasks)    TASKS="${2:?--tasks needs a value}"; shift 2 ;;
         --max-output-tokens) MAX_OUTPUT_TOKENS="${2:?--max-output-tokens needs a value}"; shift 2 ;;
         --max-retries) MAX_RETRIES="${2:?--max-retries needs a value}"; shift 2 ;;
         --timeout-seconds) TIMEOUT_SECONDS="${2:?--timeout-seconds needs a value}"; shift 2 ;;
@@ -258,18 +264,22 @@ print(w if w else "")' 2>/dev/null || true)"
 esac
 
 # The critical check: pre-existing artifact folders stall the headless /swe2 run.
+# Scope the check/clear to --tasks when given, so a single-task re-run does not
+# touch (or clear) the other tasks' existing folders.
+TASKS_ARG=()
+[[ -n "$TASKS" ]] && TASKS_ARG=(--tasks "$TASKS")
 info "Checking for pre-existing artifact folders (these stall the headless /swe2 overwrite prompt)..."
 set +e
-uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --check
+uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" "${TASKS_ARG[@]}" --check
 PREFLIGHT_RC=$?
 set -e
 if [[ "$PREFLIGHT_RC" -eq 2 ]]; then
     if [[ "$ASSUME_YES" -eq 1 ]]; then
         warn "Clearing pre-existing artifact folders (--yes given)..."
-        uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --clear
+        uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" "${TASKS_ARG[@]}" --clear
     else
         die "Pre-existing artifact folders would stall the run. Re-run with --yes to clear them automatically, or clear manually:
-       uv run python scripts/preflight_check.py --dataset $DATASET --model $MODEL --clear"
+       uv run python scripts/preflight_check.py --dataset $DATASET --model $MODEL ${TASKS_ARG[*]} --clear"
     fi
 elif [[ "$PREFLIGHT_RC" -ne 0 ]]; then
     die "pre-flight folder check failed (exit $PREFLIGHT_RC)."
@@ -312,6 +322,7 @@ step "Step 1 - Run the SWE benchmark"
 # =============================================================================
 BENCH_ARGS=(--config "$CONFIG" --provider "$HARNESS_PROVIDER" --model "$MODEL" --dataset "$DATASET" --stream --verbose)
 [[ "$COUNT" != "0" ]] && BENCH_ARGS+=(--count "$COUNT")
+[[ -n "$TASKS" ]] && BENCH_ARGS+=(--tasks "$TASKS")
 [[ "$HARNESS_PROVIDER" == "endpoint" ]] && BENCH_ARGS+=(--endpoint "$ENDPOINT")
 [[ "$PROVIDER" == "bedrock" ]] && BENCH_ARGS+=(--aws-region "$AWS_REGION_ARG")
 # On the vllm path, calibrate auto-compaction to the live server's window.
