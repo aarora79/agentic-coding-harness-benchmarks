@@ -237,6 +237,14 @@ def _build_prompt(
         f"artifacts_dir ({artifacts_dir}) verbatim. Do NOT recompute the artifact "
         "directory from `git rev-parse`; use artifacts_dir exactly as given.",
         "",
+        "WORKFLOW: Start by creating a concise plan (max 10 steps) and a todo "
+        "list. Check off items as you complete them. Write context and findings "
+        "to temporary .md files in the artifacts directory if you need to track "
+        "progress across compaction boundaries. Prioritize completing all 6 "
+        "artifacts over exhaustive research -- after reading enough to understand "
+        "the scope (aim for under 50 file reads), start writing artifacts "
+        "immediately. Do not spawn more than 5 subagents per task.",
+        "",
         "Task description:",
         task.problem_statement or "(see reference issue)",
     ]
