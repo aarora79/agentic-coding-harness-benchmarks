@@ -73,8 +73,16 @@ Rules of thumb:
 - **Use `subagent_type=Explore` for read-only investigation.** Each Explore subagent should own one facet of the codebase so their searches do not overlap.
 - **Keep design authorship and final edit reconciliation in the main loop.** Subagents gather, report, and may draft edits; the main loop decides, writes the artifacts, and applies/reconciles the code changes so the tree stays coherent. Do not have subagents write the artifact files.
 - **Subagents run on the same benchmarked model** (the harness sets `CLAUDE_CODE_SUBAGENT_MODEL`), so parallelizing changes only wall-clock time, not what is being measured. Benchmark comparability is preserved.
+- **Cap concurrency at 5 subagents per task.** More than that contends for the server and rarely helps; it also inflates token/latency metrics without improving the artifacts.
 
-The two steps that benefit most are the codebase analysis (Steps 2 and 5) and the expert review (Step 7); each of those steps says exactly how to fan out. The artifact chain itself (issue -> LLD -> review -> testing) has genuine content dependencies and stays sequential.
+### Pace and budget (finish all six artifacts)
+
+The failure mode to avoid is spending the whole turn/context budget researching and never writing the artifacts. Bias toward completion:
+
+- **Start with a short plan and a todo list** (max ~10 steps), and check items off as you go. This keeps the run on track across long sessions and compaction boundaries.
+- **Time-box exploration.** After you have read enough to understand the scope -- aim for **under ~50 file reads** -- start writing artifacts immediately. Depth beyond that rarely raises the score and risks running out of turns before `patch.diff` exists.
+- **Prioritize completing all six artifacts over exhaustive research.** A complete, serviceable set beats a perfect `lld.md` with no implementation.
+- **Persist context if you need to.** If you must track findings across a compaction boundary, write scratch notes to a temporary `.md` in the artifact directory rather than holding everything in context.
 
 ---
 

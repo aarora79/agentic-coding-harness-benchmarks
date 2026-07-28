@@ -196,19 +196,17 @@ def _build_prompt(
 ) -> str:
     """Build the non-interactive /swe2 prompt for a task.
 
-    Uses /swe2 (design plus implementation): the skill produces the four design
-    artifacts AND implements the change, capturing patch.diff + implementation.md.
-    Includes the four keys the skill needs to enter non-interactive mode
-    (repo, problem, model, answers) plus the full problem statement and, when
-    present, the reference issue URL.
+    This function only **hydrates** the `/swe2` invocation with the per-run values
+    the skill cannot know on its own -- it carries no behavioral instructions.
+    All rules about *how* `/swe2` should run headless (use `artifacts_dir`
+    verbatim, do not re-clone or `cd` out, pace/budget, subagent cap) live in the
+    skill (`.claude/skills/swe2/SKILL.md`), which applies to every invocation;
+    duplicating them here only risks the two copies drifting apart.
 
-    Passes ``artifacts_dir`` as an ABSOLUTE path the skill must write to verbatim.
-    This is the drift guard: the skill would otherwise derive the artifact dir
-    from ``git rev-parse --show-toplevel``, which returns the WRONG repo root if
-    the model has ``cd``-ed into another git repo (e.g. a stray clone it made
-    under /tmp) -- sending every artifact into a phantom tree and scoring the run
-    0/6. Handing it the resolved absolute path removes that computation entirely.
-    We also tell the model the repo is already cloned and not to clone or cd out.
+    The invocation passes the keys the skill needs to enter non-interactive mode
+    (repo, problem, model, tag, answers) plus ``artifacts_dir`` (the absolute
+    directory the skill writes to) and the task's problem statement and, when
+    present, its reference issue URL.
 
     Args:
         task: The task to run.
@@ -227,23 +225,6 @@ def _build_prompt(
     lines = [
         f"/swe2 repo: {clone_path} problem: {task.id} model: {model} "
         f'tag: {ref} artifacts_dir: {artifacts_dir} answers: "{answers.strip()}"',
-        "",
-        # Drift guards (see docstring). Stated explicitly because bypassPermissions
-        # lets the model clone/cd freely, which otherwise re-roots artifact paths.
-        f"IMPORTANT: The repository is ALREADY cloned at {clone_path} -- treat it "
-        "as the sole code source. Do NOT run `git clone` and do NOT `cd` out of it "
-        "to another repository.",
-        f"IMPORTANT: Write ALL six artifacts to the absolute path given in "
-        f"artifacts_dir ({artifacts_dir}) verbatim. Do NOT recompute the artifact "
-        "directory from `git rev-parse`; use artifacts_dir exactly as given.",
-        "",
-        "WORKFLOW: Start by creating a concise plan (max 10 steps) and a todo "
-        "list. Check off items as you complete them. Write context and findings "
-        "to temporary .md files in the artifacts directory if you need to track "
-        "progress across compaction boundaries. Prioritize completing all 6 "
-        "artifacts over exhaustive research -- after reading enough to understand "
-        "the scope (aim for under 50 file reads), start writing artifacts "
-        "immediately. Do not spawn more than 5 subagents per task.",
         "",
         "Task description:",
         task.problem_statement or "(see reference issue)",
