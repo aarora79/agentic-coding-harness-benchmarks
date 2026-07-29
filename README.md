@@ -14,6 +14,103 @@ This repository is a **benchmark and harness for measuring how well different LL
 
 Each task points the agent at a real GitHub repository and a real problem. The agent works the task **non-interactively** through the `/swe` skill, which lands four design artifacts on disk (`github-issue.md`, `lld.md`, `review.md`, `testing.md`). The harness records what the run cost -- token usage, latency, and the number of LLM turns -- and a separate [judge](benchmarks/docs/harness-reference.md#scoring-the-artifacts-the-judge) scores the artifacts for quality. Run the same task across models and the resulting `metrics.json` / `eval.json` files line up side by side.
 
+## Results: a worked example
+
+To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 tasks**, each scored by the judge. Below is what we have measured so far: **11 models** across **Path 1** (Anthropic on Amazon Bedrock) and **Path 3** (self-hosted on vLLM, across an 8x H200 `p5en.48xlarge` and a single `g6e.12xlarge`); the cost/quality chart leads, the full task-by-task table and per-model leaderboard follow, and the exact models + hardware are listed under the table. Path 2 (open-weight on Bedrock via the LiteLLM proxy) is **coming soon** -- we publish only what we have measured here. (The `mcp-gateway-registry` dataset ships in [benchmarks/dataset/](benchmarks/dataset/mcp-gateway-registry.yaml) so you can reproduce the run; the generated artifacts themselves are not committed, so a customer's own runs never risk landing in version control. The only committed worked example under [benchmarks/swe-benchmark-data/](benchmarks/swe-benchmark-data/) is the trivial `Hello-World` sanity run.)
+
+| # | Problem | Difficulty | Source |
+|---|---------|-----------|--------|
+| 1 | `remove-faiss` | Medium | Upstream [#1285](https://github.com/agentic-community/mcp-gateway-registry/issues/1285) / [#452](https://github.com/agentic-community/mcp-gateway-registry/issues/452) |
+| 2 | `remove-efs-from-terraform-aws-ecs` | Medium | Upstream [#1286](https://github.com/agentic-community/mcp-gateway-registry/issues/1286) |
+| 3 | `ssrf-hardening-outbound-url-validation` | Medium | Upstream [#1282](https://github.com/agentic-community/mcp-gateway-registry/issues/1282) |
+| 4 | `migrate-ecs-env-vars-to-secrets-manager` | High | Upstream [#1134](https://github.com/agentic-community/mcp-gateway-registry/issues/1134) |
+| 5 | `replace-keycloak-db-password-with-rds-iam` | High | Upstream [#1303](https://github.com/agentic-community/mcp-gateway-registry/issues/1303) |
+
+**Models benchmarked so far:** **Path 1 (Bedrock):** Claude-Opus-4.8, Claude-Sonnet-5. **Path 3 (self-hosted on vLLM):** Kimi-K2.7-Code, GLM-5.2, DeepSeek-V3.2, MiniMax-M2.5, Nemotron-Ultra-550B, and Qwen3-Coder-480B-A35B-Instruct (all on 8x H200 / `p5en.48xlarge`), plus Qwen3.6-35B-A3B, Qwen3-Coder-30B-A3B-Instruct, Qwen3-Coder-Next, and Gemma-4-31B-it (on `g6e.12xlarge` / 4x L40S). **Coming soon:** Claude Haiku on Bedrock (Path 1) and Path 2 (open-weight on Bedrock via the LiteLLM proxy -- Mistral, …).
+
+### Cost vs. quality
+
+![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality.png)
+
+Mean cost per task (x) against mean task score (y), one point per model. For **self-hosted** models with a throughput sweep, cost is **hardware-derived**: the model's blended cost per token (instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](self-hosted/vllm/cost-per-task-methodology.md)) times its *actual* input+output tokens per task, averaged over non-failed tasks. The two **Anthropic** points (Opus-4.8, Sonnet-5) are **real token-metered Bedrock bills**; **DeepSeek-V3.2** and **Nemotron-Ultra-550B** have no sweep so use a token-priced estimate (`‡`) -- comparable as spend, different in kind. The cost/quality frontier runs **Qwen3-Coder-30B ($0.98 / 30.20) -> Qwen3.6-35B ($1.03 / 50.32) -> MiniMax-M2.5 ($1.55 / 51.56) -> Kimi-K2.7-Code ($11.09 / 65.55) -> Claude-Opus-4.8 ($17.42 / 75.32)**. Everything else is **dominated**: notably Claude-Sonnet-5 (72.84 but $26.39), GLM-5.2 (66.80 at $18.10, beaten by Opus on both axes), Gemma-4-31B, Qwen3-Coder-480B, Nemotron-Ultra-550B, and DeepSeek-V3.2 ($50.10 est., the priciest). Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task (footnote ⁵). Regenerate with `uv run scripts/plot_cost_quality.py` (add `--dark`) from `benchmarks/`.
+
+### Results -- 5 tasks x models
+
+All cells are task scores (0-100), the mean of the artifact totals per (task x model). These are **`/swe2` runs -- design *and* implementation** (six artifacts: the four design docs plus `patch.diff` + `implementation.md`), scored by the same judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). **Claude-Opus-4.8 and Claude-Sonnet-5** are **Path 1** results (Anthropic on Amazon Bedrock); every other column is **Path 3, self-hosted via vLLM** (hardware differs by model size -- see the row under the table). Columns are ordered by mean score. Bold = top score in row. Path 2 (open-weight on Bedrock via LiteLLM) is still **coming soon**.
+
+| Task | Diff. | Opus-4.8⁹ | Sonnet-5⁹ | GLM-5.2⁶ | Kimi-K2.7 | DeepSeek-V3.2 | MiniMax-M2.5 | Qwen3.6-35B | Nemotron-550B | Gemma-4-31B | Qwen3-Coder-480B⁷ | Qwen3-Coder-30B |
+|------|-------|----------:|----------:|---------:|----------:|--------------:|-------------:|------------:|--------------:|------------:|------------------:|----------------:|
+| `remove-faiss` | Med | 69.2 | **72.8** | 62.8 | 0.0 ⁵ | 48.2 | 44.2 | 53.2 | 0.0 ⁵ | 38.0 | 45.6 | 32.0 |
+| `remove-efs-from-terraform-aws-ecs` | Med | 79.6 | **86.8** | 73.8 | 70.8 | 59.0 | 62.0 | 65.2 | 55.4 | 53.6 | 55.4 | 28.2 |
+| `ssrf-hardening-outbound-url-validation` | Med | **80.6** | 68.6 | 64.6 | 72.0 | 56.4 | 58.2 | 41.6 | 52.4 | 64.6 | 0.0 ⁵ | 0.0 ⁵ |
+| `migrate-ecs-env-vars-to-secrets-manager` | High | **70.6** | 66.0 | 68.6 | 67.2 | 51.2 | 53.6 | 46.4 | 50.0 | 48.4 | 41.0 | 30.8 |
+| `replace-keycloak-db-password-with-rds-iam` | High | **76.6** | 70.0 | 64.2 | 52.2 | 46.2 | 39.8 | 45.2 | 43.0 | 37.4 | 37.8 | 29.8 |
+| **Mean (excl. failed⁵)** | | **75.32** | 72.84 | 66.80 | 65.55 | 52.20 | 51.56 | 50.32 | 50.20 | 48.40 | 44.95 | 30.20 |
+
+The **Mean** row excludes any task that scored 0 -- a genuine model failure (missing artifacts), an unresolved anomaly rather than a quality measurement, so it is left out of the average **pending further investigation** and flagged with `⁵`. Per-task 0.0 cells are still shown so the failure is visible. No-failure (5/5): Opus-4.8, Sonnet-5, GLM-5.2, DeepSeek-V3.2, MiniMax-M2.5, Qwen3.6-35B, Gemma-4-31B. 4/5 (one failed): Kimi (`remove-faiss`), Nemotron-550B (`remove-faiss`), Qwen3-Coder-480B (`ssrf`), Qwen3-Coder-30B (`ssrf`).
+
+**Hardware:** Kimi-K2.7-Code (1.06T-param MoE, ~1 TB weights) ran on **8x H200** (`p5en.48xlarge`) at its full **131,072-token (128K) native context window**; GLM-5.2 (744B MoE / 40B active, ~750 GB FP8 weights), MiniMax-M2.5, and Qwen3-Coder-480B (480B MoE / 35B active, FP8, TP=4) also ran on **8x H200** (`p5en.48xlarge`); the three smaller Qwen models (3B-active MoE) and Gemma-4-31B (dense, ~63 GB) ran on a single **`g6e.12xlarge`** (4x L40S) at a 200K window. All via vLLM. Gemma-4-31B is dense and slow, so it used a raised per-task timeout (`--timeout-seconds 3600`); the default 1800s was not enough for it to return. Note Kimi's 128K window is below the harness's 200K agentic-coding guideline, yet it completed 4 of 5 tasks -- the one failure (`keycloak-rds-iam`) was a turn-cap timeout, not a context overflow.
+
+⁴ Qwen3-Coder-Next (79.6B, ~160 GB weights) **could not be benchmarked on the `g6e.12xlarge`.** There the weights leave room for only a ~16K context window, but agentic coding tasks need 100K-250K input tokens per request, so every task overflows the window on the first prompt. It needs a larger-VRAM node (e.g. `g6e.48xlarge`) to serve a >=200K window. The `/benchmark` skill enforces a 200K-minimum gate by default as a conservative guideline -- Kimi's 128K run shows a window somewhat below 200K can still work when the tasks fit, but 16K cannot. See [self-hosted/vllm/models/qwen3-coder-next.md](self-hosted/vllm/models/qwen3-coder-next.md).
+
+⁵ **Genuine model failures, scored 0.** On these `/swe2` runs the failures are: Kimi-K2.7-Code on `remove-faiss`, Nemotron-Ultra-550B on `remove-faiss`, Qwen3-Coder-480B on `ssrf`, and Qwen3-Coder-30B on `ssrf`. Each failed to produce a scorable artifact set (typically the model exhausted its turn budget on the implementation step without landing edits, so no `patch.diff`). The judge records a missing/empty-artifact folder as a 0 with a `MODEL FAILURE` verdict rather than dropping it. The **Mean** row is over the tasks each model completed, excluding those failures: 5/5 for Opus-4.8, Sonnet-5, GLM-5.2, DeepSeek-V3.2, MiniMax-M2.5, Qwen3.6-35B, Gemma-4-31B; 4/5 for Kimi, Nemotron-Ultra-550B, Qwen3-Coder-480B, and Qwen3-Coder-30B.
+
+⁶ **GLM-5.2 ran with more headroom than the others -- not strictly apples-to-apples.** GLM-5.2 (`zai-org/GLM-5.2-FP8`, 744B MoE / 40B active, ~750 GB FP8 weights) was served on **8x H200** at a **300K context window**. It is the top self-hosted model (66.80 over 5/5) but on the biggest, most expensive box measured (~$18/task, see the cost section). Treat cross-instance comparisons as indicative until normalized.
+
+⁷ **Qwen3-Coder-480B intermittently fails to produce artifacts -- the failure is nondeterministic, not task-specific.** Qwen3-Coder-480B (`Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8`, 480B MoE / 35B active) was served on the **8x H200** node at **TP=4** (a block-FP8 MoE sharding constraint forces TP=4, not 8 -- see [its model guide](self-hosted/vllm/models/qwen3-coder-480b.md)), 200K window. Like the smaller Qwen3-Coder-30B, it periodically explores/edits the repo instead of completing the artifact chain (or exhausts the turn cap), scoring 0 on some tasks. It is a harness-conformance instability of a coder-tuned model, not a serving or context problem.
+
+⁹ **Claude-Opus-4.8 and Claude-Sonnet-5 are Path 1 (Bedrock) results -- their cost is a real metered API bill, not hardware-derived.** Both were run through Amazon Bedrock (no self-hosting), so their `$/task` ($17.42 and $26.39) is the actual token-metered charge, whereas a self-hosted model's `$/task` is `instance $/hr / measured tokens/sec` x tokens (see the cost section). Comparable as "what you would pay," but different in provenance. Opus tops the quality table (75.32 over 5/5) at a cost *below* the best open-weight model (GLM-5.2, 66.80 at $18.10) -- so it **dominates** GLM (higher score, lower cost) and anchors the top of the frontier. Sonnet-5 (72.84) is a close second on quality but pricier per task ($26.39 -- more verbose implementations, more output tokens), so it sits just off the frontier. On this benchmark the best-quality options are the frontier API models, and Opus in particular is not more expensive per task than self-hosting a 744B MoE on an 8x H200 box.
+
+### Per-model leaderboard (so far)
+
+Mean score is over the tasks each model completed (any 0-score failed task is excluded pending investigation; see the note above). **$/task** is the hardware-derived blended cost (instance $/hr / measured tokens/sec x this run's actual per-task tokens); lower is better.
+
+| Rank | Model | Params (active) | Hardware | Mean score | $/task | Tasks scored |
+|-----:|-------|----------------|----------|-----------:|-------:|-------------:|
+| 1 | Claude-Opus-4.8⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **75.32** | $17.42† | 5/5 |
+| 2 | Claude-Sonnet-5⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **72.84** | $26.39† | 5/5 |
+| 3 | GLM-5.2⁶ | 744B (40B) | 8x H200 | **66.80** | $18.10 | 5/5 |
+| 4 | Kimi-K2.7-Code | 1,058.6B (MoE) | 8x H200 | **65.55** | $11.09 | 4/5 |
+| 5 | DeepSeek-V3.2 | 671B (37B) | 8x H200 | **52.20** | $50.10‡ | 5/5 |
+| 6 | MiniMax-M2.5 | 230B (10B) | 8x H200 (TP=4) | **51.56** | $1.55 | 5/5 |
+| 7 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **50.32** | $1.03 | 5/5 |
+| 8 | Nemotron-Ultra-550B | 550B (dense) | 8x H200 | **50.20** | $24.41‡ | 4/5 |
+| 9 | Gemma-4-31B-it | 31B (dense) | g6e.12xlarge | **48.40** | $3.62 | 5/5 |
+| 10 | Qwen3-Coder-480B-A35B-Instruct⁷ | 480B (35B) | 8x H200 (TP=4) | **44.95** | $9.98 | 4/5 |
+| 11 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **30.20** | **$0.98** | 4/5 |
+| - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | -- | 0 |
+
+† Claude-Opus-4.8 / Claude-Sonnet-5 `$/task` is a real Bedrock **API bill** (token-metered), not a hardware-derived figure; see footnote `⁹`.
+‡ DeepSeek-V3.2 and Nemotron-Ultra-550B are self-hosted but have **no throughput sweep**, so their `$/task` is the harness's **token-priced estimate**, not the hardware-derived (`instance $/hr / tokens-sec`) figure used for the other self-hosted rows -- treat those two costs as indicative and higher-variance until a sweep is run.
+
+**Coming soon:** Claude Haiku on Bedrock (Path 1) and the open-weight Bedrock models via the LiteLLM proxy (Path 2 -- Mistral, …).
+
+### What the data says (so far)
+
+These are early self-hosted numbers on differing hardware; treat them as a starting point, not a final ranking. Cross-path comparisons wait until the Bedrock paths are run.
+
+- **The two Anthropic models top the table:** Claude-Opus-4.8 (75.32 over 5/5) and Claude-Sonnet-5 (72.84 over 5/5) lead every self-hosted model. Opus dominates GLM-5.2 (the best open-weight, 66.80) on *both* axes -- higher score and lower cost ($17.42 vs $18.10). Sonnet-5 scores nearly as high but costs more per task ($26.39, its verbose implementations run up output tokens), so it sits just off the frontier.
+- **Qwen3.6-35B is the value story:** on one mid-range GPU node (a single g6e.12xlarge) it scores 50.32 over all 5 tasks with no failures at a **hardware-derived $1.03 per task** -- roughly a median score at a small fraction of the frontier models' cost, and on the cost/quality frontier.
+- **MiniMax-M2.5 is the best quality-per-dollar in the upper-middle:** 51.56 over 5/5 at **$1.55/task** -- it beats the dense Gemma-4-31B ($3.62) and the much pricier Qwen3-Coder-480B ($9.98) and DeepSeek-V3.2 ($50.10 est.) while costing a fraction, anchoring the frontier just above Qwen3.6-35B.
+- **Cost is hardware-derived where a throughput sweep exists.** For the self-hosted models with a sweep, $/task is `instance $/hr / measured tokens/sec` times that model's real per-task token load; the two Anthropic rows are real Bedrock API bills; DeepSeek-V3.2 and Nemotron-Ultra-550B lack a sweep and fall back to a token-priced estimate (flagged `‡`). See [cost-per-task-methodology.md](self-hosted/vllm/cost-per-task-methodology.md).
+- **The judge is strict, and implementation is harder than design.** These `/swe2` runs score design *and* code; scores in the 30-75 range reflect artifacts that are serviceable but often light on the specificity, risk-analysis, and complete implementation the rubric rewards. Coder-tuned models (Qwen3-Coder-30B/480B) are the least reliable here -- they tend to burn the turn budget implementing instead of completing the full artifact set, producing the 0-score failures.
+- **MoE economics are the reason to self-host these.** Nearly every open-weight model here is a mixture-of-experts, so per-token compute (and cost) tracks the active-expert count, not the total -- the regime where a fixed-cost GPU node can beat per-token API pricing under load. The 3B-active Qwen MoEs on a single L40S node are the clearest example: ~$1/task.
+
+> **The example repo is the example, not the contract.** `/swe` works against any GitHub URL -- clone the target you actually care about, write the task description, and run.
+
+### How the scores are produced (LLM-as-judge rubric)
+
+Each artifact is scored 0-100 by an independent judge session (`codex exec`, `gpt-5.6-sol`, high reasoning effort). Within each artifact the judge applies the same 4-criterion rubric, **25 points per criterion, summing to 100**:
+
+| Criterion | 0-25 each | What the judge evaluates |
+|-----------|-----------|--------------------------|
+| **Completeness** | 25 | Did the artifact identify all affected files, dependencies, and components? Any obvious touchpoints (Terraform, IAM, Docker, tests, docs) missed? |
+| **Correctness** | 25 | Are the proposed changes technically right? Would the design actually work? Are AWS service patterns idiomatic (e.g. ECS `secrets` block vs custom boto3 code)? |
+| **Specificity** | 25 | Concrete file paths, line numbers, code snippets, resource names -- or vague hand-waving? Could a junior engineer implement this artifact alone? |
+| **Risk awareness** | 25 | Rollback strategy, backwards-compat, deployment cutover, edge cases (cold start, secret rotation, token expiry, etc.) -- enumerated or ignored? |
+
+**Artifact total = sum of 4 criteria (0-100). Task score = mean of the artifact totals (also 0-100).** The judge is calibrated so a median artifact scores around 60-70, not 85; 90+ is reserved for genuinely excellent work; hallucinated files or functions lose at least 10 points off Correctness. Per-cell JSON with criterion breakdowns and judge notes lives at `{model}/{repo}/{task}/eval.json`. The judge itself is documented in the [harness reference](benchmarks/docs/harness-reference.md#scoring-the-artifacts-the-judge).
+
 ## The three hosting paths
 
 Whichever path you choose, the agent (Claude Code), the tasks, the `/swe` skill, and the scoring are identical -- only *where the model runs and how the request reaches it* changes.
@@ -94,103 +191,6 @@ A dataset is a single YAML file: a metadata header plus a list of tasks, each po
 - [mcp-gateway-registry.yaml](benchmarks/dataset/mcp-gateway-registry.yaml) -- the reference dataset, whose tasks are drawn from real upstream issues in [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry).
 
 **Nothing in the harness is specific to a particular repository.** Adding your own benchmark dataset is just writing another YAML file in the same format -- point tasks at any public repo and pinned ref. The dataset format is documented in the [harness reference](benchmarks/docs/harness-reference.md#the-dataset).
-
-## Results: a worked example
-
-To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 tasks**, each scored by the judge. The numbers below are only for models **we have actually run end to end so far**: **Claude-Opus-4.8** on **Amazon Bedrock (Path 1)**, plus a range of open-weight models **self-hosted via vLLM (Path 3)** -- frontier MoEs (Kimi-K2.7-Code, GLM-5.2, MiniMax-M2.5, Qwen3-Coder-480B) on **8x H200 (`p5en.48xlarge`)** and smaller models on a single **`g6e.12xlarge` (4x L40S)**. Path 2 (open-weight on Bedrock via the LiteLLM proxy) is **coming soon** -- we publish only what we have measured here. (The `mcp-gateway-registry` dataset ships in [benchmarks/dataset/](benchmarks/dataset/mcp-gateway-registry.yaml) so you can reproduce the run; the generated artifacts themselves are not committed, so a customer's own runs never risk landing in version control. The only committed worked example under [benchmarks/swe-benchmark-data/](benchmarks/swe-benchmark-data/) is the trivial `Hello-World` sanity run.)
-
-| # | Problem | Difficulty | Source |
-|---|---------|-----------|--------|
-| 1 | `remove-faiss` | Medium | Upstream [#1285](https://github.com/agentic-community/mcp-gateway-registry/issues/1285) / [#452](https://github.com/agentic-community/mcp-gateway-registry/issues/452) |
-| 2 | `remove-efs-from-terraform-aws-ecs` | Medium | Upstream [#1286](https://github.com/agentic-community/mcp-gateway-registry/issues/1286) |
-| 3 | `ssrf-hardening-outbound-url-validation` | Medium | Upstream [#1282](https://github.com/agentic-community/mcp-gateway-registry/issues/1282) |
-| 4 | `migrate-ecs-env-vars-to-secrets-manager` | High | Upstream [#1134](https://github.com/agentic-community/mcp-gateway-registry/issues/1134) |
-| 5 | `replace-keycloak-db-password-with-rds-iam` | High | Upstream [#1303](https://github.com/agentic-community/mcp-gateway-registry/issues/1303) |
-
-**Models benchmarked so far:** **Path 1 (Bedrock):** Claude-Opus-4.8, Claude-Sonnet-5. **Path 3 (self-hosted on vLLM):** Kimi-K2.7-Code, GLM-5.2, DeepSeek-V3.2, MiniMax-M2.5, Nemotron-Ultra-550B, and Qwen3-Coder-480B-A35B-Instruct (all on 8x H200 / `p5en.48xlarge`), plus Qwen3.6-35B-A3B, Qwen3-Coder-30B-A3B-Instruct, Qwen3-Coder-Next, and Gemma-4-31B-it (on `g6e.12xlarge` / 4x L40S). **Coming soon:** Claude Haiku on Bedrock (Path 1) and Path 2 (open-weight on Bedrock via the LiteLLM proxy -- Mistral, …).
-
-### Results -- 5 tasks x models
-
-All cells are task scores (0-100), the mean of the artifact totals per (task x model). These are **`/swe2` runs -- design *and* implementation** (six artifacts: the four design docs plus `patch.diff` + `implementation.md`), scored by the same judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). **Claude-Opus-4.8 and Claude-Sonnet-5** are **Path 1** results (Anthropic on Amazon Bedrock); every other column is **Path 3, self-hosted via vLLM** (hardware differs by model size -- see the row under the table). Columns are ordered by mean score. Bold = top score in row. Path 2 (open-weight on Bedrock via LiteLLM) is still **coming soon**.
-
-| Task | Diff. | Opus-4.8⁹ | Sonnet-5⁹ | GLM-5.2⁶ | Kimi-K2.7 | DeepSeek-V3.2 | MiniMax-M2.5 | Qwen3.6-35B | Nemotron-550B | Gemma-4-31B | Qwen3-Coder-480B⁷ | Qwen3-Coder-30B |
-|------|-------|----------:|----------:|---------:|----------:|--------------:|-------------:|------------:|--------------:|------------:|------------------:|----------------:|
-| `remove-faiss` | Med | 69.2 | **72.8** | 62.8 | 0.0 ⁵ | 48.2 | 44.2 | 53.2 | 0.0 ⁵ | 38.0 | 45.6 | 32.0 |
-| `remove-efs-from-terraform-aws-ecs` | Med | 79.6 | **86.8** | 73.8 | 70.8 | 59.0 | 62.0 | 65.2 | 55.4 | 53.6 | 55.4 | 28.2 |
-| `ssrf-hardening-outbound-url-validation` | Med | **80.6** | 68.6 | 64.6 | 72.0 | 56.4 | 58.2 | 41.6 | 52.4 | 64.6 | 0.0 ⁵ | 0.0 ⁵ |
-| `migrate-ecs-env-vars-to-secrets-manager` | High | **70.6** | 66.0 | 68.6 | 67.2 | 51.2 | 53.6 | 46.4 | 50.0 | 48.4 | 41.0 | 30.8 |
-| `replace-keycloak-db-password-with-rds-iam` | High | **76.6** | 70.0 | 64.2 | 52.2 | 46.2 | 39.8 | 45.2 | 43.0 | 37.4 | 37.8 | 29.8 |
-| **Mean (excl. failed⁵)** | | **75.32** | 72.84 | 66.80 | 65.55 | 52.20 | 51.56 | 50.32 | 50.20 | 48.40 | 44.95 | 30.20 |
-
-The **Mean** row excludes any task that scored 0 -- a genuine model failure (missing artifacts), an unresolved anomaly rather than a quality measurement, so it is left out of the average **pending further investigation** and flagged with `⁵`. Per-task 0.0 cells are still shown so the failure is visible. No-failure (5/5): Opus-4.8, Sonnet-5, GLM-5.2, DeepSeek-V3.2, MiniMax-M2.5, Qwen3.6-35B, Gemma-4-31B. 4/5 (one failed): Kimi (`remove-faiss`), Nemotron-550B (`remove-faiss`), Qwen3-Coder-480B (`ssrf`), Qwen3-Coder-30B (`ssrf`).
-
-**Hardware:** Kimi-K2.7-Code (1.06T-param MoE, ~1 TB weights) ran on **8x H200** (`p5en.48xlarge`) at its full **131,072-token (128K) native context window**; GLM-5.2 (744B MoE / 40B active, ~750 GB FP8 weights), MiniMax-M2.5, and Qwen3-Coder-480B (480B MoE / 35B active, FP8, TP=4) also ran on **8x H200** (`p5en.48xlarge`); the three smaller Qwen models (3B-active MoE) and Gemma-4-31B (dense, ~63 GB) ran on a single **`g6e.12xlarge`** (4x L40S) at a 200K window. All via vLLM. Gemma-4-31B is dense and slow, so it used a raised per-task timeout (`--timeout-seconds 3600`); the default 1800s was not enough for it to return. Note Kimi's 128K window is below the harness's 200K agentic-coding guideline, yet it completed 4 of 5 tasks -- the one failure (`keycloak-rds-iam`) was a turn-cap timeout, not a context overflow.
-
-⁴ Qwen3-Coder-Next (79.6B, ~160 GB weights) **could not be benchmarked on the `g6e.12xlarge`.** There the weights leave room for only a ~16K context window, but agentic coding tasks need 100K-250K input tokens per request, so every task overflows the window on the first prompt. It needs a larger-VRAM node (e.g. `g6e.48xlarge`) to serve a >=200K window. The `/benchmark` skill enforces a 200K-minimum gate by default as a conservative guideline -- Kimi's 128K run shows a window somewhat below 200K can still work when the tasks fit, but 16K cannot. See [self-hosted/vllm/models/qwen3-coder-next.md](self-hosted/vllm/models/qwen3-coder-next.md).
-
-⁵ **Genuine model failures, scored 0.** On these `/swe2` runs the failures are: Kimi-K2.7-Code on `remove-faiss`, Nemotron-Ultra-550B on `remove-faiss`, Qwen3-Coder-480B on `ssrf`, and Qwen3-Coder-30B on `ssrf`. Each failed to produce a scorable artifact set (typically the model exhausted its turn budget on the implementation step without landing edits, so no `patch.diff`). The judge records a missing/empty-artifact folder as a 0 with a `MODEL FAILURE` verdict rather than dropping it. The **Mean** row is over the tasks each model completed, excluding those failures: 5/5 for Opus-4.8, Sonnet-5, GLM-5.2, DeepSeek-V3.2, MiniMax-M2.5, Qwen3.6-35B, Gemma-4-31B; 4/5 for Kimi, Nemotron-Ultra-550B, Qwen3-Coder-480B, and Qwen3-Coder-30B.
-
-⁶ **GLM-5.2 ran with more headroom than the others -- not strictly apples-to-apples.** GLM-5.2 (`zai-org/GLM-5.2-FP8`, 744B MoE / 40B active, ~750 GB FP8 weights) was served on **8x H200** at a **300K context window**. It is the top self-hosted model (66.80 over 5/5) but on the biggest, most expensive box measured (~$18/task, see the cost section). Treat cross-instance comparisons as indicative until normalized.
-
-⁷ **Qwen3-Coder-480B intermittently fails to produce artifacts -- the failure is nondeterministic, not task-specific.** Qwen3-Coder-480B (`Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8`, 480B MoE / 35B active) was served on the **8x H200** node at **TP=4** (a block-FP8 MoE sharding constraint forces TP=4, not 8 -- see [its model guide](self-hosted/vllm/models/qwen3-coder-480b.md)), 200K window. Like the smaller Qwen3-Coder-30B, it periodically explores/edits the repo instead of completing the artifact chain (or exhausts the turn cap), scoring 0 on some tasks. It is a harness-conformance instability of a coder-tuned model, not a serving or context problem.
-
-⁹ **Claude-Opus-4.8 and Claude-Sonnet-5 are Path 1 (Bedrock) results -- their cost is a real metered API bill, not hardware-derived.** Both were run through Amazon Bedrock (no self-hosting), so their `$/task` ($17.42 and $26.39) is the actual token-metered charge, whereas a self-hosted model's `$/task` is `instance $/hr / measured tokens/sec` x tokens (see the cost section). Comparable as "what you would pay," but different in provenance. Opus tops the quality table (75.32 over 5/5) at a cost *below* the best open-weight model (GLM-5.2, 66.80 at $18.10) -- so it **dominates** GLM (higher score, lower cost) and anchors the top of the frontier. Sonnet-5 (72.84) is a close second on quality but pricier per task ($26.39 -- more verbose implementations, more output tokens), so it sits just off the frontier. On this benchmark the best-quality options are the frontier API models, and Opus in particular is not more expensive per task than self-hosting a 744B MoE on an 8x H200 box.
-
-### Cost vs. quality
-
-![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality.png)
-
-Mean cost per task (x) against mean task score (y), one point per model. For **self-hosted** models with a throughput sweep, cost is **hardware-derived**: the model's blended cost per token (instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](self-hosted/vllm/cost-per-task-methodology.md)) times its *actual* input+output tokens per task, averaged over non-failed tasks. The two **Anthropic** points (Opus-4.8, Sonnet-5) are **real token-metered Bedrock bills**; **DeepSeek-V3.2** and **Nemotron-Ultra-550B** have no sweep so use a token-priced estimate (`‡`) -- comparable as spend, different in kind. The cost/quality frontier runs **Qwen3-Coder-30B ($0.98 / 30.20) -> Qwen3.6-35B ($1.03 / 50.32) -> MiniMax-M2.5 ($1.55 / 51.56) -> Kimi-K2.7-Code ($11.09 / 65.55) -> Claude-Opus-4.8 ($17.42 / 75.32)**. Everything else is **dominated**: notably Claude-Sonnet-5 (72.84 but $26.39), GLM-5.2 (66.80 at $18.10, beaten by Opus on both axes), Gemma-4-31B, Qwen3-Coder-480B, Nemotron-Ultra-550B, and DeepSeek-V3.2 ($50.10 est., the priciest). Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task (footnote ⁵). Regenerate with `uv run scripts/plot_cost_quality.py` (add `--dark`) from `benchmarks/`.
-
-### Per-model leaderboard (so far)
-
-Mean score is over the tasks each model completed (any 0-score failed task is excluded pending investigation; see the note above). **$/task** is the hardware-derived blended cost (instance $/hr / measured tokens/sec x this run's actual per-task tokens); lower is better.
-
-| Rank | Model | Params (active) | Hardware | Mean score | $/task | Tasks scored |
-|-----:|-------|----------------|----------|-----------:|-------:|-------------:|
-| 1 | Claude-Opus-4.8⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **75.32** | $17.42† | 5/5 |
-| 2 | Claude-Sonnet-5⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **72.84** | $26.39† | 5/5 |
-| 3 | GLM-5.2⁶ | 744B (40B) | 8x H200 | **66.80** | $18.10 | 5/5 |
-| 4 | Kimi-K2.7-Code | 1,058.6B (MoE) | 8x H200 | **65.55** | $11.09 | 4/5 |
-| 5 | DeepSeek-V3.2 | 671B (37B) | 8x H200 | **52.20** | $50.10‡ | 5/5 |
-| 6 | MiniMax-M2.5 | 230B (10B) | 8x H200 (TP=4) | **51.56** | $1.55 | 5/5 |
-| 7 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **50.32** | $1.03 | 5/5 |
-| 8 | Nemotron-Ultra-550B | 550B (dense) | 8x H200 | **50.20** | $24.41‡ | 4/5 |
-| 9 | Gemma-4-31B-it | 31B (dense) | g6e.12xlarge | **48.40** | $3.62 | 5/5 |
-| 10 | Qwen3-Coder-480B-A35B-Instruct⁷ | 480B (35B) | 8x H200 (TP=4) | **44.95** | $9.98 | 4/5 |
-| 11 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **30.20** | **$0.98** | 4/5 |
-| - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | -- | 0 |
-
-† Claude-Opus-4.8 / Claude-Sonnet-5 `$/task` is a real Bedrock **API bill** (token-metered), not a hardware-derived figure; see footnote `⁹`.
-‡ DeepSeek-V3.2 and Nemotron-Ultra-550B are self-hosted but have **no throughput sweep**, so their `$/task` is the harness's **token-priced estimate**, not the hardware-derived (`instance $/hr / tokens-sec`) figure used for the other self-hosted rows -- treat those two costs as indicative and higher-variance until a sweep is run.
-
-**Coming soon:** Claude Haiku on Bedrock (Path 1) and the open-weight Bedrock models via the LiteLLM proxy (Path 2 -- Mistral, …).
-
-### What the data says (so far)
-
-These are early self-hosted numbers on differing hardware; treat them as a starting point, not a final ranking. Cross-path comparisons wait until the Bedrock paths are run.
-
-- **The two Anthropic models top the table:** Claude-Opus-4.8 (75.32 over 5/5) and Claude-Sonnet-5 (72.84 over 5/5) lead every self-hosted model. Opus dominates GLM-5.2 (the best open-weight, 66.80) on *both* axes -- higher score and lower cost ($17.42 vs $18.10). Sonnet-5 scores nearly as high but costs more per task ($26.39, its verbose implementations run up output tokens), so it sits just off the frontier.
-- **Qwen3.6-35B is the value story:** on one mid-range GPU node (a single g6e.12xlarge) it scores 50.32 over all 5 tasks with no failures at a **hardware-derived $1.03 per task** -- roughly a median score at a small fraction of the frontier models' cost, and on the cost/quality frontier.
-- **MiniMax-M2.5 is the best quality-per-dollar in the upper-middle:** 51.56 over 5/5 at **$1.55/task** -- it beats the dense Gemma-4-31B ($3.62) and the much pricier Qwen3-Coder-480B ($9.98) and DeepSeek-V3.2 ($50.10 est.) while costing a fraction, anchoring the frontier just above Qwen3.6-35B.
-- **Cost is hardware-derived where a throughput sweep exists.** For the self-hosted models with a sweep, $/task is `instance $/hr / measured tokens/sec` times that model's real per-task token load; the two Anthropic rows are real Bedrock API bills; DeepSeek-V3.2 and Nemotron-Ultra-550B lack a sweep and fall back to a token-priced estimate (flagged `‡`). See [cost-per-task-methodology.md](self-hosted/vllm/cost-per-task-methodology.md).
-- **The judge is strict, and implementation is harder than design.** These `/swe2` runs score design *and* code; scores in the 30-75 range reflect artifacts that are serviceable but often light on the specificity, risk-analysis, and complete implementation the rubric rewards. Coder-tuned models (Qwen3-Coder-30B/480B) are the least reliable here -- they tend to burn the turn budget implementing instead of completing the full artifact set, producing the 0-score failures.
-- **MoE economics are the reason to self-host these.** Nearly every open-weight model here is a mixture-of-experts, so per-token compute (and cost) tracks the active-expert count, not the total -- the regime where a fixed-cost GPU node can beat per-token API pricing under load. The 3B-active Qwen MoEs on a single L40S node are the clearest example: ~$1/task.
-
-> **The example repo is the example, not the contract.** `/swe` works against any GitHub URL -- clone the target you actually care about, write the task description, and run.
-
-### How the scores are produced (LLM-as-judge rubric)
-
-Each artifact is scored 0-100 by an independent judge session (`codex exec`, `gpt-5.6-sol`, high reasoning effort). Within each artifact the judge applies the same 4-criterion rubric, **25 points per criterion, summing to 100**:
-
-| Criterion | 0-25 each | What the judge evaluates |
-|-----------|-----------|--------------------------|
-| **Completeness** | 25 | Did the artifact identify all affected files, dependencies, and components? Any obvious touchpoints (Terraform, IAM, Docker, tests, docs) missed? |
-| **Correctness** | 25 | Are the proposed changes technically right? Would the design actually work? Are AWS service patterns idiomatic (e.g. ECS `secrets` block vs custom boto3 code)? |
-| **Specificity** | 25 | Concrete file paths, line numbers, code snippets, resource names -- or vague hand-waving? Could a junior engineer implement this artifact alone? |
-| **Risk awareness** | 25 | Rollback strategy, backwards-compat, deployment cutover, edge cases (cold start, secret rotation, token expiry, etc.) -- enumerated or ignored? |
-
-**Artifact total = sum of 4 criteria (0-100). Task score = mean of the artifact totals (also 0-100).** The judge is calibrated so a median artifact scores around 60-70, not 85; 90+ is reserved for genuinely excellent work; hallucinated files or functions lose at least 10 points off Correctness. Per-cell JSON with criterion breakdowns and judge notes lives at `{model}/{repo}/{task}/eval.json`. The judge itself is documented in the [harness reference](benchmarks/docs/harness-reference.md#scoring-the-artifacts-the-judge).
 
 ## Prerequisites
 
