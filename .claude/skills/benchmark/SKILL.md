@@ -60,7 +60,7 @@ Do these in order. Do not skip the HF-token check; a missing token is the most c
 **2a. HuggingFace token must be available BEFORE starting vLLM.** `vllm-serve.sh` resolves a token from `$HF_TOKEN`, else a `.hf_token` file in the repo root, the `self-hosted/vllm/` dir, or `$HOME`. Check that at least one is present:
 
 ```bash
-cd /home/ubuntu/repos/aarora79/sample-claude-code-multi-model
+cd ~/agentic-coding-harness-benchmarks
 if [ -n "${HF_TOKEN:-}" ] || [ -s .hf_token ] || [ -s self-hosted/vllm/.hf_token ] || [ -s "$HOME/.hf_token" ]; then
   echo "HF token available"
 else
