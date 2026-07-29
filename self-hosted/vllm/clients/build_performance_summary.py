@@ -32,6 +32,11 @@ from typing import Any
 
 import duckdb
 
+try:  # works whether run as `python -m clients.X` or as a script in clients/
+    from clients import pricing
+except ImportError:  # pragma: no cover - direct-script fallback
+    import pricing
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s,p%(process)s,{%(filename)s:%(lineno)d},%(levelname)s,%(message)s",
@@ -395,13 +400,24 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--model", required=True, help="Served model name (session prefix)")
     p.add_argument("--db", required=True, type=Path, help="Sweep DuckDB path")
     p.add_argument(
-        "--instance-type", default="unknown", help="EC2 instance type (provenance)"
+        "--instance-type",
+        default="unknown",
+        help="EC2 instance type; also used to look up the rate in pricing.json "
+        "when --dollars-per-hour is omitted",
     )
     p.add_argument(
         "--dollars-per-hour",
         type=float,
-        required=True,
-        help="Instance on-demand $/hr (e.g. 10.49 for g6e.12xlarge)",
+        default=None,
+        help="Instance on-demand $/hr. Omit to resolve from pricing.json by "
+        "--instance-type (and --tp for a partial-box run).",
+    )
+    p.add_argument(
+        "--tp",
+        type=int,
+        default=None,
+        help="Tensor-parallel size (GPUs used). With a partial box, the "
+        "pricing.json rate is scaled by tp/gpus_per_instance.",
     )
     p.add_argument(
         "--output-tokens-per-task",
@@ -437,11 +453,22 @@ def main() -> None:
     db = args.db.expanduser().resolve()
     if not db.is_file():
         raise SystemExit(f"DuckDB not found: {db}")
+    # Resolve the hourly rate from pricing.json (single source of truth) unless
+    # the caller passed an explicit --dollars-per-hour override.
+    dph = args.dollars_per_hour
+    if dph is None:
+        dph = pricing.resolve(args.instance_type, tp=args.tp)
+        logger.info(
+            "resolved $%.4f/hr for %s (tp=%s) from pricing.json",
+            dph,
+            args.instance_type,
+            args.tp,
+        )
     summary = _build(
         db,
         args.model,
         args.instance_type,
-        args.dollars_per_hour,
+        dph,
         args.output_tokens_per_task,
         args.input_tokens_per_task,
         args.input_weight,

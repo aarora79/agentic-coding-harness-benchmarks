@@ -64,7 +64,7 @@ vllm serve moonshotai/Kimi-K2.7-Code \
 |---|---|
 | **Instance type** | p5en.48xlarge (8×H200 141GB, 1.13 TB VRAM) |
 | **Region** | us-east-2 |
-| **Cost** | ~$85/hr on-demand, ~$55/hr via capacity block |
+| **Cost** | ~$63.30/hr on-demand (AWS Price List API, us-east-1; see [pricing.json](../pricing.json)), lower via capacity block |
 | **SSH** | `ssh -i ~/.ssh/qwen36-key.pem ubuntu@<IP>` |
 | **Tunnel** | `ssh -i ~/.ssh/qwen36-key.pem -L 8000:127.0.0.1:8000 ubuntu@<IP>` |
 
