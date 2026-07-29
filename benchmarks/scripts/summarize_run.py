@@ -82,6 +82,11 @@ def _task_row(task_dir: Path) -> dict[str, Any] | None:
         "latency_seconds": mm.get("latency_seconds"),
         "total_cost_usd": metrics.get("total_cost_usd"),
         "task_score": score,
+        # Embed the judge's per-artifact criterion breakdown (from eval.json) so
+        # RUN-SUMMARY.json is self-contained -- the committed rollup carries the
+        # scores + judge notes even though the per-task eval.json is gitignored.
+        # None when the task was not scored (a failure or no judge run).
+        "eval_scores": (eval_data or {}).get("scores"),
         "is_error": metrics.get("is_error"),
         "failed": not score,  # 0 or missing score == model failure
     }
