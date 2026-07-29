@@ -59,6 +59,7 @@ REGISTRY=(
   "qwen3-coder-480b|Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8|200000|qwen3_coder|4|p5en.48xl"
   "kimi-k2.7-code|moonshotai/Kimi-K2.7-Code|131072|kimi_k2|8|p5en.48xl"
   "glm-5.2|zai-org/GLM-5.2-FP8|300000|glm47|8|p5en.48xl"
+  "devstral-2-123b|mistralai/Devstral-2-123B-Instruct-2512|262144|mistral|8|p5en.48xl"
 )
 
 DATASET="dataset/mcp-gateway-registry.yaml"
@@ -163,7 +164,15 @@ stop_all_vllm() {
     kill -9 "$pid" 2>/dev/null || true
   done
   pkill -9 -f "VLLM::EngineCore" 2>/dev/null || true
-  sleep 8
+  pkill -9 -f "vllm serve" 2>/dev/null || true
+  # Wait until GPUs are fully released (up to 60s).
+  local i
+  for i in $(seq 1 12); do
+    local count
+    count="$(nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | wc -l)"
+    [[ "$count" -eq 0 ]] && break
+    sleep 5
+  done
 }
 
 say "=== START multi-model benchmark: ${MODELS[*]} (dataset=$SCOPE) ==="
