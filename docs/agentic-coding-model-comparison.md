@@ -8,7 +8,7 @@ All figures come from the throughput skill (`self-hosted/vllm/scripts/run-throug
 
 Sweep: concurrency `1 2 5 7 10 15 20`, 10-minute window per level, 200K context. Cost is the **blended lens** (every processed token — prompt + generation — costs the same GPU slice; the honest primary metric for an input-heavy workload). "Cheapest $/task" is at each model's most cost-efficient concurrency level.
 
-> **Two different instances.** The smaller models were served on **g6e.12xlarge (4xL40S, $10.49/hr)**; the larger ones on **p5en.48xlarge (8xH200, $42.5-85/hr)**. Cost per token/task already accounts for each instance's hourly price, so it is comparable across rows — but peak-throughput numbers are not apples-to-apples across the instance line. Rows are grouped by instance.
+> **Two different instances.** The smaller models were served on **g6e.12xlarge (4xL40S, $10.49/hr)**; the larger ones on **p5en.48xlarge (8xH200, $63.30/hr full box; TP=4 models are charged half, $31.65/hr)**. Rates come from [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json) (verified AWS Price List API, us-east-1 on-demand). Cost per token/task already accounts for each instance's hourly price, so it is comparable across rows — but peak-throughput numbers are not apples-to-apples across the instance line. Rows are grouped by instance.
 
 ### g6e.12xlarge (4xL40S, $10.49/hr)
 
@@ -22,10 +22,10 @@ Sweep: concurrency `1 2 5 7 10 15 20`, 10-minute window per level, 200K context.
 
 | Model | Arch | $/hr | Peak gen tok/s | Cheapest $/1M (blended) | Cheapest $/task | Task ratio (in:out) | Notes |
 |---|---|--:|--:|--:|--:|--:|---|
-| **minimax-m2.5** | small-active MoE | $42.5 | **300 @ c=15** | **$0.23** | **$0.29** | ~101:1 | TP=4 (half the box); highest peak throughput and cheapest per token/task on this instance |
-| **kimi-k2.7-code** | large MoE | $85.0 | 191 @ c=2 | $1.14 | $2.06 | ~73:1 | Fast, but the H200 box's hourly price dominates |
-| **glm-5.2** | large MoE | $85.0 | 212 @ c=15 | $1.51 | $12.51 | ~175:1 | Highest peak throughput; most expensive per task |
-| **qwen3-coder-480b** | very large MoE | $42.5 | 49 @ c=2 | $0.72 | $3.10 | ~377:1 | 480B weights; no c=1 baseline in this run (see caveat) |
+| **minimax-m2.5** | small-active MoE | $31.65 | **300 @ c=15** | **$0.17** | **$0.22** | ~101:1 | TP=4 (half the box); highest peak throughput and cheapest per token/task on this instance |
+| **kimi-k2.7-code** | large MoE | $63.30 | 191 @ c=2 | $0.85 | $1.53 | ~73:1 | Fast, but the H200 box's hourly price dominates |
+| **glm-5.2** | large MoE | $63.30 | 212 @ c=15 | $1.12 | $9.31 | ~175:1 | Highest peak throughput; most expensive per task |
+| **qwen3-coder-480b** | very large MoE | $31.65 | 49 @ c=2 | $0.54 | $2.31 | ~377:1 | 480B weights; no c=1 baseline in this run (see caveat) |
 
 ## Takeaways
 
@@ -33,7 +33,7 @@ Sweep: concurrency `1 2 5 7 10 15 20`, 10-minute window per level, 200K context.
 
 - **Cheapest per *token* is not cheapest per *task*.** qwen3-coder-30b has the lowest per-token cost ($0.15/1M) but qwen3.6-35b is cheapest per *task* ($0.34). The reason is task shape: coder-30b's agentic tasks carry a far heavier input load (~2.75M input : 12K output, ~236:1) than qwen3.6-35b (~50:1), so even at a lower per-token rate the sheer token count per task adds up. **Always compare per-task when choosing a model for a workload** — per-token rates mislead when input:output ratios differ this much.
 
-- **Bigger box, bigger peak — but the hourly price can swamp the cost gain, unless the model is a small-active MoE that only needs half the box.** The large H200 models hit higher peak throughput (glm-5.2 at 212 tok/s, kimi at 191), but at $85/hr their per-task cost is 5-35x the g6e models'. glm-5.2's $12.51/task is driven by both the $85/hr rate and its very heavy input load. The standout exception is **minimax-m2.5**: a small-active MoE that fits at TP=4 (half the H200 box, so $42.5/hr) yet posts the **highest peak throughput here (300 tok/s @ c=15) and the cheapest cost of any p5en model ($0.23/1M, $0.29/task)** — competitive with the g6e MoEs on cost while serving from the big box. Active-parameter count and the half-instance footprint, not total size or instance tier, drive the economics: minimax-m2.5 and qwen3-coder-480b both run TP=4 at $42.5/hr, but minimax is ~6x faster and ~10x cheaper per task because its per-token compute (and KV pressure) is far lower. The big boxes still matter when you need a model that only fits there (e.g. 480B weights) or raw aggregate throughput.
+- **Bigger box, bigger peak — but the hourly price can swamp the cost gain, unless the model is a small-active MoE that only needs half the box.** The large H200 models hit higher peak throughput (glm-5.2 at 212 tok/s, kimi at 191), but at $63.30/hr their per-task cost is several times the g6e models'. glm-5.2's $9.31/task is driven by both the $63.30/hr rate and its very heavy input load. The standout exception is **minimax-m2.5**: a small-active MoE that fits at TP=4 (half the H200 box, so $31.65/hr) yet posts the **highest peak throughput here (300 tok/s @ c=15) and the cheapest cost of any p5en model ($0.17/1M, $0.22/task)** — competitive with the g6e MoEs on cost while serving from the big box. Active-parameter count and the half-instance footprint, not total size or instance tier, drive the economics: minimax-m2.5 and qwen3-coder-480b both run TP=4 at $31.65/hr, but minimax is ~6x faster and ~10x cheaper per task because its per-token compute (and KV pressure) is far lower. The big boxes still matter when you need a model that only fits there (e.g. 480B weights) or raw aggregate throughput.
 
 - **All are prefill-heavy but healthy, each with its own concurrency knee.** Agentic coding is input-heavy (large read-heavy prompts, small outputs), so the server spends most of its time on prompt prefill, not generation. On a healthy instance TTFT stays low (0-2s) until the model's concurrency knee, then rises: gemma saturates earliest (~c=2), qwen3-coder-30b holds to ~c=10, qwen3.6-35b stays healthy past c=20. minimax-m2.5 holds sub-second TTFT all the way to c=15 (its peak) then falls off a cliff at c=20 (throughput 300->127 tok/s, TTFT ~8.5s) as KV finally saturates — a sharp, well-defined knee. Beyond the knee, add replicas (horizontal scaling), not concurrency — blended per-task cost is flat across replicas, so the per-task figures above are the fleet-scale figures too.
 
