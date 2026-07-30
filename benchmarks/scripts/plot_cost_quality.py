@@ -349,6 +349,84 @@ def _label(point: ModelPoint) -> str:
     return point.model
 
 
+def _spread(ys: list[float], step: float) -> list[float]:
+    """Push a sorted-ascending list apart to >= ``step`` spacing, keeping center.
+
+    A single bottom-up pass raises each value to clear the one below it, which
+    drifts the whole group upward; subtracting the net mean shift re-centers it
+    on the original cluster. Inputs must be sorted ascending.
+    """
+    out = list(ys)
+    for i in range(1, len(out)):
+        out[i] = max(out[i], out[i - 1] + step)
+    drift = sum(out) / len(out) - sum(ys) / len(ys)
+    return [y - drift for y in out]
+
+
+def _label_offsets(ax, fig, points: list[ModelPoint]) -> dict[int, float]:
+    """Return each label's vertical offset (in points) to avoid overlaps.
+
+    Labels sit to the right of their dot at the dot's y-level. Two labels collide
+    only when they are close in BOTH axes -- near in x (their text would occupy
+    the same horizontal band) and near in y (they would stack). This groups the
+    points into such collision clusters and spreads ONLY those apart vertically,
+    centered on the cluster; every isolated label keeps a 0 offset (stays pinned
+    to its dot, no leader line). Offsets are returned in display points, keyed by
+    ``id(point)``, so the caller can pass them straight to ``annotate`` and decide
+    a leader line is needed exactly when the offset is non-zero.
+
+    Args:
+        ax: The axes (already drawn, so transforms are valid).
+        fig: The figure (for DPI when converting pixels <-> points).
+        points: All model aggregates.
+
+    Returns:
+        ``{id(point): dy_in_points}`` -- 0.0 for labels that did not move.
+    """
+    to_px = ax.transData.transform
+    line_px = 9 * 1.35 * fig.dpi / 72.0  # one label's height in pixels
+    # Two labels collide when they share a horizontal band (near in x) AND sit
+    # within ~1.6 line-heights in y. The x band is generous (a label is wide), so
+    # a whole diagonal run of nearby dots merges into one cluster rather than
+    # fragmenting into pairs that would still overlap each other.
+    x_band_px = 12 + 9 * 0.6 * 16  # 12px gap + ~16 chars at ~0.6em, fontsize 9
+    y_touch_px = line_px * 1.6
+    px = {id(p): to_px((p.mean_cost, p.mean_score)) for p in points}
+
+    # Union-find over "collides" (near in x AND y) to form clusters.
+    parent = {id(p): id(p) for p in points}
+
+    def find(a: int) -> int:
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for i, a in enumerate(points):
+        for b in points[i + 1 :]:
+            ax_px, ay = px[id(a)]
+            bx_px, by = px[id(b)]
+            if abs(ax_px - bx_px) < x_band_px and abs(ay - by) < y_touch_px:
+                parent[find(id(a))] = find(id(b))
+
+    clusters: dict[int, list[ModelPoint]] = {}
+    for p in points:
+        clusters.setdefault(find(id(p)), []).append(p)
+
+    offsets: dict[int, float] = {id(p): 0.0 for p in points}
+    for members in clusters.values():
+        if len(members) < 2:
+            continue  # isolated label: no move, no line
+        members.sort(key=lambda p: px[id(p)][1])  # by pixel-y, ascending
+        ys_px = [px[id(p)][1] for p in members]
+        spread_px = _spread(ys_px, line_px * 1.35)
+        for p, new_y in zip(members, spread_px):
+            # display-y grows downward in some backends; transData is bottom-up,
+            # so a higher pixel value = higher on screen. Convert delta to points.
+            offsets[id(p)] = (new_y - px[id(p)][1]) * 72.0 / fig.dpi
+    return offsets
+
+
 def _plot(
     points: list[ModelPoint],
     frontier: list[ModelPoint],
@@ -397,11 +475,9 @@ def _plot(
             zorder=1,
         )
 
-    # Label placement: every label sits to the RIGHT of its dot at exactly the
-    # point's y-level (vertically centered). On a rising frontier this keeps the
-    # text off the line (which climbs up-and-right) and reads consistently
-    # horizontal for all points.
-    # All models as dark neutral dots; frontier points already drawn in accent.
+    # Dots now; labels later (after the limits are final) so the declutter pass
+    # can measure real text height. Frontier points are already accent from the
+    # frontier line; the rest are a recessive dark neutral.
     frontier_ids = {id(p) for p in frontier}
     for point in points:
         on_frontier = id(point) in frontier_ids
@@ -413,17 +489,6 @@ def _plot(
             edgecolors=theme["surface"],
             linewidths=1.5,
             zorder=3,
-        )
-        ax.annotate(
-            _label(point),
-            (point.mean_cost, point.mean_score),
-            textcoords="offset points",
-            xytext=(12, 0),
-            fontsize=9,
-            color=theme["ink"],
-            ha="left",
-            va="center",
-            zorder=4,
         )
 
     ax.set_xlabel(cost_label, fontsize=11, color=theme["ink"], labelpad=10)
@@ -447,6 +512,39 @@ def _plot(
     ypad = max((max(ys) - min(ys)) * 0.12, 3.0)
     ax.set_xlim(max(0.0, min(xs) - xpad), max(xs) + xpad * 2.2)
     ax.set_ylim(max(0.0, min(ys) - ypad), min(100.0, max(ys) + ypad))
+
+    # Labels last, after the limits are final. Only labels that actually collide
+    # (close in BOTH x and y) are spread apart in y, and only those get a leader
+    # line back to the dot -- an isolated point keeps the plain right-of-dot
+    # offset with no line. A draw() fixes the data<->pixel scale so a label's
+    # rendered size can be expressed in data units.
+    fig.canvas.draw()
+    dy_by_point = _label_offsets(ax, fig, points)
+    for point in points:
+        dy_pts = dy_by_point[id(point)]
+        moved = abs(dy_pts) > 1e-6
+        ax.annotate(
+            _label(point),
+            (point.mean_cost, point.mean_score),
+            textcoords="offset points",
+            xytext=(12, dy_pts),
+            fontsize=9,
+            color=theme["ink"],
+            ha="left",
+            va="center",
+            zorder=4,
+            arrowprops=(
+                {
+                    "arrowstyle": "-",
+                    "color": theme["muted"],
+                    "linewidth": 0.6,
+                    "shrinkA": 2,
+                    "shrinkB": 3,
+                }
+                if moved
+                else None
+            ),
+        )
 
     if len(frontier) >= 2:
         legend = ax.legend(loc="lower right", frameon=False, fontsize=9)
