@@ -88,7 +88,9 @@ def _read_json(path: Path) -> dict | None:
     return value if isinstance(value, dict) else None
 
 
-def _model_dimensions(summary: dict) -> tuple[dict[str, float], dict[str, float]] | None:
+def _model_dimensions(
+    summary: dict,
+) -> tuple[dict[str, float], dict[str, float]] | None:
     """Return (by_criterion_pct, by_artifact_total) means from a run summary.
 
     ``by_criterion_pct`` averages each criterion over every artifact of every
@@ -118,7 +120,9 @@ def _model_dimensions(summary: dict) -> tuple[dict[str, float], dict[str, float]
     by_criterion = {
         c: round(_mean(crit_sums[c]) / CRITERION_MAX * 100.0, 1) for c in CRITERIA
     }
-    by_artifact = {a: round(_mean(art_totals[a]), 1) for a in ARTIFACTS if art_totals[a]}
+    by_artifact = {
+        a: round(_mean(art_totals[a]), 1) for a in ARTIFACTS if art_totals[a]
+    }
     return by_criterion, by_artifact
 
 
@@ -154,7 +158,9 @@ def _plot_one(
     ax.set_xticklabels(labels, fontsize=10, color=theme["ink"])
     ax.set_ylim(0, 100)
     ax.set_yticks([20, 40, 60, 80, 100])
-    ax.set_yticklabels(["20", "40", "60", "80", "100"], fontsize=8, color=theme["muted"])
+    ax.set_yticklabels(
+        ["20", "40", "60", "80", "100"], fontsize=8, color=theme["muted"]
+    )
     ax.tick_params(colors=theme["muted"])
     ax.grid(True, color=theme["grid"], linewidth=0.8)
     ax.spines["polar"].set_color(theme["grid"])
@@ -183,10 +189,10 @@ def _plot(
     fig.patch.set_facecolor(theme["surface"])
 
     crit_series = [(m, [by_c[c] for c in CRITERIA]) for m, by_c, _ in models]
-    art_series = [
-        (m, [by_a.get(a, 0.0) for a in ARTIFACTS]) for m, _, by_a in models
-    ]
-    _plot_one(ax_c, CRITERION_LABELS, crit_series, theme, "By rubric criterion (% of max)")
+    art_series = [(m, [by_a.get(a, 0.0) for a in ARTIFACTS]) for m, _, by_a in models]
+    _plot_one(
+        ax_c, CRITERION_LABELS, crit_series, theme, "By rubric criterion (% of max)"
+    )
     _plot_one(ax_a, ARTIFACT_LABELS, art_series, theme, "By artifact (score 0-100)")
 
     # One shared legend below both panels -- identity is never color-alone.
@@ -217,7 +223,16 @@ def _plot(
         "carry the per-artifact eval breakdown; the same view for the remaining "
         "models is coming as their eval data is backfilled."
     )
-    fig.text(0.5, -0.06, note, ha="center", va="top", fontsize=8, color=theme["muted"], wrap=True)
+    fig.text(
+        0.5,
+        -0.06,
+        note,
+        ha="center",
+        va="top",
+        fontsize=8,
+        color=theme["muted"],
+        wrap=True,
+    )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     suffix = "-dark" if mode == "dark" else ""
