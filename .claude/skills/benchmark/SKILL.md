@@ -24,6 +24,10 @@ Collect these three, in order. Do not guess -- ask if any is missing.
 2. **model** -- the model id / served-model-name. Examples: `us.anthropic.claude-opus-4-8` (bedrock), `moonshotai.kimi-k2-thinking` (litellm), `qwen3-coder-30b` (vllm).
 3. **dataset** -- a dataset YAML under `benchmarks/dataset/`. Default to `dataset/mcp-gateway-registry.yaml`; suggest `dataset/hello-world.yaml` for a quick sanity check.
 
+Optional fourth input:
+
+4. **agent** -- which coding agent drives the task, passed as `--agent` to the orchestrator. Default `claude` (Claude Code). Pass `pi` to drive the same `/swe2` task with the [pi coding agent](../../../self-hosted/vllm/scripts/run-pi.sh) instead; the task, artifacts, and judge are identical, only the agent changes. **`--agent pi` works only on the `vllm`/`litellm` paths** (it speaks the OpenAI-compatible endpoint); it has no native Amazon Bedrock mode, so it cannot run `--provider bedrock`. Only ask about this if the user brings it up -- otherwise default to `claude`.
+
 ## Workflow
 
 1. **Gather the three inputs** -- provider, model, dataset. Confirm them back to the user.
@@ -150,7 +154,7 @@ aws sts get-caller-identity
 
 ## Step 3 - Pre-flight (see what will happen first)
 
-**3a. Both coding-agent CLIs must be installed, and both are expected to be wired to Amazon Bedrock.** The harness runs `claude -p` to produce the artifacts, and the judge runs `codex exec` to score them. Confirm both are on PATH:
+**3a. Both coding-agent CLIs must be installed, and both are expected to be wired to Amazon Bedrock.** The harness runs `claude -p` to produce the artifacts (or `pi -p` when `--agent pi` is chosen -- then confirm `pi` is on PATH instead of `claude`), and the judge runs `codex exec` to score them. Confirm both are on PATH:
 
 ```bash
 command -v claude && command -v codex || echo "MISSING a required CLI"
@@ -181,7 +185,7 @@ Run the end-to-end script from `benchmarks/`. It re-runs every pre-flight check 
 
 ```bash
 cd benchmarks
-./scripts/run-e2e-benchmark.sh --provider {provider} --model {model} --dataset {dataset} [--yes] [--count N] [--skip-judge]
+./scripts/run-e2e-benchmark.sh --provider {provider} --model {model} --dataset {dataset} [--agent claude|pi] [--yes] [--count N] [--skip-judge]
 ```
 
 Tell the user, before it runs:

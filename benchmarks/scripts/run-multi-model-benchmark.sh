@@ -26,6 +26,7 @@ set -uo pipefail
 # Options (with defaults):
 #   --dataset PATH        dataset YAML relative to benchmarks/ (mcp-gateway-registry)
 #   --dollars-per-hour N  instance $/hr, recorded in the summary (0 = unset)
+#   --agent NAME          coding agent that runs each task: claude (default) or pi
 #   --no-detach           run in the foreground (do not self-detach)
 #   --skip-judge          run the harness only; score later
 #
@@ -64,6 +65,7 @@ REGISTRY=(
 
 DATASET="dataset/mcp-gateway-registry.yaml"
 DOLLARS_PER_HOUR="0"
+AGENT="claude"
 DETACH=1
 SKIP_JUDGE=""
 MODELS=()
@@ -110,6 +112,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dataset)          DATASET="${2:?}"; shift 2 ;;
     --dollars-per-hour) DOLLARS_PER_HOUR="${2:?}"; shift 2 ;;
+    --agent)            AGENT="${2:?}"; shift 2 ;;
     --no-detach)        DETACH=0; shift ;;
     --skip-judge)       SKIP_JUDGE="--skip-judge"; shift ;;
     -h|--help)          sed -n '4,37p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; print_catalog; exit 0 ;;
@@ -117,6 +120,12 @@ while [[ $# -gt 0 ]]; do
     *)                  MODELS+=("$1"); shift ;;
   esac
 done
+
+# --- Validate the agent -----------------------------------------------------
+case "$AGENT" in
+  claude|pi) ;;
+  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi." ;;
+esac
 
 # --- Fail loudly if no models, or an unknown model, was given ----------------
 if [[ ${#MODELS[@]} -eq 0 ]]; then
@@ -135,7 +144,7 @@ done
 # --- Self-detach so a session teardown cannot kill a multi-hour run ----------
 if [[ "$DETACH" == "1" && -z "${MMB_DETACHED:-}" ]]; then
   MMB_DETACHED=1 setsid nohup "$0" --no-detach \
-    ${SKIP_JUDGE:+--skip-judge} --dataset "$DATASET" \
+    ${SKIP_JUDGE:+--skip-judge} --dataset "$DATASET" --agent "$AGENT" \
     --dollars-per-hour "$DOLLARS_PER_HOUR" "${MODELS[@]}" \
     >>"$SCRATCH/multi-model-benchmark.nohup.log" 2>&1 &
   echo "detached multi-model benchmark (pid $!)."
@@ -207,7 +216,7 @@ for want in "${MODELS[@]}"; do
   ( cd "$VLLM_DIR/scripts" && ./vllm-metrics.sh start >/dev/null 2>&1 || true )
 
   say "  running e2e benchmark for $SLUG ..."
-  ( cd "$BENCH_DIR" && ./scripts/run-e2e-benchmark.sh --provider vllm --model "$SLUG" \
+  ( cd "$BENCH_DIR" && ./scripts/run-e2e-benchmark.sh --agent "$AGENT" --provider vllm --model "$SLUG" \
       --dataset "$DATASET" --yes $SKIP_JUDGE >"$SCRATCH/e2e-$SLUG.log" 2>&1 )
   say "  e2e done for $SLUG (exit $?)"
 

@@ -91,6 +91,17 @@ PROVIDER_BEDROCK = "bedrock"
 VALID_PROVIDERS = {PROVIDER_ENDPOINT, PROVIDER_BEDROCK}
 DEFAULT_PROVIDER = PROVIDER_ENDPOINT
 
+# Which coding agent drives the task. "claude" is Claude Code (`claude -p`);
+# "pi" is the pi coding agent (`pi -p --mode json`), which speaks the same
+# OpenAI-compatible endpoint a self-hosted vLLM server exposes. The /swe2 task
+# definition is identical for both -- only the agent binary and its invocation
+# differ. pi has no native Amazon Bedrock mode, so it pairs only with
+# provider=endpoint (validated below).
+AGENT_CLAUDE = "claude"
+AGENT_PI = "pi"
+VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI}
+DEFAULT_AGENT = AGENT_CLAUDE
+
 # Amazon Bedrock model ids carry a region/vendor inference-profile prefix
 # (e.g. "us.anthropic.claude-opus-4-8") and may carry a bracketed context-window
 # suffix (e.g. "[1m]"). The /swe skill strips both to name its artifact folder,
@@ -157,7 +168,16 @@ class RunnerConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # Routing: how claude -p reaches the model.
+    # Which coding agent drives the /swe2 task: "claude" (Claude Code, the
+    # default) or "pi" (the pi coding agent). The task definition is the same for
+    # both; only the agent binary and how it is invoked differ. See VALID_AGENTS.
+    agent: str = Field(
+        default=DEFAULT_AGENT,
+        description="Coding agent that runs the task: 'claude' (Claude Code) or "
+        "'pi' (pi coding agent). pi requires provider=endpoint.",
+    )
+
+    # Routing: how the agent reaches the model.
     #   "endpoint" (default): route through an OpenAI/Anthropic-compatible base
     #       URL (a local vLLM server, a gateway, or the Anthropic API).
     #   "bedrock": drive models directly on Amazon Bedrock via the native
@@ -264,8 +284,13 @@ class RunnerConfig(BaseModel):
 
     @property
     def is_bedrock(self) -> bool:
-        """True when claude -p should route natively to Amazon Bedrock."""
+        """True when the agent should route natively to Amazon Bedrock."""
         return self.provider == PROVIDER_BEDROCK
+
+    @property
+    def is_pi(self) -> bool:
+        """True when the pi coding agent drives the task (instead of Claude Code)."""
+        return self.agent == AGENT_PI
 
     @property
     def auto_compact_window(self) -> int | None:
@@ -341,6 +366,19 @@ class RunnerConfig(BaseModel):
         if self.provider not in VALID_PROVIDERS:
             raise RunnerConfigError(
                 f"provider '{self.provider}' not in {sorted(VALID_PROVIDERS)}."
+            )
+        if self.agent not in VALID_AGENTS:
+            raise RunnerConfigError(
+                f"agent '{self.agent}' not in {sorted(VALID_AGENTS)}."
+            )
+        # pi speaks only the OpenAI-compatible endpoint path; it has no native
+        # Amazon Bedrock mode, so pair it with provider=endpoint (a local vLLM
+        # server, a gateway, etc.). Claude Code supports both providers.
+        if self.is_pi and self.is_bedrock:
+            raise RunnerConfigError(
+                "agent=pi requires provider=endpoint (pi has no native Amazon "
+                "Bedrock mode). Serve the model on an OpenAI-compatible endpoint "
+                "(e.g. a local vLLM server) and set provider=endpoint."
             )
         if not self.model:
             raise RunnerConfigError(
@@ -451,6 +489,7 @@ def load_runner_config(
 def _summarize(config: RunnerConfig) -> None:
     """Log a short human-readable summary of the runner config."""
     logger.info("Runner config:")
+    logger.info("  agent: %s", config.agent)
     logger.info("  provider: %s", config.provider)
     if config.is_bedrock:
         logger.info("  aws_region: %s", config.resolved_region())
@@ -492,6 +531,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("config", help="Path to the runner config YAML file")
     parser.add_argument(
+        "--agent", help="Override: coding agent that runs the task (claude | pi)"
+    )
+    parser.add_argument(
         "--provider", help="Override: routing provider (endpoint | bedrock)"
     )
     parser.add_argument("--endpoint", help="Override: API endpoint base URL")
@@ -511,6 +553,7 @@ def main() -> None:
     """Validate the given runner config file and print a summary."""
     args = _parse_args()
     overrides = {
+        "agent": args.agent,
         "provider": args.provider,
         "endpoint": args.endpoint,
         "model": args.model,

@@ -61,6 +61,11 @@ IMPLEMENTATION_ARTIFACT_FILENAMES = ("patch.diff", "implementation.md")
 ARTIFACT_FILENAMES = DESIGN_ARTIFACT_FILENAMES + IMPLEMENTATION_ARTIFACT_FILENAMES
 GIT_CLONE_TIMEOUT_SECONDS = 300
 
+# The /swe2 skill file, shared by both agents. Claude Code auto-loads it from the
+# repo's .claude/skills tree via the /swe2 slash command; pi is pointed at the
+# same file explicitly with `--skill` so both agents run the identical task.
+SWE2_SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "swe2" / "SKILL.md"
+
 # The harness scrapes vLLM's entire Prometheus /metrics surface (every family
 # under this prefix) rather than a curated subset, so nothing is omitted and new
 # vLLM metrics appear automatically. These series are SERVER-WIDE and CUMULATIVE:
@@ -192,7 +197,12 @@ def _clone_repo(task: Task, ref: str, clone_dir: str, log_prefix: str = "") -> P
 
 
 def _build_prompt(
-    task: Task, clone_path: Path, ref: str, model: str, artifacts_dir: Path
+    task: Task,
+    clone_path: Path,
+    ref: str,
+    model: str,
+    artifacts_dir: Path,
+    agent: str = "claude",
 ) -> str:
     """Build the non-interactive /swe2 prompt for a task.
 
@@ -208,23 +218,39 @@ def _build_prompt(
     directory the skill writes to) and the task's problem statement and, when
     present, its reference issue URL.
 
+    The only agent-specific difference is how the skill is triggered. Claude Code
+    auto-loads the skill from the ``/swe2`` slash command, so the prompt starts
+    with it. pi loads the same ``SKILL.md`` via ``--skill`` and exposes it as a
+    skill named ``swe2``; it has no slash-command syntax, so the pi prompt names
+    the skill in prose and passes the identical key/value payload. Both carry the
+    exact same values, so the two agents run the same task.
+
     Args:
         task: The task to run.
         clone_path: Local path to the already-cloned repo (the sole code source).
         ref: The git ref checked out.
         model: The model name (also the artifact subfolder name).
         artifacts_dir: Absolute directory the six artifacts must be written to.
+        agent: Which agent will receive the prompt ("claude" or "pi").
 
     Returns:
-        The prompt string to pass to `claude -p`.
+        The prompt string to pass to the agent.
     """
     answers = task.clarifying_answers or (
         "No separate answers provided. Use your best judgment; all needed "
         "information is in the task description below."
     )
+    payload = (
+        f"repo: {clone_path} problem: {task.id} model: {model} "
+        f'tag: {ref} artifacts_dir: {artifacts_dir} answers: "{answers.strip()}"'
+    )
+    if agent == "pi":
+        # pi has no slash commands; name the loaded skill and hand it the payload.
+        invocation = f"Use the swe2 skill to complete this task. {payload}"
+    else:
+        invocation = f"/swe2 {payload}"
     lines = [
-        f"/swe2 repo: {clone_path} problem: {task.id} model: {model} "
-        f'tag: {ref} artifacts_dir: {artifacts_dir} answers: "{answers.strip()}"',
+        invocation,
         "",
         "Task description:",
         task.problem_statement or "(see reference issue)",
@@ -382,6 +408,115 @@ def _build_claude_cmd(
         # stream-json in -p mode requires --verbose to emit per-event objects.
         cmd.append("--verbose")
     return cmd
+
+
+def _write_pi_models_json(config: RunnerConfig, agent_dir: Path) -> None:
+    """Write an ephemeral pi ``models.json`` pointing at the config's endpoint.
+
+    pi resolves providers from ``<agent_dir>/models.json`` (agent_dir defaults to
+    ``~/.pi/agent`` but is overridden per run via ``PI_CODING_AGENT_DIR`` so the
+    benchmark never mutates a developer's global pi config). This writes a single
+    ``vllm`` provider block -- the OpenAI-compatible ``/v1`` base URL and one
+    anchor model whose id matches ``config.model`` -- mirroring
+    ``self-hosted/vllm/scripts/run-pi.sh``. Cost is left at 0 because a
+    self-hosted model has no per-token price; the real cost is hardware-derived
+    separately (see cost-per-task-methodology.md).
+
+    Args:
+        config: The runner config (endpoint + model).
+        agent_dir: The per-run pi agent dir to write ``models.json`` into.
+    """
+    # pi's baseUrl expects the OpenAI-compatible root ending in /v1.
+    base = config.endpoint.rstrip("/")
+    base_url = base if base.endswith("/v1") else f"{base}/v1"
+    window = config.context_window or 200000
+    models_json = {
+        "providers": {
+            "vllm": {
+                "baseUrl": base_url,
+                "api": "openai-completions",
+                "apiKey": config.api_key,
+                "compat": {
+                    "supportsDeveloperRole": False,
+                    "supportsReasoningEffort": False,
+                },
+                "models": [
+                    {
+                        "id": config.model,
+                        "name": f"vLLM: {config.model}",
+                        "reasoning": False,
+                        "input": ["text"],
+                        "contextWindow": window,
+                        "maxTokens": config.max_output_tokens,
+                        "cost": {
+                            "input": 0,
+                            "output": 0,
+                            "cacheRead": 0,
+                            "cacheWrite": 0,
+                        },
+                    }
+                ],
+            }
+        }
+    }
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    (agent_dir / "models.json").write_text(
+        json.dumps(models_json, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def _build_pi_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
+    """Build the environment for the pi subprocess.
+
+    pi routes to the model through its ``models.json`` (written by
+    ``_write_pi_models_json``), not through env vars, so the only override needed
+    is ``PI_CODING_AGENT_DIR`` -- pointing pi at the per-run config dir so the
+    benchmark stays isolated from a developer's global ``~/.pi`` setup.
+
+    Args:
+        config: The runner config (unused today; kept for symmetry with the
+            claude path and future pi env needs).
+        agent_dir: The per-run pi agent config dir.
+
+    Returns:
+        A copy of the current environment with the pi agent dir pinned.
+    """
+    env = os.environ.copy()
+    env["PI_CODING_AGENT_DIR"] = str(agent_dir)
+    return env
+
+
+def _build_pi_cmd(config: RunnerConfig, prompt: str) -> list[str]:
+    """Assemble the ``pi -p`` argument vector for a /swe2 run.
+
+    pi runs headless with ``-p`` (process the prompt and exit) and ``--mode json``
+    (emit a stream of JSON-lines events the harness parses for metrics). Tools run
+    without an approval gate in ``-p`` mode, which is what an unattended benchmark
+    needs. The ``/swe2`` behavior is delivered by loading the same SKILL.md Claude
+    Code uses, via ``--skill``. ``--no-session`` keeps the run ephemeral (no
+    session file written under the agent dir).
+
+    Args:
+        config: The runner config (model, provider=endpoint).
+        prompt: The hydrated /swe2 prompt (see ``_build_prompt`` agent="pi").
+
+    Returns:
+        The command as a list of arguments (never a shell string).
+    """
+    return [
+        "pi",
+        "-p",
+        "--mode",
+        "json",
+        "--no-session",
+        "--provider",
+        "vllm",
+        "--model",
+        config.model,
+        "--skill",
+        str(SWE2_SKILL_PATH),
+        prompt,
+    ]
 
 
 def _utc_now_iso() -> str:
@@ -849,6 +984,128 @@ def _run_claude(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, 
     return result
 
 
+def _pi_result_from_events(events: list[dict[str, Any]], elapsed: float) -> dict[str, Any]:
+    """Normalize pi's JSON-lines event stream into the claude-shaped result dict.
+
+    pi ``--mode json`` emits a stream of events, not one result object. The final
+    ``agent_end`` carries the settled conversation; the last assistant message's
+    ``usage`` holds cumulative tokens, and ``stopReason`` reports why it stopped.
+    Turns are counted from ``turn_start`` events. This maps those onto the same
+    keys ``_metrics_from_result`` reads for claude (``usage.input_tokens`` etc.,
+    ``num_turns``, ``subtype``, ``is_error``, ``total_cost_usd``) so the rest of
+    the harness is agent-agnostic.
+
+    Args:
+        events: The parsed JSON-lines events pi emitted, in order.
+        elapsed: Wall-clock seconds measured around the subprocess call.
+
+    Returns:
+        A result dict shaped like ``claude -p``'s JSON result.
+
+    Raises:
+        RuntimeError: If the stream carried no ``agent_end`` (pi crashed or
+            produced no parseable result).
+    """
+    num_turns = sum(1 for e in events if e.get("type") == "turn_start")
+    agent_end = next(
+        (e for e in reversed(events) if e.get("type") == "agent_end"), None
+    )
+    if agent_end is None:
+        raise RuntimeError("pi emitted no agent_end event (no parseable result)")
+    messages = agent_end.get("messages") or []
+    last_assistant = next(
+        (
+            m
+            for m in reversed(messages)
+            if isinstance(m, dict) and m.get("role") == "assistant"
+        ),
+        {},
+    )
+    usage = last_assistant.get("usage") or {}
+    stop_reason = last_assistant.get("stopReason")
+    # pi's usage keys (input/output) differ from claude's (input_tokens/...);
+    # remap so _metrics_from_result reads them unchanged. Cache tokens are left
+    # absent (vLLM does not report them; real reuse comes from the Prometheus
+    # block), matching the claude-vs-vLLM behavior.
+    cost = (usage.get("cost") or {}).get("total")
+    # An error retry (pi tried and gave up) or a non-"stop" terminal reason marks
+    # the run failed so the harness's retry/failure logic can react.
+    will_retry = agent_end.get("willRetry", False)
+    is_error = bool(will_retry) or stop_reason not in (None, "stop", "end_turn")
+    return {
+        "usage": {
+            "input_tokens": usage.get("input", 0),
+            "output_tokens": usage.get("output", 0),
+        },
+        "num_turns": num_turns,
+        # pi reports 0 cost against a local vLLM endpoint; the real per-task cost
+        # is hardware-derived (see cost-per-task-methodology.md), so keep None
+        # here rather than a misleading 0.
+        "total_cost_usd": cost if cost else None,
+        "is_error": is_error,
+        # Map pi's stopReason onto the subtype the retry logic keys on. pi has no
+        # turn cap (no error_max_turns analogue), so a clean stop is "success".
+        "subtype": "success" if stop_reason in ("stop", "end_turn") else stop_reason,
+        "duration_ms": round(elapsed * 1000),
+        "result": stop_reason or "",
+    }
+
+
+def _run_pi(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any]:
+    """Run ``pi -p --mode json`` and normalize its event stream to a result dict.
+
+    Args:
+        cmd: The pi command argument vector.
+        env: Environment for the subprocess (pins PI_CODING_AGENT_DIR).
+        timeout: Wall-clock timeout in seconds.
+
+    Returns:
+        The claude-shaped result dict (see ``_pi_result_from_events``).
+
+    Raises:
+        RuntimeError: If pi times out, emits no output, or emits no agent_end.
+    """
+    start = time.time()
+    try:
+        proc = subprocess.run(  # nosec B603 - hardcoded 'pi', list args, no shell
+            cmd,
+            env=env,
+            # Run from the repo root so the skill's artifact paths resolve, exactly
+            # as for the claude path (see the note in _run_claude).
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"pi -p timed out after {timeout}s") from exc
+    elapsed = time.time() - start
+
+    if not proc.stdout.strip():
+        raise RuntimeError(
+            f"pi -p produced no output (exit {proc.returncode}): "
+            f"{proc.stderr.strip()[:500]}"
+        )
+    events: list[dict[str, Any]] = []
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            # pi may interleave non-JSON diagnostics; skip them, keep the events.
+            continue
+    if not events:
+        raise RuntimeError(
+            f"pi -p output had no JSON events: {proc.stdout.strip()[:500]}"
+        )
+    result = _pi_result_from_events(events, elapsed)
+    result["_elapsed_seconds"] = round(elapsed, 1)
+    return result
+
+
 TOOL_RESULT_PREVIEW_CHARS = 500
 
 
@@ -1072,6 +1329,7 @@ def _summary_metrics(
     vllm_prometheus: dict[str, Any],
     generation_tokens_per_sec: float,
     include_vllm: bool = True,
+    agent: str = "claude",
 ) -> dict[str, Any]:
     """Build the headline "metrics that matter" block for a run.
 
@@ -1112,22 +1370,25 @@ def _summary_metrics(
     prompt_total = counters.get(PROMPT_TOKENS_METRIC)
     prompt_cached = counters.get(PROMPT_TOKENS_CACHED_METRIC)
 
+    # Provenance label for the agent's own reported usage (Claude Code vs pi).
+    api = f"{agent}_api"
+
     # Cache-read: the API number if the backend reported it, else (only when a
     # vLLM server backs the run) vLLM's cached prompt tokens. Cache-write has no
     # direct vLLM counter; the freshly computed (uncached) prefill tokens are the
     # closest equivalent.
     if "cache_read_tokens" in metrics:
         cache_read: int | None = metrics["cache_read_tokens"]
-        cache_read_src = "claude_api.usage.cache_read_input_tokens"
+        cache_read_src = f"{api}.usage.cache_read_input_tokens"
     elif include_vllm:
         cache_read = prompt_cached
         cache_read_src = f"vllm_prometheus.counters.{PROMPT_TOKENS_CACHED_METRIC}"
     else:
         cache_read = None
-        cache_read_src = "claude_api.usage.cache_read_input_tokens (not reported)"
+        cache_read_src = f"{api}.usage.cache_read_input_tokens (not reported)"
     if "cache_creation_tokens" in metrics:
         cache_write: int | None = metrics["cache_creation_tokens"]
-        cache_write_src = "claude_api.usage.cache_creation_input_tokens"
+        cache_write_src = f"{api}.usage.cache_creation_input_tokens"
     elif include_vllm and prompt_total is not None and prompt_cached is not None:
         cache_write = prompt_total - prompt_cached
         cache_write_src = (
@@ -1159,12 +1420,12 @@ def _summary_metrics(
         "generation_tokens_per_sec": generation_tokens_per_sec,
     }
     sources = {
-        "input_tokens": "claude_api.usage.input_tokens",
-        "output_tokens": "claude_api.usage.output_tokens",
+        "input_tokens": f"{api}.usage.input_tokens",
+        "output_tokens": f"{api}.usage.output_tokens",
         "cache_read_tokens": cache_read_src,
         "cache_write_tokens": cache_write_src,
-        "latency_seconds": "harness wall-clock (or claude_api.duration_ms)",
-        "num_turns": "claude_api.num_turns",
+        "latency_seconds": f"harness wall-clock (or {api}.duration_ms)",
+        "num_turns": f"{api}.num_turns",
         "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
     }
     # The prefix-cache hit rate is a vLLM-only signal; omit it entirely rather
@@ -1222,6 +1483,7 @@ def _save_metrics(
         "tags": task.tags,
         "model": config.model,
         "model_slug": config.model_slug,
+        "agent": config.agent,
         "provider": config.provider,
         "endpoint": config.endpoint if not config.is_bedrock else None,
         "aws_region": config.resolved_region() if config.is_bedrock else None,
@@ -1239,7 +1501,11 @@ def _save_metrics(
         "artifacts_expected": len(ARTIFACT_FILENAMES),
         "generation_tokens_per_sec": generation_tokens_per_sec,
         "metrics_that_matter": _summary_metrics(
-            metrics, vllm_prometheus, generation_tokens_per_sec, include_vllm
+            metrics,
+            vllm_prometheus,
+            generation_tokens_per_sec,
+            include_vllm,
+            agent=config.agent,
         ),
         **metrics,
     }
@@ -1290,11 +1556,35 @@ def _run_task(
     clone_parent = clone_path.parent
     try:
         prompt = _build_prompt(
-            task, clone_path, ref, config.model_slug, _artifact_dir(config, task)
+            task,
+            clone_path,
+            ref,
+            config.model_slug,
+            _artifact_dir(config, task),
+            agent=config.agent,
         )
-        cmd = _build_claude_cmd(config, prompt, stream=stream, clone_path=clone_path)
-        env = _build_env(config)
-        logger.info("  %s Running claude -p (max_turns=%s)...", label, config.max_turns)
+        # Build the agent-specific command + environment. pi and Claude Code run
+        # the same /swe2 task but take entirely different flags and routing, so
+        # this is the single branch point; everything downstream (metrics,
+        # scraping, artifact checks) is agent-agnostic.
+        if config.is_pi:
+            # Per-run pi config dir under the clone parent so it is cleaned up
+            # with the clone and never touches the developer's global ~/.pi.
+            pi_agent_dir = clone_parent / "pi-agent"
+            _write_pi_models_json(config, pi_agent_dir)
+            cmd = _build_pi_cmd(config, prompt)
+            env = _build_pi_env(config, pi_agent_dir)
+            logger.info(
+                "  %s Running pi -p (agent=pi, no turn cap)...", label
+            )
+        else:
+            cmd = _build_claude_cmd(
+                config, prompt, stream=stream, clone_path=clone_path
+            )
+            env = _build_env(config)
+            logger.info(
+                "  %s Running claude -p (max_turns=%s)...", label, config.max_turns
+            )
         # vLLM Prometheus scraping only applies to an HTTP endpoint; Amazon
         # Bedrock exposes no such surface, so skip it and leave the block marked
         # unavailable. metrics_endpoint is None for provider=bedrock.
@@ -1315,7 +1605,11 @@ def _run_task(
         # claude -p call as the metric snapshots. ISO 8601 with a trailing Z.
         run_started_at = _utc_now_iso()
         with _GaugePoller(metrics_endpoint) as poller:
-            if stream:
+            if config.is_pi:
+                # pi emits a JSON-lines event stream; _run_pi normalizes it to the
+                # same result shape. It has no separate streaming trace mode.
+                result = _run_pi(cmd, env, config.timeout_seconds)
+            elif stream:
                 result = _run_claude_streaming(
                     cmd, env, config.timeout_seconds, verbose=verbose
                 )
@@ -1432,9 +1726,17 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
             / _repo_name(task.repo)
         )
         prompt = _build_prompt(
-            task, placeholder, ref, config.model_slug, _artifact_dir(config, task)
+            task,
+            placeholder,
+            ref,
+            config.model_slug,
+            _artifact_dir(config, task),
+            agent=config.agent,
         )
-        cmd = _build_claude_cmd(config, prompt, clone_path=placeholder)
+        if config.is_pi:
+            cmd = _build_pi_cmd(config, prompt)
+        else:
+            cmd = _build_claude_cmd(config, prompt, clone_path=placeholder)
         print(f"\n=== {task.id} [{task.complexity}] ref={ref} ===")
         print("PROMPT:")
         print(prompt)
@@ -1683,6 +1985,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--config", help="Path to the runner config YAML file")
     parser.add_argument(
+        "--agent",
+        help="Override: coding agent that runs the task ('claude' for Claude "
+        "Code, 'pi' for the pi coding agent). pi requires provider=endpoint.",
+    )
+    parser.add_argument(
         "--provider",
         help="Override: routing provider ('endpoint' for a base URL, 'bedrock' "
         "for native Amazon Bedrock)",
@@ -1775,6 +2082,7 @@ def main() -> None:
     """Parse arguments, load config and dataset, and run the benchmark."""
     args = _parse_args()
     overrides: dict[str, Any] = {
+        "agent": args.agent,
         "provider": args.provider,
         "endpoint": args.endpoint,
         "model": args.model,

@@ -150,7 +150,8 @@ CLI flags always win, so you can still pin `model`/`dataset` in the file if you 
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `provider` | str | `endpoint` | How `claude -p` reaches the model: `endpoint` (a base URL) or `bedrock` (native Amazon Bedrock). |
+| `agent` | str | `claude` | Coding agent that drives the task: `claude` (Claude Code, `claude -p`) or `pi` (the pi coding agent, `pi -p --mode json`). The `/swe2` task, the six artifacts, and the judge are identical either way -- only the agent binary and its invocation differ. `pi` requires `provider: endpoint` (it has no native Amazon Bedrock mode). See [Choosing the agent](#choosing-the-agent). |
+| `provider` | str | `endpoint` | How the agent reaches the model: `endpoint` (a base URL) or `bedrock` (native Amazon Bedrock). |
 | `endpoint` | str | -- | Base URL of the OpenAI/Anthropic-compatible endpoint the model is served on. Required for `provider: endpoint`; ignored for `provider: bedrock`. |
 | `model` | str | -- | Model name/id passed to `claude --model`. For `provider: bedrock` this is a Bedrock model id or inference profile (e.g. `us.anthropic.claude-opus-4-8`); the harness strips the vendor/region prefix and any `[...]` suffix to derive the `{model-name}` artifact top-level folder (so `us.anthropic.claude-opus-4-8` writes under `claude-opus-4-8/`). Usually supplied with `--model` rather than pinned in the file; required from one source or the other. |
 | `api_key` | str | `local` | API key sent to the endpoint (local servers ignore the value). `provider: endpoint` only. |
@@ -187,6 +188,13 @@ uv run scripts/runner_config.py config/runner.example.yaml \
 4. Removes the temporary clone.
 
 It runs `claude -p` with `--permission-mode acceptEdits` and a narrow `--allowedTools` allowlist; it never uses `bypassPermissions` or `--dangerously-skip-permissions`.
+
+### Choosing the agent
+
+The `agent` field (or `--agent`) selects which coding agent drives the task. The `/swe2` task definition, the six artifacts, the metrics file, and the judge are identical for both; only the agent binary and how it is launched change, so a model's score is comparable across agents.
+
+- **`claude` (default)** -- Claude Code. Invoked as `claude -p "/swe2 ..."`; the skill is auto-loaded from the `/swe2` slash command. Works on every provider (`endpoint` and `bedrock`).
+- **`pi`** -- the [pi coding agent](../../self-hosted/vllm/scripts/run-pi.sh). Invoked as `pi -p --mode json --skill .claude/skills/swe2/SKILL.md "Use the swe2 skill ..."`; the **same** `SKILL.md` is loaded explicitly with `--skill` (pi has no slash commands). pi speaks only an OpenAI-compatible endpoint, so it requires `provider: endpoint` (a local vLLM server or the LiteLLM proxy) and is rejected with `provider: bedrock`. The harness writes an ephemeral pi `models.json` (pointed at the config's endpoint) under a per-run `PI_CODING_AGENT_DIR`, so it never touches a developer's global `~/.pi` config. pi emits a JSON-lines event stream rather than one result object; the harness reads its final `agent_end` event for tokens/turns/stop-reason and normalizes them to the same `metrics.json` fields (labeled `pi_api.*` in `metrics_that_matter.sources`). pi has no `--max-turns` cap and runs tools without an approval gate in `-p` mode, which is what an unattended run needs. Note there is no live streaming trace for pi (the `--stream` claude trace mode does not apply); the run still records full metrics.
 
 ### How `--settings` pins routing
 
