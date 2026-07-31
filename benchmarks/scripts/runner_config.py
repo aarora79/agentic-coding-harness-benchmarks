@@ -102,6 +102,13 @@ AGENT_PI = "pi"
 VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI}
 DEFAULT_AGENT = AGENT_CLAUDE
 
+# Artifacts are grouped by the coding agent (the "harness") that produced them,
+# so a pi run never overwrites a Claude Code run of the same model: the layout is
+# ``<model-slug>/<harness-slug>/<repo>/<task>/``. The harness slug is the folder
+# name for each agent; "claude" -> "claude-code" (the historical Claude Code
+# results, migrated under this name), "pi" -> "pi".
+HARNESS_SLUGS = {AGENT_CLAUDE: "claude-code", AGENT_PI: "pi"}
+
 # Amazon Bedrock model ids carry a region/vendor inference-profile prefix
 # (e.g. "us.anthropic.claude-opus-4-8") and may carry a bracketed context-window
 # suffix (e.g. "[1m]"). The /swe skill strips both to name its artifact folder,
@@ -291,6 +298,20 @@ class RunnerConfig(BaseModel):
     def is_pi(self) -> bool:
         """True when the pi coding agent drives the task (instead of Claude Code)."""
         return self.agent == AGENT_PI
+
+    @property
+    def harness_slug(self) -> str:
+        """Folder name for the coding agent that produced a run's artifacts.
+
+        Artifacts are grouped as ``<model-slug>/<harness-slug>/<repo>/<task>/`` so
+        two agents benchmarking the same model never collide. ``claude`` maps to
+        ``claude-code`` (the historical results live there); ``pi`` maps to
+        ``pi``. See ``HARNESS_SLUGS``.
+
+        Returns:
+            The harness folder name for this run's agent.
+        """
+        return HARNESS_SLUGS[self.agent]
 
     @property
     def auto_compact_window(self) -> int | None:

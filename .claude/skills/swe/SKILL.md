@@ -47,7 +47,7 @@ The `repo:` path may be a checkout the caller already cloned (including a tempor
 
 1. **Gather Requirements** - Detect the active model and confirm it; ask for the GitHub URL; ask for tag-vs-main; confirm the task; locate or clone the target repo with user approval
 2. **Quick Codebase Review** - Explore the codebase to understand structure
-3. **Create Benchmark Folder** - Create `benchmarks/swe-benchmark-data/{model-name}/{repo-name}/{problem-name}/` directory
+3. **Create Benchmark Folder** - Create `benchmarks/swe-benchmark-data/{model-name}/{harness-name}/{repo-name}/{problem-name}/` directory. `{harness-name}` is the coding agent (default `claude-code` when you run this skill); if the harness passed an `artifacts_dir:`, use it verbatim.
 4. **Write GitHub Issue** - Create `github-issue.md` with the issue specification
 5. **Deep Codebase Analysis** - Thoroughly explore relevant code
 6. **Write Low-Level Design** - Create `lld.md` with technical details
@@ -185,13 +185,13 @@ This quick review takes 5-10 minutes and helps you ask better clarifying questio
 
 ## Step 3: Create Benchmark Folder
 
-All artifacts live under a top-level `benchmarks/` directory. Within it, every run gets its own `{model-name}/{repo-name}/{problem-name}/` subfolder. Grouping by model first keeps each model's full set of results together, while still letting multiple models be compared on the same `{repo-name}/{problem-name}` across sibling model folders.
+All artifacts live under a top-level `benchmarks/` directory. Within it, every run gets its own `{model-name}/{harness-name}/{repo-name}/{problem-name}/` subfolder. Grouping by model first keeps each model's results together; the `{harness-name}` level (e.g. `claude-code`, `pi`) keeps different coding agents' runs of the same model from overwriting each other, while still letting models be compared on the same `{repo-name}/{problem-name}`.
 
 > **CRITICAL - write to the ABSOLUTE artifact path, never the bare relative string.** The `benchmarks/swe-benchmark-data/...` paths shown throughout this skill are written relative to the repository root for readability. Your working directory is often already inside `benchmarks/` (the harness runs there), so if you pass a bare relative path like `benchmarks/swe-benchmark-data/{model}/...` to Write/Edit it resolves against the cwd and doubles to `benchmarks/benchmarks/swe-benchmark-data/...` -- the files land in the wrong place, the run scores 0/4 artifacts despite "File created successfully", and the work is lost. Always resolve the repo root and build one absolute artifact directory up front, then write every artifact under it:
 >
 > ```bash
 > REPO_ROOT="$(git rev-parse --show-toplevel)"
-> ART_DIR="$REPO_ROOT/benchmarks/swe-benchmark-data/{model-name}/{repo-name}/{problem-name}"
+> ART_DIR="$REPO_ROOT/benchmarks/swe-benchmark-data/{model-name}/{harness-name}/{repo-name}/{problem-name}"
 > mkdir -p "$ART_DIR"
 > ```
 >

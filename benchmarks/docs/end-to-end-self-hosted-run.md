@@ -31,7 +31,7 @@ The example serves **Qwen3.6-35B-A3B**; swap in any model from [self-hosted/vllm
 
 Run these before serving anything. The most important one is the **artifact-folder check**: the harness drives the `/swe` skill non-interactively, and the skill **stops and asks what to do if the target `{model}/` folder already contains any of the four artifacts** (see [SKILL.md](../../.claude/skills/swe/SKILL.md), "Handle an existing benchmark folder"). In a headless run there is nobody to answer that prompt, so a pre-existing folder makes the run stall or the model improvise. Clear (or move) any prior run for this exact `{model}` before starting.
 
-**Check whether target folders already exist.** The harness writes to `swe-benchmark-data/{model-slug}/mcp-gateway-registry/{task}/`, one folder per task. For the example (`--model qwen3.6-35b`, so the slug is `qwen3.6-35b`):
+**Check whether target folders already exist.** The harness writes to `swe-benchmark-data/{model-slug}/{harness}/mcp-gateway-registry/{task}/`, one folder per task. For the example (`--model qwen3.6-35b`, so the slug is `qwen3.6-35b`):
 
 ```bash
 cd benchmarks

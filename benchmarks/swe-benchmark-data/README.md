@@ -47,7 +47,7 @@ Each section below documents one target repository. To benchmark a model on one 
 | Source | https://github.com/agentic-community/mcp-gateway-registry |
 | Tag | `1.24.4` |
 | Clone (at run time) | temporary, e.g. `/tmp/mcp-gateway-registry` |
-| Artifact path | `benchmarks/swe-benchmark-data/{model-name}/mcp-gateway-registry/{problem-name}/` |
+| Artifact path | `benchmarks/swe-benchmark-data/{model-name}/{harness-name}/mcp-gateway-registry/{problem-name}/` |
 
 #### Setup
 
@@ -57,7 +57,7 @@ git clone --branch 1.24.4 --depth 1 https://github.com/agentic-community/mcp-gat
 
 #### Tasks
 
-The tasks below are run with multiple models via the `/swe` skill. For each `{model-name}`, the resulting artifacts land at `benchmarks/swe-benchmark-data/{model-name}/mcp-gateway-registry/{problem-name}/`.
+The tasks below are run with multiple models via the `/swe` skill. For each `{model-name}`, the resulting artifacts land at `benchmarks/swe-benchmark-data/{model-name}/{harness-name}/mcp-gateway-registry/{problem-name}/`.
 
 | # | Problem name (folder) | Issue | Difficulty | Description |
 |---|-----------------------|-------|-----------|-------------|

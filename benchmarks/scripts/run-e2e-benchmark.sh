@@ -291,16 +291,16 @@ TASKS_ARG=()
 [[ -n "$TASKS" ]] && TASKS_ARG=(--tasks "$TASKS")
 info "Checking for pre-existing artifact folders (these stall the headless /swe2 overwrite prompt)..."
 set +e
-uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" "${TASKS_ARG[@]}" --check
+uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --agent "$AGENT" "${TASKS_ARG[@]}" --check
 PREFLIGHT_RC=$?
 set -e
 if [[ "$PREFLIGHT_RC" -eq 2 ]]; then
     if [[ "$ASSUME_YES" -eq 1 ]]; then
         warn "Clearing pre-existing artifact folders (--yes given)..."
-        uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" "${TASKS_ARG[@]}" --clear
+        uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --agent "$AGENT" "${TASKS_ARG[@]}" --clear
     else
         die "Pre-existing artifact folders would stall the run. Re-run with --yes to clear them automatically, or clear manually:
-       uv run python scripts/preflight_check.py --dataset $DATASET --model $MODEL ${TASKS_ARG[*]} --clear"
+       uv run python scripts/preflight_check.py --dataset $DATASET --model $MODEL --agent $AGENT ${TASKS_ARG[*]} --clear"
     fi
 elif [[ "$PREFLIGHT_RC" -ne 0 ]]; then
     die "pre-flight folder check failed (exit $PREFLIGHT_RC)."
@@ -358,9 +358,12 @@ BENCH_ARGS=(--config "$CONFIG" --agent "$AGENT" --provider "$HARNESS_PROVIDER" -
 [[ -n "$PRECISION" ]] && BENCH_ARGS+=(--precision "$PRECISION")
 
 SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import model_to_slug; print(model_to_slug('$MODEL'))")"
+# Harness folder level (claude -> claude-code, pi -> pi), from the single source
+# of truth so the judge/summary target the same tree the harness writes.
+HARNESS_SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import HARNESS_SLUGS; print(HARNESS_SLUGS['$AGENT'])")"
 info "Command:"
 info "  uv run scripts/run-swe-headless.py ${BENCH_ARGS[*]}"
-info "Artifacts will land under: swe-benchmark-data/$SLUG/<repo>/<task>/"
+info "Artifacts will land under: swe-benchmark-data/$SLUG/$HARNESS_SLUG/<repo>/<task>/"
 info "Watch GPU metrics (vllm path):  cd $VLLM_DIR && uv run python -m clients.build_dashboard && open benchmark-output/dashboard.html"
 echo
 uv run scripts/run-swe-headless.py "${BENCH_ARGS[@]}" \
@@ -378,7 +381,7 @@ else
     # Judge only the folders this model+dataset just produced: point at the
     # <model-slug>/<repo> subtree and let --recursive + --no-overwrite handle it.
     REPO_SUBDIR="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from dataset_loader import load_dataset; d=load_dataset('$DATASET_PATH'); import importlib.util,pathlib; s=importlib.util.spec_from_file_location('h','scripts/run-swe-headless.py'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m._repo_name(d.tasks[0].repo))")"
-    JUDGE_TARGET="swe-benchmark-data/$SLUG/$REPO_SUBDIR"
+    JUDGE_TARGET="swe-benchmark-data/$SLUG/$HARNESS_SLUG/$REPO_SUBDIR"
     info "Command:"
     info "  (cd scripts && uv run python codex_judge.py --recursive --no-overwrite --folder ../$JUDGE_TARGET)"
     info "codex exec buffers output and prints only its final message per folder -- a few minutes each at high effort is normal."
@@ -404,4 +407,4 @@ step "Done"
 # =============================================================================
 ok "End-to-end benchmark finished for provider=$PROVIDER model=$MODEL dataset=$DATASET"
 info "Per-task results (metrics.json cost + eval.json quality) are under:"
-info "  $BENCHMARKS_DIR/swe-benchmark-data/$SLUG/*/*/"
+info "  $BENCHMARKS_DIR/swe-benchmark-data/$SLUG/$HARNESS_SLUG/*/*/"

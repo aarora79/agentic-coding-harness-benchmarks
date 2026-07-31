@@ -155,7 +155,7 @@ def _task_score(eval_data: dict | None) -> float | None:
     return float(score) if isinstance(score, (int, float)) else None
 
 
-def _point_from_summary(model_repo_dir: Path) -> ModelPoint | None:
+def _point_from_summary(model_repo_dir: Path, model: str) -> ModelPoint | None:
     """Build a ModelPoint from the committed RUN-SUMMARY.json, if present.
 
     RUN-SUMMARY.json already carries the leaderboard-convention means (failed
@@ -164,7 +164,9 @@ def _point_from_summary(model_repo_dir: Path) -> ModelPoint | None:
     or lacks a usable mean score, so the caller can fall back to per-task files.
 
     Args:
-        model_repo_dir: ``<data-dir>/<model>/<repo>`` directory.
+        model_repo_dir: ``<data-dir>/<model>/<harness>/<repo>`` directory.
+        model: The model-slug (passed in, not derived from the path, since the
+            harness level now sits between the model and repo directories).
 
     Returns:
         The model's aggregate, or None if no usable summary exists.
@@ -175,7 +177,6 @@ def _point_from_summary(model_repo_dir: Path) -> ModelPoint | None:
     score = summary.get("mean_task_score_excl_failed")
     if not isinstance(score, (int, float)):
         return None
-    model = model_repo_dir.parent.name
     excluded = summary.get("failed_tasks") or []
 
     # Cost: prefer the hardware-derived blended figure (per-token rate from the
@@ -220,7 +221,7 @@ def _blended_mean_cost(summary: dict, model: str) -> float | None:
     return sum(costs) / len(costs) if costs else None
 
 
-def _aggregate_model(model_repo_dir: Path) -> ModelPoint | None:
+def _aggregate_model(model_repo_dir: Path, model: str) -> ModelPoint | None:
     """Aggregate one model's cost and score under a repo directory.
 
     Prefers the committed ``RUN-SUMMARY.json`` (present for every model and
@@ -232,16 +233,16 @@ def _aggregate_model(model_repo_dir: Path) -> ModelPoint | None:
     note, pending investigation.
 
     Args:
-        model_repo_dir: ``<data-dir>/<model>/<repo>`` directory.
+        model_repo_dir: ``<data-dir>/<model>/<harness>/<repo>`` directory.
+        model: The model-slug (passed in, not derived from the path).
 
     Returns:
         The model's aggregate, or None if it has neither a summary nor tasks.
     """
-    from_summary = _point_from_summary(model_repo_dir)
+    from_summary = _point_from_summary(model_repo_dir, model)
     if from_summary is not None:
         return from_summary
 
-    model = model_repo_dir.parent.name
     costs: list[float] = []
     scores: list[float] = []
     excluded: list[str] = []
@@ -272,25 +273,30 @@ def _aggregate_model(model_repo_dir: Path) -> ModelPoint | None:
     )
 
 
-def _collect_points(data_dir: Path, repo: str) -> list[ModelPoint]:
-    """Collect one ModelPoint per model that has runs for ``repo``.
+def _collect_points(data_dir: Path, repo: str, harness: str) -> list[ModelPoint]:
+    """Collect one ModelPoint per model that has ``harness`` runs for ``repo``.
+
+    Artifacts live at ``<data-dir>/<model>/<harness>/<repo>/``; this plots the
+    results from one coding agent (harness) at a time so a model's Claude Code
+    and pi runs are never blended on the same chart.
 
     Args:
         data_dir: The ``swe-benchmark-data`` root.
         repo: The dataset repo subfolder to aggregate (e.g. mcp-gateway-registry).
+        harness: The coding-agent folder to read (e.g. ``claude-code`` or ``pi``).
 
     Returns:
         Model aggregates sorted by descending mean score.
 
     Raises:
-        SystemExit: If no model has scorable runs for the repo.
+        SystemExit: If no model has scorable runs for the repo under this harness.
     """
     points: list[ModelPoint] = []
     for model_dir in sorted(p for p in data_dir.iterdir() if p.is_dir()):
-        repo_dir = model_dir / repo
+        repo_dir = model_dir / harness / repo
         if not repo_dir.is_dir():
             continue
-        point = _aggregate_model(repo_dir)
+        point = _aggregate_model(repo_dir, model_dir.name)
         if point is None:
             continue
         # A model that never produced a scored task (e.g. one that could not be
@@ -306,8 +312,8 @@ def _collect_points(data_dir: Path, repo: str) -> list[ModelPoint]:
         points.append(point)
     if not points:
         raise SystemExit(
-            f"no scorable runs found under {data_dir} for repo '{repo}'. "
-            "Run the benchmark and judge first."
+            f"no scorable runs found under {data_dir} for repo '{repo}' with "
+            f"harness '{harness}'. Run the benchmark and judge first."
         )
     return sorted(points, key=lambda p: p.mean_score, reverse=True)
 
@@ -602,6 +608,12 @@ def _parse_args() -> argparse.Namespace:
         help="Dataset repo subfolder to aggregate (default: mcp-gateway-registry)",
     )
     parser.add_argument(
+        "--harness",
+        default="claude-code",
+        help="Coding-agent folder to read: 'claude-code' (default, the published "
+        "leaderboard) or 'pi'. Artifacts live at <model>/<harness>/<repo>/.",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         default=None,
@@ -638,7 +650,7 @@ def main() -> None:
     )
     title = args.title or f"Cost vs. quality -- {args.repo}"
 
-    points = _collect_points(data_dir, args.repo)
+    points = _collect_points(data_dir, args.repo, args.harness)
     for point in points:
         logger.info(
             "  %-32s score=%.2f cost=$%.2f (%d/%d scored)",

@@ -154,6 +154,9 @@ if [[ "$DETACH" == "1" && -z "${MMB_DETACHED:-}" ]]; then
 fi
 
 SCOPE="$(basename "$DATASET" .yaml)"
+# Harness folder level (claude -> claude-code, pi -> pi) from the single source
+# of truth, so summarize/commit paths match the tree the harness writes to.
+HARNESS_SLUG="$(cd "$BENCH_DIR" && uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import HARNESS_SLUGS; print(HARNESS_SLUGS['$AGENT'])")"
 
 wait_ready() {  # $1 served-name
   local name="$1" i served
@@ -228,14 +231,14 @@ for want in "${MODELS[@]}"; do
 
   say "  summarizing $SLUG ..."
   ( cd "$BENCH_DIR" && uv run python scripts/summarize_run.py \
-      --folder "swe-benchmark-data/$SLUG/$SCOPE" --run-date "$(date -u +%Y-%m-%d)" \
+      --folder "swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE" --run-date "$(date -u +%Y-%m-%d)" \
       >>"$SCRATCH/e2e-$SLUG.log" 2>&1 ) || say "  WARN summarize failed for $SLUG"
 
   # Commit the RUN-SUMMARY (only the scrubbed rollup is tracked; task folders are gitignored).
   ( cd "$REPO_ROOT"
-    git add "benchmarks/swe-benchmark-data/$SLUG/$SCOPE/RUN-SUMMARY.json" \
-            "benchmarks/swe-benchmark-data/$SLUG/$SCOPE/RUN-SUMMARY.md" 2>/dev/null
-    git diff --cached --quiet || git commit -q -m "$SLUG: /swe2 benchmark run on $SCOPE (implementation + judge scores)"
+    git add "benchmarks/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE/RUN-SUMMARY.json" \
+            "benchmarks/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE/RUN-SUMMARY.md" 2>/dev/null
+    git diff --cached --quiet || git commit -q -m "$SLUG ($AGENT): /swe2 benchmark run on $SCOPE (implementation + judge scores)"
     git pull --rebase -q 2>/dev/null; git push -q 2>/dev/null
   ) && say "  committed+pushed $SLUG RUN-SUMMARY" || say "  WARN commit failed for $SLUG"
 

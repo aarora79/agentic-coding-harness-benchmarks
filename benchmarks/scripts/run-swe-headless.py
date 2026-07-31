@@ -1304,10 +1304,11 @@ def _run_claude_streaming(
 
 
 def _artifact_dir(config: RunnerConfig, task: Task) -> Path:
-    """Return the directory where /swe writes a task's artifacts.
+    """Return the directory where the skill writes a task's artifacts.
 
-    Mirrors the skill's convention:
-    ``benchmarks/<output_dir>/<model>/<repo-name>/<task-id>/``.
+    Mirrors the skill's convention, grouped by the coding agent (harness) that
+    produced the run so a pi run never overwrites a Claude Code run of the same
+    model: ``benchmarks/<output_dir>/<model>/<harness>/<repo-name>/<task-id>/``.
 
     Args:
         config: The runner config.
@@ -1321,6 +1322,7 @@ def _artifact_dir(config: RunnerConfig, task: Task) -> Path:
         / "benchmarks"
         / config.output_dir
         / config.model_slug
+        / config.harness_slug
         / _repo_name(task.repo)
         / task.id
     )

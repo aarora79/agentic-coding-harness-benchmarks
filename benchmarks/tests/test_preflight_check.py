@@ -56,13 +56,24 @@ class TargetDirsTest(unittest.TestCase):
     def test_one_dir_per_task_with_slug(self) -> None:
         dirs = pf._target_dirs(str(self.ds), "us.anthropic.claude-opus-4-8")
         self.assertEqual(len(dirs), 2)
-        # Layout is <model-slug>/<repo>/<task>; Bedrock prefix stripped for slug.
-        self.assertTrue(str(dirs[0]).endswith("claude-opus-4-8/my-repo/task-one"))
-        self.assertTrue(str(dirs[1]).endswith("claude-opus-4-8/my-repo/task-two"))
+        # Layout is <model-slug>/<harness>/<repo>/<task>; default agent claude ->
+        # claude-code; Bedrock prefix stripped for the model slug.
+        self.assertTrue(
+            str(dirs[0]).endswith("claude-opus-4-8/claude-code/my-repo/task-one")
+        )
+        self.assertTrue(
+            str(dirs[1]).endswith("claude-opus-4-8/claude-code/my-repo/task-two")
+        )
 
     def test_plain_model_slug_unchanged(self) -> None:
         dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b")
-        self.assertTrue(str(dirs[0]).endswith("qwen3-coder-30b/my-repo/task-one"))
+        self.assertTrue(
+            str(dirs[0]).endswith("qwen3-coder-30b/claude-code/my-repo/task-one")
+        )
+
+    def test_pi_agent_uses_pi_harness_level(self) -> None:
+        dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", agent="pi")
+        self.assertTrue(str(dirs[0]).endswith("qwen3-coder-30b/pi/my-repo/task-one"))
 
 
 class ExistingTest(unittest.TestCase):

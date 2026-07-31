@@ -40,7 +40,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from dataset_loader import DatasetError, load_dataset  # noqa: E402
-from runner_config import model_to_slug  # noqa: E402
+from runner_config import DEFAULT_AGENT, HARNESS_SLUGS, model_to_slug  # noqa: E402
 
 # The four design artifacts the /swe2 skill writes; their presence is what makes the
 # skill stop and ask before overwriting.
@@ -72,7 +72,10 @@ def _repo_name_from_harness() -> "callable":
 
 
 def _target_dirs(
-    dataset_path: str, model: str, only_tasks: list[str] | None = None
+    dataset_path: str,
+    model: str,
+    only_tasks: list[str] | None = None,
+    agent: str = DEFAULT_AGENT,
 ) -> list[Path]:
     """Return the artifact directory for every task in the dataset.
 
@@ -82,6 +85,8 @@ def _target_dirs(
         only_tasks: If given, restrict to these task ids (the same filter the
             harness applies with --tasks), so a scoped run only checks/clears
             the folders it will actually write. Unknown ids raise DatasetError.
+        agent: The coding agent (claude|pi); selects the harness folder level so
+            the check/clear targets the same tree the harness will write.
 
     Returns:
         Absolute artifact directories, one per selected task, in dataset order.
@@ -106,8 +111,9 @@ def _target_dirs(
         tasks = [t for t in tasks if t.id in wanted]
     repo_name = _repo_name_from_harness()
     slug = model_to_slug(model)
+    harness = HARNESS_SLUGS[agent]
     root = benchmarks_dir / _OUTPUT_DIR
-    return [root / slug / repo_name(task.repo) / task.id for task in tasks]
+    return [root / slug / harness / repo_name(task.repo) / task.id for task in tasks]
 
 
 def _existing(dirs: list[Path]) -> list[Path]:
@@ -164,6 +170,13 @@ def main() -> None:
     parser.add_argument(
         "--model", required=True, help="Model id (the full id passed to the harness)."
     )
+    parser.add_argument(
+        "--agent",
+        default=DEFAULT_AGENT,
+        choices=sorted(HARNESS_SLUGS),
+        help="Coding agent (claude|pi); selects the harness folder level so the "
+        "check/clear targets the same tree the harness writes. Default: claude.",
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--check", action="store_true", help="Report existing folders (exit 2 if any)."
@@ -184,7 +197,7 @@ def main() -> None:
         [t.strip() for t in args.tasks.split(",") if t.strip()] if args.tasks else None
     )
     try:
-        dirs = _target_dirs(args.dataset, args.model, only_tasks)
+        dirs = _target_dirs(args.dataset, args.model, only_tasks, args.agent)
     except DatasetError as exc:
         logger.error("Dataset error: %s", exc)
         sys.exit(1)
