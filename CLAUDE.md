@@ -129,8 +129,9 @@ def process_data(data):
 
 ### Code Validation
 
-- After editing a Python file, run `uv run python -m py_compile <filename>`.
+- After editing a Python file, run `uv run python -m py_compile <filename>` **and `uv run ruff format <filename>` then `uv run ruff check --fix <filename>`** (run these from the `uv` project that owns the file -- `benchmarks/` or `self-hosted/vllm/`). CI runs `pre-commit` with the `ruff-format` hook and **will fail if a committed file is not ruff-formatted**, so never commit Python you have not just formatted. This has bitten us repeatedly -- treat formatting as part of the edit, not a pre-commit afterthought.
 - After editing a shell script, run `bash -n <filename>`.
+- Better yet, install the hook once so this is mechanical: `uv run pre-commit install` (from the repo root). Then every `git commit` auto-formats.
 
 ## Error Handling
 
