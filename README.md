@@ -43,7 +43,7 @@ To show what the harness produces, we ran it against [agentic-community/mcp-gate
 
 ![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality.png)
 
-Mean cost per task (x) against mean task score (y), one point per model. For **self-hosted** models with a throughput sweep, cost is **hardware-derived**: the model's blended cost per token (instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](docs/cost-per-task-methodology.md)) times its *actual* input+output tokens per task, averaged over non-failed tasks. The four **Anthropic** points (Opus-5, Opus-4.8, Sonnet-5, Haiku-4.5) are **real token-metered Bedrock bills**; **Nemotron-Ultra-550B** and **Devstral-2-123B** have no sweep so use a token-priced estimate (`‡`) -- comparable as spend, different in kind. The cost/quality frontier runs **Qwen3-Coder-30B ($0.98 / 30.20) -> Qwen3.6-35B ($1.03 / 50.32) -> MiniMax-M2.5 ($1.16 / 51.56) -> DeepSeek-V3.2 ($4.81 / 52.20) -> Kimi-K2.7-Code ($7.93 / 58.68) -> GLM-5.2 ($11.09 / 61.96) -> Claude-Opus-4.8 ($17.42 / 75.32) -> Claude-Opus-5 ($54.41 / 77.45)**. Everything else is **dominated**: notably Claude-Haiku-4.5 (47.92 at $1.31, just off the frontier behind MiniMax on both axes), Claude-Sonnet-5 (72.84 but $26.39), Gemma-4-31B, Qwen3-Coder-480B ($7.43), Nemotron-Ultra-550B ($24.41 est.), and Devstral-2-123B ($28.80 est.). Opus-5 is the top-quality point but its $54.41/task makes it the frontier's expensive extreme -- Opus-4.8 delivers nearly the same quality for a third of the cost. Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task (footnote ⁵). Regenerate with `uv run scripts/plot_cost_quality.py` (add `--dark`) from `benchmarks/`.
+Mean cost per task (x) against mean task score (y), one point per model. For **self-hosted** models with a throughput sweep, cost is **hardware-derived**: the model's blended cost per token (instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](docs/cost-per-task-methodology.md)) times its *actual* input+output tokens per task, averaged over non-failed tasks. The four **Anthropic** points (Opus-5, Opus-4.8, Sonnet-5, Haiku-4.5) are **real token-metered Bedrock bills**; every self-hosted model now has a throughput sweep, so all of their costs are hardware-derived (no token-priced estimates remain) -- comparable as spend, different in kind. The cost/quality frontier runs **Qwen3-Coder-30B ($0.98 / 30.20) -> Qwen3.6-35B ($1.03 / 50.32) -> MiniMax-M2.5 ($1.16 / 51.56) -> DeepSeek-V3.2 ($4.81 / 52.20) -> Kimi-K2.7-Code ($7.93 / 58.68) -> GLM-5.2 ($11.09 / 61.96) -> Claude-Opus-4.8 ($17.42 / 75.32) -> Claude-Opus-5 ($54.41 / 77.45)**. Everything else is **dominated**: notably Claude-Haiku-4.5 (47.92 at $1.31), Devstral-2-123B ($1.74 / 43.12) and Nemotron-Ultra-550B ($1.75 / 50.20) -- both now cheap on their own hardware but beaten by MiniMax-M2.5 on both axes -- Claude-Sonnet-5 (72.84 but $26.39), Gemma-4-31B, and Qwen3-Coder-480B ($7.43). Opus-5 is the top-quality point but its $54.41/task makes it the frontier's expensive extreme -- Opus-4.8 delivers nearly the same quality for a third of the cost. Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task (footnote ⁵). Regenerate with `uv run scripts/plot_cost_quality.py` (add `--dark`) from `benchmarks/`.
 
 ### Results -- 5 tasks x models
 
@@ -88,16 +88,15 @@ Mean score is over the tasks each model completed (any 0-score failed task is ex
 | 6 | DeepSeek-V3.2 | 671B (37B) | 8x H200 | **52.20** | $4.81 | 5/5 |
 | 7 | MiniMax-M2.5 | 230B (10B) | 8x H200 (TP=4) | **51.56** | $1.16 | 5/5 |
 | 8 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **50.32** | $1.03 | 5/5 |
-| 9 | Nemotron-Ultra-550B | 550B (dense) | 8x H200 | **50.20** | $24.41‡ | 4/5 |
+| 9 | Nemotron-Ultra-550B | 550B (dense) | 8x H200 | **50.20** | $1.75 | 4/5 |
 | 10 | Gemma-4-31B-it | 31B (dense) | g6e.12xlarge | **48.40** | $3.62 | 5/5 |
 | 11 | Claude-Haiku-4.5⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **47.92** | $1.31† | 5/5 |
 | 12 | Qwen3-Coder-480B-A35B-Instruct⁷ | 480B (35B) | 8x H200 (TP=4) | **44.95** | $7.43 | 4/5 |
-| 13 | Devstral-2-123B-Instruct | 123B (dense) | 8x H200 (TP=4) | **43.12** | $28.80‡ | 5/5 |
+| 13 | Devstral-2-123B-Instruct | 123B (dense) | 8x H200 (TP=4) | **43.12** | $1.74 | 5/5 |
 | 14 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **30.20** | **$0.98** | 4/5 |
 | - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | -- | 0 |
 
-† Claude-Opus-5 / Claude-Opus-4.8 / Claude-Sonnet-5 / Claude-Haiku-4.5 `$/task` is a real Bedrock **API bill** (token-metered), not a hardware-derived figure; see footnotes `⁸` and `⁹`.
-‡ Nemotron-Ultra-550B and Devstral-2-123B are self-hosted but have **no throughput sweep**, so their `$/task` is the harness's **token-priced estimate**, not the hardware-derived (`instance $/hr / tokens-sec`) figure used for the other self-hosted rows -- treat those two costs as indicative and higher-variance until a sweep is run.
+† Claude-Opus-5 / Claude-Opus-4.8 / Claude-Sonnet-5 / Claude-Haiku-4.5 `$/task` is a real Bedrock **API bill** (token-metered), not a hardware-derived figure; see footnotes `⁸` and `⁹`. Every self-hosted row is now hardware-derived from a throughput sweep (`instance $/hr / measured tokens-sec` x the run's tokens) -- no token-priced estimates remain.
 
 **Built, not yet benchmarked:** the open-weight Bedrock models via the LiteLLM proxy (Path 2 -- Mistral, …) -- the [proxy path is implemented](benchmarks/docs/path-open-weight-on-bedrock-litellm.md), no run published yet.
 
