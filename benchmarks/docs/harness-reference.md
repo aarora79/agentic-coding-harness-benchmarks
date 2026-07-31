@@ -399,7 +399,16 @@ Both share [scripts/judge_common.py](../scripts/judge_common.py): the rubric pro
 
 ### The rubric
 
-Every artifact is scored on four criteria, each an integer from 0 to 25: **completeness**, **correctness**, **specificity**, and **risk_awareness**. An artifact's `total` is the sum of its four criteria (0-100). A task's `task_score` is the arithmetic mean of the four artifact totals (0-100), rounded to two places. The wrapper -- not the model -- recomputes and validates every total and the mean, and rejects a reply whose arithmetic or echoed identifiers do not match, so a malformed or inconsistent score never lands on disk.
+Every artifact is scored on four criteria, each an integer from 0 to 25: **completeness**, **correctness**, **specificity**, and **risk_awareness**. An artifact's `total` is the sum of its four criteria (0-100). A task's `task_score` is the arithmetic mean of the artifact totals (0-100), rounded to two places. The wrapper -- not the model -- recomputes and validates every total and the mean, and rejects a reply whose arithmetic or echoed identifiers do not match, so a malformed or inconsistent score never lands on disk.
+
+| Criterion | 0-25 each | What the judge evaluates |
+|-----------|-----------|--------------------------|
+| **Completeness** | 25 | Did the artifact identify all affected files, dependencies, and components? Any obvious touchpoints (Terraform, IAM, Docker, tests, docs) missed? |
+| **Correctness** | 25 | Are the proposed changes technically right? Would the design actually work? Are AWS service patterns idiomatic (e.g. ECS `secrets` block vs custom boto3 code)? |
+| **Specificity** | 25 | Concrete file paths, line numbers, code snippets, resource names -- or vague hand-waving? Could a junior engineer implement this artifact alone? |
+| **Risk awareness** | 25 | Rollback strategy, backwards-compat, deployment cutover, edge cases (cold start, secret rotation, token expiry, etc.) -- enumerated or ignored? |
+
+The judge is calibrated so a median artifact scores around 60-70, not 85; 90+ is reserved for genuinely excellent work; hallucinated files or functions lose at least 10 points off Correctness. Per-cell JSON with the criterion breakdown and the judge's notes lands at `{model}/{repo}/{task}/eval.json`.
 
 ### The eval path through the codex judge
 
