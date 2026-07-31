@@ -984,7 +984,9 @@ def _run_claude(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, 
     return result
 
 
-def _pi_result_from_events(events: list[dict[str, Any]], elapsed: float) -> dict[str, Any]:
+def _pi_result_from_events(
+    events: list[dict[str, Any]], elapsed: float
+) -> dict[str, Any]:
     """Normalize pi's JSON-lines event stream into the claude-shaped result dict.
 
     pi ``--mode json`` emits a stream of events, not one result object. The final
@@ -1574,9 +1576,7 @@ def _run_task(
             _write_pi_models_json(config, pi_agent_dir)
             cmd = _build_pi_cmd(config, prompt)
             env = _build_pi_env(config, pi_agent_dir)
-            logger.info(
-                "  %s Running pi -p (agent=pi, no turn cap)...", label
-            )
+            logger.info("  %s Running pi -p (agent=pi, no turn cap)...", label)
         else:
             cmd = _build_claude_cmd(
                 config, prompt, stream=stream, clone_path=clone_path
