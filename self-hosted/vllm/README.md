@@ -574,6 +574,31 @@ opencode models vllm               # confirm the provider is wired
 
 Verified working end-to-end on the reference node: opencode's `build` agent driving the self-hosted `qwen3-coder-30b` through vLLM.
 
+## Drive a coding agent: pi
+
+[pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) is another terminal coding agent. Like opencode it speaks the OpenAI-compatible API, so it drives the self-hosted vLLM model through a custom provider. [`run-pi.sh`](scripts/run-pi.sh) discovers the served model id from `/v1/models` and launches pi against it, so you never hand-edit JSON per model:
+
+```bash
+cd self-hosted/vllm/scripts
+
+./run-pi.sh                       # auto-detect the served model, start interactive pi
+./run-pi.sh -p "explain this repo"   # extra args are forwarded straight to pi
+MODEL=glm-5.2 ./run-pi.sh         # override auto-detection
+BASE_URL=http://host:8000/v1 ./run-pi.sh
+```
+
+What it does:
+
+- **Queries `$BASE_URL/models`** and uses the first served model id (override with `MODEL`).
+- **Syncs `~/.pi/agent/models.json`** so the `vllm` provider's `baseUrl` and its single anchor model id match the running server. pi requires a provider to declare at least one model before it registers, but then accepts any `--model` id and passes it straight through. Keeping the anchor id in sync means even a bare `pi` (no wrapper) resolves to the real served model instead of a stale placeholder that 404s.
+- **`exec`s `pi --provider vllm --model <id>`** with your extra args appended.
+
+A reference copy of the provider config lives at [`config/pi-models.json`](config/pi-models.json).
+
+> pi requires Node >= 22.19 (it uses import attributes). On older Node you get `SyntaxError: Unexpected token 'with'`. Install with `npm install -g @earendil-works/pi-coding-agent`.
+
+> **Tool calling must be on**, same as opencode — pi sends `tool_choice: "auto"`. Start vLLM with a tool-call parser (the default in `vllm-serve.sh`), or pi's tools will error.
+
 ---
 
 ## What's inside
@@ -587,12 +612,14 @@ Verified working end-to-end on the reference node: opencode's `build` agent driv
 | [scripts/vllm-metrics.sh](scripts/vllm-metrics.sh) | Start, inspect, or stop the continuous DuckDB metrics collector |
 | [scripts/claude-local.sh](scripts/claude-local.sh) | Launch Claude Code against the vLLM endpoint with temporary settings |
 | [scripts/opencode-setup.sh](scripts/opencode-setup.sh) | Install opencode (if missing) + point it at the vLLM endpoint |
+| [scripts/run-pi.sh](scripts/run-pi.sh) | Launch the pi coding agent against the vLLM endpoint; auto-detects the served model |
 | [clients/hello_inference.py](clients/hello_inference.py) | Minimal Python inference client (openai SDK) |
 | [clients/benchmark_inference.py](clients/benchmark_inference.py) | Concurrent performance benchmark with request, server-metric, and summary CSV output |
 | [clients/collect_metrics.py](clients/collect_metrics.py) | Continuously scrape all vLLM Prometheus metrics into DuckDB |
 | [clients/build_dashboard.py](clients/build_dashboard.py) | Render the collected DuckDB metrics into a self-contained HTML dashboard |
 | [pyproject.toml](pyproject.toml) | `uv`-managed deps for the Python clients |
 | [config/opencode.json](config/opencode.json) | Reference opencode provider config for vLLM |
+| [config/pi-models.json](config/pi-models.json) | Reference pi custom-provider config for vLLM |
 | `logs/` | vLLM server logs (gitignored — never committed) |
 
 > Every script supports `--help` — env vars, defaults, and options.
