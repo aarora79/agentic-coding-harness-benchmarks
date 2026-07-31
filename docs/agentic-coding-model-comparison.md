@@ -20,12 +20,15 @@ Sweep: concurrency `1 2 5 7 10 15 20`, 10-minute window per level, 200K context.
 
 ### p5en.48xlarge (8xH200)
 
+Cheapest $/task uses each sweep's blended task definition (~8M input : 50K output, ~160:1 for the large H200 MoEs) so the per-task column is comparable within this instance.
+
 | Model | Arch | $/hr | Peak gen tok/s | Cheapest $/1M (blended) | Cheapest $/task | Task ratio (in:out) | Notes |
 |---|---|--:|--:|--:|--:|--:|---|
-| **minimax-m2.5** | small-active MoE | $31.65 | **300 @ c=15** | **$0.17** | **$0.22** | ~101:1 | TP=4 (half the box); highest peak throughput and cheapest per token/task on this instance |
-| **kimi-k2.7-code** | large MoE | $63.30 | 191 @ c=2 | $0.85 | $1.53 | ~73:1 | Fast, but the H200 box's hourly price dominates |
-| **glm-5.2** | large MoE | $63.30 | 212 @ c=15 | $1.12 | $9.31 | ~175:1 | Highest peak throughput; most expensive per task |
+| **minimax-m2.5** | small-active MoE | $31.65 | **300 @ c=15** | **$0.17** | **$0.21** | ~101:1 | TP=4 (half the box); highest peak throughput and cheapest per token/task on this instance |
 | **qwen3-coder-480b** | very large MoE | $31.65 | 49 @ c=2 | $0.54 | $2.31 | ~377:1 | 480B weights; no c=1 baseline in this run (see caveat) |
+| **deepseek-v3.2** | large MoE | $63.30 | 173 @ c=5 | $0.59 | $4.73 | ~160:1 | Cheapest of the full-box H200 models per token and per task |
+| **kimi-k2.7-code** | large MoE | $63.30 | 274 @ c=5 | $0.83 | $6.69 | ~160:1 | Fast; the H200 box's hourly price dominates |
+| **glm-5.2** | large MoE | $63.30 | 190 @ c=10 | $1.11 | $8.92 | ~160:1 | Most expensive per task on this box |
 
 ## Takeaways
 
@@ -33,7 +36,7 @@ Sweep: concurrency `1 2 5 7 10 15 20`, 10-minute window per level, 200K context.
 
 - **Cheapest per *token* is not cheapest per *task*.** qwen3-coder-30b has the lowest per-token cost ($0.15/1M) but qwen3.6-35b is cheapest per *task* ($0.34). The reason is task shape: coder-30b's agentic tasks carry a far heavier input load (~2.75M input : 12K output, ~236:1) than qwen3.6-35b (~50:1), so even at a lower per-token rate the sheer token count per task adds up. **Always compare per-task when choosing a model for a workload** — per-token rates mislead when input:output ratios differ this much.
 
-- **Bigger box, bigger peak — but the hourly price can swamp the cost gain, unless the model is a small-active MoE that only needs half the box.** The large H200 models hit higher peak throughput (glm-5.2 at 212 tok/s, kimi at 191), but at $63.30/hr their per-task cost is several times the g6e models'. glm-5.2's $9.31/task is driven by both the $63.30/hr rate and its very heavy input load. The standout exception is **minimax-m2.5**: a small-active MoE that fits at TP=4 (half the H200 box, so $31.65/hr) yet posts the **highest peak throughput here (300 tok/s @ c=15) and the cheapest cost of any p5en model ($0.17/1M, $0.22/task)** — competitive with the g6e MoEs on cost while serving from the big box. Active-parameter count and the half-instance footprint, not total size or instance tier, drive the economics: minimax-m2.5 and qwen3-coder-480b both run TP=4 at $31.65/hr, but minimax is ~6x faster and ~10x cheaper per task because its per-token compute (and KV pressure) is far lower. The big boxes still matter when you need a model that only fits there (e.g. 480B weights) or raw aggregate throughput.
+- **Bigger box, bigger peak — but the hourly price can swamp the cost gain, unless the model is a small-active MoE that only needs half the box.** The full-box H200 models hit solid peak throughput (kimi at 274 tok/s, glm-5.2 at 190, deepseek at 173), but at $63.30/hr their per-task cost is several times the g6e models'. glm-5.2's $8.92/task is driven by both the $63.30/hr rate and its very heavy input load; deepseek-v3.2 is the cheapest of the full-box models at $4.73/task. The standout exception is **minimax-m2.5**: a small-active MoE that fits at TP=4 (half the H200 box, so $31.65/hr) yet posts the **highest peak throughput here (300 tok/s @ c=15) and the cheapest cost of any p5en model ($0.17/1M, $0.21/task)** — competitive with the g6e MoEs on cost while serving from the big box. Active-parameter count and the half-instance footprint, not total size or instance tier, drive the economics: minimax-m2.5 and qwen3-coder-480b both run TP=4 at $31.65/hr, but minimax is ~6x faster and ~10x cheaper per task because its per-token compute (and KV pressure) is far lower. The big boxes still matter when you need a model that only fits there (e.g. 480B weights) or raw aggregate throughput.
 
 - **All are prefill-heavy but healthy, each with its own concurrency knee.** Agentic coding is input-heavy (large read-heavy prompts, small outputs), so the server spends most of its time on prompt prefill, not generation. On a healthy instance TTFT stays low (0-2s) until the model's concurrency knee, then rises: gemma saturates earliest (~c=2), qwen3-coder-30b holds to ~c=10, qwen3.6-35b stays healthy past c=20. minimax-m2.5 holds sub-second TTFT all the way to c=15 (its peak) then falls off a cliff at c=20 (throughput 300->127 tok/s, TTFT ~8.5s) as KV finally saturates — a sharp, well-defined knee. Beyond the knee, add replicas (horizontal scaling), not concurrency — blended per-task cost is flat across replicas, so the per-task figures above are the fleet-scale figures too.
 
@@ -68,8 +71,9 @@ Per-model dashboards and machine-readable summaries under `self-hosted/vllm/benc
 | qwen3.6-35b | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b/performance-dashboard.html) |
 | gemma-4-31b | [json](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b/performance-dashboard.html) |
 | minimax-m2.5 | [json](../self-hosted/vllm/benchmark-output/throughput/minimax-m2.5/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/minimax-m2.5/performance-dashboard.html) |
+| deepseek-v3.2 | [json](../self-hosted/vllm/benchmark-output/throughput/deepseek-v3.2/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/deepseek-v3.2/performance-dashboard.html) |
 | kimi-k2.7-code | [json](../self-hosted/vllm/benchmark-output/throughput/kimi-k2.7-code/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/kimi-k2.7-code/performance-dashboard.html) |
 | glm-5.2 | [json](../self-hosted/vllm/benchmark-output/throughput/glm-5.2/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/glm-5.2/performance-dashboard.html) |
 | qwen3-coder-480b | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-480b/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-480b/performance-dashboard.html) |
 
-> Figures captured 2026-07-26, vLLM 0.25.1, 200K context. Re-running a sweep regenerates that model's summary + dashboard; update the tables here when the underlying runs change.
+> Figures captured 2026-07-26, vLLM 0.25.1, 200K context; deepseek-v3.2, kimi-k2.7-code, and glm-5.2 re-swept 2026-07-30 (all at the verified $63.30/hr p5en rate from pricing.json). Re-running a sweep regenerates that model's summary + dashboard; update the tables here when the underlying runs change.
