@@ -211,7 +211,13 @@ def _run_one_session(
         clone_path = harness._clone_repo(
             task, ref, str(slot_dir), log_prefix=slot_label
         )
-        prompt = harness._build_prompt(task, clone_path, ref, config.model_slug)
+        # Artifacts go under this session's throwaway slot dir, NOT the real
+        # swe-benchmark-data tree: throughput does not score artifacts, and many
+        # cut-off sessions writing there would clobber the model's quality-run
+        # artifacts. The dir is removed with the slot in the finally block.
+        prompt = harness._build_prompt(
+            task, clone_path, ref, config.model_slug, slot_dir / "artifacts"
+        )
         cmd = harness._build_claude_cmd(
             config, prompt, stream=False, clone_path=clone_path
         )
