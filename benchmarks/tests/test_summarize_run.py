@@ -68,7 +68,7 @@ def _write_task(
 class SummarizeRunTest(unittest.TestCase):
     def test_clean_run_mean_over_all_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            scope = Path(tmp) / "test-model" / "some-repo"
+            scope = Path(tmp) / "test-model" / "claude-code" / "some-repo"
             _write_task(scope, "task-a", score=60.0, cost=4.0)
             _write_task(scope, "task-b", score=50.0, cost=6.0)
             s = summarize._summarize(scope, run_date="2026-07-24")
@@ -78,10 +78,12 @@ class SummarizeRunTest(unittest.TestCase):
             self.assertEqual(s["mean_cost_usd_excl_failed"], 5.0)
             self.assertEqual(s["serving"]["precision"], "BF16")
             self.assertEqual(s["model_slug"], "test-model")
+            # The harness level is read back as the run's agent.
+            self.assertEqual(s["agent"], "claude-code")
 
     def test_failed_task_excluded_from_mean(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            scope = Path(tmp) / "test-model" / "some-repo"
+            scope = Path(tmp) / "test-model" / "claude-code" / "some-repo"
             _write_task(scope, "good", score=60.0, cost=4.0)
             # A 0-score task (missing artifact): excluded from the mean, still listed.
             _write_task(scope, "bad", score=0.0, n_artifacts=3, cost=9.0)
@@ -94,7 +96,7 @@ class SummarizeRunTest(unittest.TestCase):
 
     def test_missing_eval_counts_as_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            scope = Path(tmp) / "test-model" / "some-repo"
+            scope = Path(tmp) / "test-model" / "claude-code" / "some-repo"
             _write_task(scope, "unscored", score=None)
             s = summarize._summarize(scope, run_date=None)
             self.assertEqual(s["num_failed"], 1)
@@ -102,7 +104,7 @@ class SummarizeRunTest(unittest.TestCase):
 
     def test_markdown_flags_failure_and_serving(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            scope = Path(tmp) / "test-model" / "some-repo"
+            scope = Path(tmp) / "test-model" / "claude-code" / "some-repo"
             _write_task(scope, "good", score=60.0)
             _write_task(scope, "bad", score=0.0, n_artifacts=3)
             md = summarize._render_markdown(summarize._summarize(scope, run_date=None))

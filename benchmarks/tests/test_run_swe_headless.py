@@ -220,10 +220,11 @@ class ArtifactDirTest(unittest.TestCase):
     def test_path_follows_skill_convention(self) -> None:
         path = harness._artifact_dir(_config(output_dir="swe-benchmark-data"), _task())
         self.assertEqual(
-            path.parts[-4:],
+            path.parts[-5:],
             (
                 "swe-benchmark-data",
                 "qwen3.6-35b",
+                "claude-code",
                 "mcp-gateway-registry",
                 "remove-faiss",
             ),
