@@ -39,6 +39,10 @@ set -euo pipefail
 #       --dataset dataset/hello-world.yaml --count 1 --yes
 #
 # Optional flags:
+#   --agent NAME           coding agent that runs the task: claude (Claude Code,
+#                          default) or pi (the pi coding agent). Same /swe2 task
+#                          either way. pi works only with --provider vllm/litellm
+#                          (an OpenAI-compatible endpoint); it has no Bedrock mode.
 #   --count N              run only the first N tasks (0 = all, default)
 #   --tasks a,b,c          run only these task ids (comma-separated); scopes the
 #                          folder-clear and the judge to the same set. Useful to
@@ -66,6 +70,7 @@ REPO_ROOT="$(dirname "$BENCHMARKS_DIR")"
 VLLM_DIR="$REPO_ROOT/self-hosted/vllm"
 
 # Defaults
+AGENT="claude"            # coding agent: claude (Claude Code) or pi (pi agent)
 PROVIDER=""
 MODEL=""
 DATASET=""
@@ -102,6 +107,7 @@ usage() {
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --agent)    AGENT="${2:?--agent needs a value}"; shift 2 ;;
         --provider) PROVIDER="${2:?--provider needs a value}"; shift 2 ;;
         --model)    MODEL="${2:?--model needs a value}"; shift 2 ;;
         --dataset)  DATASET="${2:?--dataset needs a value}"; shift 2 ;;
@@ -137,6 +143,15 @@ case "$PROVIDER" in
     bedrock|litellm|vllm) ;;
     *) die "invalid provider '$PROVIDER'. Must be one of: bedrock, litellm, vllm." ;;
 esac
+
+case "$AGENT" in
+    claude|pi) ;;
+    *) die "invalid agent '$AGENT'. Must be one of: claude, pi." ;;
+esac
+# pi speaks only an OpenAI-compatible endpoint; it has no native Amazon Bedrock
+# mode, so it cannot run the --provider bedrock path.
+[[ "$AGENT" == "pi" && "$PROVIDER" == "bedrock" ]] && \
+    die "--agent pi cannot use --provider bedrock (pi has no native Bedrock mode). Use --provider vllm or litellm."
 
 # Resolve the dataset path relative to benchmarks/ and confirm it exists.
 DATASET_PATH="$DATASET"
@@ -177,8 +192,14 @@ ok "runner config: $CONFIG"
 #   - codex  : the judge runs 'codex exec' to score them (unless --skip-judge).
 # Check both here, up front, so a missing codex fails fast instead of after the
 # entire (long) harness run has already completed.
-command -v claude >/dev/null 2>&1 || die "claude CLI not found on PATH (the harness runs 'claude -p'). Install Claude Code."
-ok "claude CLI found: $(command -v claude)"
+# The harness runs the chosen agent: 'claude -p' (Claude Code) or 'pi -p' (pi).
+if [[ "$AGENT" == "pi" ]]; then
+    command -v pi >/dev/null 2>&1 || die "pi CLI not found on PATH (--agent pi runs 'pi -p'). Install the pi coding agent (needs Node >=22)."
+    ok "pi CLI found: $(command -v pi)"
+else
+    command -v claude >/dev/null 2>&1 || die "claude CLI not found on PATH (the harness runs 'claude -p'). Install Claude Code."
+    ok "claude CLI found: $(command -v claude)"
+fi
 if [[ "$SKIP_JUDGE" -eq 1 ]]; then
     command -v codex >/dev/null 2>&1 && ok "codex CLI found: $(command -v codex)" \
         || warn "codex CLI not found, but --skip-judge is set, so scoring is skipped."
@@ -320,7 +341,10 @@ trap _cleanup_clones EXIT
 # =============================================================================
 step "Step 1 - Run the SWE benchmark"
 # =============================================================================
-BENCH_ARGS=(--config "$CONFIG" --provider "$HARNESS_PROVIDER" --model "$MODEL" --dataset "$DATASET" --stream --verbose)
+BENCH_ARGS=(--config "$CONFIG" --agent "$AGENT" --provider "$HARNESS_PROVIDER" --model "$MODEL" --dataset "$DATASET")
+# --stream/--verbose is the Claude Code live-trace mode; pi emits its own JSON
+# event stream and has no equivalent, so only add it for the claude agent.
+[[ "$AGENT" != "pi" ]] && BENCH_ARGS+=(--stream --verbose)
 [[ "$COUNT" != "0" ]] && BENCH_ARGS+=(--count "$COUNT")
 [[ -n "$TASKS" ]] && BENCH_ARGS+=(--tasks "$TASKS")
 [[ "$HARNESS_PROVIDER" == "endpoint" ]] && BENCH_ARGS+=(--endpoint "$ENDPOINT")
