@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Summarize one model+dataset benchmark run into RUN-SUMMARY.json and .md.
 
-Reads a ``{model-slug}/{scope}/`` folder under ``swe-benchmark-data`` (one
-subfolder per task, each with ``metrics.json`` and, when scored, ``eval.json``)
+Reads a ``{model-slug}/{harness}/{scope}/`` folder under ``swe-benchmark-data``
+(one subfolder per task, each with ``metrics.json`` and, when scored, ``eval.json``)
 and writes two sibling files:
 
   * ``RUN-SUMMARY.json`` -- machine-readable, for later charting / aggregation.
@@ -13,7 +13,7 @@ is EXCLUDED from the headline mean (score and cost), matching the leaderboard
 convention; it is still listed with its 0 so the failure stays visible.
 
 Usage:
-    uv run scripts/summarize_run.py --folder ../swe-benchmark-data/gemma-4-31b/mcp-gateway-registry
+    uv run scripts/summarize_run.py --folder ../swe-benchmark-data/gemma-4-31b/claude-code/mcp-gateway-registry
     uv run scripts/summarize_run.py --folder <dir> --run-date 2026-07-24
 """
 
@@ -128,9 +128,12 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
     costs = [r["total_cost_usd"] for r in scored if r["total_cost_usd"] is not None]
     mean_cost = round(sum(costs) / len(costs), 2) if costs else None
 
+    # Layout: <model-slug>/<harness>/<repo>. folder is the <repo> (scope) dir, so
+    # its parent is the harness and its grandparent is the model slug.
     summary: dict[str, Any] = {
         "model": first.get("model"),
-        "model_slug": folder.parent.name,
+        "model_slug": folder.parent.parent.name,
+        "agent": first.get("agent") or folder.parent.name,
         "scope": folder.name,
         "provider": first.get("provider"),
         "ref": first.get("ref"),

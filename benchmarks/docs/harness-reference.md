@@ -183,7 +183,7 @@ uv run scripts/runner_config.py config/runner.example.yaml \
 [scripts/run-swe-headless.py](../scripts/run-swe-headless.py) is the harness. For each selected task it:
 
 1. Clones the task's repo at its pinned ref into a temporary directory under `clone_dir`.
-2. Invokes `claude -p "/swe repo: ... problem: ... model: ... answers: ..."` non-interactively, letting the `/swe` skill produce the four artifacts under `swe-benchmark-data/{model-name}/{repo-name}/{task-id}/`.
+2. Invokes `claude -p "/swe repo: ... problem: ... model: ... answers: ..."` non-interactively, letting the `/swe` skill produce the four artifacts under `swe-benchmark-data/{model-name}/{harness-name}/{repo-name}/{task-id}/`.
 3. Parses the run's JSON result (`--output-format json`) for the benchmark metrics -- token usage, latency, and `num_turns` -- and writes them to `metrics.json` beside the artifacts. The top-level metrics report only what the model API returned; vLLM's full Prometheus `/metrics` surface (scraped before and after the run) is kept in a separate nested block (see [The metrics file](#the-metrics-file)).
 4. Removes the temporary clone.
 

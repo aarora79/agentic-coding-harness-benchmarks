@@ -126,11 +126,15 @@ def _model_dimensions(
     return by_criterion, by_artifact
 
 
-def _collect(data_dir: Path, repo: str) -> list[tuple[str, dict, dict]]:
-    """Return [(model, by_criterion, by_artifact)] for models with eval_scores."""
+def _collect(data_dir: Path, repo: str, harness: str) -> list[tuple[str, dict, dict]]:
+    """Return [(model, by_criterion, by_artifact)] for models with eval_scores.
+
+    Reads ``<data-dir>/<model>/<harness>/<repo>/RUN-SUMMARY.json`` so the radar
+    plots one coding agent's runs at a time.
+    """
     out: list[tuple[str, dict, dict]] = []
     for model_dir in sorted(p for p in data_dir.iterdir() if p.is_dir()):
-        summary = _read_json(model_dir / repo / RUN_SUMMARY_FILENAME)
+        summary = _read_json(model_dir / harness / repo / RUN_SUMMARY_FILENAME)
         if summary is None:
             continue
         dims = _model_dimensions(summary)
@@ -250,16 +254,22 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     p.add_argument("--repo", default="mcp-gateway-registry")
+    p.add_argument(
+        "--harness",
+        default="claude-code",
+        help="Coding-agent folder to read (default: claude-code). Artifacts live "
+        "at <model>/<harness>/<repo>/.",
+    )
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     p.add_argument("--dark", action="store_true", help="Render the dark-theme variant")
     return p.parse_args()
 
 
-def _count_models(data_dir: Path, repo: str) -> int:
+def _count_models(data_dir: Path, repo: str, harness: str) -> int:
     """Count models with a scored RUN-SUMMARY (the denominator in the note)."""
     total = 0
     for model_dir in (p for p in data_dir.iterdir() if p.is_dir()):
-        summary = _read_json(model_dir / repo / RUN_SUMMARY_FILENAME)
+        summary = _read_json(model_dir / harness / repo / RUN_SUMMARY_FILENAME)
         if summary and isinstance(
             summary.get("mean_task_score_excl_failed"), (int, float)
         ):
@@ -270,17 +280,18 @@ def _count_models(data_dir: Path, repo: str) -> int:
 def main() -> None:
     """Collect eval dimensions and render the radar chart(s)."""
     args = _parse_args()
-    models = _collect(args.data_dir, args.repo)
+    models = _collect(args.data_dir, args.repo, args.harness)
     if len(models) < 1:
         raise SystemExit(
-            f"no models with eval_scores under {args.data_dir}/*/{args.repo}"
+            f"no models with eval_scores under "
+            f"{args.data_dir}/*/{args.harness}/{args.repo}"
         )
     if len(models) > len(_THEME["light"]["series"]):
         raise SystemExit(
             f"{len(models)} models but only {len(_THEME['light']['series'])} "
             "validated series colors; add more validated hues before plotting more."
         )
-    n_total = _count_models(args.data_dir, args.repo)
+    n_total = _count_models(args.data_dir, args.repo, args.harness)
     mode = "dark" if args.dark else "light"
     logger.info("models with eval_scores: %s", ", ".join(m for m, _, _ in models))
     _plot(models, mode=mode, repo=args.repo, n_total=n_total, out_dir=args.out_dir)
