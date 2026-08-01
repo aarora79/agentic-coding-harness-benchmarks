@@ -8,6 +8,7 @@ git-clone paths are not exercised here.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -23,6 +24,7 @@ harness = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(harness)
 
 import unittest  # noqa: E402
+from unittest import mock  # noqa: E402
 
 from dataset_loader import Dataset, DatasetError, Task  # noqa: E402
 from runner_config import RunnerConfig  # noqa: E402
@@ -331,21 +333,113 @@ class BuildPiCmdTest(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--provider") + 1], "amazon-bedrock")
         self.assertEqual(cmd[cmd.index("--model") + 1], "us.anthropic.claude-opus-5")
 
-    def test_bedrock_env_pins_region_no_secrets(self) -> None:
-        from pathlib import Path
-
-        env = harness._build_pi_env(
-            _config(
-                agent="pi",
-                provider="bedrock",
-                aws_region="us-east-1",
-                endpoint=None,
-                model="us.anthropic.claude-opus-5",
-            ),
-            Path("/tmp/pi-agent"),
+    def test_bedrock_env_pins_region_and_injects_creds(self) -> None:
+        # For Bedrock, _build_pi_env pins the region and resolves SigV4 creds via
+        # `aws configure export-credentials` (pi does not probe EC2 IMDS). Mock the
+        # CLI so the test needs no AWS setup.
+        fake = mock.Mock(
+            stdout="AWS_ACCESS_KEY_ID=AKIAX\nAWS_SECRET_ACCESS_KEY=sk\nAWS_SESSION_TOKEN=tok\n"
         )
+        clean_env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("AWS_ACCESS_KEY_ID", "AWS_BEARER_TOKEN_BEDROCK")
+        }
+        with mock.patch.dict(os.environ, clean_env, clear=True):
+            with mock.patch.object(harness.subprocess, "run", return_value=fake):
+                env = harness._build_pi_env(
+                    _config(
+                        agent="pi",
+                        provider="bedrock",
+                        aws_region="us-east-1",
+                        endpoint=None,
+                        model="us.anthropic.claude-opus-5",
+                    ),
+                    Path("/tmp/pi-agent"),
+                )
         self.assertEqual(env["AWS_REGION"], "us-east-1")
+        self.assertEqual(env["AWS_ACCESS_KEY_ID"], "AKIAX")
+        self.assertEqual(env["AWS_SESSION_TOKEN"], "tok")
+
+    def test_bedrock_env_keeps_existing_creds(self) -> None:
+        # If the caller already exported creds, do not shell out to the AWS CLI.
+        with mock.patch.dict(os.environ, {"AWS_ACCESS_KEY_ID": "PRESET"}, clear=False):
+            with mock.patch.object(harness.subprocess, "run") as run:
+                env = harness._build_pi_env(
+                    _config(
+                        agent="pi",
+                        provider="bedrock",
+                        aws_region="us-east-1",
+                        endpoint=None,
+                        model="us.anthropic.claude-opus-5",
+                    ),
+                    Path("/tmp/pi-agent"),
+                )
+        run.assert_not_called()
+        self.assertEqual(env["AWS_ACCESS_KEY_ID"], "PRESET")
+
+    def test_vllm_env_does_not_resolve_aws_creds(self) -> None:
+        # The vLLM endpoint path never shells out to resolve AWS credentials
+        # (whatever AWS_REGION the caller's shell already exports is irrelevant).
+        with mock.patch.object(harness.subprocess, "run") as run:
+            env = harness._build_pi_env(_config(agent="pi"), Path("/tmp/pi-agent"))
+        run.assert_not_called()
         self.assertEqual(env["PI_CODING_AGENT_DIR"], "/tmp/pi-agent")
+
+
+def _pi_events(usage: dict, stop: str = "stop") -> list[dict]:
+    """Build a minimal pi event stream ending in agent_end with the given usage."""
+    msg = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "x"}],
+        "usage": usage,
+        "stopReason": stop,
+    }
+    return [
+        {"type": "turn_start"},
+        {"type": "agent_end", "messages": [{"role": "user"}, msg], "willRetry": False},
+    ]
+
+
+class PiResultFromEventsTest(unittest.TestCase):
+    def test_vllm_usage_no_cache_no_cost(self) -> None:
+        # vLLM: pi reports 0 cache + 0 cost; both stay absent/None so they are not
+        # misleading (real reuse comes from the Prometheus block).
+        events = _pi_events(
+            {
+                "input": 100,
+                "output": 20,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "cost": {"total": 0},
+            }
+        )
+        result = harness._pi_result_from_events(events, elapsed=1.0)
+        self.assertEqual(result["usage"]["input_tokens"], 100)
+        self.assertNotIn("cache_read_input_tokens", result["usage"])
+        self.assertNotIn("cache_creation_input_tokens", result["usage"])
+        self.assertIsNone(result["total_cost_usd"])
+
+    def test_bedrock_usage_maps_cache_and_real_cost(self) -> None:
+        # Bedrock: pi reports native prompt-cache tokens and a real metered cost;
+        # both must flow through (mapped to the keys _metrics_from_result reads).
+        events = _pi_events(
+            {
+                "input": 2,
+                "output": 5,
+                "cacheRead": 1000,
+                "cacheWrite": 3102,
+                "cost": {"total": 0.0195},
+            }
+        )
+        result = harness._pi_result_from_events(events, elapsed=2.0)
+        self.assertEqual(result["usage"]["cache_read_input_tokens"], 1000)
+        self.assertEqual(result["usage"]["cache_creation_input_tokens"], 3102)
+        self.assertEqual(result["total_cost_usd"], 0.0195)
+        # And _metrics_from_result surfaces them under its cache keys.
+        metrics = harness._metrics_from_result(result, elapsed=2.0)
+        self.assertEqual(metrics["cache_read_tokens"], 1000)
+        self.assertEqual(metrics["cache_creation_tokens"], 3102)
 
 
 class BuildSettingsArgTest(unittest.TestCase):

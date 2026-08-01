@@ -575,7 +575,55 @@ def _build_pi_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
         region = config.resolved_region()
         if region:
             env["AWS_REGION"] = region
+        _ensure_aws_sigv4_env(env)
     return env
+
+
+def _ensure_aws_sigv4_env(env: dict[str, str]) -> None:
+    """Populate SigV4 AWS credentials in ``env`` for pi's Bedrock provider.
+
+    pi's ``amazon-bedrock`` provider authenticates from explicit credentials
+    (``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY`` / ``AWS_SESSION_TOKEN`` or
+    ``AWS_BEARER_TOKEN_BEDROCK``); unlike boto3 it does NOT probe the EC2 IMDS
+    instance-profile chain. On an EC2 box whose only credentials come from an
+    attached instance role, a run would fail with "No API key found". This
+    resolves the role's short-lived credentials via ``aws configure
+    export-credentials`` and injects them, so the ambient instance role Just Works.
+
+    No-ops when credentials are already present in ``env`` (the caller's shell set
+    them, or a bearer token is configured) or when the AWS CLI cannot mint any
+    (off EC2 with no role) -- pi then reports its own clear auth error. Credentials
+    are only placed in the child env, never logged or written to disk.
+
+    Args:
+        env: The subprocess environment to populate in place.
+    """
+    if env.get("AWS_ACCESS_KEY_ID") or env.get("AWS_BEARER_TOKEN_BEDROCK"):
+        return
+    try:
+        proc = subprocess.run(
+            ["aws", "configure", "export-credentials", "--format", "env-no-export"],  # nosec B603 B607 - hardcoded command, no user input
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        )
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ):
+        # No resolvable credentials (or no AWS CLI): leave env as-is and let pi
+        # surface its own auth error rather than failing opaquely here.
+        logger.warning(
+            "could not resolve AWS credentials via 'aws configure export-credentials'; "
+            "pi will rely on whatever is already in the environment"
+        )
+        return
+    for line in proc.stdout.splitlines():
+        key, _, value = line.strip().partition("=")
+        if key.startswith("AWS_") and value:
+            env[key] = value
 
 
 def _build_pi_cmd(config: RunnerConfig, prompt: str) -> list[str]:
@@ -1134,23 +1182,32 @@ def _pi_result_from_events(
     usage = last_assistant.get("usage") or {}
     stop_reason = last_assistant.get("stopReason")
     # pi's usage keys (input/output) differ from claude's (input_tokens/...);
-    # remap so _metrics_from_result reads them unchanged. Cache tokens are left
-    # absent (vLLM does not report them; real reuse comes from the Prometheus
-    # block), matching the claude-vs-vLLM behavior.
+    # remap so _metrics_from_result reads them unchanged.
+    remapped_usage: dict[str, Any] = {
+        "input_tokens": usage.get("input", 0),
+        "output_tokens": usage.get("output", 0),
+    }
+    # Cache tokens: against a vLLM endpoint pi reports 0 (real reuse comes from the
+    # Prometheus block, so we omit them rather than record a misleading 0). Against
+    # Amazon Bedrock pi DOES report native prompt-cache usage (cacheRead/cacheWrite)
+    # -- pass those through under the keys _metrics_from_result expects, but only
+    # when non-zero so the vLLM path stays clean.
+    if usage.get("cacheRead"):
+        remapped_usage["cache_read_input_tokens"] = usage["cacheRead"]
+    if usage.get("cacheWrite"):
+        remapped_usage["cache_creation_input_tokens"] = usage["cacheWrite"]
     cost = (usage.get("cost") or {}).get("total")
     # An error retry (pi tried and gave up) or a non-"stop" terminal reason marks
     # the run failed so the harness's retry/failure logic can react.
     will_retry = agent_end.get("willRetry", False)
     is_error = bool(will_retry) or stop_reason not in (None, "stop", "end_turn")
     return {
-        "usage": {
-            "input_tokens": usage.get("input", 0),
-            "output_tokens": usage.get("output", 0),
-        },
+        "usage": remapped_usage,
         "num_turns": num_turns,
-        # pi reports 0 cost against a local vLLM endpoint; the real per-task cost
-        # is hardware-derived (see cost-per-task-methodology.md), so keep None
-        # here rather than a misleading 0.
+        # pi reports 0 cost against a local vLLM endpoint (the real per-task cost is
+        # hardware-derived; see cost-per-task-methodology.md), so keep None there
+        # rather than a misleading 0. Against Amazon Bedrock pi reports a REAL
+        # metered cost -- pass it through unchanged.
         "total_cost_usd": cost if cost else None,
         "is_error": is_error,
         # Map pi's stopReason onto the subtype the retry logic keys on. pi has no
