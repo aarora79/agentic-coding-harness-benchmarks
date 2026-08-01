@@ -7,7 +7,7 @@ scores shown in the README leaderboard) on the y-axis. Non-dominated models --
 those where no other model is both cheaper and higher-scoring -- are connected by
 a highlighted frontier line, so the cost/quality trade-off is read at a glance.
 
-Each model's numbers come from its committed ``RUN-SUMMARY.json`` when present
+Each model's numbers come from its committed ``run-summary.json`` when present
 (the reproducible, machine-readable per-run record written by
 ``summarize_run.py``), falling back to aggregating the per-task ``metrics.json``
 (``total_cost_usd``) and ``eval.json`` (``task_score``) when it is not. Using the
@@ -22,7 +22,7 @@ Cost is HARDWARE-DERIVED, not token-priced: when a model has a throughput sweep
 its cost per task is the cheapest blended $/token there (instance $/hr / measured
 tokens/sec) times this run's actual input+output tokens per task, averaged over
 the non-failed tasks. Only when no performance summary exists does it fall back
-to RUN-SUMMARY's token-priced ``total_cost_usd`` estimate.
+to run-summary's token-priced ``total_cost_usd`` estimate.
 
 Usage:
     uv run scripts/plot_cost_quality.py
@@ -63,12 +63,12 @@ EVAL_FILENAME = "eval.json"
 # and, unlike the gitignored per-task metrics.json/eval.json, is present for every
 # model in the repo -- including runs produced on a different node. This is what
 # makes the chart reproducible from committed data alone.
-RUN_SUMMARY_FILENAME = "RUN-SUMMARY.json"
+RUN_SUMMARY_FILENAME = "run-summary.json"
 # Hardware-derived per-token cost lives in the throughput sweep's summary, one
 # per model. Cost per task = (this model's cheapest blended $/token) x (this
 # run's actual input+output tokens for the task) -- so cost reflects BOTH the
 # measured serving economics AND the real token load of the quality run, rather
-# than the token-priced estimate that RUN-SUMMARY.total_cost_usd carries for
+# than the token-priced estimate that run-summary.total_cost_usd carries for
 # self-hosted models. See self-hosted/vllm/cost-per-task-methodology.md.
 PERF_SUMMARY_DIR = (
     _REPO_ROOT / "self-hosted" / "vllm" / "benchmark-output" / "throughput"
@@ -156,9 +156,9 @@ def _task_score(eval_data: dict | None) -> float | None:
 
 
 def _point_from_summary(model_repo_dir: Path, model: str) -> ModelPoint | None:
-    """Build a ModelPoint from the committed RUN-SUMMARY.json, if present.
+    """Build a ModelPoint from the committed run-summary.json, if present.
 
-    RUN-SUMMARY.json already carries the leaderboard-convention means (failed
+    run-summary.json already carries the leaderboard-convention means (failed
     0-score tasks excluded) and is committed for every model, so it is the
     preferred, fully reproducible source. Returns None when the file is absent
     or lacks a usable mean score, so the caller can fall back to per-task files.
@@ -181,7 +181,7 @@ def _point_from_summary(model_repo_dir: Path, model: str) -> ModelPoint | None:
 
     # Cost: prefer the hardware-derived blended figure (per-token rate from the
     # throughput sweep x this run's actual per-task tokens, averaged over the
-    # non-failed tasks). Fall back to RUN-SUMMARY's token-priced estimate only
+    # non-failed tasks). Fall back to run-summary's token-priced estimate only
     # when no performance summary exists for the model.
     cost = _blended_mean_cost(summary, model)
     if cost is None:
@@ -224,7 +224,7 @@ def _blended_mean_cost(summary: dict, model: str) -> float | None:
 def _aggregate_model(model_repo_dir: Path, model: str) -> ModelPoint | None:
     """Aggregate one model's cost and score under a repo directory.
 
-    Prefers the committed ``RUN-SUMMARY.json`` (present for every model and
+    Prefers the committed ``run-summary.json`` (present for every model and
     reproducible from git). Falls back to aggregating the per-task
     ``metrics.json`` / ``eval.json`` when no summary exists (e.g. a fresh run
     not yet summarized). Tasks that scored 0 -- a genuine model failure

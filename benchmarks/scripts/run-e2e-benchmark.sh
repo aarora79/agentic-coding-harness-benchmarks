@@ -390,15 +390,15 @@ else
         || die "judge run failed. See the log above; re-run just the judge with the command shown."
     ok "Scoring complete."
 
-    # Write the machine-readable RUN-SUMMARY.json + human-readable RUN-SUMMARY.md
+    # Write the machine-readable run-summary.json + human-readable run-summary.md
     # from the scored artifacts, so the run is summarized on disk for later
     # charting without re-parsing every task folder. Best-effort: a summary
     # failure must not fail an otherwise-good scored run.
     if uv run python scripts/summarize_run.py --folder "$JUDGE_TARGET" \
         --run-date "$(date -u +%Y-%m-%d)"; then
-        ok "Run summary written: $JUDGE_TARGET/RUN-SUMMARY.{json,md}"
+        ok "Run summary written: $JUDGE_TARGET/run-summary.{json,md}"
     else
-        warn "Could not write RUN-SUMMARY (scores are still in each task's eval.json)."
+        warn "Could not write run-summary (scores are still in each task's eval.json)."
     fi
 fi
 

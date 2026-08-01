@@ -1,4 +1,4 @@
-"""Tests for the run summarizer (RUN-SUMMARY.json / .md)."""
+"""Tests for the run summarizer (run-summary.json / .md)."""
 
 from __future__ import annotations
 
@@ -30,6 +30,8 @@ def _write_task(
     n_artifacts: int = 4,
     cost: float = 5.0,
     turns: int = 20,
+    agent_invocations: int = 1,
+    topped_up_artifacts: list[str] | None = None,
 ) -> None:
     """Create a task folder with metrics.json, artifacts, and optional eval.json."""
     d = scope_dir / task
@@ -50,11 +52,22 @@ def _write_task(
         },
         "total_cost_usd": cost,
         "is_error": False,
+        "agent_invocations": agent_invocations,
+        "topped_up_artifacts": topped_up_artifacts or [],
         "metrics_that_matter": {
             "num_turns": turns,
             "input_tokens": 1000,
             "output_tokens": 200,
             "latency_seconds": 100.0,
+            "cache_read_tokens": 900,
+            "cache_write_tokens": 100,
+            "prefix_cache_hit_rate": 0.9,
+            "generation_tokens_per_sec": 2.0,
+        },
+        "vllm_prometheus": {
+            "gauges_sampled": {
+                "gauges": {"vllm:kv_cache_usage_perc": {"peak": 0.08, "mean": 0.05}}
+            }
         },
     }
     (d / "metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
@@ -80,6 +93,37 @@ class SummarizeRunTest(unittest.TestCase):
             self.assertEqual(s["model_slug"], "test-model")
             # The harness level is read back as the run's agent.
             self.assertEqual(s["agent"], "claude-code")
+
+    def test_efficiency_signals_folded_into_task_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scope = Path(tmp) / "test-model" / "pi" / "some-repo"
+            _write_task(scope, "task-a", score=60.0)
+            row = summarize._summarize(scope, run_date=None)["tasks"][0]
+            # Derived cache/KV signals are carried up from metrics.json.
+            self.assertEqual(row["prefix_cache_hit_rate"], 0.9)
+            self.assertEqual(row["cache_read_tokens"], 900)
+            self.assertEqual(row["cache_write_tokens"], 100)
+            self.assertEqual(row["generation_tokens_per_sec"], 2.0)
+            self.assertEqual(row["kv_cache_usage"], {"peak": 0.08, "mean": 0.05})
+            # A single-shot run defaults to one invocation, no top-ups.
+            self.assertEqual(row["agent_invocations"], 1)
+            self.assertEqual(row["topped_up_artifacts"], [])
+
+    def test_topup_provenance_surfaced(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scope = Path(tmp) / "test-model" / "pi" / "some-repo"
+            _write_task(
+                scope,
+                "task-a",
+                score=55.0,
+                agent_invocations=2,
+                topped_up_artifacts=["patch.diff", "implementation.md"],
+            )
+            row = summarize._summarize(scope, run_date=None)["tasks"][0]
+            self.assertEqual(row["agent_invocations"], 2)
+            self.assertEqual(
+                row["topped_up_artifacts"], ["patch.diff", "implementation.md"]
+            )
 
     def test_failed_task_excluded_from_mean(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

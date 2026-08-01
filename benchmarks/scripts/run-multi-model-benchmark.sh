@@ -10,7 +10,7 @@ set -uo pipefail
 # model registry below, waits for readiness, starts the DuckDB metrics
 # collector, runs run-e2e-benchmark.sh (which clears stale artifact folders with
 # --yes, runs the /swe2 harness, and scores with the codex judge), archives the
-# metrics snapshot, writes RUN-SUMMARY.{json,md}, and commits the RUN-SUMMARY to
+# metrics snapshot, writes run-summary.{json,md}, and commits the run-summary to
 # the current branch. It then moves to the next model.
 #
 # All paths are RELATIVE TO THE REPO ROOT (derived from this script's location),
@@ -234,13 +234,13 @@ for want in "${MODELS[@]}"; do
       --folder "swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE" --run-date "$(date -u +%Y-%m-%d)" \
       >>"$SCRATCH/e2e-$SLUG.log" 2>&1 ) || say "  WARN summarize failed for $SLUG"
 
-  # Commit the RUN-SUMMARY (only the scrubbed rollup is tracked; task folders are gitignored).
+  # Commit the run-summary (only the scrubbed rollup is tracked; task folders are gitignored).
   ( cd "$REPO_ROOT"
-    git add "benchmarks/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE/RUN-SUMMARY.json" \
-            "benchmarks/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE/RUN-SUMMARY.md" 2>/dev/null
+    git add "benchmarks/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE/run-summary.json" \
+            "benchmarks/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE/run-summary.md" 2>/dev/null
     git diff --cached --quiet || git commit -q -m "$SLUG ($AGENT): /swe2 benchmark run on $SCOPE (implementation + judge scores)"
     git pull --rebase -q 2>/dev/null; git push -q 2>/dev/null
-  ) && say "  committed+pushed $SLUG RUN-SUMMARY" || say "  WARN commit failed for $SLUG"
+  ) && say "  committed+pushed $SLUG run-summary" || say "  WARN commit failed for $SLUG"
 
   # Remove any stray untracked root-level .md files a /swe2 task may have misplaced.
   ( cd "$REPO_ROOT" && for f in $(git ls-files --others --exclude-standard -- '*.md' | grep -vE '/'); do
