@@ -137,6 +137,13 @@ def _collect(data_dir: Path, repo: str, harness: str) -> list[tuple[str, dict, d
         summary = _read_json(model_dir / harness / repo / RUN_SUMMARY_FILENAME)
         if summary is None:
             continue
+        # Skip a run with no scored tasks (e.g. a 0/5 harness collapse): its
+        # failed tasks still carry zero-valued eval_scores, but plotting a
+        # collapsed all-zero polygon just adds a phantom legend entry. This
+        # matches the cost-quality chart, which excludes the same runs.
+        if not isinstance(summary.get("mean_task_score_excl_failed"), (int, float)):
+            logger.info("  excluding %s: no scored tasks", model_dir.name)
+            continue
         dims = _model_dimensions(summary)
         if dims is None:
             continue
@@ -182,6 +189,7 @@ def _plot(
     *,
     mode: str,
     repo: str,
+    harness: str,
     n_total: int,
     out_dir: Path,
 ) -> Path:
@@ -239,8 +247,11 @@ def _plot(
     )
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    suffix = "-dark" if mode == "dark" else ""
-    out = out_dir / f"quality-radar{suffix}.png"
+    # claude-code keeps the canonical quality-radar.png (the README points there);
+    # every other harness gets a suffixed file so the two never overwrite.
+    harness_suffix = "" if harness == "claude-code" else f"-{harness}"
+    mode_suffix = "-dark" if mode == "dark" else ""
+    out = out_dir / f"quality-radar{harness_suffix}{mode_suffix}.png"
     fig.savefig(out, bbox_inches="tight", facecolor=theme["surface"])
     plt.close(fig)
     logger.info("wrote %s (%d models)", out, n_shown)
@@ -294,7 +305,14 @@ def main() -> None:
     n_total = _count_models(args.data_dir, args.repo, args.harness)
     mode = "dark" if args.dark else "light"
     logger.info("models with eval_scores: %s", ", ".join(m for m, _, _ in models))
-    _plot(models, mode=mode, repo=args.repo, n_total=n_total, out_dir=args.out_dir)
+    _plot(
+        models,
+        mode=mode,
+        repo=args.repo,
+        harness=args.harness,
+        n_total=n_total,
+        out_dir=args.out_dir,
+    )
 
 
 if __name__ == "__main__":
