@@ -41,8 +41,9 @@ set -euo pipefail
 # Optional flags:
 #   --agent NAME           coding agent that runs the task: claude (Claude Code,
 #                          default) or pi (the pi coding agent). Same /swe2 task
-#                          either way. pi works only with --provider vllm/litellm
-#                          (an OpenAI-compatible endpoint); it has no Bedrock mode.
+#                          either way. Both support every --provider: an
+#                          OpenAI-compatible endpoint (vllm/litellm) or native
+#                          Amazon Bedrock.
 #   --count N              run only the first N tasks (0 = all, default)
 #   --tasks a,b,c          run only these task ids (comma-separated); scopes the
 #                          folder-clear and the judge to the same set. Useful to
@@ -148,10 +149,9 @@ case "$AGENT" in
     claude|pi) ;;
     *) die "invalid agent '$AGENT'. Must be one of: claude, pi." ;;
 esac
-# pi speaks only an OpenAI-compatible endpoint; it has no native Amazon Bedrock
-# mode, so it cannot run the --provider bedrock path.
-[[ "$AGENT" == "pi" && "$PROVIDER" == "bedrock" ]] && \
-    die "--agent pi cannot use --provider bedrock (pi has no native Bedrock mode). Use --provider vllm or litellm."
+# pi supports both an OpenAI-compatible endpoint (vllm/litellm) and native Amazon
+# Bedrock (it bundles the AWS SDK bedrock-runtime client), so no agent/provider
+# combination is rejected here.
 
 # Resolve the dataset path relative to benchmarks/ and confirm it exists.
 DATASET_PATH="$DATASET"

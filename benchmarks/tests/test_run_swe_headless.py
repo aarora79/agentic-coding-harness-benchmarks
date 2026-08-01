@@ -307,6 +307,47 @@ class BuildClaudeCmdTest(unittest.TestCase):
         self.assertNotIn("--add-dir", cmd)
 
 
+class BuildPiCmdTest(unittest.TestCase):
+    def test_vllm_endpoint_uses_vllm_provider_and_raw_model(self) -> None:
+        cmd = harness._build_pi_cmd(_config(agent="pi"), "prompt")
+        self.assertEqual(cmd[:5], ["pi", "-p", "--mode", "json", "--no-session"])
+        self.assertEqual(cmd[cmd.index("--provider") + 1], "vllm")
+        self.assertEqual(cmd[cmd.index("--model") + 1], "qwen3.6-35b")
+        self.assertIn("--skill", cmd)
+
+    def test_bedrock_uses_bedrock_provider_and_wire_id(self) -> None:
+        # pi + Bedrock: the native amazon-bedrock provider, and the model is the
+        # clean inference-profile id (prefix kept, harness "[1m]" hint stripped).
+        cmd = harness._build_pi_cmd(
+            _config(
+                agent="pi",
+                provider="bedrock",
+                aws_region="us-east-1",
+                endpoint=None,
+                model="us.anthropic.claude-opus-5[1m]",
+            ),
+            "prompt",
+        )
+        self.assertEqual(cmd[cmd.index("--provider") + 1], "amazon-bedrock")
+        self.assertEqual(cmd[cmd.index("--model") + 1], "us.anthropic.claude-opus-5")
+
+    def test_bedrock_env_pins_region_no_secrets(self) -> None:
+        from pathlib import Path
+
+        env = harness._build_pi_env(
+            _config(
+                agent="pi",
+                provider="bedrock",
+                aws_region="us-east-1",
+                endpoint=None,
+                model="us.anthropic.claude-opus-5",
+            ),
+            Path("/tmp/pi-agent"),
+        )
+        self.assertEqual(env["AWS_REGION"], "us-east-1")
+        self.assertEqual(env["PI_CODING_AGENT_DIR"], "/tmp/pi-agent")
+
+
 class BuildSettingsArgTest(unittest.TestCase):
     def test_inline_json_pins_routing_when_no_file(self) -> None:
         import json
