@@ -8,6 +8,12 @@
 > It is not meant for production use. Review and harden all scripts, configurations,
 > and IAM permissions before using in any production or sensitive environment.
 
+## Why this exists
+
+Enterprises are adopting coding agents and models at scale, and the bill grows with every developer and every task. The two big levers on that bill -- **which harness** drives the work and **which model** it drives -- are usually chosen on gut feel or on public leaderboards that may already be **saturated**: models can be tuned toward well-known public test sets, so a high headline number does not reliably predict performance on a team's actual, messy, long-horizon coding work.
+
+This repo measures the thing that actually matters instead: **harness x model, on real agentic software-engineering tasks against real repositories**, reporting all three axes a buyer trades off -- **cost, latency, and accuracy**. Crossing harnesses with models gives real **optionality**: the same model can be a few points more accurate under one agent yet several times cheaper and faster under another (see the [harness comparison](docs/harness-comparison.md)). With those numbers in hand, an organization can make an **informed, defensible decision** about the cost/latency/accuracy trade-off for its own workload -- and, very often, **lower its coding bill substantially** by picking a cheaper harness-and-model pairing that is more than good enough, rather than defaulting to the most expensive option. That is the deliverable: an evidence base for smart, budget-aware choices on work that looks like yours, not like a leaderboard.
+
 ## Overview
 
 This repository is a **benchmark and harness for measuring how well different LLMs perform real-world software-engineering tasks** when driven by a coding agent. It supports **two coding agents (harnesses)** today -- [Claude Code](https://docs.anthropic.com/en/docs/claude-code), Anthropic's command-line coding agent, and [pi](https://github.com/earendil-works/pi-coding-agent), a lightweight open-source agent -- with [opencode](https://opencode.ai) being added soon. Each is wired to run with a model hosted in any of **three different places**, so you can put many models through the *same* tasks with the *same* harness and compare them directly on both quality and cost. Pick the harness per run with `--agent claude` (default) or `--agent pi`; results are kept separate on disk (`<model>/<harness>/<repo>/<task>`) so the two agents never overwrite each other.
@@ -124,6 +130,18 @@ The single task score hides *how* a model earns it. The radar below breaks the j
 ![Radar charts of quality by rubric criterion and by artifact, for the models with per-artifact eval data](docs/images/quality-radar.png)
 
 The shape is as informative as the size: qwen3.6-35b leads on specificity and its review/testing artifacts; gemma-4-31b is strongest on risk-awareness; the coder-tuned qwen3-coder-30b trails on every axis and collapses on implementation. Every model dips hardest on **implementation** and **correctness** -- landing working code is the hard part. This view currently covers the models whose runs carry the per-artifact breakdown; the rest are being backfilled. Regenerate with `uv run scripts/plot_quality_radar.py` (add `--dark`) from `benchmarks/`.
+
+### Results by harness
+
+The same models can be driven by different coding agents (harnesses). Each harness has its own results document -- one running table of every model benchmarked under that agent, plus its cost-quality and quality-radar charts -- generated from the committed run-summaries by `gen_agent_report.py`. The cross-agent write-up compares them head to head.
+
+| Harness | Results doc | Status |
+|---|---|---|
+| Claude Code | [docs/harness-claude-code.md](docs/harness-claude-code.md) | 14 models |
+| pi | [docs/harness-pi.md](docs/harness-pi.md) | 3 models |
+| opencode | _coming_ ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) | not yet wired |
+| kiro-cli | _coming_ ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) | not yet wired |
+| _cross-agent comparison_ | [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi |
 
 ## The three hosting paths
 
@@ -288,7 +306,7 @@ Where to read more, by topic:
 | [docs/vision.md](docs/vision.md) | The north star: a cost-aware harness that routes each task (and each phase) to the right model on the frontier -- frontier / workhorse / budget -- switching automatically. |
 | [benchmarks/README.md](benchmarks/README.md) | The benchmark harness landing page: the three hosting paths, how a run works, and how to reproduce the results above. |
 | [benchmarks/docs/harness-reference.md](benchmarks/docs/harness-reference.md) | Full harness reference: config, the `/swe2` flow, context-window/auto-compaction, and the LLM-as-judge scoring. |
-| [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi on the same models and tasks: Claude Code is a few points more accurate, pi is far more token-efficient (and thus faster and, when self-hosting, much cheaper). Living doc, updated as more results land. |
+| [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi on the same models and tasks: Claude Code is a few points more accurate, pi is far more token-efficient (and thus faster and, when self-hosting, much cheaper). Living doc, updated as more results land. See the [per-harness results docs](#results-by-harness) for each agent's full table and charts. |
 | [benchmarks/docs/path-anthropic-on-bedrock.md](benchmarks/docs/path-anthropic-on-bedrock.md) | Path 1 setup: benchmarking the Anthropic family (Claude Opus/Sonnet/Haiku) directly on Amazon Bedrock. |
 | [benchmarks/docs/path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) | Path 2 setup: open-weight models on Amazon Bedrock through the LiteLLM proxy. |
 | [benchmarks/docs/path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) | Path 3 setup: self-hosting a model on vLLM and pointing the harness at it. |
