@@ -125,6 +125,18 @@ The single task score hides *how* a model earns it. The radar below breaks the j
 
 The shape is as informative as the size: qwen3.6-35b leads on specificity and its review/testing artifacts; gemma-4-31b is strongest on risk-awareness; the coder-tuned qwen3-coder-30b trails on every axis and collapses on implementation. Every model dips hardest on **implementation** and **correctness** -- landing working code is the hard part. This view currently covers the models whose runs carry the per-artifact breakdown; the rest are being backfilled. Regenerate with `uv run scripts/plot_quality_radar.py` (add `--dark`) from `benchmarks/`.
 
+### Results by harness
+
+The same models can be driven by different coding agents (harnesses). Each harness has its own results document -- one running table of every model benchmarked under that agent, plus its cost-quality and quality-radar charts -- generated from the committed run-summaries by `gen_agent_report.py`. The cross-agent write-up compares them head to head.
+
+| Harness | Results doc | Status |
+|---|---|---|
+| Claude Code | [docs/harness-claude-code.md](docs/harness-claude-code.md) | 14 models |
+| pi | [docs/harness-pi.md](docs/harness-pi.md) | 3 models |
+| opencode | _coming_ ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) | not yet wired |
+| kiro-cli | _coming_ ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) | not yet wired |
+| _cross-agent comparison_ | [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi |
+
 ## The three hosting paths
 
 Whichever path you choose, the agent (Claude Code), the tasks, the `/swe` skill, and the scoring are identical -- only *where the model runs and how the request reaches it* changes.
@@ -288,7 +300,7 @@ Where to read more, by topic:
 | [docs/vision.md](docs/vision.md) | The north star: a cost-aware harness that routes each task (and each phase) to the right model on the frontier -- frontier / workhorse / budget -- switching automatically. |
 | [benchmarks/README.md](benchmarks/README.md) | The benchmark harness landing page: the three hosting paths, how a run works, and how to reproduce the results above. |
 | [benchmarks/docs/harness-reference.md](benchmarks/docs/harness-reference.md) | Full harness reference: config, the `/swe2` flow, context-window/auto-compaction, and the LLM-as-judge scoring. |
-| [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi on the same models and tasks: Claude Code is a few points more accurate, pi is far more token-efficient (and thus faster and, when self-hosting, much cheaper). Living doc, updated as more results land. |
+| [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi on the same models and tasks: Claude Code is a few points more accurate, pi is far more token-efficient (and thus faster and, when self-hosting, much cheaper). Living doc, updated as more results land. See the [per-harness results docs](#results-by-harness) for each agent's full table and charts. |
 | [benchmarks/docs/path-anthropic-on-bedrock.md](benchmarks/docs/path-anthropic-on-bedrock.md) | Path 1 setup: benchmarking the Anthropic family (Claude Opus/Sonnet/Haiku) directly on Amazon Bedrock. |
 | [benchmarks/docs/path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) | Path 2 setup: open-weight models on Amazon Bedrock through the LiteLLM proxy. |
 | [benchmarks/docs/path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) | Path 3 setup: self-hosting a model on vLLM and pointing the harness at it. |
