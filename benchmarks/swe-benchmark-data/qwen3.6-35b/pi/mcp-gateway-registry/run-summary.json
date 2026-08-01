@@ -15,86 +15,91 @@
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-01T04:12:11.760732Z",
+    "evaluated_at": "2026-08-01T16:40:42.846898Z",
     "repo_ref": "1.24.4",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 188888,
-      "cached_input_tokens": 145523,
-      "cache_write_input_tokens": 43355,
-      "output_tokens": 1726,
-      "reasoning_output_tokens": 309
+      "input_tokens": 258811,
+      "cached_input_tokens": 201220,
+      "cache_write_input_tokens": 57579,
+      "output_tokens": 8029,
+      "reasoning_output_tokens": 4767
     },
-    "duration_ms": 175493
+    "duration_ms": 80304
   },
   "num_tasks": 5,
-  "num_scored": 5,
-  "num_failed": 0,
-  "failed_tasks": [],
-  "mean_task_score_excl_failed": 48.16,
+  "num_scored": 4,
+  "num_failed": 1,
+  "failed_tasks": [
+    "ssrf-hardening-outbound-url-validation"
+  ],
+  "mean_task_score_excl_failed": 47.15,
   "mean_cost_usd_excl_failed": null,
   "tasks": [
     {
-      "task": "ssrf-hardening-outbound-url-validation",
+      "task": "remove-faiss",
       "complexity": "medium",
       "artifacts_produced": 6,
       "artifacts_expected": 6,
-      "num_turns": 48,
-      "input_tokens": 172278,
-      "output_tokens": 1064,
-      "latency_seconds": 478.6,
+      "num_turns": 125,
+      "input_tokens": 166031,
+      "output_tokens": 257,
+      "latency_seconds": 616.5,
       "total_cost_usd": null,
-      "task_score": 57.2,
-      "cache_read_tokens": 5786880,
-      "cache_write_tokens": 235411,
-      "prefix_cache_hit_rate": 0.9609,
-      "generation_tokens_per_sec": 2.2,
+      "task_score": 56.0,
+      "cache_read_tokens": 13083312,
+      "cache_write_tokens": 195206,
+      "prefix_cache_hit_rate": 0.9853,
+      "generation_tokens_per_sec": 0.4,
       "kv_cache_usage": {
-        "peak": 0.0806,
-        "mean": 0.0538
+        "peak": 0.077,
+        "mean": 0.0476
       },
-      "agent_invocations": 1,
-      "topped_up_artifacts": [],
+      "agent_invocations": 2,
+      "topped_up_artifacts": [
+        "patch.diff",
+        "implementation.md"
+      ],
       "eval_scores": {
         "github_issue": {
-          "completeness": 21,
-          "correctness": 18,
-          "specificity": 22,
-          "risk_awareness": 21,
-          "total": 82,
-          "notes": "The issue provides unusually concrete acceptance criteria for address classes, DNS resolution, redirects, configuration, documentation, and compatibility. The repository confirms the central premise: `_is_safe_url()` exists in `registry/services/skill_service.py`, while `check_agent_health()` and `_check_single_service()` make unguarded outbound requests. Its largest weakness is calling the change backward compatible even though existing private-network registrations will become unhealthy unless operators first configure the new allowlist. No independent task statement establishes that an allowlist or ECS, Helm, and Terraform work is required, so those scope claims remain unverified."
+          "completeness": 17,
+          "correctness": 13,
+          "specificity": 20,
+          "risk_awareness": 14,
+          "total": 64,
+          "notes": "The issue provides concrete acceptance criteria and non-goals tied to real files such as pyproject.toml, registry/core/config.py, and registry/search/service.py. Its largest flaw is the contradiction between promising unchanged end-user behavior and allowing file-backend search to return no results. It also omits uv.lock even though docker/Dockerfile.registry installs dependencies with `uv sync --frozen`, and incorrectly implies FAISS itself requires torch. No independent task statement establishes the asserted equivalence or team deprecation decision."
         },
         "lld": {
-          "completeness": 15,
-          "correctness": 8,
-          "specificity": 18,
-          "risk_awareness": 14,
-          "total": 55,
-          "notes": "The design is grounded in real files and symbols, including `agent_routes.py::check_agent_health`, `health/service.py::_check_single_service`, and the existing skill guard. Its load-bearing redirect decision is unsound: checking `response.url` after `follow_redirects=True` cannot prevent the client from already requesting an internal redirect target, despite repeated claims of per-hop validation. The repository also shows an unmentioned unguarded agent HEAD fallback and explicit `mcp_endpoint` and `sse_endpoint` overrides in `get_endpoint_url_from_server_info()`, while the design validates only `proxy_pass_url`. Claimed HTTP 400 behavior conflicts with the existing endpoints and its own skip-and-return-unhealthy plan, and the asserted 1-5 ms DNS cost is unsupported."
+          "completeness": 17,
+          "correctness": 11,
+          "specificity": 20,
+          "risk_awareness": 15,
+          "total": 63,
+          "notes": "The LLD is unusually concrete about real integration points, including SearchRepositoryBase, get_search_repository(), route indexing calls, telemetry, and deployment scripts. It misses the load-bearing uv.lock update and proposes changing the existing metrics column without a real migration, despite migrations.py already having applied versions 1 through 5. Several details are wrong: the search endpoint is /api/search/semantic rather than /api/search, and the agent batch plan references an index_entity method absent from SearchRepositoryBase. Its rollout is only a phase list and does not address rolling telemetry compatibility, existing SQLite databases, or recovery from silent file-search removal."
         },
         "review": {
-          "completeness": 19,
-          "correctness": 11,
-          "specificity": 18,
-          "risk_awareness": 21,
-          "total": 69,
-          "notes": "The review's strongest contribution is identifying the real DNS rebinding, redirect, event-loop blocking, rollout, monitoring, and existing-private-registration risks. Its largest defect is then declaring the redirect blocker resolved by final-response validation, which does not stop the requests already followed by httpx and contradicts the security review's own required fix. It also discusses a `validate_url_before_request()` function absent from the LLD and incorrectly says the allowlist helper is uncached even though the revised design uses `@lru_cache`. The frontend helper and toast-handling claims were not verified, but the audit-only rollout and explicit migration recommendations remain useful."
+          "completeness": 16,
+          "correctness": 13,
+          "specificity": 19,
+          "risk_awareness": 17,
+          "total": 65,
+          "notes": "The review identifies real risks in direct faiss_service route calls, build_and_run.sh, and the metrics schema rename, with actionable recommendations. Its largest omission is uv.lock, despite the SRE review claiming the dependency and image-size problem will be solved while Docker uses that lock as its frozen source of truth. It also incorrectly treats rebuild_index as a required interface method and discusses scikit-learn while the cited normalization uses numpy.linalg.norm. The review never resolves the core contradiction between unchanged user behavior and silently disabling file-backend search."
         },
         "testing": {
-          "completeness": 14,
-          "correctness": 7,
-          "specificity": 13,
-          "risk_awareness": 11,
-          "total": 45,
-          "notes": "The plan covers unit, integration, compatibility, deployment, allowlist, and attack-simulation categories, including concrete private-address examples. Several commands do not match the repository: refresh is `/api/refresh/{service_path}`, not `/api/servers/refresh/{path}`, and the proposed toggle URL does not match either existing toggle API. Critical oracles are ambiguous (`400 or unhealthy`), public-domain unit tests depend on live DNS, and the redirect test merely invokes `_is_safe_url()` twice without exercising an HTTP redirect or proving the internal target was not contacted. It omits the agent HEAD fallback, explicit custom MCP/SSE endpoints, redirect side-effect assertions, and cache-reset handling for the allowlist test."
+          "completeness": 12,
+          "correctness": 6,
+          "specificity": 17,
+          "risk_awareness": 8,
+          "total": 43,
+          "notes": "The plan has concrete oracles for FileSearchRepository and source-level dependency removal. However, many principal commands target nonexistent APIs: search is POST /api/search/semantic, registration is POST /api/servers/register, removal is POST /api/servers/remove, and registry.main has no create_app symbol. The lifecycle test checks the pre-deletion LIST_RESP after deletion, while DocumentDB coverage merely greps an import and cannot detect behavioral regressions. It also omits uv.lock/frozen-image verification, SQLite upgrade testing, telemetry rolling compatibility, JSON validation, and assertions that indexing occurs exactly once."
         },
         "implementation": {
-          "completeness": 9,
-          "correctness": 5,
-          "specificity": 15,
+          "completeness": 15,
+          "correctness": 7,
+          "specificity": 17,
           "risk_awareness": 6,
-          "total": 35,
-          "notes": "The patch targets real source contexts and successfully centralizes the existing skill guard while adding a useful pre-check for the primary server `proxy_pass_url`. The agent protection is bypassed because blocked GET candidates still lead to the unvalidated `client.head(base_url)` fallback in `agent_routes.py`; additionally, its GET client does not enable redirects, making the new redirect check ineffective. Health checks follow redirects before validation, validate only four of the eight relevant request sites, and can request an explicit private `mcp_endpoint` or `sse_endpoint` after validating a different public proxy URL. The patch adds no tests, documentation, or deployment updates, and `_is_private_ip()` still permits `100.64.0.0/10` despite the issue explicitly requiring it to be blocked."
+          "total": 45,
+          "notes": "The patch targets real source and substantially implements the no-op file repository, factory switch, service deletion, and route migration through SearchRepositoryBase. The central dependency-removal goal remains incomplete because root uv.lock still contains faiss-cpu and docker/Dockerfile.registry runs `uv sync --frozen --no-dev`, contrary to the summary's claim that FAISS is gone from deployments. The visible patch also makes registry/servers/mcpgw.json invalid with a double comma, calls index_server twice in toggle_service_api, and renames an existing SQLite column only in CREATE statements and migration version 1 rather than adding an upgrade migration. The submitted diff was truncated and no standalone patch.diff was available for apply checking, so omitted-tail claims could not be verified; the summary additionally overstates removal of torch, which remains in pyproject.toml."
         }
       },
       "is_error": false,
@@ -105,62 +110,128 @@
       "complexity": "medium",
       "artifacts_produced": 6,
       "artifacts_expected": 6,
-      "num_turns": 28,
-      "input_tokens": 72861,
-      "output_tokens": 929,
-      "latency_seconds": 150.9,
+      "num_turns": 62,
+      "input_tokens": 129562,
+      "output_tokens": 594,
+      "latency_seconds": 330.0,
       "total_cost_usd": null,
-      "task_score": 48.0,
-      "cache_read_tokens": 1346928,
-      "cache_write_tokens": 77287,
-      "prefix_cache_hit_rate": 0.9457,
-      "generation_tokens_per_sec": 6.2,
+      "task_score": 53.2,
+      "cache_read_tokens": 5956896,
+      "cache_write_tokens": 145789,
+      "prefix_cache_hit_rate": 0.9761,
+      "generation_tokens_per_sec": 1.8,
       "kv_cache_usage": {
-        "peak": 0.0346,
-        "mean": 0.0239
+        "peak": 0.0608,
+        "mean": 0.043
       },
       "agent_invocations": 1,
       "topped_up_artifacts": [],
       "eval_scores": {
         "github_issue": {
-          "completeness": 18,
-          "correctness": 12,
-          "specificity": 17,
-          "risk_awareness": 14,
-          "total": 61,
-          "notes": "The issue clearly identifies the intended resource, variable, output, and ECS mount removals, with concrete acceptance criteria and non-goals. Its largest deficiency is treating EFS as unused before resolving runtime dependencies or the destructive transition. Repository evidence contradicts that certainty: `ecs-services.tf` mounts EFS and sets `SCOPES_CONFIG_PATH` under `/efs`, while `scripts/run-scopes-init-task.sh` initializes scopes directly on EFS. No independent task statement establishes the S3/DocumentDB-only premise, and the issue does not define the expected destroy set, backup decision, or handling of dependent deployment scripts."
+          "completeness": 15,
+          "correctness": 13,
+          "specificity": 20,
+          "risk_awareness": 8,
+          "total": 56,
+          "notes": "The issue precisely inventories the EFS module, task volumes, variables, and outputs that exist in terraform/aws-ecs. Its largest omission is the operational surface: scripts/post-deployment-setup.sh requires mcp_gateway_efs_id and run-scopes-init-task.sh constructs an EFS-backed task, so removing outputs breaks repository workflows. The claim that all persistence is S3 or DocumentDB is too broad because variables.tf explicitly supports storage_backend=file and external MongoDB modes, while the proposed auth change also leaves SCOPES_CONFIG_PATH unresolved. No independent task statement was supplied, and the linked external issue and assertion that existing EFS data needs no migration could not be verified."
         },
         "lld": {
-          "completeness": 10,
-          "correctness": 8,
-          "specificity": 13,
-          "risk_awareness": 10,
-          "total": 41,
-          "notes": "The LLD is strongest where it names real Terraform files, resources, outputs, variables, and exact auth-service edits that match the repository. Its central analysis is incomplete and incorrect: it says only auth still uses EFS, although `module.ecs_service_mcpgw` mounts `mcpgw-data`, and it omits EFS-dependent scripts under `terraform/aws-ecs/scripts`. The acknowledged `SCOPES_CONFIG_PATH` problem is left as an open question even though `run-scopes-init-task.sh` consumes the removed outputs and writes the referenced scopes file. The absent independent task statement leaves the no-runtime-use premise unverifiable, while the rollout provides no pre-destroy validation, backup, rollback, or compatibility plan."
+          "completeness": 14,
+          "correctness": 10,
+          "specificity": 19,
+          "risk_awareness": 12,
+          "total": 55,
+          "notes": "The LLD names real files and accurately traces module.efs references through ecs-services.tf and both output layers. Its critical error is changing the auth container path to /app/auth_server/scopes.yml: docker/Dockerfile.auth copies auth_server/ directly into /app/, placing the file at /app/scopes.yml, whereas the cited /app/auth_server layout belongs to Dockerfile.registry. It also omits the EFS-dependent post-deployment and scopes-init scripts, including the former's mandatory mcp_gateway_efs_id validation. The rollout acknowledges destruction but provides no data-preserving rollback, and the assertion that MCPGW re-synchronizes all state from DocumentDB was not established by repository evidence."
         },
         "review": {
           "completeness": 14,
-          "correctness": 9,
+          "correctness": 11,
           "specificity": 18,
-          "risk_awareness": 16,
-          "total": 57,
-          "notes": "The review provides concrete analysis of state destruction, removed outputs, IAM, security groups, health checks, and the stale scopes path. Its largest defect is approving the design while missing both the malformed implementation hunk and direct repository consumers of the removed EFS outputs. `post-deployment-setup.sh` requires `mcp_gateway_efs_id`, and `run-scopes-init-task.sh` constructs an ECS `efsVolumeConfiguration`, contradicting the review's claim that no dangling references remain. External downstream consumers cannot be verified, but the review usefully identifies that compatibility risk and the irreversible data-loss consequence of applying the destroy plan."
+          "risk_awareness": 15,
+          "total": 58,
+          "notes": "The review identifies the important dangling SCOPES_CONFIG_PATH, destructive state transition, and ephemeral MCPGW storage risks with actionable recommendations. However, it marks the scopes issue resolved using an incorrect Dockerfile claim; docker/Dockerfile.auth produces /app/scopes.yml, not /app/auth_server/scopes.yml. It also misses the known breakage in scripts/post-deployment-setup.sh and run-scopes-init-task.sh and incorrectly treats rollback after EFS destruction as an implicit revert-and-apply operation. The statement that MCPGW re-synchronizes its state from DocumentDB remains unsupported, although repository searches found no direct /app/data use in servers/mcpgw."
         },
         "testing": {
-          "completeness": 10,
-          "correctness": 7,
+          "completeness": 13,
+          "correctness": 6,
           "specificity": 17,
           "risk_awareness": 9,
-          "total": 43,
-          "notes": "The plan's strongest aspect is its concrete validation and grep oracles for removed Terraform symbols, outputs, volumes, and files. Its main `terraform plan` command is not valid for the root module: flags such as `vpc_id`, `private_subnet_ids`, `ecs_cluster_arn`, `domain_name`, and `alb_logs_bucket` are declared only by the child module, not `terraform/aws-ecs/variables.tf`. The fresh-state expectation of zero additions is also incompatible with a root stack that provisions infrastructure, and the hard-coded temporary checkout path is not repository-portable. The plan scans mostly `*.tf`, so it misses the broken EFS-dependent shell scripts, the stale runtime scopes path, staged deployment behavior, and an exact state-destruction oracle."
+          "total": 45,
+          "notes": "The plan provides concrete static checks for removed resources, outputs, variables, volumes, and the scopes path. Its principal plan oracle is invalid: a fresh checkout initialized with -backend=false has no deployed state from which to show only EFS deletions, and several sections cd into terraform/aws-ecs before using paths prefixed with terraform/aws-ecs again. The expected /app/auth_server/scopes.yml value tests the implementation's incorrect auth-image path, while no test exercises storage_backend=file or the now-broken post-deployment script. It also omits the repository workflow's terraform fmt, TFLint, and security checks, and the claimed AWS plan output was not executed or otherwise verifiable."
         },
         "implementation": {
-          "completeness": 10,
+          "completeness": 13,
+          "correctness": 10,
+          "specificity": 20,
+          "risk_awareness": 9,
+          "total": 52,
+          "notes": "The patch contexts and symbols match the repository and it removes the core EFS module, Terraform references, task volumes, variables, and outputs consistently. The auth change is functionally wrong for storage_backend=file because docker/Dockerfile.auth places scopes.yml at /app/scopes.yml, and scopes_loader returns an empty configuration when the submitted /app/auth_server/scopes.yml path is absent. The patch also leaves scripts/post-deployment-setup.sh requiring the deleted mcp_gateway_efs_id output and leaves run-scopes-init-task.sh entirely dependent on the removed EFS resources. The summary warns about destruction and downstream output consumers but incorrectly claims full implementation with no deviations; no verification was executed."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "replace-keycloak-db-password-with-rds-iam",
+      "complexity": "high",
+      "artifacts_produced": 5,
+      "artifacts_expected": 6,
+      "num_turns": 56,
+      "input_tokens": 159566,
+      "output_tokens": 280,
+      "latency_seconds": 487.5,
+      "total_cost_usd": null,
+      "task_score": 44.8,
+      "cache_read_tokens": 6320688,
+      "cache_write_tokens": 173548,
+      "prefix_cache_hit_rate": 0.9733,
+      "generation_tokens_per_sec": 0.6,
+      "kv_cache_usage": {
+        "peak": 0.0741,
+        "mean": 0.0514
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 16,
+          "correctness": 12,
+          "specificity": 19,
+          "risk_awareness": 13,
+          "total": 60,
+          "notes": "The issue provides clear motivation, explicit exclusions, a fallback flag, and mostly testable acceptance criteria. Repository evidence confirms the existing aws_rds_cluster master_password, Secrets Manager credential, ECS secret mappings, and password-backed RDS proxy. Its largest deficiency is omitting IAM database-user provisioning and token-refresh requirements while contradicting itself about removing versus retaining the password secret and rotation flow. No independent task statement was supplied, and the claim that the password appears in CloudWatch logs could not be verified from the repository."
+        },
+        "lld": {
+          "completeness": 13,
+          "correctness": 3,
+          "specificity": 17,
+          "risk_awareness": 9,
+          "total": 42,
+          "notes": "The LLD names real files and resources such as terraform/aws-ecs/keycloak-database.tf, keycloak-ecs.tf, the RDS proxy, SSM parameter, and rotation Lambda. Its core design is infeasible: Fargate does not inject AWS CLI into arbitrary images, the repository defaults to quay.io/keycloak/keycloak:25.0, and docker/keycloak/Dockerfile neither contains nor copies the proposed wrapper. It also uses the cluster identifier instead of the cluster resource ID in the dbuser ARN, never provisions a MySQL user with AWSAuthenticationPlugin, and relies on unsupported Cloud-IAM JDBC claims. Although it discusses proxy bypass, rollout, token expiry, and rotation, the final wrapper uses exec so its restart loop cannot execute and the rotation decision remains an unresolved choice."
+        },
+        "review": {
+          "completeness": 12,
+          "correctness": 9,
+          "specificity": 17,
+          "risk_awareness": 15,
+          "total": 53,
+          "notes": "The review concretely identifies the conditional ECS secrets issue, conflicting KC_DB_URL sources, proxy bypass, rotation behavior, and weak token-lifecycle handling. It misses the more fundamental failures: the wrong AWS CLI command namespace, absent image packaging, invalid dbuser ARN resource component, missing database-user plugin setup, unconditional wrapper entrypoint, and unreachable loop after exec. Its assertion that token expiry disconnects existing connections is inaccurate because the token is checked when establishing a connection, and its claim that Fargate supplies AWS CLI is contradicted by the stock image configuration. The final declaration that all blockers are resolved is therefore not defensible despite several useful intermediate findings."
+        },
+        "testing": {
+          "completeness": 15,
           "correctness": 4,
-          "specificity": 14,
-          "risk_awareness": 10,
-          "total": 38,
-          "notes": "The patch targets real files and removes the core EFS module, variables, outputs, and auth/mcpgw volume definitions; its hunk contexts match the submitted source. However, it also deletes `service = {` from the auth `load_balancer` object while retaining both closing braces, leaving `ecs-services.tf` structurally invalid and preventing Terraform validation. It removes outputs still required by `post-deployment-setup.sh` and `run-scopes-init-task.sh`, while retaining `SCOPES_CONFIG_PATH = \"/efs/auth_config/auth_config/scopes.yml\"`, so deployment and runtime integration are incomplete. The summary acknowledges state destruction and the stale path but incorrectly calls the latter a separate follow-up and claims no LLD deviations despite adding the mcpgw removal omitted from the LLD's implementation steps."
+          "specificity": 15,
+          "risk_awareness": 11,
+          "total": 45,
+          "notes": "The plan spans Terraform planning, IAM and RDS inspection, database connectivity, fallback deployment, negative cases, and end-to-end health checks with concrete expected results. Several commands and oracles are invalid: the CLI command is aws rds generate-db-auth-token rather than aws rds-db, inline policies are not returned by list-attached-role-policies, and terraform plan -detailed-exit-code uses 2 rather than 1 for changes. It also incorrectly describes the token as a JWT, expects IAM-auth toggling to recreate Aurora, and constructs an ECS health URL from task data that describe-services does not return. The plan does not verify wrapper inclusion or AWS CLI availability, database-user IAM configuration, the cluster resource ID ARN, or new connections after token expiry, while its permission-denied preflight cannot work because token generation itself does not call rds-db:connect."
+        },
+        "implementation": {
+          "completeness": 6,
+          "correctness": 3,
+          "specificity": 12,
+          "risk_awareness": 3,
+          "total": 24,
+          "notes": "The Terraform diff contexts and symbols match the real keycloak database, ECS, variable, output, and example files, and some conditional secret wiring is structurally appropriate. However, the default image is the official Keycloak image and docker/keycloak/Dockerfile does not copy docker/keycloak-wrapper.sh, so the configured entrypoint cannot find the script; the script also invokes the nonexistent aws rds-db command. The IAM policy uses cluster_identifier where the dbuser ARN requires the cluster resource ID, no database user is configured for AWSAuthenticationPlugin, and exec replaces the shell before its restart loop can run. The entrypoint is unconditional and therefore breaks password fallback when IAM policy creation is disabled, while the promised rotation changes, executable image integration, tests, and implementation summary are absent."
         }
       },
       "is_error": false,
@@ -169,122 +240,56 @@
     {
       "task": "migrate-ecs-env-vars-to-secrets-manager",
       "complexity": "high",
-      "artifacts_produced": 6,
-      "artifacts_expected": 6,
-      "num_turns": 53,
-      "input_tokens": 126709,
-      "output_tokens": 837,
-      "latency_seconds": 371.3,
-      "total_cost_usd": null,
-      "task_score": 47.8,
-      "cache_read_tokens": 4296864,
-      "cache_write_tokens": 138289,
-      "prefix_cache_hit_rate": 0.9688,
-      "generation_tokens_per_sec": 2.3,
-      "kv_cache_usage": {
-        "peak": 0.0596,
-        "mean": 0.037
-      },
-      "agent_invocations": 1,
-      "topped_up_artifacts": [],
-      "eval_scores": {
-        "github_issue": {
-          "completeness": 15,
-          "correctness": 8,
-          "specificity": 12,
-          "risk_awareness": 13,
-          "total": 48,
-          "notes": "The issue identifies ECS, Secrets Manager, IAM, KMS, documentation, and explicit non-goals. Its largest defect is requiring plaintext fallbacks while claiming secrets will leave Terraform state and task definitions; Terraform-managed values and fallbacks remain exposed there. Criteria such as \"all sensitive env vars identified\" and \"backwards compatibility maintained\" lack enumerated variables or observable behavior, while injected ECS secrets cannot rotate in running tasks without replacement. No independent task statement was supplied, and issue #1134 could not be verified."
-        },
-        "lld": {
-          "completeness": 14,
-          "correctness": 6,
-          "specificity": 17,
-          "risk_awareness": 10,
-          "total": 47,
-          "notes": "The LLD names concrete Terraform files, resources, ECS services, IAM integration, variables, and rollout phases. Its external-ARN design is inconsistent: it says managed resources are omitted when an ARN is supplied, but its resource and ECS examples neither condition creation on `_secret_arn` nor select that external ARN. Duplicate plaintext and secret entries are not a fallback when ECS secret resolution prevents task startup, and the claimed plaintext-only default conflicts with unconditional secret creation. Grafana is omitted from the main implementation tables, while external-key IAM, fallback retirement, documentation, and task replacement for rotation remain unresolved."
-        },
-        "review": {
-          "completeness": 17,
-          "correctness": 13,
-          "specificity": 18,
-          "risk_awareness": 19,
-          "total": 67,
-          "notes": "The strongest finding is that retaining plaintext defeats the security objective, supplemented by concrete concerns about KMS policy breadth, rotation, cross-account access, and Grafana. It prioritizes resolutions and names real design elements such as `auth0_management_api_token_secret_arn`, `ignore_changes`, and `SecretClassification`. However, it endorses the alleged zero-downtime fallback and misses that external-ARN mode lacks resource-selection and IAM behavior, the design's load-bearing defect. Its ARN regex excludes noncommercial AWS partitions and barely validates the ARN, while claims about `observability.tf` and the exact KMS condition could not be independently verified."
-        },
-        "testing": {
-          "completeness": 14,
-          "correctness": 7,
-          "specificity": 17,
-          "risk_awareness": 8,
-          "total": 46,
-          "notes": "The plan covers validation, planning, IAM, task definitions, compatibility, deployment, and AWS checks with concrete commands. Root validation is run from the wrong directory because `cd ../../..` from `terraform/aws-ecs/modules/mcp-gateway` lands in `terraform`, and many grep checks only prove a name exists somewhere rather than in the intended service. No test uses different plaintext and external-secret values and asserts the external ARN is selected, so the implementation's central precedence defect escapes targeted coverage; ECS Exec also prints a secret without proving its source. IAM denial, KMS failure, optional empty values, rollback, and rotation behavior lack meaningful tests."
-        },
-        "implementation": {
-          "completeness": 9,
-          "correctness": 3,
-          "specificity": 14,
-          "risk_awareness": 5,
-          "total": 31,
-          "notes": "The patch attempts the expected six-file Terraform path, adding resources, task secrets, IAM references, variables, and root pass-throughs. It is not valid Terraform: both ECS `concat` calls pass standalone objects, the IAM `concat` passes standalone strings, and uncounted resources such as `registry_api_token` are referenced with `[0]`. External ARN variables are never selected by ECS or IAM and merely cause the still-created managed secret version to receive an empty string, so the advertised external-management mode is broken. The summary miscounts entries and omits documentation, while repository command execution failed during sandbox initialization, preventing an independent `git apply --check`."
-        }
-      },
-      "is_error": false,
-      "failed": false
-    },
-    {
-      "task": "remove-faiss",
-      "complexity": "medium",
       "artifacts_produced": 4,
       "artifacts_expected": 6,
-      "num_turns": 87,
-      "input_tokens": 193735,
-      "output_tokens": 2235,
-      "latency_seconds": 768.2,
+      "num_turns": 6,
+      "input_tokens": 60337,
+      "output_tokens": 16000,
+      "latency_seconds": 151.1,
       "total_cost_usd": null,
-      "task_score": 46.8,
-      "cache_read_tokens": 11167728,
-      "cache_write_tokens": 302234,
-      "prefix_cache_hit_rate": 0.9736,
-      "generation_tokens_per_sec": 2.9,
+      "task_score": 34.6,
+      "cache_read_tokens": 165792,
+      "cache_write_tokens": 59822,
+      "prefix_cache_hit_rate": 0.7348,
+      "generation_tokens_per_sec": 105.9,
       "kv_cache_usage": {
-        "peak": 0.0908,
-        "mean": 0.0604
+        "peak": 0.0358,
+        "mean": 0.0285
       },
       "agent_invocations": 2,
       "topped_up_artifacts": [],
       "eval_scores": {
         "github_issue": {
-          "completeness": 18,
-          "correctness": 14,
-          "specificity": 19,
-          "risk_awareness": 10,
-          "total": 61,
-          "notes": "The issue provides a concrete removal checklist covering source, dependencies, configuration, tests, containers, and documentation. Repository evidence supports core references such as `pyproject.toml`, `registry/core/config.py`, the root `Dockerfile`, and the compose files, although the Docker and compose impact is mostly dependency resolution and comments rather than native build steps or services. Its largest deficiency is the unresolved contradiction between preserving search behavior and removing the only search implementation for `storage_backend=file`; it provides no migration or defined degraded behavior. No independent task statement establishes whether breaking file-backed search is acceptable."
-        },
-        "lld": {
-          "completeness": 17,
-          "correctness": 8,
-          "specificity": 18,
-          "risk_awareness": 13,
-          "total": 56,
-          "notes": "The LLD is well grounded in real integration points including `get_search_repository()`, the lifespan indexing block in `registry/main.py`, and `FaissSearchRepository`. Its dependency decision is materially incorrect: `DocumentDBSearchRepository._get_embedding_model()` still uses `create_embeddings_client()`, while the configured default is `sentence-transformers`, so removing `sentence-transformers`, Torch, and Hugging Face support breaks the default vector-search path. Replacing functional file search with silent empty results also contradicts the issue's unchanged-search criterion and is incorrectly characterized as backward compatible. The design notices this compatibility risk and adds a warning, but its keyword, startup-error, and no-op alternatives shift during the document, and claimed image-size savings were not substantiated."
-        },
-        "review": {
-          "completeness": 17,
-          "correctness": 11,
-          "specificity": 18,
-          "risk_awareness": 16,
-          "total": 62,
-          "notes": "The review catches a real collection failure: `tests/integration/test_search_integration.py` imports the proposed-to-be-deleted `FaissService` before its module-level skip takes effect. It also correctly identifies the FAISS mocks in `tests/conftest.py`, stale compose comments, lockfile work, and the confusing UX of silent empty results. Its largest failure is endorsing the false claim that sentence-transformers and related dependencies are FAISS-only despite their direct use by the DocumentDB embedding path, while also calling disabled file search backward compatible. Estimates of 1-2 GB savings and the claim that the LLD inventories 80-plus files were not demonstrated by repository evidence."
-        },
-        "testing": {
-          "completeness": 17,
-          "correctness": 9,
+          "completeness": 16,
+          "correctness": 7,
           "specificity": 18,
           "risk_awareness": 11,
-          "total": 55,
-          "notes": "The plan supplies concrete response-shape oracles, static dependency checks, compose validation, lifecycle coverage, and separate file and MongoDB scenarios. Several commands disagree with the repository: `pyproject.toml` requires Python 3.14 rather than 3.11, and the Docker command targets `docker/Dockerfile.registry` while the repository and LLD use the root `Dockerfile`. The unauthenticated curl workflows omit setup for protected API dependencies, background servers have no readiness or cleanup handling, and there is no focused unit test for the new factory selection or no-op repository. The proposed empty-result assertion validates the LLD's behavioral regression rather than the issue's unchanged-search promise, and live DocumentDB behavior could not be verified from the supplied evidence."
+          "total": 52,
+          "notes": "The issue names real files and existing resources, and its acceptance criteria cover ECS injection, IAM, Grafana, rotation, and migration scope. Its central security claim is incorrect: values assigned to aws_secretsmanager_secret_version.secret_string remain in Terraform state, while retaining non-empty plaintext environment entries leaves values in ECS task definitions. The claimed cross-account support is contradicted by secrets.tf, whose KMS policy restricts PrincipalAccount and PrincipalArn to the current account, and the repository has no corresponding secret resource policy. No independent task statement establishes the rotation or cross-account requirements, and automatic rotation currently covers DocumentDB and Keycloak database credentials, not secret_key."
+        },
+        "lld": {
+          "completeness": 12,
+          "correctness": 5,
+          "specificity": 16,
+          "risk_awareness": 9,
+          "total": 42,
+          "notes": "The LLD is concrete about the real secrets.tf, ecs-services.tf, observability.tf, iam.tf, existing variables, and ECS module version. Its design unconditionally creates and injects secrets backed by optional variables that default to empty, while incorrectly claiming Terraform will reject them at plan time; this can instead fail during apply or task startup and makes the proposed plaintext path ineffective as a fallback. Repository mappings are also wrong: GF_SECURITY_ADMIN_PASSWORD exists in both grafana and grafana-config but only the sidecar is migrated, while registry tokens exist in auth-server and several registration and GitHub values do not. The document alternates between 13 and 14 secrets, retains values in Terraform state, and incorrectly proposes secret ARNs as resources for kms:Decrypt rather than the existing KMS key ARN."
+        },
+        "review": {
+          "completeness": 11,
+          "correctness": 8,
+          "specificity": 16,
+          "risk_awareness": 14,
+          "total": 49,
+          "notes": "The review identifies the real plaintext MongoDB fallback in ecs-services.tf and the wildcard task-exec principal condition in secrets.tf, and it discusses concrete rotation consequences. It misses the more fundamental state-retention, unconditional empty-secret, duplicate environment/secrets-name, incorrect KMS resource, and unhandled main Grafana container problems. Its resolution summary claims local.new_secrets_arns was added, but the submitted LLD contains no such definition and still inconsistently specifies 13 versus 14 resources. The approval verdict is therefore not defensible even though several individual security observations are useful."
+        },
+        "testing": {
+          "completeness": 8,
+          "correctness": 4,
+          "specificity": 13,
+          "risk_awareness": 5,
+          "total": 30,
+          "notes": "The plan includes useful terraform validate commands and checks the correct Terraform files and several real environment names. Most plan commands target a hard-coded path not present here and run the child module without supplying required inputs; pipelines also lack pipefail, so Terraform failures can masquerade as empty successful results. Resource-count checks are internally contradictory, and patterns such as aws_secretsmanager_secret_version.${secret} do not match Terraform resource declarations, while broad grep counts do not prove block placement or conditional behavior. It omits executable coverage for empty optional values, runtime secret retrieval, duplicate-name precedence, rotation, cross-account access, and the issue's backward-compatibility promises."
         },
         "implementation": {
           "completeness": 0,
@@ -292,77 +297,77 @@
           "specificity": 0,
           "risk_awareness": 0,
           "total": 0,
-          "notes": "The implementation artifact is empty, with no unified diff or implementation summary submitted. No target context, symbol changes, dependency updates, or tests can therefore be checked against the real source. The requested FAISS removal is not implemented by this artifact. Consistency with the LLD and any implementation deviations cannot be assessed."
+          "notes": "No implementation was submitted; the implementation artifact is empty and no patch.diff is present. Consequently there is no code change to apply or compare with the real Terraform sources. All implementation criteria are therefore zero."
         }
       },
       "is_error": true,
       "failed": false
     },
     {
-      "task": "replace-keycloak-db-password-with-rds-iam",
-      "complexity": "high",
-      "artifacts_produced": 6,
+      "task": "ssrf-hardening-outbound-url-validation",
+      "complexity": "medium",
+      "artifacts_produced": 3,
       "artifacts_expected": 6,
-      "num_turns": 46,
-      "input_tokens": 161673,
-      "output_tokens": 890,
-      "latency_seconds": 494.9,
+      "num_turns": 20,
+      "input_tokens": 94151,
+      "output_tokens": 626,
+      "latency_seconds": 180.1,
       "total_cost_usd": null,
-      "task_score": 41.0,
-      "cache_read_tokens": 5379792,
-      "cache_write_tokens": 221348,
-      "prefix_cache_hit_rate": 0.9605,
-      "generation_tokens_per_sec": 1.8,
+      "task_score": 0.0,
+      "cache_read_tokens": 1180608,
+      "cache_write_tokens": 98478,
+      "prefix_cache_hit_rate": 0.923,
+      "generation_tokens_per_sec": 3.5,
       "kv_cache_usage": {
-        "peak": 0.0753,
-        "mean": 0.0533
+        "peak": 0.0443,
+        "mean": 0.0326
       },
       "agent_invocations": 1,
       "topped_up_artifacts": [],
       "eval_scores": {
         "github_issue": {
-          "completeness": 14,
-          "correctness": 9,
-          "specificity": 17,
-          "risk_awareness": 12,
-          "total": 52,
-          "notes": "The issue correctly identifies real repository components: `aws_rds_cluster.keycloak`, the RDS proxy, and the `KC_DB_USERNAME`/`KC_DB_PASSWORD` secret mappings all exist. Its acceptance criteria and exclusions are concrete, but password fallback conflicts with removing the password input, while the no-`KC_DB_PASSWORD` criterion conflicts with the proposed token-as-password implementation. It omits token renewal, container tooling, database-user configuration, and incorrectly describes `rds:GenerateDBAuthToken` as an IAM-authorized API. No independent task statement was supplied, so requirements such as default-enabled rollout and no version change cannot be independently verified."
+          "completeness": 0,
+          "correctness": 0,
+          "specificity": 0,
+          "risk_awareness": 0,
+          "total": 0,
+          "notes": "Artifact not produced by the candidate run."
         },
         "lld": {
-          "completeness": 13,
-          "correctness": 3,
-          "specificity": 17,
-          "risk_awareness": 9,
-          "total": 42,
-          "notes": "The LLD names real files and accurately records existing values such as proxy `iam_auth = \"DISABLED\"`, cluster password authentication, and the ECS secret mappings. Its central claim that AWS CLI is automatically available in Fargate containers is false: the repository's Keycloak image does not install it, and `keycloak_image_uri` defaults to the official public image rather than the modified Dockerfile. It also removes `keycloak_database_password` while the secret version still references it, uses a cluster identifier instead of the required RDS resource ID in the `rds-db:connect` ARN, and never refreshes the startup token after its 15-minute validity. The rollout and fallback discussion shows some risk consideration, but it misses these fatal build, validation, and long-running connection failures."
+          "completeness": 0,
+          "correctness": 0,
+          "specificity": 0,
+          "risk_awareness": 0,
+          "total": 0,
+          "notes": "Artifact not produced by the candidate run."
         },
         "review": {
-          "completeness": 14,
-          "correctness": 8,
-          "specificity": 16,
-          "risk_awareness": 13,
-          "total": 51,
-          "notes": "The review finds concrete defects in the earlier JDBC-parameter approach and usefully raises TLS, policy scope, deployment ordering, and variable compatibility. However, it endorses a one-time entrypoint token while simultaneously claiming the JDBC driver will refresh credentials, which is not true when Keycloak receives a fixed `KC_DB_PASSWORD`. Its proposed ARN correction still uses a cluster name rather than the resource ID and ignores that clients connecting through the proxy require the proxy resource in the authorization ARN. It also misses the absent AWS CLI, official-image default, invalid remaining Terraform variable reference, and Docker build-context mismatch."
+          "completeness": 0,
+          "correctness": 0,
+          "specificity": 0,
+          "risk_awareness": 0,
+          "total": 0,
+          "notes": "Artifact not produced by the candidate run."
         },
         "testing": {
-          "completeness": 11,
-          "correctness": 4,
-          "specificity": 14,
-          "risk_awareness": 8,
-          "total": 37,
-          "notes": "The plan spans Terraform, shell, fallback, deployment, and end-to-end checks with several concrete expected values. Major assertions contradict the implementation: the feature flag has a default yet the plan expects omission to fail, the IAM policy is unconditional yet the disabled case expects it absent, and Terraform cannot create a source file during planning. The token test expects a JWT/base64-like character set even though an RDS auth token is a signed URL-style value, while the fallback test only greps the script and never executes its branch. It does not test opening a new database connection after 15 minutes, and its proxy query, ECS `ACTIVE` check, and grep snippets provide weak or incorrect oracles."
+          "completeness": 0,
+          "correctness": 0,
+          "specificity": 0,
+          "risk_awareness": 0,
+          "total": 0,
+          "notes": "Artifact not produced by the candidate run."
         },
         "implementation": {
-          "completeness": 6,
-          "correctness": 1,
-          "specificity": 13,
-          "risk_awareness": 3,
-          "total": 23,
-          "notes": "The patch targets existing resources and its context matches the repository's Keycloak Terraform and Docker files. Terraform is immediately invalid because it deletes the `keycloak_database_password` declaration while `aws_secretsmanager_secret_version.keycloak_db_secret` still references that variable, and new clusters also lose their required master-password source. The image cannot build under the repository's `docker/keycloak` build context because the new `COPY docker/keycloak/docker-entrypoint-iam.sh` source is outside that context; additionally, the default ECS image lacks both the wrapper and AWS CLI. Even after those defects, the policy uses the wrong RDS resource identifier, the script hard-codes the username, and its single startup token cannot authenticate replacement connections after expiration, so the summary's claim of exact implementation is materially false."
+          "completeness": 0,
+          "correctness": 0,
+          "specificity": 0,
+          "risk_awareness": 0,
+          "total": 0,
+          "notes": "Artifact not produced by the candidate run."
         }
       },
       "is_error": false,
-      "failed": false
+      "failed": true
     }
   ],
   "run_date": "2026-08-01"
