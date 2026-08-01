@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import tempfile
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -130,6 +131,39 @@ class BuildPromptTest(unittest.TestCase):
         self.assertTrue(prompt.startswith("/swe2 "))
         # The absolute artifacts dir is passed through verbatim as a drift guard.
         self.assertIn("/tmp/art", prompt)
+
+    def test_topup_prompt_asks_only_for_missing_and_keeps_existing(self) -> None:
+        prompt = harness._build_prompt(
+            _task(),
+            Path("/tmp/x/mcp-gateway-registry"),
+            "1.24.4",
+            "m",
+            Path("/tmp/art"),
+            topup_missing=["patch.diff", "implementation.md"],
+        )
+        # A top-up is a completion pass, not a restart: it names the missing files
+        # and tells the agent to keep the ones already on disk.
+        self.assertIn("COMPLETION PASS", prompt)
+        self.assertIn("patch.diff", prompt)
+        self.assertIn("implementation.md", prompt)
+        self.assertIn("do not modify or rewrite", prompt.lower())
+        # The design docs are named as already-finished, not requested.
+        self.assertIn("github-issue.md", prompt)
+
+
+class MissingArtifactsTest(unittest.TestCase):
+    def test_lists_only_absent_files(self) -> None:
+        # Absolute output_dir: Path("/repo/benchmarks") / "/abs/tmp" == "/abs/tmp",
+        # so _artifact_dir lands under the tmp tree regardless of the repo root.
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = _config(output_dir=tmp, model="m")
+            art = harness._artifact_dir(cfg, _task())
+            art.mkdir(parents=True)
+            # Design done, implementation missing (the common pi truncation).
+            for f in harness.DESIGN_ARTIFACT_FILENAMES:
+                (art / f).write_text("x", encoding="utf-8")
+            missing = harness._missing_artifacts(cfg, _task())
+            self.assertEqual(missing, ["patch.diff", "implementation.md"])
 
 
 class ArtifactFilenamesTest(unittest.TestCase):

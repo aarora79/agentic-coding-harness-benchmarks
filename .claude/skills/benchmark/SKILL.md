@@ -34,7 +34,7 @@ Optional fourth input:
 2. **Bring up / confirm the backing service** for the chosen path. For **vllm**: check the HF token, then (re)start the vLLM server on the requested model -- stopping any other model first -- using the model guide's serve command at its largest context window; **check the served window against the 200K recommended floor** (>=200K proceed; somewhat below, e.g. 128K, warn and confirm; a tiny ~16K window is not benchmarkable and stops the run); then start the DuckDB collector. For litellm/bedrock: confirm the proxy/credentials.
 3. **Dry-run the pre-flight** so the user sees what will happen before anything runs.
 4. **Run the orchestrator**, streaming its output, and tell the user what to tail.
-5. **Wrap up and report**: (vllm) stop the collector and archive its DuckDB snapshot tagged with model/scope/timestamp; run `summarize_run.py` to write `RUN-SUMMARY.json` (machine-readable, for charting) and `RUN-SUMMARY.md` into the run's `{model-slug}/{scope}/` folder; then report where the results landed.
+5. **Wrap up and report**: (vllm) stop the collector and archive its DuckDB snapshot tagged with model/scope/timestamp; run `summarize_run.py` to write `run-summary.json` (machine-readable, for charting) and `run-summary.md` into the run's `{model-slug}/{scope}/` folder; then report where the results landed.
 
 Keep the user informed at every step: before each long-running command, print it verbatim and give the tail/status command to watch it.
 
@@ -230,7 +230,7 @@ cd self-hosted/vllm && uv run python -m clients.build_dashboard \
   --output benchmark-output/dashboard_{model-slug}_{scope}_{timestamp}.html
 ```
 
-**5c. Write the run summary** with the summarizer script, which reads the run's per-task `metrics.json` + `eval.json` and writes **both** a machine-readable `RUN-SUMMARY.json` (for later charting/aggregation) and a human-readable `RUN-SUMMARY.md`, into `benchmarks/swe-benchmark-data/{model-slug}/{scope}/`. Do this on **every** path (bedrock/litellm/vllm), after scoring. Do not hand-write the summary -- the script computes the failed-task-excluded mean, the serving block, and the per-task table consistently:
+**5c. Write the run summary** with the summarizer script, which reads the run's per-task `metrics.json` + `eval.json` and writes **both** a machine-readable `run-summary.json` (for later charting/aggregation) and a human-readable `run-summary.md`, into `benchmarks/swe-benchmark-data/{model-slug}/{scope}/`. Do this on **every** path (bedrock/litellm/vllm), after scoring. Do not hand-write the summary -- the script computes the failed-task-excluded mean, the serving block, and the per-task table consistently:
 
 ```bash
 cd benchmarks
@@ -238,13 +238,13 @@ uv run python scripts/summarize_run.py \
   --folder swe-benchmark-data/{model-slug}/{scope} --run-date "$(date -u +%Y-%m-%d)"
 ```
 
-The script treats a 0-score task as a model failure (missing artifacts) and excludes it from the headline mean, matching the leaderboard convention, while still listing it. Read the resulting `RUN-SUMMARY.md` back to the user; if a task failed, its 0 and the `failed_tasks` list make that visible -- do not present a partial run as a clean sweep.
+The script treats a 0-score task as a model failure (missing artifacts) and excludes it from the headline mean, matching the leaderboard convention, while still listing it. Read the resulting `run-summary.md` back to the user; if a task failed, its 0 and the `failed_tasks` list make that visible -- do not present a partial run as a clean sweep.
 
-The `RUN-SUMMARY.json` carries the structured data (per-task scores/turns/cost, the `serving` block with instance_type / tensor_parallel_size / precision / context_window, mean_task_score_excl_failed, failed_tasks) so runs can be charted or aggregated later without re-parsing every task folder.
+The `run-summary.json` carries the structured data (per-task scores/turns/cost, the `serving` block with instance_type / tensor_parallel_size / precision / context_window, mean_task_score_excl_failed, failed_tasks) so runs can be charted or aggregated later without re-parsing every task folder.
 
 **5d. Report** where the results are and what they contain:
 
-- Point the user at the `RUN-SUMMARY.md` you just wrote first.
+- Point the user at the `run-summary.md` you just wrote first.
 - Each `benchmarks/swe-benchmark-data/{model-slug}/<repo>/<task>/` holds the four design artifacts plus the implementation artifact (`patch.diff` + `implementation.md`), `metrics.json` (cost + any vLLM server metrics), and `eval.json` (quality scores; `task_score` is the mean of the five artifact totals).
 - The same task run by another model lands under a sibling top-level `{model-slug}/` folder, directly comparable.
 - Suggest inspecting one result:

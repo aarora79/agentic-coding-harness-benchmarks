@@ -10,7 +10,7 @@
 
 ## Overview
 
-This repository is a **benchmark and harness for measuring how well different LLMs perform real-world software-engineering tasks** when driven by a coding agent. The coding agent is [Claude Code](https://docs.anthropic.com/en/docs/claude-code), Anthropic's command-line coding agent, which by default talks only to Anthropic's own models. Here it is wired up to run with a model hosted in any of **three different places**, so you can put many models through the *same* tasks with the *same* agent and compare them directly on both quality and cost.
+This repository is a **benchmark and harness for measuring how well different LLMs perform real-world software-engineering tasks** when driven by a coding agent. It supports **two coding agents (harnesses)** today -- [Claude Code](https://docs.anthropic.com/en/docs/claude-code), Anthropic's command-line coding agent, and [pi](https://github.com/earendil-works/pi-coding-agent), a lightweight open-source agent -- with [opencode](https://opencode.ai) being added soon. Each is wired to run with a model hosted in any of **three different places**, so you can put many models through the *same* tasks with the *same* harness and compare them directly on both quality and cost. Pick the harness per run with `--agent claude` (default) or `--agent pi`; results are kept separate on disk (`<model>/<harness>/<repo>/<task>`) so the two agents never overwrite each other.
 
 It runs **two complementary benchmarks**, and combining them is the whole point:
 
@@ -119,7 +119,7 @@ Each artifact is scored 0-100 by an independent judge session (`codex exec`, `gp
 
 ### Quality by dimension (where models are strong or weak)
 
-The single task score hides *how* a model earns it. The radar below breaks the judge's scores out by **rubric criterion** (left -- is the model complete? correct? specific? risk-aware?) and by **artifact** (right -- which deliverable is it best at?). It reads the per-artifact `eval_scores` embedded in each run's `RUN-SUMMARY.json`.
+The single task score hides *how* a model earns it. The radar below breaks the judge's scores out by **rubric criterion** (left -- is the model complete? correct? specific? risk-aware?) and by **artifact** (right -- which deliverable is it best at?). It reads the per-artifact `eval_scores` embedded in each run's `run-summary.json`.
 
 ![Radar charts of quality by rubric criterion and by artifact, for the models with per-artifact eval data](docs/images/quality-radar.png)
 

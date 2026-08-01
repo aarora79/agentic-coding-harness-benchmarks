@@ -2,7 +2,7 @@
 """Render radar (spider) charts of per-dimension quality scores from eval data.
 
 Two views, one point per model, for the models whose committed
-``RUN-SUMMARY.json`` carries the per-artifact ``eval_scores`` breakdown (the
+``run-summary.json`` carries the per-artifact ``eval_scores`` breakdown (the
 judge's four criteria for each of the six artifacts):
 
 * **By criterion** -- Completeness, Correctness, Specificity, Risk-awareness,
@@ -48,7 +48,7 @@ _BENCHMARKS_DIR = _SCRIPTS_DIR.parent
 _REPO_ROOT = _BENCHMARKS_DIR.parent
 DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
 DEFAULT_OUT_DIR = _REPO_ROOT / "docs" / "images"
-RUN_SUMMARY_FILENAME = "RUN-SUMMARY.json"
+RUN_SUMMARY_FILENAME = "run-summary.json"
 
 # The judge's four criteria (each scored 0-25 per artifact) and the six
 # artifacts a /swe2 run produces. Order is fixed so every chart reads the same.
@@ -129,7 +129,7 @@ def _model_dimensions(
 def _collect(data_dir: Path, repo: str, harness: str) -> list[tuple[str, dict, dict]]:
     """Return [(model, by_criterion, by_artifact)] for models with eval_scores.
 
-    Reads ``<data-dir>/<model>/<harness>/<repo>/RUN-SUMMARY.json`` so the radar
+    Reads ``<data-dir>/<model>/<harness>/<repo>/run-summary.json`` so the radar
     plots one coding agent's runs at a time.
     """
     out: list[tuple[str, dict, dict]] = []
@@ -266,7 +266,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _count_models(data_dir: Path, repo: str, harness: str) -> int:
-    """Count models with a scored RUN-SUMMARY (the denominator in the note)."""
+    """Count models with a scored run-summary (the denominator in the note)."""
     total = 0
     for model_dir in (p for p in data_dir.iterdir() if p.is_dir()):
         summary = _read_json(model_dir / harness / repo / RUN_SUMMARY_FILENAME)

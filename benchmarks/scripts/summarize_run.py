@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Summarize one model+dataset benchmark run into RUN-SUMMARY.json and .md.
+"""Summarize one model+dataset benchmark run into run-summary.json and .md.
 
 Reads a ``{model-slug}/{harness}/{scope}/`` folder under ``swe-benchmark-data``
 (one subfolder per task, each with ``metrics.json`` and, when scored, ``eval.json``)
 and writes two sibling files:
 
-  * ``RUN-SUMMARY.json`` -- machine-readable, for later charting / aggregation.
-  * ``RUN-SUMMARY.md``   -- human-readable, rendered from the same data.
+  * ``run-summary.json`` -- machine-readable, for later charting / aggregation.
+  * ``run-summary.md``   -- human-readable, rendered from the same data.
 
 A task that scored 0 is treated as a model failure (missing/empty artifacts) and
 is EXCLUDED from the headline mean (score and cost), matching the leaderboard
@@ -71,6 +71,19 @@ def _task_row(task_dir: Path) -> dict[str, Any] | None:
     if eval_data and isinstance(eval_data.get("task_score"), (int, float)):
         score = float(eval_data["task_score"])
     produced = sum(1 for f in ARTIFACT_FILENAMES if (task_dir / f).exists())
+    # KV-cache footprint (peak/mean) sampled while the run was in flight. Lives
+    # under the vllm_prometheus gauges; absent on the Bedrock path (no /metrics).
+    kv = (
+        (metrics.get("vllm_prometheus", {}) or {})
+        .get("gauges_sampled", {})
+        .get("gauges", {})
+        .get("vllm:kv_cache_usage_perc")
+    )
+    kv_usage = (
+        {"peak": kv.get("peak"), "mean": kv.get("mean")}
+        if isinstance(kv, dict)
+        else None
+    )
     return {
         "task": task_dir.name,
         "complexity": metrics.get("complexity"),
@@ -82,8 +95,24 @@ def _task_row(task_dir: Path) -> dict[str, Any] | None:
         "latency_seconds": mm.get("latency_seconds"),
         "total_cost_usd": metrics.get("total_cost_usd"),
         "task_score": score,
+        # Derived serving-efficiency signals, folded up from metrics.json so the
+        # committed rollup carries them even though the per-task metrics.json is
+        # gitignored (and the raw vllm_prometheus dump is not). These are what let
+        # runs be compared on cache/KV efficiency, not just tokens (see the
+        # cost-per-task methodology). Any may be None: cache/KV come from the vLLM
+        # Prometheus surface, so they are absent on the Bedrock path.
+        "cache_read_tokens": mm.get("cache_read_tokens"),
+        "cache_write_tokens": mm.get("cache_write_tokens"),
+        "prefix_cache_hit_rate": mm.get("prefix_cache_hit_rate"),
+        "generation_tokens_per_sec": mm.get("generation_tokens_per_sec"),
+        "kv_cache_usage": kv_usage,
+        # Top-up provenance: >1 invocation means the artifact set was completed by
+        # a focused top-up pass, not a single clean run (see the harness's
+        # completion loop). Defaults keep a normal single-shot run at 1 / [].
+        "agent_invocations": metrics.get("agent_invocations", 1),
+        "topped_up_artifacts": metrics.get("topped_up_artifacts", []),
         # Embed the judge's per-artifact criterion breakdown (from eval.json) so
-        # RUN-SUMMARY.json is self-contained -- the committed rollup carries the
+        # run-summary.json is self-contained -- the committed rollup carries the
         # scores + judge notes even though the per-task eval.json is gitignored.
         # None when the task was not scored (a failure or no judge run).
         "eval_scores": (eval_data or {}).get("scores"),
@@ -100,7 +129,7 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
         run_date: Optional ISO date to stamp; omitted when None.
 
     Returns:
-        The structured summary (also written as RUN-SUMMARY.json).
+        The structured summary (also written as run-summary.json).
 
     Raises:
         SystemExit: If no task folders with metrics.json are found.
@@ -115,7 +144,7 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
 
     # Identity/serving from the first task's metrics (uniform across a run).
     first = _read_json(folder / rows[0]["task"] / "metrics.json") or {}
-    # RUN-SUMMARY.json is committed to git, so drop the judge block's local-only
+    # run-summary.json is committed to git, so drop the judge block's local-only
     # temp path (repo_root, e.g. /tmp/swe-judge-repos/...); it is machine-specific
     # noise, not provenance worth committing.
     judge = dict((first.get("evaluation") or {}).get("judge") or {})
@@ -153,7 +182,7 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
 
 
 def _render_markdown(summary: dict[str, Any]) -> str:
-    """Render the human-readable RUN-SUMMARY.md from the summary dict."""
+    """Render the human-readable run-summary.md from the summary dict."""
     s = summary
     serving = s.get("serving") or {}
     serving_line = (
@@ -185,15 +214,26 @@ def _render_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Results",
         "",
-        "| Task | Artifacts | Turns | Cost (est $) | Judge score |",
-        "|---|---|---|---|---|",
+        "| Task | Artifacts | Turns | Prefix-cache | Cost (est $) | Judge score |",
+        "|---|---|---|---|---|---|",
     ]
     for r in s["tasks"]:
         score = "0.0 (model failure)" if r["failed"] else r["task_score"]
         cost = f"{r['total_cost_usd']:.2f}" if r["total_cost_usd"] is not None else "--"
+        hit = r.get("prefix_cache_hit_rate")
+        cache = f"{hit * 100:.1f}%" if isinstance(hit, (int, float)) else "--"
+        # Flag a task whose artifact set was completed by a focused top-up pass
+        # (more than one agent invocation) rather than a single clean run.
+        topup = (
+            f" (topped up: {', '.join(r['topped_up_artifacts'])})"
+            if r.get("agent_invocations", 1) > 1 and r.get("topped_up_artifacts")
+            else " (top-up attempted)"
+            if r.get("agent_invocations", 1) > 1
+            else ""
+        )
         lines.append(
-            f"| {r['task']} | {r['artifacts_produced']}/{r['artifacts_expected']} "
-            f"| {r['num_turns']} | {cost} | {score} |"
+            f"| {r['task']}{topup} | {r['artifacts_produced']}/{r['artifacts_expected']} "
+            f"| {r['num_turns']} | {cache} | {cost} | {score} |"
         )
     lines += [
         "",
@@ -210,7 +250,7 @@ def _render_markdown(summary: dict[str, Any]) -> str:
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Write RUN-SUMMARY.json and RUN-SUMMARY.md for a benchmark run.",
+        description="Write run-summary.json and run-summary.md for a benchmark run.",
     )
     parser.add_argument(
         "--folder",
@@ -227,18 +267,18 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Summarize a run folder into RUN-SUMMARY.json and RUN-SUMMARY.md."""
+    """Summarize a run folder into run-summary.json and run-summary.md."""
     args = _parse_args()
     folder = args.folder.expanduser().resolve()
     if not folder.is_dir():
         raise SystemExit(f"not a directory: {folder}")
     summary = _summarize(folder, args.run_date)
 
-    json_path = folder / "RUN-SUMMARY.json"
+    json_path = folder / "run-summary.json"
     json_path.write_text(
         json.dumps(summary, indent=2, default=str) + "\n", encoding="utf-8"
     )
-    md_path = folder / "RUN-SUMMARY.md"
+    md_path = folder / "run-summary.md"
     md_path.write_text(_render_markdown(summary), encoding="utf-8")
     logger.info(
         "wrote %s and %s (%d scored, %d failed, mean %.2f)",

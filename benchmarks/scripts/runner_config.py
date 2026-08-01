@@ -67,6 +67,18 @@ DEFAULT_TIMEOUT_SECONDS = 3600
 # attempts at the same turn budget will not help; raise max_turns instead.
 # 0 disables retries (one attempt per task).
 DEFAULT_MAX_RETRIES = 0
+# How many focused "top-up" attempts to make when a task's MAIN run finished but
+# left some artifacts missing (e.g. the design docs are all present but the run
+# ran out of context before writing patch.diff). Unlike a retry, a top-up does
+# NOT wipe the existing artifacts and re-run the whole task: it re-invokes the
+# agent in a fresh context with a narrow prompt to produce ONLY the missing
+# files, reading the ones already on disk. It only fires when the four design
+# artifacts already exist (a run that could not even finish the design is a real
+# quality failure, not topped up). Each top-up is a separate agent invocation and
+# is recorded in metrics.json (agent_invocations, topped_up_artifacts) so a
+# completed-but-assisted run stays honestly distinguishable from a clean one.
+# 0 disables top-ups.
+DEFAULT_MAX_TOPUPS = 1
 # The model's true context window, in tokens. Claude Code cannot learn the
 # window of a custom model served over a custom base URL, so it never triggers
 # auto-compaction and the conversation grows until the endpoint rejects the
@@ -271,6 +283,14 @@ class RunnerConfig(BaseModel):
         ge=0,
         description="Retries for a task that failed transiently (not for a "
         "turn-budget exhaustion, which is never retried). 0 disables retries.",
+    )
+    max_topups: int = Field(
+        default=DEFAULT_MAX_TOPUPS,
+        ge=0,
+        description="Focused top-up attempts when the main run left artifacts "
+        "missing but the design docs are complete. A top-up re-invokes the agent "
+        "in a fresh context to produce ONLY the missing files (it does not wipe "
+        "or redo the existing ones), and is flagged in metrics.json. 0 disables.",
     )
     context_window: int = Field(
         default=DEFAULT_CONTEXT_WINDOW,
@@ -531,6 +551,7 @@ def _summarize(config: RunnerConfig) -> None:
     logger.info("  permission_mode: %s", config.permission_mode)
     logger.info("  max_turns: %s", config.max_turns)
     logger.info("  max_retries: %s", config.max_retries)
+    logger.info("  max_topups: %s", config.max_topups)
     if config.auto_compact_window is not None:
         logger.info(
             "  context_window: %s (auto-compact at %s, fraction %s)",

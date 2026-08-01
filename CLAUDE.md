@@ -306,6 +306,16 @@ project_name/
 - Use Pydantic Settings for type-safe configuration loaded from environment variables.
 - Provide a `.env.example` with all required variables; never commit `.env`. Use sensible defaults where appropriate.
 
+### Adding a config parameter (mandatory checklist)
+
+Whenever you add a new run-time config parameter, it MUST be wired through all three layers so nothing is hardcoded and every knob is discoverable:
+
+1. **Code default:** declare the field on the Pydantic config model (e.g. `RunnerConfig` in `benchmarks/scripts/runner_config.py`) with a **sensible default** and a one-line `description`. Never read a config value from a bare literal scattered in the logic -- the model is the single source of truth.
+2. **Real config file(s):** add the parameter (with its default value) to the actual YAML config used by the tooling (e.g. `benchmarks/config/runner.yaml`), so a real run can set it.
+3. **Example config file(s):** add the same parameter, with an explanatory comment, to the committed `*.example.yaml` (e.g. `benchmarks/config/runner.example.yaml`), so the full set of knobs stays self-documenting.
+
+Also expose a CLI override (CLI wins over the file) where the harness pattern does so. A parameter that exists in code but is missing from the example YAML (or vice versa) is an incomplete change -- treat the three layers as one unit of work.
+
 ```python
 from pydantic_settings import BaseSettings
 
