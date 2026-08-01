@@ -69,6 +69,15 @@ class LoadRunnerConfigTest(unittest.TestCase):
         self.assertEqual(config.max_turns, 250)
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.concurrency, 1)
+        self.assertEqual(config.agent, "claude")
+        self.assertEqual(config.max_retries, 0)
+        self.assertEqual(config.max_topups, 1)
+
+    def test_max_topups_override(self) -> None:
+        config = load_runner_config(_write(_MINIMAL), {"max_topups": 3})
+        self.assertEqual(config.max_topups, 3)
+        with self.assertRaises(RunnerConfigError):
+            load_runner_config(_write(_MINIMAL), {"max_topups": -1})
 
     def test_concurrency_override_and_floor(self) -> None:
         config = load_runner_config(_write(_MINIMAL), {"concurrency": 4})

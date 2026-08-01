@@ -818,6 +818,16 @@ Populate the +/- line counts from `git -C "{repo-path}" diff --staged "$BASE_SHA
 
 ## Step 9: Present Summary & Seek Guidance
 
+**Completion check first -- all six artifacts are mandatory.** Before you present anything or stop, verify that every one of the six files exists in the artifact directory (`$ART_DIR`): `github-issue.md`, `lld.md`, `review.md`, `testing.md`, `patch.diff`, `implementation.md`. A run that produces only some of them is a failure that scores 0, no matter how good the ones you wrote are. If any is missing, write it now before finishing -- do not stop with an incomplete set. A quick check:
+
+```bash
+for f in github-issue.md lld.md review.md testing.md patch.diff implementation.md; do
+  test -f "$ART_DIR/$f" && echo "OK   $f" || echo "MISSING $f"
+done
+```
+
+If anything is `MISSING`, complete it (for `patch.diff`/`implementation.md`, that means implementing the change per `lld.md` in the clone and capturing the diff -- Step 8.5) before proceeding.
+
 After producing the six artifacts, present a clear summary to the user. **Do not run the target repo's tests, push, commit, or open a PR** - the implementation lives only as `patch.diff`. This skill ends at delivery of the design-plus-implementation package.
 
 ```markdown

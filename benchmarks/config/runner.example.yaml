@@ -89,6 +89,13 @@
 #                           config that pins ANTHROPIC_BASE_URL). Optional.
 # =============================================================================
 
+# Coding agent that drives the task: "claude" (Claude Code, the default) or "pi"
+# (the pi coding agent). The /swe2 task, artifacts, and judge are identical for
+# both; only the agent binary and invocation differ. pi requires
+# provider=endpoint (it has no native Amazon Bedrock mode). Usually left at the
+# default and switched per run with --agent pi.
+agent: claude
+
 # Routing provider: "endpoint" (a base URL, the default) or "bedrock" (native
 # Amazon Bedrock). Usually left at the default and switched per run with
 # --provider bedrock when you want to benchmark a model straight off Bedrock.
@@ -101,6 +108,14 @@ api_key: local
 # provider=bedrock routing. Uncomment (or pass --aws-region / export AWS_REGION)
 # when running against Amazon Bedrock. Requires ambient AWS credentials.
 # aws_region: us-east-1
+
+# Serving provenance, recorded verbatim in each run's metrics.json serving block
+# (they do not change how the model is served). Usually supplied per run on the
+# CLI (--instance-type / --tensor-parallel-size / --precision); on the vllm path
+# the orchestrator fills instance_type from EC2 metadata. Uncomment to pin:
+# instance_type: p5en.48xlarge
+# tensor_parallel_size: 8
+# precision: FP8
 
 # model and dataset are supplied on the CLI (--model / --dataset) so this one
 # file serves every model and dataset. Uncomment to pin a default instead:
@@ -159,6 +174,15 @@ max_turns: 250
 # of turns (subtype "error_max_turns") is NOT retried -- raise max_turns for
 # that instead. 0 disables retries (one attempt per task).
 max_retries: 1
+# Focused top-up attempts when the MAIN run finished but left some artifacts
+# missing while the four design docs are all present (e.g. it ran out of context
+# right before patch.diff). A top-up re-invokes the agent in a FRESH context to
+# produce ONLY the missing files -- it does not wipe or redo the existing ones --
+# and is recorded in metrics.json (agent_invocations, topped_up_artifacts) so an
+# assisted completion stays distinguishable from a clean one. Only fires when the
+# design is complete (a run that could not finish the design is a real failure,
+# not topped up). 0 disables.
+max_topups: 1
 max_output_tokens: 16000
 
 # Model context window, in tokens, used to calibrate Claude Code's

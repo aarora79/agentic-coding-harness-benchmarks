@@ -163,8 +163,10 @@ CLI flags always win, so you can still pin `model`/`dataset` in the file if you 
 | `concurrency` | int | `1` | How many tasks to run at once. `1` runs serially; higher values overlap runs and make the `vllm_prometheus` block a server-wide aggregate (see [Running tasks concurrently](#running-tasks-concurrently)). |
 | `permission_mode` | str | `acceptEdits` | `claude -p` permission mode. `bypassPermissions` is intentionally rejected. |
 | `allowed_tools` | list | read + write set | Tools `claude -p` may use without prompting. |
-| `max_turns` | int | `60` | Cap on the agent loop (`claude --max-turns`). |
-| `max_output_tokens` | int | `16000` | Per-response output-token cap (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`). |
+| `max_turns` | int | `250` | Cap on the agent loop (`claude --max-turns`; the pi agent has no turn cap). |
+| `max_output_tokens` | int | `16000` | Per-response output-token cap (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`; pi `maxTokens`). |
+| `max_retries` | int | `0` | Retries for a task that failed **transiently** (stream/JSON/timeout/api error). A turn-budget exhaustion is never retried. A retry wipes the task's artifacts and re-runs it whole. `0` disables. |
+| `max_topups` | int | `1` | Focused **top-up** attempts when the main run finished but left artifacts missing and the four design docs are all present. Unlike a retry, a top-up does **not** wipe or re-run the whole task -- it re-invokes the agent in a fresh context to produce ONLY the missing files, and is flagged in `metrics.json`. See [Retries and top-ups](#retries-and-top-ups). `0` disables. |
 | `context_window` | int | `0` | The model's true context window, in tokens, used to calibrate Claude Code's auto-compaction (`CLAUDE_CODE_AUTO_COMPACT_WINDOW`). `0` leaves it unset. See [Context window and auto-compaction](#context-window-and-auto-compaction). |
 | `auto_compact_fraction` | float | `0.9` | Fraction of `context_window` at which auto-compaction fires. Only used when `context_window > 0`. |
 | `timeout_seconds` | int | `1800` | Wall-clock timeout for a single task's run. |
@@ -224,7 +226,33 @@ Three ways to set it, in precedence order (CLI wins):
 
 Leave it `0` for Anthropic-on-Bedrock and for any known Claude model: their windows are already known to Claude Code, and a `0` value leaves `CLAUDE_CODE_AUTO_COMPACT_WINDOW` unset. On the LiteLLM path, set it to the window of the underlying open-weight model. `CLAUDE_CODE_AUTO_COMPACT_WINDOW` is clamped by Claude Code to the model's real window, so an over-large value cannot push it past what the endpoint supports.
 
-`/compact` is an interactive-only command and does **not** work in headless `-p` mode, and there is no tool a model can call to compact its own context -- auto-compaction calibrated by `context_window` is the only mechanism available to a headless run.
+Claude Code's `/compact` is an interactive-only command and does **not** work in headless `-p` mode, and there is no tool a model can call to compact its own context -- for the Claude Code path, auto-compaction calibrated by `context_window` is the only mechanism available to a headless run.
+
+### Context window and auto-compaction -- the pi path
+
+The pi agent has its own built-in auto-compaction (it summarizes older turns once the conversation nears the window), and it too runs in headless `-p` mode. The mechanics differ from Claude Code, so the harness configures it differently:
+
+- **pi reads the window from its `models.json`, not an env var.** When `agent: pi`, the harness writes an ephemeral `models.json` (under the per-run `PI_CODING_AGENT_DIR`) whose `contextWindow` is the same value `context_window` carries -- the live `max_model_len` on the vLLM path. Auto-compaction keys off this, so it is calibrated to the real served window automatically.
+- **pi compacts on a token *reserve*, not a fraction.** It triggers when `contextTokens > contextWindow - reserveTokens` (pi's default `reserveTokens` is 16384). The harness writes a companion `settings.json` in the same dir setting `compaction.reserveTokens = max_output_tokens + 8192`, so compaction fires with a full response worth of headroom to spare. This matters because pi's per-response cap (`maxTokens`, set from `max_output_tokens`) is raised well above pi's default reserve; without the larger reserve, a long `/swe2` task fills the window to within 16K, then a single large response overflows and the run dies with `stop_reason: length` before the final artifacts are written. Reserving `max_output_tokens + 8192` makes threshold compaction fire *before* that overflow wall -- the same role `CLAUDE_CODE_AUTO_COMPACT_WINDOW` plays for Claude Code.
+- **Both `models.json` and `settings.json` are transient and per-run.** They live under `PI_CODING_AGENT_DIR` (a `pi-agent/` dir beside the throwaway clone), are rewritten every task, and are deleted with the clone -- they never touch a developer's global `~/.pi` config and are never committed.
+- **pi's overflow recovery only retries once.** If a response still overflows, pi compacts and retries a single time (and not at all when the response already finished with `stop_reason: stop`), so the reserve headroom, not the retry, is what keeps a long run alive.
+
+Nothing about the `/swe2` task changes between the two paths; only how each agent is kept under its context window differs.
+
+### Retries and top-ups
+
+A task can fall short in two different ways, and the harness handles them with two different mechanisms.
+
+**Retry (`max_retries`, default 0) -- for a transient failure.** A run that dies from a stream/JSON/timeout/api error, or produces no parseable output, is retryable: the harness clears the task's partial artifacts and re-runs the **whole task** from scratch. A run that merely exhausted its turn budget (`error_max_turns`) is **not** retried -- another attempt at the same budget hits the same wall, so raise `max_turns` instead. Retries default off.
+
+**Top-up (`max_topups`, default 1) -- for an incomplete-but-not-broken run.** The common failure on a long task is different: the agent finishes the four design docs but runs out of context before writing `patch.diff` / `implementation.md` (see the auto-compaction sections above). Wiping and re-running that whole task would just hit the same wall. Instead, a top-up:
+
+1. fires only when the run is **not `ok`**, the **four design docs already exist**, and some artifacts are still missing (a run that could not finish the *design* is a genuine quality failure, not topped up, and is left as-is);
+2. re-invokes the agent in a **fresh context** (fresh window) with a **focused prompt** -- "the design docs already exist here; read them and produce ONLY the missing files, do not rewrite the rest";
+3. **never clears** existing artifacts, so it can only add to the set;
+4. records the assist honestly in `metrics.json`: `agent_invocations` (how many agent calls the task took, main run + top-ups) and `topped_up_artifacts` (which files a top-up produced). The additive cost fields (input/output tokens, turns, latency) are summed across all invocations, so the task's recorded cost is its true total, not just the last pass.
+
+A topped-up task reaches `ok` (all design docs + `patch.diff`, no error) the same way a clean run does; the `agent_invocations > 1` flag is what distinguishes an assisted completion from a single-shot one. Set `max_topups: 0` to disable and measure strictly single-shot runs. The `/swe2` skill also self-checks all six artifacts before finishing, so the top-up is a harness-level backstop for the case where the first run had no context left to do that check itself.
 
 ### Common invocations
 

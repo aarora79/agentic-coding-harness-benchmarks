@@ -203,6 +203,7 @@ def _build_prompt(
     model: str,
     artifacts_dir: Path,
     agent: str = "claude",
+    topup_missing: list[str] | None = None,
 ) -> str:
     """Build the non-interactive /swe2 prompt for a task.
 
@@ -232,6 +233,13 @@ def _build_prompt(
         model: The model name (also the artifact subfolder name).
         artifacts_dir: Absolute directory the six artifacts must be written to.
         agent: Which agent will receive the prompt ("claude" or "pi").
+        topup_missing: When set, build a FOCUSED top-up prompt instead of the full
+            task prompt: the design docs already exist in ``artifacts_dir`` and the
+            agent is asked to produce ONLY these missing files (reading the ones
+            already on disk), then stop. Used by the harness's completion loop when
+            a main run finished the design but ran out of context before the
+            implementation artifacts. Everything else (repo, ids, layout) is the
+            same, so the topped-up artifacts belong to the same task.
 
     Returns:
         The prompt string to pass to the agent.
@@ -249,6 +257,33 @@ def _build_prompt(
         invocation = f"Use the swe2 skill to complete this task. {payload}"
     else:
         invocation = f"/swe2 {payload}"
+    if topup_missing:
+        # Focused completion pass: the prior run already wrote the design docs
+        # into artifacts_dir; only the listed files are missing. Ask the agent to
+        # read what exists and produce ONLY those, without redoing the rest. This
+        # keeps the top-up cheap (fresh, small context) so it does not hit the
+        # same window wall that truncated the main run.
+        missing = ", ".join(topup_missing)
+        existing = ", ".join(f for f in ARTIFACT_FILENAMES if f not in topup_missing)
+        lines = [
+            invocation,
+            "",
+            "COMPLETION PASS -- do NOT restart the task.",
+            f"The artifact directory ({artifacts_dir}) already contains these "
+            f"finished artifacts: {existing}. Read them as needed for consistency.",
+            f"Produce ONLY the missing artifact(s): {missing}. Follow the same "
+            "skill rules for those artifacts (for patch.diff, implement the change "
+            "the existing lld.md describes in the cloned repo and capture the diff; "
+            "for implementation.md, summarize that change). Do not modify or "
+            "rewrite the artifacts that already exist. When the missing files are "
+            "written, stop.",
+            "",
+            "Task description:",
+            task.problem_statement or "(see reference issue)",
+        ]
+        if task.problem_issue_url:
+            lines += ["", f"Reference issue: {task.problem_issue_url}"]
+        return "\n".join(lines)
     lines = [
         invocation,
         "",
@@ -462,6 +497,44 @@ def _write_pi_models_json(config: RunnerConfig, agent_dir: Path) -> None:
     agent_dir.mkdir(parents=True, exist_ok=True)
     (agent_dir / "models.json").write_text(
         json.dumps(models_json, indent=2) + "\n", encoding="utf-8"
+    )
+    _write_pi_settings(config, agent_dir)
+
+
+def _write_pi_settings(config: RunnerConfig, agent_dir: Path) -> None:
+    """Write an ephemeral pi ``settings.json`` that tunes auto-compaction.
+
+    pi has built-in auto-compaction (docs/compaction.md): it summarizes older
+    messages once ``contextTokens > contextWindow - reserveTokens``. Left at pi's
+    default ``reserveTokens`` of 16384, a long ``/swe2`` task on a 200K-window
+    model overflows anyway -- pi lets the window fill to within 16K, then a single
+    response (capped at ``maxTokens``, which we raise well above 16K) blows past
+    the window and the run dies with ``stop_reason: length`` before the last
+    artifacts are written (observed on the mcp-gateway-registry tasks).
+
+    The fix is to reserve at least a full response worth of tokens (plus headroom)
+    so threshold compaction fires *before* the overflow wall, keeping the run
+    alive through the whole six-artifact chain -- the same role
+    ``CLAUDE_CODE_AUTO_COMPACT_WINDOW`` plays for the Claude Code path. We set
+    ``reserveTokens`` to ``max_output_tokens`` plus a margin, and keep pi's default
+    ``keepRecentTokens``. ``contextWindow`` itself is carried in models.json.
+
+    Args:
+        config: The runner config (its ``max_output_tokens`` sizes the reserve).
+        agent_dir: The per-run pi agent dir to write ``settings.json`` into.
+    """
+    # Reserve a full response plus ~8K headroom so compaction triggers with room
+    # to spare for the reply and per-request overhead, never after overflow.
+    reserve = config.max_output_tokens + 8192
+    settings = {
+        "compaction": {
+            "enabled": True,
+            "reserveTokens": reserve,
+        }
+    }
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    (agent_dir / "settings.json").write_text(
+        json.dumps(settings, indent=2) + "\n", encoding="utf-8"
     )
 
 
@@ -1531,6 +1604,7 @@ def _run_task(
     position: int = 1,
     total: int = 1,
     verbose: bool = False,
+    topup_missing: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run a single task end to end and return its outcome summary.
 
@@ -1566,7 +1640,9 @@ def _run_task(
             config.model_slug,
             _artifact_dir(config, task),
             agent=config.agent,
+            topup_missing=topup_missing,
         )
+        run_kind = f"top-up ({', '.join(topup_missing)})" if topup_missing else "run"
         # Build the agent-specific command + environment. pi and Claude Code run
         # the same /swe2 task but take entirely different flags and routing, so
         # this is the single branch point; everything downstream (metrics,
@@ -1578,14 +1654,19 @@ def _run_task(
             _write_pi_models_json(config, pi_agent_dir)
             cmd = _build_pi_cmd(config, prompt)
             env = _build_pi_env(config, pi_agent_dir)
-            logger.info("  %s Running pi -p (agent=pi, no turn cap)...", label)
+            logger.info(
+                "  %s Running pi -p %s (agent=pi, no turn cap)...", label, run_kind
+            )
         else:
             cmd = _build_claude_cmd(
                 config, prompt, stream=stream, clone_path=clone_path
             )
             env = _build_env(config)
             logger.info(
-                "  %s Running claude -p (max_turns=%s)...", label, config.max_turns
+                "  %s Running claude -p %s (max_turns=%s)...",
+                label,
+                run_kind,
+                config.max_turns,
             )
         # vLLM Prometheus scraping only applies to an HTTP endpoint; Amazon
         # Bedrock exposes no such surface, so skip it and leave the block marked
@@ -1672,7 +1753,8 @@ def _run_task(
     logger.info(banner)
     if metrics["is_error"]:
         logger.error(
-            "  claude -p reported an error (status %s): %s",
+            "  %s -p reported an error (status %s): %s",
+            config.agent,
             metrics.get("api_error_status"),
             metrics.get("error"),
         )
@@ -1799,6 +1881,152 @@ def _clear_partial_artifacts(config: RunnerConfig, task: Task) -> None:
         (out_dir / filename).unlink(missing_ok=True)
 
 
+def _missing_artifacts(config: RunnerConfig, task: Task) -> list[str]:
+    """Return the ARTIFACT_FILENAMES not yet present in the task's output dir."""
+    out_dir = _artifact_dir(config, task)
+    return [f for f in ARTIFACT_FILENAMES if not (out_dir / f).exists()]
+
+
+def _maybe_topup(
+    config: RunnerConfig,
+    dataset: Dataset,
+    task: Task,
+    summary: dict[str, Any],
+    *,
+    stream: bool,
+    concurrent: bool,
+    position: int,
+    total: int,
+    verbose: bool,
+) -> dict[str, Any]:
+    """Complete a design-complete task that is missing implementation artifacts.
+
+    The outer completion loop: after the main run (and any transient retries), if
+    the task is still not ``ok`` but the four DESIGN artifacts are all present, it
+    is the common "ran out of context right before patch.diff" case. Up to
+    ``config.max_topups`` times, re-invoke the agent in a FRESH context with a
+    focused prompt that produces ONLY the missing files, reading (never rewriting)
+    the ones already on disk. Existing artifacts are NOT cleared, so a top-up can
+    only add. Each top-up is a separate agent invocation, recorded on the returned
+    summary and in metrics.json (``agent_invocations``, ``topped_up_artifacts``),
+    so a completed-but-assisted run stays distinguishable from a clean one.
+
+    Top-up is intentionally NOT attempted when the design is incomplete: a run
+    that could not finish the design docs is a genuine quality failure, not a
+    truncation to be patched over.
+
+    Args:
+        summary: The outcome from the main run/retries (mutated with top-up
+            provenance and replaced by the latest attempt's summary).
+
+    Returns:
+        The final summary (ok if a top-up completed the artifact set).
+    """
+    invocations = summary.get("attempts", 1)
+    topped_up: list[str] = []
+    # A task's true cost is the sum of ALL its agent invocations. Each _run_task
+    # call overwrites metrics.json with only that pass's numbers, so accumulate the
+    # additive cost fields across the main run and every top-up and restore the
+    # summed values at the end. Seed from the main run's metrics.json.
+    additive = ("input_tokens", "output_tokens", "num_turns", "latency_seconds")
+    base = _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
+    totals = {k: (base.get(k) or 0) for k in additive}
+    for topup in range(1, config.max_topups + 1):
+        if summary.get("ok"):
+            break
+        # Only design-complete tasks are eligible; a missing design doc is a real
+        # failure, not a truncation to top up.
+        design_done = all(
+            (_artifact_dir(config, task) / f).exists()
+            for f in DESIGN_ARTIFACT_FILENAMES
+        )
+        missing = _missing_artifacts(config, task)
+        if not design_done or not missing:
+            break
+        logger.warning(
+            "[task=%s] %s of %s: design complete but missing %s; top-up %s of %s",
+            task.id,
+            position,
+            total,
+            ", ".join(missing),
+            topup,
+            config.max_topups,
+        )
+        try:
+            summary = _run_task(
+                config,
+                dataset,
+                task,
+                stream=stream,
+                concurrent=concurrent,
+                position=position,
+                total=total,
+                verbose=verbose,
+                topup_missing=missing,
+            )
+        except RuntimeError:
+            logger.exception(
+                "[task=%s] %s of %s top-up failed", task.id, position, total
+            )
+            break
+        invocations += 1
+        # This top-up overwrote metrics.json with only its own pass; fold its
+        # additive cost into the running totals.
+        pass_metrics = (
+            _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
+        )
+        for k in additive:
+            totals[k] = (totals[k] or 0) + (pass_metrics.get(k) or 0)
+        topped_up = [f for f in missing if (_artifact_dir(config, task) / f).exists()]
+
+    # Record top-up provenance so the run is honestly flagged as assisted, both on
+    # the in-memory summary and in the on-disk metrics.json.
+    summary["max_turns"] = config.max_turns
+    summary["agent_invocations"] = invocations
+    summary["topped_up_artifacts"] = topped_up
+    if invocations > 1:
+        _annotate_metrics_topup(config, task, invocations, topped_up, totals)
+    return summary
+
+
+def _annotate_metrics_topup(
+    config: RunnerConfig,
+    task: Task,
+    invocations: int,
+    topped_up: list[str],
+    totals: dict[str, Any],
+) -> None:
+    """Record top-up provenance + summed cost into the task's metrics.json.
+
+    The final top-up left metrics.json holding only its own pass. Restore the
+    additive cost fields (tokens, turns, latency) to the sum across all agent
+    invocations -- the task's true cost -- and record how many invocations it took
+    and which artifacts were topped up. Best-effort: a write failure is logged,
+    not fatal.
+    """
+    path = _artifact_dir(config, task) / "metrics.json"
+    record = _read_json_file(path)
+    if record is None:
+        return
+    record.update(totals)
+    record["agent_invocations"] = invocations
+    record["topped_up_artifacts"] = topped_up
+    try:
+        path.write_text(
+            json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8"
+        )
+    except OSError:
+        logger.warning("[task=%s] could not annotate metrics.json top-up", task.id)
+
+
+def _read_json_file(path: Path) -> dict[str, Any] | None:
+    """Return parsed JSON at ``path``, or None if absent/unreadable/invalid."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+
+
 def _run_task_safe(
     config: RunnerConfig,
     dataset: Dataset,
@@ -1858,14 +2086,29 @@ def _run_task_safe(
         summary["attempts"] = attempt
         last = summary
         if summary.get("ok") or not _summary_is_retryable(summary):
-            return summary
-    logger.error(
-        "[task=%s] %s of %s: still failing after %s attempt(s)",
-        task.id,
-        position,
-        total,
-        attempts,
-    )
+            break
+    else:
+        logger.error(
+            "[task=%s] %s of %s: still failing after %s attempt(s)",
+            task.id,
+            position,
+            total,
+            attempts,
+        )
+    # Outer completion loop: if the task is design-complete but missing the
+    # implementation artifacts, try focused top-ups to finish it (see _maybe_topup).
+    if not last.get("ok") and config.max_topups > 0:
+        last = _maybe_topup(
+            config,
+            dataset,
+            task,
+            last,
+            stream=stream,
+            concurrent=concurrent,
+            position=position,
+            total=total,
+            verbose=verbose,
+        )
     return last
 
 
@@ -2037,6 +2280,14 @@ def _parse_args() -> argparse.Namespace:
         "0 disables retries.",
     )
     parser.add_argument(
+        "--max-topups",
+        type=int,
+        help="Override: focused top-up attempts when the main run left artifacts "
+        "missing but the design docs are complete. A top-up re-invokes the agent "
+        "in a fresh context to produce ONLY the missing files (existing ones are "
+        "kept), flagged in metrics.json. 0 disables.",
+    )
+    parser.add_argument(
         "--max-output-tokens",
         type=int,
         help="Override: per-response output-token cap (CLAUDE_CODE_MAX_OUTPUT_TOKENS). "
@@ -2095,6 +2346,7 @@ def main() -> None:
         "dataset": args.dataset,
         "max_turns": args.max_turns,
         "max_retries": args.max_retries,
+        "max_topups": args.max_topups,
         "max_output_tokens": args.max_output_tokens,
         "context_window": args.context_window,
         "timeout_seconds": args.timeout_seconds,
