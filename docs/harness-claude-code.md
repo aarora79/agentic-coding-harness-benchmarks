@@ -6,7 +6,7 @@ Benchmark results for every model run under the **Claude Code** coding agent on 
 
 | Model | Mean score | Completed | Total tokens | Wall-clock | Run cost | Cost basis* |
 |---|---:|---:|---:|---:|---:|---|
-| claude-opus-5 | 77.45 | 4/4 | 968,972 | 366.0m | $217.66 | metered (Bedrock) |
+| claude-opus-5 | 76.00 | 5/5 | 701,483 | 241.1m | $180.73 | metered (Bedrock) |
 | claude-opus-4-8 | 75.32 | 5/5 | 507,617 | 127.9m | $87.12 | metered (Bedrock) |
 | claude-sonnet-5 | 72.84 | 5/5 | 1,009,920 | 267.7m | $131.94 | metered (Bedrock) |
 | glm-5.2 | 61.96 | 5/5 | 50,051,636 | 65.0m | $11.37 | hardware-derived |
