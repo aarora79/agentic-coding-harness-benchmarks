@@ -29,8 +29,8 @@ A task scoring 0 (missing/empty artifacts) is a model failure, excluded from the
 
 ### Cost vs. quality (Pareto frontier)
 
-![Cost vs quality, Claude Code harness](images/cost-quality.png)
+![Cost vs quality, Claude Code harness](images/cost-quality-cc.png)
 
 ### Quality by dimension (radar)
 
-![Quality radar, Claude Code harness](images/quality-radar.png)
+![Quality radar, Claude Code harness](images/quality-radar-cc.png)

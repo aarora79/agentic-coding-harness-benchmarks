@@ -53,6 +53,11 @@ HARNESS_LABELS = {
     "kiro-cli": "kiro-cli",
 }
 
+# Short per-harness code that suffixes chart filenames (cost-quality-cc.png,
+# quality-radar-pi.png). Must match the codes the plot scripts use so the doc
+# links resolve to the files they write.
+HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
+
 
 def _read_json(path: Path) -> dict[str, Any] | None:
     """Return the parsed JSON object at ``path``, or None if absent/invalid."""
@@ -156,18 +161,13 @@ def _render(
 ) -> str:
     """Render the per-agent Markdown doc from the collected rows."""
     label = HARNESS_LABELS.get(harness, harness)
-    # Charts live in docs/images; link relative to the doc's out_dir.
+    # Charts live in docs/images, suffixed by the harness code (cc, pi, ...) so
+    # each agent's charts are self-identifying -- must match the names the plot
+    # scripts write. Link relative to the doc's out_dir.
+    code = HARNESS_CODES.get(harness, harness)
     img = (out_dir / "images").resolve()
-    cq = img / (
-        "cost-quality.png"
-        if harness == "claude-code"
-        else f"cost-quality-{harness}.png"
-    )
-    radar = img / (
-        "quality-radar.png"
-        if harness == "claude-code"
-        else f"quality-radar-{harness}.png"
-    )
+    cq = img / f"cost-quality-{code}.png"
+    radar = img / f"quality-radar-{code}.png"
 
     def _rel(p: Path) -> str:
         try:

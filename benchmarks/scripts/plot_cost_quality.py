@@ -53,10 +53,26 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 _BENCHMARKS_DIR = _SCRIPTS_DIR.parent
 _REPO_ROOT = _BENCHMARKS_DIR.parent
 DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
-# Default to the tracked docs/images path so the committed chart the README
-# embeds stays in sync when this is re-run. (swe-benchmark-data is gitignored.)
-DEFAULT_OUTPUT = _REPO_ROOT / "docs" / "images" / "cost-quality.png"
+DEFAULT_IMAGES_DIR = _REPO_ROOT / "docs" / "images"
 METRICS_FILENAME = "metrics.json"
+
+# Short per-harness code used to suffix chart filenames so each agent's chart is
+# self-identifying and never overwrites another's (cost-quality-cc.png,
+# cost-quality-pi.png). An unknown harness falls back to its own slug.
+HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
+
+
+def _default_output(harness: str, dark: bool) -> Path:
+    """Committed docs/images path for a harness's cost-quality chart.
+
+    Defaults here so the chart the README embeds stays in sync when re-run.
+    (swe-benchmark-data is gitignored; docs/images is tracked.)
+    """
+    code = HARNESS_CODES.get(harness, harness)
+    suffix = "-dark" if dark else ""
+    return DEFAULT_IMAGES_DIR / f"cost-quality-{code}{suffix}.png"
+
+
 EVAL_FILENAME = "eval.json"
 # The committed, machine-readable per-run summary (written by summarize_run.py).
 # Preferred source: it carries the same excluded-failure means as the leaderboard
@@ -617,7 +633,8 @@ def _parse_args() -> argparse.Namespace:
         "--out",
         type=Path,
         default=None,
-        help=f"Output image path (default: {DEFAULT_OUTPUT}, or -dark suffix in dark mode)",
+        help="Output image path (default: docs/images/cost-quality-<code>.png, "
+        "where <code> is the harness code, e.g. cc or pi; -dark suffix in dark mode)",
     )
     parser.add_argument(
         "--dark", action="store_true", help="Render the dark-mode theme"
@@ -648,11 +665,7 @@ def main() -> None:
         raise SystemExit(f"data dir not found: {data_dir}")
 
     mode = "dark" if args.dark else "light"
-    output = args.out or (
-        DEFAULT_OUTPUT.with_name("cost-quality-dark.png")
-        if args.dark
-        else DEFAULT_OUTPUT
-    )
+    output = args.out or _default_output(args.harness, args.dark)
     title = args.title or f"Cost vs. quality -- {args.repo}"
 
     points = _collect_points(data_dir, args.repo, args.harness)
