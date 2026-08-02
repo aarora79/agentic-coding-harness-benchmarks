@@ -70,22 +70,24 @@ ARTIFACTS = ("github_issue", "lld", "review", "testing", "implementation")
 ARTIFACT_LABELS = ("GitHub issue", "LLD", "Review", "Testing", "Implementation")
 
 # Categorical palette from the dataviz skill's validated reference instance
-# (slots 1-3, blue/orange/aqua), fixed order, validated in both modes. Text and
-# grid wear neutral ink tokens; series color carries identity (plus a legend).
+# (slots 1-4, blue/orange/aqua/yellow), fixed order, validated in both modes with
+# scripts/validate_palette.js (all CVD + normal-vision checks PASS; the light
+# contrast WARN is covered by the legend + direct labels this chart always draws).
+# Text and grid wear neutral ink tokens; series color carries identity.
 _THEME = {
     "light": {
         "surface": "#fcfcfb",
         "ink": "#0b0b0b",
         "muted": "#52514e",
         "grid": "#d8d7d3",
-        "series": ("#2a78d6", "#eb6834", "#1baf7a"),
+        "series": ("#2a78d6", "#eb6834", "#1baf7a", "#eda100"),
     },
     "dark": {
         "surface": "#1a1a19",
         "ink": "#ffffff",
         "muted": "#c3c2b7",
         "grid": "#3a3a37",
-        "series": ("#3987e5", "#d95926", "#199e70"),
+        "series": ("#3987e5", "#d95926", "#199e70", "#c98500"),
     },
 }
 
