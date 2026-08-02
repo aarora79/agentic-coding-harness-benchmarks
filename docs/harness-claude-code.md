@@ -4,24 +4,24 @@ Benchmark results for every model run under the **Claude Code** coding agent on 
 
 ## Results by model
 
-| Model | Mean score | Completed | Total tokens | Wall-clock | Run cost* |
-|---|---:|---:|---:|---:|---:|
-| us.anthropic.claude-opus-5[1m] | 77.45 | 4/4 | 968,972 | 366.0m | $64.00 |
-| us.anthropic.claude-opus-4-8 | 75.32 | 5/5 | 507,617 | 127.9m | $22.36 |
-| us.anthropic.claude-sonnet-5 | 72.84 | 5/5 | 1,009,920 | 267.7m | $46.81 |
-| glm-5.2 | 61.96 | 5/5 | 50,051,636 | 65.0m | $11.37 |
-| kimi-k2.7-code | 58.68 | 5/5 | 47,675,538 | 130.3m | $22.79 |
-| deepseek-v3.2 | 52.20 | 5/5 | 40,916,403 | 80.3m | $14.04 |
-| minimax-m2.5 | 51.56 | 5/5 | 33,957,716 | 22.7m | $3.97 |
-| qwen3.6-35b | 50.32 | 5/5 | 23,541,194 | 88.4m | $15.46 |
-| nemotron-ultra-550b | 50.20 | 4/5 | 32,802,785 | 70.2m | $12.27 |
-| gemma-4-31b | 48.40 | 5/5 | 24,842,600 | 213.0m | $37.24 |
-| us.anthropic.claude-haiku-4-5-20251001-v1:0 | 47.92 | 5/5 | 166,140 | 28.4m | $4.97 |
-| qwen3-coder-480b | 44.95 | 4/5 | 66,233,836 | 68.2m | $11.93 |
-| devstral-2-123b | 43.12 | 5/5 | 28,118,483 | 50.6m | $8.84 |
-| qwen3-coder-30b | 30.20 | 4/5 | 50,725,919 | 84.2m | $14.71 |
+| Model | Mean score | Completed | Total tokens | Wall-clock | Run cost | Cost basis* |
+|---|---:|---:|---:|---:|---:|---|
+| claude-opus-5 | 77.45 | 4/4 | 968,972 | 366.0m | $217.66 | metered (Bedrock) |
+| claude-opus-4-8 | 75.32 | 5/5 | 507,617 | 127.9m | $87.12 | metered (Bedrock) |
+| claude-sonnet-5 | 72.84 | 5/5 | 1,009,920 | 267.7m | $131.94 | metered (Bedrock) |
+| glm-5.2 | 61.96 | 5/5 | 50,051,636 | 65.0m | $11.37 | hardware-derived |
+| kimi-k2.7-code | 58.68 | 5/5 | 47,675,538 | 130.3m | $22.79 | hardware-derived |
+| deepseek-v3.2 | 52.20 | 5/5 | 40,916,403 | 80.3m | $14.04 | hardware-derived |
+| minimax-m2.5 | 51.56 | 5/5 | 33,957,716 | 22.7m | $3.97 | hardware-derived |
+| qwen3.6-35b | 50.32 | 5/5 | 23,541,194 | 88.4m | $15.46 | hardware-derived |
+| nemotron-ultra-550b | 50.20 | 4/5 | 32,802,785 | 70.2m | $12.27 | hardware-derived |
+| gemma-4-31b | 48.40 | 5/5 | 24,842,600 | 213.0m | $37.24 | hardware-derived |
+| claude-haiku-4-5-20251001-v1:0 | 47.92 | 5/5 | 166,140 | 28.4m | $6.54 | metered (Bedrock) |
+| qwen3-coder-480b | 44.95 | 4/5 | 66,233,836 | 68.2m | $11.93 | hardware-derived |
+| devstral-2-123b | 43.12 | 5/5 | 28,118,483 | 50.6m | $8.84 | hardware-derived |
+| qwen3-coder-30b | 30.20 | 4/5 | 50,725,919 | 84.2m | $14.71 | hardware-derived |
 
-\* Run cost is the whole 4-task run, hardware-derived at g6e.12xlarge on-demand ($10.49/hr): `($/hr / 3600) x wall-clock seconds`. On a rented GPU there is no per-token bill, so time is the cost -- see [cost-per-task-methodology.md](cost-per-task-methodology.md).
+\* **Cost basis differs by row and the dollars are NOT directly comparable.** _hardware-derived_ (self-hosted vLLM): a rented GPU has no per-token bill, so cost is `($/hr / 3600) x wall-clock seconds` at g6e.12xlarge on-demand ($10.49/hr). _metered (Bedrock)_: a hosted API's real per-token bill, summed over the run. It is a metered invoice, not a hardware estimate, and (unlike the self-hosted rows) it benefits from Bedrock prompt caching. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
 
 A task scoring 0 (missing/empty artifacts) is a model failure, excluded from the mean but counted in `Completed`. A model with 0 scored tasks did not complete any task under this harness.
 
@@ -29,8 +29,8 @@ A task scoring 0 (missing/empty artifacts) is a model failure, excluded from the
 
 ### Cost vs. quality (Pareto frontier)
 
-![Cost vs quality, Claude Code harness](images/cost-quality.png)
+![Cost vs quality, Claude Code harness](images/cost-quality-cc.png)
 
 ### Quality by dimension (radar)
 
-![Quality radar, Claude Code harness](images/quality-radar.png)
+![Quality radar, Claude Code harness](images/quality-radar-cc.png)

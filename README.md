@@ -47,7 +47,7 @@ To show what the harness produces, we ran it against [agentic-community/mcp-gate
 
 ### Cost vs. quality
 
-![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality.png)
+![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality-cc.png)
 
 Mean cost per task (x) against mean task score (y), one point per model. For **self-hosted** models with a throughput sweep, cost is **hardware-derived**: the model's blended cost per token (instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](docs/cost-per-task-methodology.md)) times its *actual* input+output tokens per task, averaged over non-failed tasks. The four **Anthropic** points (Opus-5, Opus-4.8, Sonnet-5, Haiku-4.5) are **real token-metered Bedrock bills**; every self-hosted model now has a throughput sweep, so all of their costs are hardware-derived (no token-priced estimates remain) -- comparable as spend, different in kind. The cost/quality frontier runs **Qwen3-Coder-30B ($0.98 / 30.20) -> Qwen3.6-35B ($1.03 / 50.32) -> MiniMax-M2.5 ($1.16 / 51.56) -> DeepSeek-V3.2 ($4.81 / 52.20) -> Kimi-K2.7-Code ($7.93 / 58.68) -> GLM-5.2 ($11.09 / 61.96) -> Claude-Opus-4.8 ($17.42 / 75.32) -> Claude-Opus-5 ($54.41 / 77.45)**. Everything else is **dominated**: notably Claude-Haiku-4.5 (47.92 at $1.31), Devstral-2-123B ($1.74 / 43.12) and Nemotron-Ultra-550B ($1.75 / 50.20) -- both now cheap on their own hardware but beaten by MiniMax-M2.5 on both axes -- Claude-Sonnet-5 (72.84 but $26.39), Gemma-4-31B, and Qwen3-Coder-480B ($7.43). Opus-5 is the top-quality point but its $54.41/task makes it the frontier's expensive extreme -- Opus-4.8 delivers nearly the same quality for a third of the cost. Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task (footnote ⁵). Regenerate with `uv run scripts/plot_cost_quality.py` (add `--dark`) from `benchmarks/`.
 
@@ -127,7 +127,7 @@ Each artifact is scored 0-100 by an independent judge session (`codex exec`, `gp
 
 The single task score hides *how* a model earns it. The radar below breaks the judge's scores out by **rubric criterion** (left -- is the model complete? correct? specific? risk-aware?) and by **artifact** (right -- which deliverable is it best at?). It reads the per-artifact `eval_scores` embedded in each run's `run-summary.json`.
 
-![Radar charts of quality by rubric criterion and by artifact, for the models with per-artifact eval data](docs/images/quality-radar.png)
+![Radar charts of quality by rubric criterion and by artifact, for the models with per-artifact eval data](docs/images/quality-radar-cc.png)
 
 The shape is as informative as the size: qwen3.6-35b leads on specificity and its review/testing artifacts; gemma-4-31b is strongest on risk-awareness; the coder-tuned qwen3-coder-30b trails on every axis and collapses on implementation. Every model dips hardest on **implementation** and **correctness** -- landing working code is the hard part. This view currently covers the models whose runs carry the per-artifact breakdown; the rest are being backfilled. Regenerate with `uv run scripts/plot_quality_radar.py` (add `--dark`) from `benchmarks/`.
 

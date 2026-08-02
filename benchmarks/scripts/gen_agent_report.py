@@ -53,6 +53,11 @@ HARNESS_LABELS = {
     "kiro-cli": "kiro-cli",
 }
 
+# Short per-harness code that suffixes chart filenames (cost-quality-cc.png,
+# quality-radar-pi.png). Must match the codes the plot scripts use so the doc
+# links resolve to the files they write.
+HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
+
 
 def _read_json(path: Path) -> dict[str, Any] | None:
     """Return the parsed JSON object at ``path``, or None if absent/invalid."""
@@ -64,19 +69,28 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 
 def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
-    """Sum a run's per-task tokens and wall-clock into headline totals.
+    """Sum a run's per-task tokens, wall-clock, and metered cost into totals.
 
     Args:
         summary: One model's run-summary dict.
 
     Returns:
-        Dict with total input/output tokens and total latency seconds.
+        Dict with total input/output tokens, total latency seconds, and total
+        metered cost (the sum of per-task ``total_cost_usd``; None on the
+        self-hosted path where the model reports no per-token price).
     """
     tasks = summary.get("tasks", []) or []
     tin = sum((t.get("input_tokens") or 0) for t in tasks)
     tout = sum((t.get("output_tokens") or 0) for t in tasks)
     tsec = sum((t.get("latency_seconds") or 0) for t in tasks)
-    return {"input_tokens": tin, "output_tokens": tout, "latency_seconds": tsec}
+    costs = [t.get("total_cost_usd") for t in tasks if t.get("total_cost_usd")]
+    metered_cost = sum(costs) if costs else None
+    return {
+        "input_tokens": tin,
+        "output_tokens": tout,
+        "latency_seconds": tsec,
+        "metered_cost": metered_cost,
+    }
 
 
 def _collect(data_dir: Path, harness: str, repo: str) -> list[dict[str, Any]]:
@@ -93,7 +107,10 @@ def _collect(data_dir: Path, harness: str, repo: str) -> list[dict[str, Any]]:
         totals = _run_totals(summary)
         rows.append(
             {
-                "model": summary.get("model") or model_dir.name,
+                # Prefer the clean slug (e.g. "claude-opus-5") over the raw id
+                # ("us.anthropic.claude-opus-5[1m]") for a readable table.
+                "model": summary.get("model_slug") or model_dir.name,
+                "provider": summary.get("provider"),
                 "mean": summary.get("mean_task_score_excl_failed"),
                 "num_scored": summary.get("num_scored"),
                 "num_tasks": summary.get("num_tasks"),
@@ -106,11 +123,32 @@ def _collect(data_dir: Path, harness: str, repo: str) -> list[dict[str, Any]]:
     return rows
 
 
-def _fmt_cost(latency_seconds: float, dollars_per_hour: float) -> str:
-    """Hardware-derived run cost = ($/hr / 3600) x wall-clock seconds."""
-    if not latency_seconds:
-        return "--"
-    return f"${latency_seconds * dollars_per_hour / 3600.0:.2f}"
+def _row_cost(row: dict[str, Any], dollars_per_hour: float) -> tuple[str, str]:
+    """Return (cost string, basis label) for a model row.
+
+    Two cost bases, never mixed on one number:
+      * **metered** -- a hosted API (provider=bedrock) reports a real per-token
+        bill; use the summed ``total_cost_usd``.
+      * **hardware** -- a self-hosted model has no per-token price, so cost is
+        derived from the GPU it rents: ``($/hr / 3600) x wall-clock seconds``.
+
+    Applying the GPU hourly rate to a Bedrock run (or vice versa) would be
+    nonsense, so the basis is chosen per row and labelled in its own column.
+
+    Args:
+        row: A collected model row (provider, metered_cost, latency_seconds).
+        dollars_per_hour: Instance $/hr for the hardware-derived basis.
+
+    Returns:
+        A ``(cost, basis)`` pair, e.g. ``("$0.63", "metered (Bedrock)")``.
+    """
+    if row.get("provider") == "bedrock":
+        cost = row.get("metered_cost")
+        return (f"${cost:.2f}" if cost else "--", "metered (Bedrock)")
+    seconds = row.get("latency_seconds") or 0
+    if not seconds:
+        return ("--", "hardware-derived")
+    return (f"${seconds * dollars_per_hour / 3600.0:.2f}", "hardware-derived")
 
 
 def _render(
@@ -123,18 +161,13 @@ def _render(
 ) -> str:
     """Render the per-agent Markdown doc from the collected rows."""
     label = HARNESS_LABELS.get(harness, harness)
-    # Charts live in docs/images; link relative to the doc's out_dir.
+    # Charts live in docs/images, suffixed by the harness code (cc, pi, ...) so
+    # each agent's charts are self-identifying -- must match the names the plot
+    # scripts write. Link relative to the doc's out_dir.
+    code = HARNESS_CODES.get(harness, harness)
     img = (out_dir / "images").resolve()
-    cq = img / (
-        "cost-quality.png"
-        if harness == "claude-code"
-        else f"cost-quality-{harness}.png"
-    )
-    radar = img / (
-        "quality-radar.png"
-        if harness == "claude-code"
-        else f"quality-radar-{harness}.png"
-    )
+    cq = img / f"cost-quality-{code}.png"
+    radar = img / f"quality-radar-{code}.png"
 
     def _rel(p: Path) -> str:
         try:
@@ -153,26 +186,45 @@ def _render(
         "",
         "## Results by model",
         "",
-        "| Model | Mean score | Completed | Total tokens | Wall-clock | Run cost* |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Model | Mean score | Completed | Total tokens | Wall-clock | Run cost | Cost basis* |",
+        "|---|---:|---:|---:|---:|---:|---|",
     ]
+    any_hardware = False
+    any_metered = False
     for r in rows:
         mean = "-- (0 scored)" if r["mean"] is None else f"{r['mean']:.2f}"
         completed = f"{r['num_scored']}/{r['num_tasks']}"
         tok = f"{r['input_tokens'] + r['output_tokens']:,}"
         mins = (r["latency_seconds"] or 0) / 60.0
         wall = f"{mins:.1f}m" if mins else "--"
-        cost = _fmt_cost(r["latency_seconds"], dollars_per_hour)
+        cost, basis = _row_cost(r, dollars_per_hour)
+        any_hardware = any_hardware or basis == "hardware-derived"
+        any_metered = any_metered or basis.startswith("metered")
         lines.append(
-            f"| {r['model']} | {mean} | {completed} | {tok} | {wall} | {cost} |"
+            f"| {r['model']} | {mean} | {completed} | {tok} | {wall} | {cost} | {basis} |"
         )
+    # The cost column mixes two bases that are NOT comparable as raw dollars: a
+    # metered API bill vs a GPU-time estimate. Spell that out so no one reads the
+    # column as a single apples-to-apples number.
+    note = [
+        "\\* **Cost basis differs by row and the dollars are NOT directly comparable.**"
+    ]
+    if any_hardware:
+        note.append(
+            f" _hardware-derived_ (self-hosted vLLM): a rented GPU has no per-token "
+            f"bill, so cost is `($/hr / 3600) x wall-clock seconds` at g6e.12xlarge "
+            f"on-demand (${dollars_per_hour}/hr)."
+        )
+    if any_metered:
+        note.append(
+            " _metered (Bedrock)_: a hosted API's real per-token bill, summed over "
+            "the run. It is a metered invoice, not a hardware estimate, and (unlike "
+            "the self-hosted rows) it benefits from Bedrock prompt caching."
+        )
+    note.append(" See [cost-per-task-methodology.md](cost-per-task-methodology.md).")
     lines += [
         "",
-        f"\\* Run cost is the whole {rows[0]['num_tasks'] if rows else 5}-task run, "
-        f"hardware-derived at g6e.12xlarge on-demand (${dollars_per_hour}/hr): "
-        "`($/hr / 3600) x wall-clock seconds`. On a rented GPU there is no "
-        "per-token bill, so time is the cost -- see "
-        "[cost-per-task-methodology.md](cost-per-task-methodology.md).",
+        "".join(note),
         "",
         "A task scoring 0 (missing/empty artifacts) is a model failure, excluded "
         "from the mean but counted in `Completed`. A model with 0 scored tasks "

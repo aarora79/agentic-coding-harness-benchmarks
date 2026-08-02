@@ -50,6 +50,17 @@ DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
 DEFAULT_OUT_DIR = _REPO_ROOT / "docs" / "images"
 RUN_SUMMARY_FILENAME = "run-summary.json"
 
+# Short per-harness code used to suffix chart filenames so each agent's charts
+# are self-identifying and never overwrite another's (e.g. quality-radar-cc.png,
+# quality-radar-pi.png). An unknown harness falls back to its own slug.
+HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
+
+
+def _harness_code(harness: str) -> str:
+    """Return the short filename code for a harness slug (cc, pi, ...)."""
+    return HARNESS_CODES.get(harness, harness)
+
+
 # The judge's four criteria (each scored 0-25 per artifact) and the six
 # artifacts a /swe2 run produces. Order is fixed so every chart reads the same.
 CRITERIA = ("completeness", "correctness", "specificity", "risk_awareness")
@@ -247,11 +258,10 @@ def _plot(
     )
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    # claude-code keeps the canonical quality-radar.png (the README points there);
-    # every other harness gets a suffixed file so the two never overwrite.
-    harness_suffix = "" if harness == "claude-code" else f"-{harness}"
+    # Every harness gets a short-code suffix (cc, pi, ...) so each agent's chart
+    # is self-identifying and never overwrites another's.
     mode_suffix = "-dark" if mode == "dark" else ""
-    out = out_dir / f"quality-radar{harness_suffix}{mode_suffix}.png"
+    out = out_dir / f"quality-radar-{_harness_code(harness)}{mode_suffix}.png"
     fig.savefig(out, bbox_inches="tight", facecolor=theme["surface"])
     plt.close(fig)
     logger.info("wrote %s (%d models)", out, n_shown)
