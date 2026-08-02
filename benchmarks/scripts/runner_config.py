@@ -60,7 +60,10 @@ DEFAULT_PERMISSION_MODE = "acceptEdits"
 VALID_PERMISSION_MODES = {"default", "acceptEdits", "plan", "bypassPermissions"}
 DEFAULT_MAX_TURNS = 250
 DEFAULT_MAX_OUTPUT_TOKENS = 16000
-DEFAULT_TIMEOUT_SECONDS = 3600
+# 2h per task: /swe2 implements (up to 250 turns), and a frontier model writing
+# long, thorough implementations can exceed 1h on a heavy task (observed with
+# Opus 5). A task that overruns is killed and marked failed.
+DEFAULT_TIMEOUT_SECONDS = 7200
 # How many times to retry a task that failed for a TRANSIENT reason (stream
 # error, empty/non-JSON output, timeout, an api/execution error). A task that
 # simply ran out of turns (subtype "error_max_turns") is NOT retried -- more
