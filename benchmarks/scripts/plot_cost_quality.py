@@ -629,7 +629,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--cost-label",
-        default="Cost per task (mean $, hardware-derived: instance $/hr / measured tokens/sec)",
+        # Basis-neutral: the chart mixes hardware-derived costs (self-hosted:
+        # instance $/hr / measured tokens/sec) with real metered Bedrock bills
+        # (Anthropic models). Naming one basis in the axis label misrepresents
+        # the other, so the axis states only the quantity; provenance lives in
+        # the caption/footnotes (see the README leaderboard notes).
+        default="Mean cost per task ($) -- self-hosted hardware-derived; Anthropic metered (see notes)",
         help="X-axis label; make cost provenance explicit",
     )
     return parser.parse_args()
