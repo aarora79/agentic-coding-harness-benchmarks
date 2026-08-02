@@ -16,6 +16,7 @@ from runner_config import (  # noqa: E402
     RunnerConfigError,
     load_runner_config,
     model_to_slug,
+    model_to_wire_id,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -197,6 +198,32 @@ class BedrockProviderTest(unittest.TestCase):
         self.assertEqual(config.resolved_region(), "us-west-2")
 
 
+class PiBedrockTest(unittest.TestCase):
+    """pi supports native Amazon Bedrock (not only the vLLM endpoint)."""
+
+    def test_pi_with_bedrock_is_allowed(self) -> None:
+        # pi bundles the AWS SDK bedrock-runtime client, so agent=pi +
+        # provider=bedrock is a valid combination (it used to be rejected).
+        config = load_runner_config(
+            _write(_BEDROCK),
+            {"agent": "pi"},
+        )
+        self.assertTrue(config.is_pi)
+        self.assertTrue(config.is_bedrock)
+        self.assertEqual(config.resolved_region(), "us-east-1")
+
+    def test_pi_with_bedrock_still_requires_region(self) -> None:
+        text = "provider: bedrock\nagent: pi\nmodel: m\ndataset: d.yaml\n"
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("AWS_REGION", "AWS_DEFAULT_REGION")
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            with self.assertRaisesRegex(RunnerConfigError, "requires an AWS region"):
+                load_runner_config(_write(text))
+
+
 class ModelSlugTest(unittest.TestCase):
     def test_bedrock_prefix_and_suffix_stripped(self) -> None:
         self.assertEqual(
@@ -236,6 +263,23 @@ class ModelSlugTest(unittest.TestCase):
         )
         self.assertEqual(config.model, "us.anthropic.claude-opus-4-8")
         self.assertEqual(config.model_slug, "claude-opus-4-8")
+
+    def test_wire_id_keeps_prefix_strips_suffix(self) -> None:
+        # The wire id (what pi passes to the Bedrock API) keeps the region/vendor
+        # prefix but drops the harness "[1m]" context-window hint.
+        self.assertEqual(
+            model_to_wire_id("us.anthropic.claude-opus-5[1m]"),
+            "us.anthropic.claude-opus-5",
+        )
+
+    def test_wire_id_without_suffix_unchanged(self) -> None:
+        self.assertEqual(
+            model_to_wire_id("us.anthropic.claude-opus-5"),
+            "us.anthropic.claude-opus-5",
+        )
+
+    def test_wire_id_plain_name_unchanged(self) -> None:
+        self.assertEqual(model_to_wire_id("qwen3-coder-30b"), "qwen3-coder-30b")
 
 
 class AutoCompactWindowTest(unittest.TestCase):

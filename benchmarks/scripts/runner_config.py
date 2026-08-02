@@ -104,11 +104,11 @@ VALID_PROVIDERS = {PROVIDER_ENDPOINT, PROVIDER_BEDROCK}
 DEFAULT_PROVIDER = PROVIDER_ENDPOINT
 
 # Which coding agent drives the task. "claude" is Claude Code (`claude -p`);
-# "pi" is the pi coding agent (`pi -p --mode json`), which speaks the same
-# OpenAI-compatible endpoint a self-hosted vLLM server exposes. The /swe2 task
-# definition is identical for both -- only the agent binary and its invocation
-# differ. pi has no native Amazon Bedrock mode, so it pairs only with
-# provider=endpoint (validated below).
+# "pi" is the pi coding agent (`pi -p --mode json`). The /swe2 task definition is
+# identical for both -- only the agent binary and its invocation differ. Both
+# support either provider: an OpenAI-compatible endpoint (a self-hosted vLLM
+# server or a gateway) or native Amazon Bedrock (pi bundles the AWS SDK
+# bedrock-runtime client, invoked as `pi --provider amazon-bedrock`).
 AGENT_CLAUDE = "claude"
 AGENT_PI = "pi"
 VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI}
@@ -148,6 +148,25 @@ def model_to_slug(model: str) -> str:
     slug = _MODEL_SUFFIX_RE.sub("", model)
     slug = _BEDROCK_PREFIX_RE.sub("", slug)
     return slug
+
+
+def model_to_wire_id(model: str) -> str:
+    """Strip only the bracketed suffix, keeping any Bedrock region/vendor prefix.
+
+    The ``[1m]`` style suffix is a harness convention (a context-window hint the
+    Claude Code CLI understands); it is not part of a real model id. An API that
+    resolves the id itself -- e.g. pi calling Amazon Bedrock through the AWS SDK
+    -- needs the clean inference-profile id WITH its region prefix intact
+    (``us.anthropic.claude-opus-5``), unlike ``model_to_slug`` which also drops
+    the prefix to name the artifact folder.
+
+    Args:
+        model: The raw model id (e.g. ``us.anthropic.claude-opus-5[1m]``).
+
+    Returns:
+        The wire model id (e.g. ``us.anthropic.claude-opus-5``).
+    """
+    return _MODEL_SUFFIX_RE.sub("", model)
 
 
 @lru_cache(maxsize=1)
@@ -193,7 +212,8 @@ class RunnerConfig(BaseModel):
     agent: str = Field(
         default=DEFAULT_AGENT,
         description="Coding agent that runs the task: 'claude' (Claude Code) or "
-        "'pi' (pi coding agent). pi requires provider=endpoint.",
+        "'pi' (pi coding agent). Both support provider=endpoint or "
+        "provider=bedrock.",
     )
 
     # Routing: how the agent reaches the model.
@@ -412,15 +432,11 @@ class RunnerConfig(BaseModel):
             raise RunnerConfigError(
                 f"agent '{self.agent}' not in {sorted(VALID_AGENTS)}."
             )
-        # pi speaks only the OpenAI-compatible endpoint path; it has no native
-        # Amazon Bedrock mode, so pair it with provider=endpoint (a local vLLM
-        # server, a gateway, etc.). Claude Code supports both providers.
-        if self.is_pi and self.is_bedrock:
-            raise RunnerConfigError(
-                "agent=pi requires provider=endpoint (pi has no native Amazon "
-                "Bedrock mode). Serve the model on an OpenAI-compatible endpoint "
-                "(e.g. a local vLLM server) and set provider=endpoint."
-            )
+        # pi supports both an OpenAI-compatible endpoint (a local vLLM server, a
+        # gateway) and native Amazon Bedrock (it bundles the AWS SDK's
+        # bedrock-runtime client + credential chain, invoked as
+        # `pi --provider amazon-bedrock`). No routing combination is rejected
+        # here; _validate_routing checks the fields each provider needs.
         if not self.model:
             raise RunnerConfigError(
                 "model is required. Set it in the config file or pass --model "

@@ -43,7 +43,12 @@ from typing import Any
 import requests
 
 from dataset_loader import Dataset, DatasetError, Task, load_dataset
-from runner_config import RunnerConfig, RunnerConfigError, load_runner_config
+from runner_config import (
+    RunnerConfig,
+    RunnerConfigError,
+    load_runner_config,
+    model_to_wire_id,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,6 +70,12 @@ GIT_CLONE_TIMEOUT_SECONDS = 300
 # repo's .claude/skills tree via the /swe2 slash command; pi is pointed at the
 # same file explicitly with `--skill` so both agents run the identical task.
 SWE2_SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "swe2" / "SKILL.md"
+
+# pi provider names (the `--provider` value pi expects). For a self-hosted vLLM
+# endpoint pi reads a "vllm" block from its models.json; for Amazon Bedrock pi
+# has a native provider backed by the bundled AWS SDK bedrock-runtime client.
+PI_PROVIDER_VLLM = "vllm"
+PI_PROVIDER_BEDROCK = "amazon-bedrock"
 
 # The harness scrapes vLLM's entire Prometheus /metrics surface (every family
 # under this prefix) rather than a curated subset, so nothing is omitted and new
@@ -541,22 +552,78 @@ def _write_pi_settings(config: RunnerConfig, agent_dir: Path) -> None:
 def _build_pi_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
     """Build the environment for the pi subprocess.
 
-    pi routes to the model through its ``models.json`` (written by
-    ``_write_pi_models_json``), not through env vars, so the only override needed
-    is ``PI_CODING_AGENT_DIR`` -- pointing pi at the per-run config dir so the
-    benchmark stays isolated from a developer's global ``~/.pi`` setup.
+    ``PI_CODING_AGENT_DIR`` points pi at the per-run config dir so the benchmark
+    stays isolated from a developer's global ``~/.pi`` setup. For a vLLM endpoint,
+    routing comes from the per-run ``models.json`` and no other override is needed.
+    For Amazon Bedrock, pi uses the ambient AWS credential chain (env/ini/sso/...)
+    and needs the region: we pin ``AWS_REGION`` from the resolved config so the run
+    is reproducible regardless of the caller's shell. Credentials themselves are
+    never injected here -- they come from the standard chain, so no secret is
+    written or logged.
 
     Args:
-        config: The runner config (unused today; kept for symmetry with the
-            claude path and future pi env needs).
+        config: The runner config (provider, aws region).
         agent_dir: The per-run pi agent config dir.
 
     Returns:
-        A copy of the current environment with the pi agent dir pinned.
+        A copy of the current environment with the pi agent dir pinned (plus the
+        AWS region for the bedrock path).
     """
     env = os.environ.copy()
     env["PI_CODING_AGENT_DIR"] = str(agent_dir)
+    if config.is_bedrock:
+        region = config.resolved_region()
+        if region:
+            env["AWS_REGION"] = region
+        _ensure_aws_sigv4_env(env)
     return env
+
+
+def _ensure_aws_sigv4_env(env: dict[str, str]) -> None:
+    """Populate SigV4 AWS credentials in ``env`` for pi's Bedrock provider.
+
+    pi's ``amazon-bedrock`` provider authenticates from explicit credentials
+    (``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY`` / ``AWS_SESSION_TOKEN`` or
+    ``AWS_BEARER_TOKEN_BEDROCK``); unlike boto3 it does NOT probe the EC2 IMDS
+    instance-profile chain. On an EC2 box whose only credentials come from an
+    attached instance role, a run would fail with "No API key found". This
+    resolves the role's short-lived credentials via ``aws configure
+    export-credentials`` and injects them, so the ambient instance role Just Works.
+
+    No-ops when credentials are already present in ``env`` (the caller's shell set
+    them, or a bearer token is configured) or when the AWS CLI cannot mint any
+    (off EC2 with no role) -- pi then reports its own clear auth error. Credentials
+    are only placed in the child env, never logged or written to disk.
+
+    Args:
+        env: The subprocess environment to populate in place.
+    """
+    if env.get("AWS_ACCESS_KEY_ID") or env.get("AWS_BEARER_TOKEN_BEDROCK"):
+        return
+    try:
+        proc = subprocess.run(
+            ["aws", "configure", "export-credentials", "--format", "env-no-export"],  # nosec B603 B607 - hardcoded command, no user input
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        )
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ):
+        # No resolvable credentials (or no AWS CLI): leave env as-is and let pi
+        # surface its own auth error rather than failing opaquely here.
+        logger.warning(
+            "could not resolve AWS credentials via 'aws configure export-credentials'; "
+            "pi will rely on whatever is already in the environment"
+        )
+        return
+    for line in proc.stdout.splitlines():
+        key, _, value = line.strip().partition("=")
+        if key.startswith("AWS_") and value:
+            env[key] = value
 
 
 def _build_pi_cmd(config: RunnerConfig, prompt: str) -> list[str]:
@@ -569,13 +636,29 @@ def _build_pi_cmd(config: RunnerConfig, prompt: str) -> list[str]:
     Code uses, via ``--skill``. ``--no-session`` keeps the run ephemeral (no
     session file written under the agent dir).
 
+    The ``--provider`` depends on routing: a self-hosted vLLM endpoint (resolved
+    from the per-run models.json) or native Amazon Bedrock (pi signs SigV4 via the
+    bundled AWS SDK; credentials come from the ambient chain, region from the env
+    set in ``_build_pi_env``). The model id is the Bedrock inference-profile id
+    (e.g. ``us.anthropic.claude-opus-5``) for bedrock, or the served-model-name
+    for vLLM.
+
     Args:
-        config: The runner config (model, provider=endpoint).
+        config: The runner config (model, provider).
         prompt: The hydrated /swe2 prompt (see ``_build_prompt`` agent="pi").
 
     Returns:
         The command as a list of arguments (never a shell string).
     """
+    if config.is_bedrock:
+        # pi resolves the Bedrock inference profile itself, so pass the clean
+        # wire id (region prefix kept, harness "[1m]" hint stripped). For vLLM the
+        # served-model-name is used verbatim.
+        provider = PI_PROVIDER_BEDROCK
+        model = model_to_wire_id(config.model)
+    else:
+        provider = PI_PROVIDER_VLLM
+        model = config.model
     return [
         "pi",
         "-p",
@@ -583,9 +666,9 @@ def _build_pi_cmd(config: RunnerConfig, prompt: str) -> list[str]:
         "json",
         "--no-session",
         "--provider",
-        "vllm",
+        provider,
         "--model",
-        config.model,
+        model,
         "--skill",
         str(SWE2_SKILL_PATH),
         prompt,
@@ -1099,23 +1182,32 @@ def _pi_result_from_events(
     usage = last_assistant.get("usage") or {}
     stop_reason = last_assistant.get("stopReason")
     # pi's usage keys (input/output) differ from claude's (input_tokens/...);
-    # remap so _metrics_from_result reads them unchanged. Cache tokens are left
-    # absent (vLLM does not report them; real reuse comes from the Prometheus
-    # block), matching the claude-vs-vLLM behavior.
+    # remap so _metrics_from_result reads them unchanged.
+    remapped_usage: dict[str, Any] = {
+        "input_tokens": usage.get("input", 0),
+        "output_tokens": usage.get("output", 0),
+    }
+    # Cache tokens: against a vLLM endpoint pi reports 0 (real reuse comes from the
+    # Prometheus block, so we omit them rather than record a misleading 0). Against
+    # Amazon Bedrock pi DOES report native prompt-cache usage (cacheRead/cacheWrite)
+    # -- pass those through under the keys _metrics_from_result expects, but only
+    # when non-zero so the vLLM path stays clean.
+    if usage.get("cacheRead"):
+        remapped_usage["cache_read_input_tokens"] = usage["cacheRead"]
+    if usage.get("cacheWrite"):
+        remapped_usage["cache_creation_input_tokens"] = usage["cacheWrite"]
     cost = (usage.get("cost") or {}).get("total")
     # An error retry (pi tried and gave up) or a non-"stop" terminal reason marks
     # the run failed so the harness's retry/failure logic can react.
     will_retry = agent_end.get("willRetry", False)
     is_error = bool(will_retry) or stop_reason not in (None, "stop", "end_turn")
     return {
-        "usage": {
-            "input_tokens": usage.get("input", 0),
-            "output_tokens": usage.get("output", 0),
-        },
+        "usage": remapped_usage,
         "num_turns": num_turns,
-        # pi reports 0 cost against a local vLLM endpoint; the real per-task cost
-        # is hardware-derived (see cost-per-task-methodology.md), so keep None
-        # here rather than a misleading 0.
+        # pi reports 0 cost against a local vLLM endpoint (the real per-task cost is
+        # hardware-derived; see cost-per-task-methodology.md), so keep None there
+        # rather than a misleading 0. Against Amazon Bedrock pi reports a REAL
+        # metered cost -- pass it through unchanged.
         "total_cost_usd": cost if cost else None,
         "is_error": is_error,
         # Map pi's stopReason onto the subtype the retry logic keys on. pi has no
@@ -1651,7 +1743,13 @@ def _run_task(
             # Per-run pi config dir under the clone parent so it is cleaned up
             # with the clone and never touches the developer's global ~/.pi.
             pi_agent_dir = clone_parent / "pi-agent"
-            _write_pi_models_json(config, pi_agent_dir)
+            # vLLM routing needs a models.json pointing at the endpoint; the
+            # native Amazon Bedrock provider is built into pi, so skip it there.
+            if config.is_bedrock:
+                pi_agent_dir.mkdir(parents=True, exist_ok=True)
+                _write_pi_settings(config, pi_agent_dir)
+            else:
+                _write_pi_models_json(config, pi_agent_dir)
             cmd = _build_pi_cmd(config, prompt)
             env = _build_pi_env(config, pi_agent_dir)
             logger.info(
@@ -2232,7 +2330,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--agent",
         help="Override: coding agent that runs the task ('claude' for Claude "
-        "Code, 'pi' for the pi coding agent). pi requires provider=endpoint.",
+        "Code, 'pi' for the pi coding agent). Both support provider=endpoint "
+        "or provider=bedrock.",
     )
     parser.add_argument(
         "--provider",
