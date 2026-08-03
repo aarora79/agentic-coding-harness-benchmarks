@@ -263,6 +263,19 @@ class ModelSlugTest(unittest.TestCase):
     def test_other_region_and_vendor_prefix_stripped(self) -> None:
         self.assertEqual(model_to_slug("eu.meta.llama3-70b"), "llama3-70b")
 
+    def test_dated_haiku_folds_onto_short_slug(self) -> None:
+        # A dated Bedrock id must slug to the same short folder as its short name,
+        # so a re-run lands in the existing claude-haiku-4-5/ tree.
+        self.assertEqual(
+            model_to_slug("us.anthropic.claude-haiku-4-5-20251001-v1:0"),
+            "claude-haiku-4-5",
+        )
+
+    def test_dated_suffix_only_strips_date_versioned_ids(self) -> None:
+        # Plain version names (no -YYYYMMDD-vN:M) are untouched.
+        self.assertEqual(model_to_slug("us.anthropic.claude-opus-5"), "claude-opus-5")
+        self.assertEqual(model_to_slug("glm-5.2"), "glm-5.2")
+
     def test_mantle_prefix_preserved(self) -> None:
         # Mantle names use a single vendor token (no 2-letter region), so the
         # inference-profile regex must not touch them.

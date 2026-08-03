@@ -89,9 +89,9 @@ def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
     tasks = summary.get("tasks", []) or []
     tin = sum((t.get("input_tokens") or 0) for t in tasks)
     tout = sum((t.get("output_tokens") or 0) for t in tasks)
-    tcache = sum(
-        (t.get("cache_read_tokens") or 0)
-        + (t.get("cache_write_tokens") or t.get("cache_creation_tokens") or 0)
+    tcr = sum((t.get("cache_read_tokens") or 0) for t in tasks)
+    tcw = sum(
+        (t.get("cache_write_tokens") or t.get("cache_creation_tokens") or 0)
         for t in tasks
     )
     tsec = sum((t.get("latency_seconds") or 0) for t in tasks)
@@ -100,7 +100,9 @@ def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
     return {
         "input_tokens": tin,
         "output_tokens": tout,
-        "total_tokens": tin + tout + tcache,
+        "cache_read_tokens": tcr,
+        "cache_write_tokens": tcw,
+        "total_tokens": tin + tout + tcr + tcw,
         "latency_seconds": tsec,
         "metered_cost": metered_cost,
     }
@@ -199,14 +201,18 @@ def _render(
         "",
         "## Results by model",
         "",
-        "| Model | Mean score | Completed | Tokens processed† | Wall-clock | Run cost | Cost basis* |",
-        "|---|---:|---:|---:|---:|---:|---|",
+        "| Model | Mean score | Completed | Input | Output | Cache read | Cache write | Tokens processed† | Wall-clock | Run cost | Cost basis* |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     any_hardware = False
     any_metered = False
     for r in rows:
         mean = "-- (0 scored)" if r["mean"] is None else f"{r['mean']:.2f}"
         completed = f"{r['num_scored']}/{r['num_tasks']}"
+        tin = f"{r.get('input_tokens', 0):,}"
+        tout = f"{r.get('output_tokens', 0):,}"
+        tcr = f"{r.get('cache_read_tokens', 0):,}"
+        tcw = f"{r.get('cache_write_tokens', 0):,}"
         tok = f"{r.get('total_tokens', r['input_tokens'] + r['output_tokens']):,}"
         mins = (r["latency_seconds"] or 0) / 60.0
         wall = f"{mins:.1f}m" if mins else "--"
@@ -214,7 +220,8 @@ def _render(
         any_hardware = any_hardware or basis == "hardware-derived"
         any_metered = any_metered or basis.startswith("metered")
         lines.append(
-            f"| {r['model']} | {mean} | {completed} | {tok} | {wall} | {cost} | {basis} |"
+            f"| {r['model']} | {mean} | {completed} | {tin} | {tout} | {tcr} | {tcw} "
+            f"| {tok} | {wall} | {cost} | {basis} |"
         )
     # The cost column mixes two bases that are NOT comparable as raw dollars: a
     # metered API bill vs a GPU-time estimate. Spell that out so no one reads the

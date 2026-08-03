@@ -147,6 +147,11 @@ DEFAULT_SKILL = SKILL_SWE2
 _BEDROCK_PREFIX_RE = re.compile(r"^[a-z]{2}\.[a-z0-9-]+\.")
 # Matches a trailing bracketed suffix such as "[1m]".
 _MODEL_SUFFIX_RE = re.compile(r"\[[^\]]*\]$")
+# Matches a trailing Anthropic date+version stamp such as "-20251001-v1:0", so a
+# dated Bedrock id (us.anthropic.claude-haiku-4-5-20251001-v1:0) folds onto the
+# same slug as its short name (claude-haiku-4-5). Only date-versioned ids match;
+# plain names (claude-opus-5, glm-5.2, qwen3-coder-30b) are untouched.
+_MODEL_DATE_VERSION_RE = re.compile(r"-\d{8}-v\d+:\d+$")
 
 
 def model_to_slug(model: str) -> str:
@@ -165,6 +170,7 @@ def model_to_slug(model: str) -> str:
     """
     slug = _MODEL_SUFFIX_RE.sub("", model)
     slug = _BEDROCK_PREFIX_RE.sub("", slug)
+    slug = _MODEL_DATE_VERSION_RE.sub("", slug)
     return slug
 
 

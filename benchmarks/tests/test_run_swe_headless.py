@@ -173,6 +173,65 @@ class SkillPathTest(unittest.TestCase):
         skill_arg = cmd[cmd.index("--skill") + 1]
         self.assertTrue(skill_arg.endswith("swe3/SKILL.md"))
 
+
+class AnnotateMetricsTopupTest(unittest.TestCase):
+    """The summed top-up totals must land in BOTH top-level and metrics_that_matter,
+    and MUST include total_cost_usd and cache tokens (not just turns/tokens)."""
+
+    def test_summed_totals_written_to_both_levels(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = _config(output_dir=tmp, model="m")
+            art = harness._artifact_dir(cfg, _task())
+            art.mkdir(parents=True)
+            # A metrics.json holding only the LAST (top-up) pass's numbers, with the
+            # cache-write rename (cache_write_tokens) inside metrics_that_matter.
+            (art / "metrics.json").write_text(
+                json.dumps(
+                    {
+                        "num_turns": 141,
+                        "input_tokens": 282,
+                        "output_tokens": 51993,
+                        "total_cost_usd": 12.0,
+                        "cache_read_tokens": 1000,
+                        "cache_creation_tokens": 100,
+                        "metrics_that_matter": {
+                            "num_turns": 141,
+                            "input_tokens": 282,
+                            "output_tokens": 51993,
+                            "cache_read_tokens": 1000,
+                            "cache_write_tokens": 100,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            # Totals summed across both passes (original + this top-up).
+            totals = {
+                "input_tokens": 1086,
+                "output_tokens": 299445,
+                "num_turns": 542,
+                "latency_seconds": 4567.7,
+                "total_cost_usd": 56.78,
+                "cache_read_tokens": 64490345,
+                "cache_creation_tokens": 500,
+            }
+            harness._annotate_metrics_topup(cfg, _task(), 2, ["patch.diff"], totals)
+            rec = json.loads((art / "metrics.json").read_text(encoding="utf-8"))
+            # Top-level: cost + cache summed (cost is read from here by summarize).
+            self.assertAlmostEqual(rec["total_cost_usd"], 56.78)
+            self.assertEqual(rec["num_turns"], 542)
+            self.assertEqual(rec["cache_read_tokens"], 64490345)
+            # metrics_that_matter (what summarize reads for tokens/turns/cache):
+            mm = rec["metrics_that_matter"]
+            self.assertEqual(mm["num_turns"], 542)
+            self.assertEqual(mm["output_tokens"], 299445)
+            self.assertEqual(mm["cache_read_tokens"], 64490345)
+            # cache-write renamed in mm and still summed:
+            self.assertEqual(mm["cache_write_tokens"], 500)
+            self.assertEqual(rec["agent_invocations"], 2)
+
     def test_topup_prompt_asks_only_for_missing_and_keeps_existing(self) -> None:
         prompt = harness._build_prompt(
             _task(),

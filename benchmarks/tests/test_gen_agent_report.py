@@ -64,6 +64,11 @@ class RunTotalsTest(unittest.TestCase):
         totals = gen._run_totals(summary)
         # 2 + 1000 + 180000 + 500
         self.assertEqual(totals["total_tokens"], 181502)
+        # The 4 token types are also tracked separately for the breakdown columns.
+        self.assertEqual(totals["input_tokens"], 2)
+        self.assertEqual(totals["output_tokens"], 1000)
+        self.assertEqual(totals["cache_read_tokens"], 180000)
+        self.assertEqual(totals["cache_write_tokens"], 500)
 
     def test_total_tokens_accepts_cache_creation_alias(self) -> None:
         # claude-code metrics use cache_creation_tokens for cache-write.
