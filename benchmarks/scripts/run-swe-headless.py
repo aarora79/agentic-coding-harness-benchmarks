@@ -66,10 +66,17 @@ IMPLEMENTATION_ARTIFACT_FILENAMES = ("patch.diff", "implementation.md")
 ARTIFACT_FILENAMES = DESIGN_ARTIFACT_FILENAMES + IMPLEMENTATION_ARTIFACT_FILENAMES
 GIT_CLONE_TIMEOUT_SECONDS = 300
 
-# The /swe2 skill file, shared by both agents. Claude Code auto-loads it from the
-# repo's .claude/skills tree via the /swe2 slash command; pi is pointed at the
-# same file explicitly with `--skill` so both agents run the identical task.
-SWE2_SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "swe2" / "SKILL.md"
+# The SWE skill file, shared by both agents. Claude Code auto-loads it from the
+# repo's .claude/skills tree via the matching slash command; pi is pointed at the
+# same file explicitly with `--skill` so both agents run the identical task. Which
+# skill (swe2 multi-agent vs swe3 single-agent) is selected per run via config.
+_SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+
+
+def _skill_path(config: RunnerConfig) -> Path:
+    """Absolute SKILL.md path for the run's configured skill (swe2/swe3)."""
+    return _SKILLS_DIR / config.skill / "SKILL.md"
+
 
 # pi provider names (the `--provider` value pi expects). For a self-hosted vLLM
 # endpoint pi reads a "vllm" block from its models.json; for Amazon Bedrock pi
@@ -214,6 +221,7 @@ def _build_prompt(
     model: str,
     artifacts_dir: Path,
     agent: str = "claude",
+    skill: str = "swe2",
     topup_missing: list[str] | None = None,
 ) -> str:
     """Build the non-interactive /swe2 prompt for a task.
@@ -265,9 +273,9 @@ def _build_prompt(
     )
     if agent == "pi":
         # pi has no slash commands; name the loaded skill and hand it the payload.
-        invocation = f"Use the swe2 skill to complete this task. {payload}"
+        invocation = f"Use the {skill} skill to complete this task. {payload}"
     else:
-        invocation = f"/swe2 {payload}"
+        invocation = f"/{skill} {payload}"
     if topup_missing:
         # Focused completion pass: the prior run already wrote the design docs
         # into artifacts_dir; only the listed files are missing. Ask the agent to
@@ -670,7 +678,7 @@ def _build_pi_cmd(config: RunnerConfig, prompt: str) -> list[str]:
         "--model",
         model,
         "--skill",
-        str(SWE2_SKILL_PATH),
+        str(_skill_path(config)),
         prompt,
     ]
 
@@ -1732,6 +1740,7 @@ def _run_task(
             config.model_slug,
             _artifact_dir(config, task),
             agent=config.agent,
+            skill=config.skill,
             topup_missing=topup_missing,
         )
         run_kind = f"top-up ({', '.join(topup_missing)})" if topup_missing else "run"
@@ -1914,6 +1923,7 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
             config.model_slug,
             _artifact_dir(config, task),
             agent=config.agent,
+            skill=config.skill,
         )
         if config.is_pi:
             cmd = _build_pi_cmd(config, prompt)
@@ -2025,10 +2035,35 @@ def _maybe_topup(
     # A task's true cost is the sum of ALL its agent invocations. Each _run_task
     # call overwrites metrics.json with only that pass's numbers, so accumulate the
     # additive cost fields across the main run and every top-up and restore the
-    # summed values at the end. Seed from the main run's metrics.json.
-    additive = ("input_tokens", "output_tokens", "num_turns", "latency_seconds")
+    # summed values at the end. This MUST include the money (total_cost_usd) and
+    # the cache tokens (cache_read/creation) -- for a topped-up Bedrock task those
+    # are as real and as additive as turns/tokens; leaving them out undercounts the
+    # cost and the tokens-processed total. The fields live in metrics_that_matter
+    # (which summarize_run reads) and are mirrored top-level, so we read from the
+    # nested block and write the sums back to both. Seed from the main run.
+    additive = (
+        "input_tokens",
+        "output_tokens",
+        "num_turns",
+        "latency_seconds",
+        "total_cost_usd",
+        "cache_read_tokens",
+        "cache_creation_tokens",
+    )
     base = _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
-    totals = {k: (base.get(k) or 0) for k in additive}
+
+    # metrics_that_matter renames cache-write; total_cost_usd is top-level only.
+    _MM_KEY = {"cache_creation_tokens": "cache_write_tokens"}
+
+    def _pass_value(record: dict[str, Any], key: str) -> float:
+        """Read an additive field from a pass, preferring metrics_that_matter."""
+        mm = record.get("metrics_that_matter") or {}
+        val = mm.get(_MM_KEY.get(key, key))
+        if val is None:
+            val = record.get(key)
+        return val or 0
+
+    totals = {k: _pass_value(base, k) for k in additive}
     for topup in range(1, config.max_topups + 1):
         if summary.get("ok"):
             break
@@ -2074,7 +2109,7 @@ def _maybe_topup(
             _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
         )
         for k in additive:
-            totals[k] = (totals[k] or 0) + (pass_metrics.get(k) or 0)
+            totals[k] = (totals[k] or 0) + _pass_value(pass_metrics, k)
         topped_up = [f for f in missing if (_artifact_dir(config, task) / f).exists()]
 
     # Record top-up provenance so the run is honestly flagged as assisted, both on
@@ -2097,16 +2132,31 @@ def _annotate_metrics_topup(
     """Record top-up provenance + summed cost into the task's metrics.json.
 
     The final top-up left metrics.json holding only its own pass. Restore the
-    additive cost fields (tokens, turns, latency) to the sum across all agent
-    invocations -- the task's true cost -- and record how many invocations it took
-    and which artifacts were topped up. Best-effort: a write failure is logged,
-    not fatal.
+    additive fields -- tokens, turns, latency, total_cost_usd, and cache tokens --
+    to the sum across all agent invocations (the task's true cost) and record how
+    many invocations it took and which artifacts were topped up. The summed values
+    are written to BOTH the top-level fields and the nested metrics_that_matter
+    block, because summarize_run reads the tokens/turns/cache from
+    metrics_that_matter (and total_cost_usd from top-level) -- writing only one
+    place would leave the summary showing a single pass. Best-effort: a write
+    failure is logged, not fatal.
     """
     path = _artifact_dir(config, task) / "metrics.json"
     record = _read_json_file(path)
     if record is None:
         return
+    # Top-level copy (total_cost_usd is read from here by summarize_run).
     record.update(totals)
+    # Nested metrics_that_matter copy (tokens/turns/latency/cache read from here).
+    # It renames cache-write to cache_write_tokens and has no total_cost_usd, so
+    # map the top-level additive keys onto the mm keys before writing.
+    mm = record.get("metrics_that_matter")
+    if isinstance(mm, dict):
+        mm_key = {"cache_creation_tokens": "cache_write_tokens"}
+        for k, v in totals.items():
+            target = mm_key.get(k, k)
+            if target in mm:
+                mm[target] = v
     record["agent_invocations"] = invocations
     record["topped_up_artifacts"] = topped_up
     try:
@@ -2334,6 +2384,13 @@ def _parse_args() -> argparse.Namespace:
         "or provider=bedrock.",
     )
     parser.add_argument(
+        "--skill",
+        help="Override: SWE skill to run ('swe2' multi-agent fan-out, the "
+        "default, or 'swe3' single-agent, no subagents). Same six artifacts; "
+        "swe3 results land under a '<harness>-swe3' folder so they never "
+        "overwrite swe2 results.",
+    )
+    parser.add_argument(
         "--provider",
         help="Override: routing provider ('endpoint' for a base URL, 'bedrock' "
         "for native Amazon Bedrock)",
@@ -2435,6 +2492,7 @@ def main() -> None:
     args = _parse_args()
     overrides: dict[str, Any] = {
         "agent": args.agent,
+        "skill": args.skill,
         "provider": args.provider,
         "endpoint": args.endpoint,
         "model": args.model,

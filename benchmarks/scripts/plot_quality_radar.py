@@ -139,13 +139,20 @@ def _model_dimensions(
     return by_criterion, by_artifact
 
 
-def _collect(data_dir: Path, repo: str, harness: str) -> list[tuple[str, dict, dict]]:
-    """Return [(model, by_criterion, by_artifact)] for models with eval_scores.
+def _collect(
+    data_dir: Path, repo: str, harness: str, top_n: int | None = None
+) -> tuple[list[tuple[str, dict, dict]], int]:
+    """Return ([(model, by_criterion, by_artifact)], total_eligible).
 
     Reads ``<data-dir>/<model>/<harness>/<repo>/run-summary.json`` so the radar
-    plots one coding agent's runs at a time.
+    plots one coding agent's runs at a time. When more models are eligible than
+    ``top_n`` (a readable/validated-palette cap), only the ``top_n`` highest by
+    mean task score are returned; ``total_eligible`` reports how many qualified so
+    the caption can say "top N of M". A too-dense radar (7 overlapping polygons)
+    is unreadable and exceeds the validated palette, so capping is both a
+    legibility and an accessibility decision.
     """
-    out: list[tuple[str, dict, dict]] = []
+    scored: list[tuple[float, str, dict, dict]] = []
     for model_dir in sorted(p for p in data_dir.iterdir() if p.is_dir()):
         summary = _read_json(model_dir / harness / repo / RUN_SUMMARY_FILENAME)
         if summary is None:
@@ -154,14 +161,20 @@ def _collect(data_dir: Path, repo: str, harness: str) -> list[tuple[str, dict, d
         # failed tasks still carry zero-valued eval_scores, but plotting a
         # collapsed all-zero polygon just adds a phantom legend entry. This
         # matches the cost-quality chart, which excludes the same runs.
-        if not isinstance(summary.get("mean_task_score_excl_failed"), (int, float)):
+        mean = summary.get("mean_task_score_excl_failed")
+        if not isinstance(mean, (int, float)):
             logger.info("  excluding %s: no scored tasks", model_dir.name)
             continue
         dims = _model_dimensions(summary)
         if dims is None:
             continue
-        out.append((model_dir.name, dims[0], dims[1]))
-    return out
+        scored.append((float(mean), model_dir.name, dims[0], dims[1]))
+    total = len(scored)
+    scored.sort(key=lambda r: r[0], reverse=True)
+    if top_n is not None and total > top_n:
+        logger.info("  %d models eligible; plotting the top %d by score", total, top_n)
+        scored = scored[:top_n]
+    return [(name, byc, bya) for _mean, name, byc, bya in scored], total
 
 
 def _plot_one(
@@ -243,11 +256,20 @@ def _plot(
         ha="center",
     )
     n_shown = len(models)
-    note = (
-        f"Judge-scored dimensions for the {n_shown} of {n_total} models whose runs "
-        "carry the per-artifact eval breakdown; the same view for the remaining "
-        "models is coming as their eval data is backfilled."
-    )
+    if n_shown < n_total:
+        # Capped for legibility / validated palette: show the highest scorers.
+        note = (
+            f"Judge-scored dimensions for the top {n_shown} of {n_total} models "
+            "(by mean task score) that carry the per-artifact eval breakdown; the "
+            "rest are in the results table. More than a few overlapping polygons is "
+            "unreadable, so the radar shows the leaders."
+        )
+    else:
+        note = (
+            f"Judge-scored dimensions for the {n_shown} of {n_total} models whose "
+            "runs carry the per-artifact eval breakdown; the same view for the "
+            "remaining models is coming as their eval data is backfilled."
+        )
     fig.text(
         0.5,
         -0.06,
@@ -285,25 +307,24 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     p.add_argument("--dark", action="store_true", help="Render the dark-theme variant")
+    p.add_argument(
+        "--top-n",
+        type=int,
+        default=None,
+        help="Cap the radar to the N highest-scoring models (default: the "
+        "validated palette size). More series than that is unreadable and exceeds "
+        "the colorblind-safe palette; the full set stays in the results table.",
+    )
     return p.parse_args()
-
-
-def _count_models(data_dir: Path, repo: str, harness: str) -> int:
-    """Count models with a scored run-summary (the denominator in the note)."""
-    total = 0
-    for model_dir in (p for p in data_dir.iterdir() if p.is_dir()):
-        summary = _read_json(model_dir / harness / repo / RUN_SUMMARY_FILENAME)
-        if summary and isinstance(
-            summary.get("mean_task_score_excl_failed"), (int, float)
-        ):
-            total += 1
-    return total
 
 
 def main() -> None:
     """Collect eval dimensions and render the radar chart(s)."""
     args = _parse_args()
-    models = _collect(args.data_dir, args.repo, args.harness)
+    # Default cap is the validated palette size: more series is both unreadable
+    # and beyond the colorblind-safe colors we have validated.
+    top_n = args.top_n if args.top_n is not None else len(_THEME["light"]["series"])
+    models, n_total = _collect(args.data_dir, args.repo, args.harness, top_n=top_n)
     if len(models) < 1:
         raise SystemExit(
             f"no models with eval_scores under "
@@ -312,11 +333,10 @@ def main() -> None:
     if len(models) > len(_THEME["light"]["series"]):
         raise SystemExit(
             f"{len(models)} models but only {len(_THEME['light']['series'])} "
-            "validated series colors; add more validated hues before plotting more."
+            "validated series colors; lower --top-n or add validated hues."
         )
-    n_total = _count_models(args.data_dir, args.repo, args.harness)
     mode = "dark" if args.dark else "light"
-    logger.info("models with eval_scores: %s", ", ".join(m for m, _, _ in models))
+    logger.info("models on radar: %s", ", ".join(m for m, _, _ in models))
     _plot(
         models,
         mode=mode,

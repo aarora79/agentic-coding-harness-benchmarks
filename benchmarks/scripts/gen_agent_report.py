@@ -71,23 +71,38 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
     """Sum a run's per-task tokens, wall-clock, and metered cost into totals.
 
+    ``total_tokens`` counts ALL tokens the model processed -- input + output PLUS
+    cache-read + cache-write -- not just fresh input+output. This matters on the
+    Bedrock path: prompt caching means a task can report `input_tokens: 2` while
+    actually processing ~180K tokens served from cache (`cache_read_tokens`).
+    Counting only input+output there understates the real work ~100x and makes a
+    cached run look absurdly light next to an un-cache-credited self-hosted run.
+
     Args:
         summary: One model's run-summary dict.
 
     Returns:
-        Dict with total input/output tokens, total latency seconds, and total
-        metered cost (the sum of per-task ``total_cost_usd``; None on the
-        self-hosted path where the model reports no per-token price).
+        Dict with total input/output tokens, total tokens processed (incl.
+        cache), total latency seconds, and total metered cost (sum of per-task
+        ``total_cost_usd``; None on the self-hosted path with no per-token price).
     """
     tasks = summary.get("tasks", []) or []
     tin = sum((t.get("input_tokens") or 0) for t in tasks)
     tout = sum((t.get("output_tokens") or 0) for t in tasks)
+    tcr = sum((t.get("cache_read_tokens") or 0) for t in tasks)
+    tcw = sum(
+        (t.get("cache_write_tokens") or t.get("cache_creation_tokens") or 0)
+        for t in tasks
+    )
     tsec = sum((t.get("latency_seconds") or 0) for t in tasks)
     costs = [t.get("total_cost_usd") for t in tasks if t.get("total_cost_usd")]
     metered_cost = sum(costs) if costs else None
     return {
         "input_tokens": tin,
         "output_tokens": tout,
+        "cache_read_tokens": tcr,
+        "cache_write_tokens": tcw,
+        "total_tokens": tin + tout + tcr + tcw,
         "latency_seconds": tsec,
         "metered_cost": metered_cost,
     }
@@ -186,22 +201,27 @@ def _render(
         "",
         "## Results by model",
         "",
-        "| Model | Mean score | Completed | Total tokens | Wall-clock | Run cost | Cost basis* |",
-        "|---|---:|---:|---:|---:|---:|---|",
+        "| Model | Mean score | Completed | Input | Output | Cache read | Cache write | Tokens processed† | Wall-clock | Run cost | Cost basis* |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     any_hardware = False
     any_metered = False
     for r in rows:
         mean = "-- (0 scored)" if r["mean"] is None else f"{r['mean']:.2f}"
         completed = f"{r['num_scored']}/{r['num_tasks']}"
-        tok = f"{r['input_tokens'] + r['output_tokens']:,}"
+        tin = f"{r.get('input_tokens', 0):,}"
+        tout = f"{r.get('output_tokens', 0):,}"
+        tcr = f"{r.get('cache_read_tokens', 0):,}"
+        tcw = f"{r.get('cache_write_tokens', 0):,}"
+        tok = f"{r.get('total_tokens', r['input_tokens'] + r['output_tokens']):,}"
         mins = (r["latency_seconds"] or 0) / 60.0
         wall = f"{mins:.1f}m" if mins else "--"
         cost, basis = _row_cost(r, dollars_per_hour)
         any_hardware = any_hardware or basis == "hardware-derived"
         any_metered = any_metered or basis.startswith("metered")
         lines.append(
-            f"| {r['model']} | {mean} | {completed} | {tok} | {wall} | {cost} | {basis} |"
+            f"| {r['model']} | {mean} | {completed} | {tin} | {tout} | {tcr} | {tcw} "
+            f"| {tok} | {wall} | {cost} | {basis} |"
         )
     # The cost column mixes two bases that are NOT comparable as raw dollars: a
     # metered API bill vs a GPU-time estimate. Spell that out so no one reads the
@@ -225,6 +245,13 @@ def _render(
     lines += [
         "",
         "".join(note),
+        "",
+        "† **Tokens processed** counts input + output + cache-read + cache-write "
+        "-- all tokens the model actually processed, not just fresh input+output. On "
+        "the Bedrock path a task often reports only ~2 fresh input tokens with the "
+        "rest served from prompt cache, so counting input+output alone would "
+        "understate the real work ~100x. (Self-hosted rows report their cache reuse "
+        "via server-side Prometheus counters, folded in here where present.)",
         "",
         "A task scoring 0 (missing/empty artifacts) is a model failure, excluded "
         "from the mean but counted in `Completed`. A model with 0 scored tasks "
