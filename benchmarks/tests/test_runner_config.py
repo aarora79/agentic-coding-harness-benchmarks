@@ -71,7 +71,7 @@ class LoadRunnerConfigTest(unittest.TestCase):
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.concurrency, 1)
         self.assertEqual(config.agent, "claude")
-        self.assertEqual(config.max_retries, 0)
+        self.assertEqual(config.max_retries, 1)
         self.assertEqual(config.max_topups, 1)
 
     def test_max_topups_override(self) -> None:

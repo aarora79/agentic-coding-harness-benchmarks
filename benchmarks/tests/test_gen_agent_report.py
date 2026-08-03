@@ -47,6 +47,38 @@ class RunTotalsTest(unittest.TestCase):
         self.assertEqual(totals["latency_seconds"], 90)
         self.assertAlmostEqual(totals["metered_cost"], 0.30)
 
+    def test_total_tokens_includes_cache(self) -> None:
+        # Total tokens processed must include cache-read + cache-write, not just
+        # input+output -- else a heavily-cached Bedrock task (input_tokens ~2)
+        # looks ~100x lighter than the work it actually did.
+        summary = {
+            "tasks": [
+                {
+                    "input_tokens": 2,
+                    "output_tokens": 1000,
+                    "cache_read_tokens": 180000,
+                    "cache_write_tokens": 500,
+                },
+            ]
+        }
+        totals = gen._run_totals(summary)
+        # 2 + 1000 + 180000 + 500
+        self.assertEqual(totals["total_tokens"], 181502)
+
+    def test_total_tokens_accepts_cache_creation_alias(self) -> None:
+        # claude-code metrics use cache_creation_tokens for cache-write.
+        summary = {
+            "tasks": [
+                {
+                    "input_tokens": 5,
+                    "output_tokens": 10,
+                    "cache_read_tokens": 1000,
+                    "cache_creation_tokens": 200,
+                },
+            ]
+        }
+        self.assertEqual(gen._run_totals(summary)["total_tokens"], 1215)
+
     def test_metered_cost_none_when_all_zero(self) -> None:
         # Self-hosted tasks report total_cost_usd 0/None -> no metered cost.
         summary = {"tasks": [{"latency_seconds": 30, "total_cost_usd": 0}]}

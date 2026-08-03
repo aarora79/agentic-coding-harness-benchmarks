@@ -68,8 +68,11 @@ DEFAULT_TIMEOUT_SECONDS = 7200
 # error, empty/non-JSON output, timeout, an api/execution error). A task that
 # simply ran out of turns (subtype "error_max_turns") is NOT retried -- more
 # attempts at the same turn budget will not help; raise max_turns instead.
-# 0 disables retries (one attempt per task).
-DEFAULT_MAX_RETRIES = 0
+# 0 disables retries (one attempt per task). Default 1: a transient Bedrock API
+# error ("unexpected error during processing. Try your request again") can strand
+# a task mid-run with partial artifacts, and one retry recovers it (observed on
+# the Sonnet 5 run).
+DEFAULT_MAX_RETRIES = 1
 # How many focused "top-up" attempts to make when a task's MAIN run finished but
 # left some artifacts missing (e.g. the design docs are all present but the run
 # ran out of context before writing patch.diff). Unlike a retry, a top-up does

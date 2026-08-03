@@ -4,11 +4,11 @@ Benchmark results for every model run under the **Claude Code** coding agent on 
 
 ## Results by model
 
-| Model | Mean score | Completed | Total tokens | Wall-clock | Run cost | Cost basis* |
+| Model | Mean score | Completed | Tokens processed† | Wall-clock | Run cost | Cost basis* |
 |---|---:|---:|---:|---:|---:|---|
-| claude-opus-5 | 76.00 | 5/5 | 701,483 | 241.1m | $180.73 | metered (Bedrock) |
+| claude-opus-5 | 76.00 | 5/5 | 84,946,105 | 241.1m | $180.73 | metered (Bedrock) |
 | claude-opus-4-8 | 75.32 | 5/5 | 507,617 | 127.9m | $87.12 | metered (Bedrock) |
-| claude-sonnet-5 | 72.84 | 5/5 | 1,009,920 | 267.7m | $131.94 | metered (Bedrock) |
+| claude-sonnet-5 | 73.32 | 5/5 | 185,990,651 | 203.7m | $110.26 | metered (Bedrock) |
 | glm-5.2 | 61.96 | 5/5 | 50,051,636 | 65.0m | $11.37 | hardware-derived |
 | kimi-k2.7-code | 58.68 | 5/5 | 47,675,538 | 130.3m | $22.79 | hardware-derived |
 | deepseek-v3.2 | 52.20 | 5/5 | 40,916,403 | 80.3m | $14.04 | hardware-derived |
@@ -22,6 +22,8 @@ Benchmark results for every model run under the **Claude Code** coding agent on 
 | qwen3-coder-30b | 30.20 | 4/5 | 50,725,919 | 84.2m | $14.71 | hardware-derived |
 
 \* **Cost basis differs by row and the dollars are NOT directly comparable.** _hardware-derived_ (self-hosted vLLM): a rented GPU has no per-token bill, so cost is `($/hr / 3600) x wall-clock seconds` at g6e.12xlarge on-demand ($10.49/hr). _metered (Bedrock)_: a hosted API's real per-token bill, summed over the run. It is a metered invoice, not a hardware estimate, and (unlike the self-hosted rows) it benefits from Bedrock prompt caching. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
+
+† **Tokens processed** counts input + output + cache-read + cache-write -- all tokens the model actually processed, not just fresh input+output. On the Bedrock path a task often reports only ~2 fresh input tokens with the rest served from prompt cache, so counting input+output alone would understate the real work ~100x. (Self-hosted rows report their cache reuse via server-side Prometheus counters, folded in here where present.)
 
 A task scoring 0 (missing/empty artifacts) is a model failure, excluded from the mean but counted in `Completed`. A model with 0 scored tasks did not complete any task under this harness.
 
