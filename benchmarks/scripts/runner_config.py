@@ -127,6 +127,18 @@ DEFAULT_AGENT = AGENT_CLAUDE
 # results, migrated under this name), "pi" -> "pi".
 HARNESS_SLUGS = {AGENT_CLAUDE: "claude-code", AGENT_PI: "pi"}
 
+# Which SWE skill drives the run. "swe2" is the default multi-agent skill (it fans
+# out to parallel Task subagents for codebase analysis and the five expert
+# reviews). "swe3" is the single-agent variant: identical six artifacts and rigor,
+# but ALL work done inline in the main loop with NO subagent fan-out -- used to
+# measure single-agent harness cost for an apples-to-apples comparison against a
+# harness with no subagent mechanism (e.g. pi). Both produce the same artifacts,
+# so everything downstream (judge, summarize, charts) is skill-agnostic.
+SKILL_SWE2 = "swe2"
+SKILL_SWE3 = "swe3"
+VALID_SKILLS = {SKILL_SWE2, SKILL_SWE3}
+DEFAULT_SKILL = SKILL_SWE2
+
 # Amazon Bedrock model ids carry a region/vendor inference-profile prefix
 # (e.g. "us.anthropic.claude-opus-4-8") and may carry a bracketed context-window
 # suffix (e.g. "[1m]"). The /swe skill strips both to name its artifact folder,
@@ -220,6 +232,14 @@ class RunnerConfig(BaseModel):
         description="Coding agent that runs the task: 'claude' (Claude Code) or "
         "'pi' (pi coding agent). Both support provider=endpoint or "
         "provider=bedrock.",
+    )
+
+    # Which SWE skill to run: "swe2" (default, multi-agent fan-out) or "swe3"
+    # (single-agent, no subagents). Same six artifacts either way. See VALID_SKILLS.
+    skill: str = Field(
+        default=DEFAULT_SKILL,
+        description="SWE skill: 'swe2' (default, multi-agent fan-out) or 'swe3' "
+        "(single-agent, no subagents). Same artifacts; only orchestration differs.",
     )
 
     # Routing: how the agent reaches the model.
@@ -347,17 +367,20 @@ class RunnerConfig(BaseModel):
 
     @property
     def harness_slug(self) -> str:
-        """Folder name for the coding agent that produced a run's artifacts.
+        """Folder name for the coding agent (+ skill) that produced a run's artifacts.
 
         Artifacts are grouped as ``<model-slug>/<harness-slug>/<repo>/<task>/`` so
-        two agents benchmarking the same model never collide. ``claude`` maps to
-        ``claude-code`` (the historical results live there); ``pi`` maps to
-        ``pi``. See ``HARNESS_SLUGS``.
+        runs of the same model never collide. The base is the agent slug
+        (``claude`` -> ``claude-code``, ``pi`` -> ``pi``; see ``HARNESS_SLUGS``).
+        The default ``swe2`` skill keeps that base unchanged (so historical results
+        stay in place); a non-default skill is appended (e.g. ``claude-code-swe3``)
+        so a single-agent swe3 run lands beside, not on top of, the swe2 results.
 
         Returns:
-            The harness folder name for this run's agent.
+            The harness folder name for this run's agent + skill.
         """
-        return HARNESS_SLUGS[self.agent]
+        base = HARNESS_SLUGS[self.agent]
+        return base if self.skill == DEFAULT_SKILL else f"{base}-{self.skill}"
 
     @property
     def auto_compact_window(self) -> int | None:
@@ -437,6 +460,10 @@ class RunnerConfig(BaseModel):
         if self.agent not in VALID_AGENTS:
             raise RunnerConfigError(
                 f"agent '{self.agent}' not in {sorted(VALID_AGENTS)}."
+            )
+        if self.skill not in VALID_SKILLS:
+            raise RunnerConfigError(
+                f"skill '{self.skill}' not in {sorted(VALID_SKILLS)}."
             )
         # pi supports both an OpenAI-compatible endpoint (a local vLLM server, a
         # gateway) and native Amazon Bedrock (it bundles the AWS SDK's

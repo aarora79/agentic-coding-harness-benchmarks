@@ -40,7 +40,13 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from dataset_loader import DatasetError, load_dataset  # noqa: E402
-from runner_config import DEFAULT_AGENT, HARNESS_SLUGS, model_to_slug  # noqa: E402
+from runner_config import (  # noqa: E402
+    DEFAULT_AGENT,
+    DEFAULT_SKILL,
+    HARNESS_SLUGS,
+    VALID_SKILLS,
+    model_to_slug,
+)
 
 # The four design artifacts the /swe2 skill writes; their presence is what makes the
 # skill stop and ask before overwriting.
@@ -76,6 +82,7 @@ def _target_dirs(
     model: str,
     only_tasks: list[str] | None = None,
     agent: str = DEFAULT_AGENT,
+    skill: str = DEFAULT_SKILL,
 ) -> list[Path]:
     """Return the artifact directory for every task in the dataset.
 
@@ -111,7 +118,11 @@ def _target_dirs(
         tasks = [t for t in tasks if t.id in wanted]
     repo_name = _repo_name_from_harness()
     slug = model_to_slug(model)
-    harness = HARNESS_SLUGS[agent]
+    # Mirror RunnerConfig.harness_slug: base agent folder, with a non-default
+    # skill appended (e.g. "claude-code-swe3") so we check the tree the harness
+    # will actually write to.
+    base = HARNESS_SLUGS[agent]
+    harness = base if skill == DEFAULT_SKILL else f"{base}-{skill}"
     root = benchmarks_dir / _OUTPUT_DIR
     return [root / slug / harness / repo_name(task.repo) / task.id for task in tasks]
 
@@ -177,6 +188,14 @@ def main() -> None:
         help="Coding agent (claude|pi); selects the harness folder level so the "
         "check/clear targets the same tree the harness writes. Default: claude.",
     )
+    parser.add_argument(
+        "--skill",
+        default=DEFAULT_SKILL,
+        choices=sorted(VALID_SKILLS),
+        help="SWE skill (swe2|swe3); a non-default skill appends to the harness "
+        "folder (e.g. claude-code-swe3) so the check/clear targets the same tree. "
+        "Default: swe2.",
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--check", action="store_true", help="Report existing folders (exit 2 if any)."
@@ -197,7 +216,9 @@ def main() -> None:
         [t.strip() for t in args.tasks.split(",") if t.strip()] if args.tasks else None
     )
     try:
-        dirs = _target_dirs(args.dataset, args.model, only_tasks, args.agent)
+        dirs = _target_dirs(
+            args.dataset, args.model, only_tasks, args.agent, args.skill
+        )
     except DatasetError as exc:
         logger.error("Dataset error: %s", exc)
         sys.exit(1)

@@ -134,6 +134,45 @@ class BuildPromptTest(unittest.TestCase):
         # The absolute artifacts dir is passed through verbatim as a drift guard.
         self.assertIn("/tmp/art", prompt)
 
+    def test_prompt_invokes_swe3_slash_command(self) -> None:
+        # skill=swe3 drives the /swe3 slash command for the claude agent.
+        prompt = harness._build_prompt(
+            _task(),
+            Path("/tmp/x/mcp-gateway-registry"),
+            "1.24.4",
+            "m",
+            Path("/tmp/art"),
+            skill="swe3",
+        )
+        self.assertTrue(prompt.startswith("/swe3 "))
+
+    def test_pi_prompt_names_the_selected_skill(self) -> None:
+        # pi has no slash commands; the prose names whichever skill is selected.
+        prompt = harness._build_prompt(
+            _task(),
+            Path("/tmp/x/mcp-gateway-registry"),
+            "1.24.4",
+            "m",
+            Path("/tmp/art"),
+            agent="pi",
+            skill="swe3",
+        )
+        self.assertIn("Use the swe3 skill", prompt)
+
+
+class SkillPathTest(unittest.TestCase):
+    def test_skill_path_points_at_configured_skill(self) -> None:
+        p2 = harness._skill_path(_config(skill="swe2"))
+        p3 = harness._skill_path(_config(skill="swe3"))
+        self.assertEqual(p2.parent.name, "swe2")
+        self.assertEqual(p3.parent.name, "swe3")
+        self.assertEqual(p2.name, "SKILL.md")
+
+    def test_pi_cmd_skill_flag_follows_config(self) -> None:
+        cmd = harness._build_pi_cmd(_config(agent="pi", skill="swe3"), "prompt")
+        skill_arg = cmd[cmd.index("--skill") + 1]
+        self.assertTrue(skill_arg.endswith("swe3/SKILL.md"))
+
     def test_topup_prompt_asks_only_for_missing_and_keeps_existing(self) -> None:
         prompt = harness._build_prompt(
             _task(),

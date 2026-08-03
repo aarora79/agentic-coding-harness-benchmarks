@@ -40,10 +40,14 @@ set -euo pipefail
 #
 # Optional flags:
 #   --agent NAME           coding agent that runs the task: claude (Claude Code,
-#                          default) or pi (the pi coding agent). Same /swe2 task
-#                          either way. Both support every --provider: an
+#                          default) or pi (the pi coding agent). Same task either
+#                          way. Both support every --provider: an
 #                          OpenAI-compatible endpoint (vllm/litellm) or native
 #                          Amazon Bedrock.
+#   --skill NAME           SWE skill: swe2 (default, multi-agent fan-out) or swe3
+#                          (single-agent, no subagents). Same six artifacts; swe3
+#                          results land under a <harness>-swe3 folder so they
+#                          never overwrite swe2 results.
 #   --count N              run only the first N tasks (0 = all, default)
 #   --tasks a,b,c          run only these task ids (comma-separated); scopes the
 #                          folder-clear and the judge to the same set. Useful to
@@ -72,6 +76,7 @@ VLLM_DIR="$REPO_ROOT/self-hosted/vllm"
 
 # Defaults
 AGENT="claude"            # coding agent: claude (Claude Code) or pi (pi agent)
+SKILL="swe2"              # SWE skill: swe2 (multi-agent) or swe3 (single-agent)
 PROVIDER=""
 MODEL=""
 DATASET=""
@@ -109,6 +114,7 @@ POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --agent)    AGENT="${2:?--agent needs a value}"; shift 2 ;;
+        --skill)    SKILL="${2:?--skill needs a value}"; shift 2 ;;
         --provider) PROVIDER="${2:?--provider needs a value}"; shift 2 ;;
         --model)    MODEL="${2:?--model needs a value}"; shift 2 ;;
         --dataset)  DATASET="${2:?--dataset needs a value}"; shift 2 ;;
@@ -148,6 +154,10 @@ esac
 case "$AGENT" in
     claude|pi) ;;
     *) die "invalid agent '$AGENT'. Must be one of: claude, pi." ;;
+esac
+case "$SKILL" in
+    swe2|swe3) ;;
+    *) die "invalid skill '$SKILL'. Must be one of: swe2, swe3." ;;
 esac
 # pi supports both an OpenAI-compatible endpoint (vllm/litellm) and native Amazon
 # Bedrock (it bundles the AWS SDK bedrock-runtime client), so no agent/provider
@@ -291,16 +301,16 @@ TASKS_ARG=()
 [[ -n "$TASKS" ]] && TASKS_ARG=(--tasks "$TASKS")
 info "Checking for pre-existing artifact folders (these stall the headless /swe2 overwrite prompt)..."
 set +e
-uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --agent "$AGENT" "${TASKS_ARG[@]}" --check
+uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --agent "$AGENT" --skill "$SKILL" "${TASKS_ARG[@]}" --check
 PREFLIGHT_RC=$?
 set -e
 if [[ "$PREFLIGHT_RC" -eq 2 ]]; then
     if [[ "$ASSUME_YES" -eq 1 ]]; then
         warn "Clearing pre-existing artifact folders (--yes given)..."
-        uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --agent "$AGENT" "${TASKS_ARG[@]}" --clear
+        uv run python scripts/preflight_check.py --dataset "$DATASET" --model "$MODEL" --agent "$AGENT" --skill "$SKILL" "${TASKS_ARG[@]}" --clear
     else
         die "Pre-existing artifact folders would stall the run. Re-run with --yes to clear them automatically, or clear manually:
-       uv run python scripts/preflight_check.py --dataset $DATASET --model $MODEL --agent $AGENT ${TASKS_ARG[*]} --clear"
+       uv run python scripts/preflight_check.py --dataset $DATASET --model $MODEL --agent $AGENT --skill $SKILL ${TASKS_ARG[*]} --clear"
     fi
 elif [[ "$PREFLIGHT_RC" -ne 0 ]]; then
     die "pre-flight folder check failed (exit $PREFLIGHT_RC)."
@@ -341,7 +351,7 @@ trap _cleanup_clones EXIT
 # =============================================================================
 step "Step 1 - Run the SWE benchmark"
 # =============================================================================
-BENCH_ARGS=(--config "$CONFIG" --agent "$AGENT" --provider "$HARNESS_PROVIDER" --model "$MODEL" --dataset "$DATASET")
+BENCH_ARGS=(--config "$CONFIG" --agent "$AGENT" --skill "$SKILL" --provider "$HARNESS_PROVIDER" --model "$MODEL" --dataset "$DATASET")
 # --stream/--verbose is the Claude Code live-trace mode; pi emits its own JSON
 # event stream and has no equivalent, so only add it for the claude agent.
 [[ "$AGENT" != "pi" ]] && BENCH_ARGS+=(--stream --verbose)
@@ -358,9 +368,10 @@ BENCH_ARGS=(--config "$CONFIG" --agent "$AGENT" --provider "$HARNESS_PROVIDER" -
 [[ -n "$PRECISION" ]] && BENCH_ARGS+=(--precision "$PRECISION")
 
 SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import model_to_slug; print(model_to_slug('$MODEL'))")"
-# Harness folder level (claude -> claude-code, pi -> pi), from the single source
-# of truth so the judge/summary target the same tree the harness writes.
-HARNESS_SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import HARNESS_SLUGS; print(HARNESS_SLUGS['$AGENT'])")"
+# Harness folder level (claude -> claude-code, pi -> pi; a non-default skill like
+# swe3 appends, e.g. claude-code-swe3), from the single source of truth so the
+# judge/summary target the same tree the harness writes.
+HARNESS_SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import RunnerConfig; print(RunnerConfig.model_validate({'agent':'$AGENT','skill':'$SKILL','provider':'bedrock','aws_region':'us-east-1','model':'m','dataset':'d.yaml'}).harness_slug)")"
 info "Command:"
 info "  uv run scripts/run-swe-headless.py ${BENCH_ARGS[*]}"
 info "Artifacts will land under: swe-benchmark-data/$SLUG/$HARNESS_SLUG/<repo>/<task>/"

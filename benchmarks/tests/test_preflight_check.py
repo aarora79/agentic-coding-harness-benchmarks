@@ -75,6 +75,14 @@ class TargetDirsTest(unittest.TestCase):
         dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", agent="pi")
         self.assertTrue(str(dirs[0]).endswith("qwen3-coder-30b/pi/my-repo/task-one"))
 
+    def test_swe3_skill_appends_to_harness_level(self) -> None:
+        # A swe3 run must target <harness>-swe3 so it never checks/clears the
+        # swe2 tree.
+        dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", skill="swe3")
+        self.assertTrue(
+            str(dirs[0]).endswith("qwen3-coder-30b/claude-code-swe3/my-repo/task-one")
+        )
+
 
 class ExistingTest(unittest.TestCase):
     def test_only_folders_with_artifacts_count(self) -> None:
