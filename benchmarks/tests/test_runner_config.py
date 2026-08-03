@@ -71,7 +71,7 @@ class LoadRunnerConfigTest(unittest.TestCase):
         self.assertEqual(config.tasks, [])
         self.assertEqual(config.concurrency, 1)
         self.assertEqual(config.agent, "claude")
-        self.assertEqual(config.skill, "swe2")
+        self.assertEqual(config.skill, "swe3")
         self.assertEqual(config.max_retries, 1)
         self.assertEqual(config.max_topups, 1)
 
@@ -226,23 +226,23 @@ class PiBedrockTest(unittest.TestCase):
 
 
 class SkillConfigTest(unittest.TestCase):
-    """The skill field selects swe2 (default) or swe3 and shapes the harness slug."""
+    """The skill field selects swe3 (default) or swe2 and shapes the harness slug."""
 
-    def test_default_skill_leaves_harness_slug_unchanged(self) -> None:
-        # swe2 default must keep the historical folder name so existing data
-        # (e.g. claude-code/) is never orphaned.
+    def test_default_skill_is_swe3_and_maps_to_canonical_folder(self) -> None:
+        # swe3 (single-agent) is the default and maps to the canonical folder, so
+        # a default run lands in claude-code/ (overwriting older data on re-run).
         config = load_runner_config(_write(_MINIMAL))
-        self.assertEqual(config.skill, "swe2")
+        self.assertEqual(config.skill, "swe3")
         self.assertEqual(config.harness_slug, "claude-code")
 
-    def test_swe3_appends_to_harness_slug(self) -> None:
-        # A non-default skill lands in a parallel tree, never overwriting swe2.
-        config = load_runner_config(_write(_MINIMAL), {"skill": "swe3"})
-        self.assertEqual(config.harness_slug, "claude-code-swe3")
+    def test_swe2_appends_to_harness_slug(self) -> None:
+        # The non-default (swe2, multi-agent) skill lands in a parallel tree.
+        config = load_runner_config(_write(_MINIMAL), {"skill": "swe2"})
+        self.assertEqual(config.harness_slug, "claude-code-swe2")
 
-    def test_swe3_appends_for_pi_too(self) -> None:
-        config = load_runner_config(_write(_MINIMAL), {"agent": "pi", "skill": "swe3"})
-        self.assertEqual(config.harness_slug, "pi-swe3")
+    def test_swe2_appends_for_pi_too(self) -> None:
+        config = load_runner_config(_write(_MINIMAL), {"agent": "pi", "skill": "swe2"})
+        self.assertEqual(config.harness_slug, "pi-swe2")
 
     def test_invalid_skill_rejected(self) -> None:
         with self.assertRaisesRegex(RunnerConfigError, "skill"):

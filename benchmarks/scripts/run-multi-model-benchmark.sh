@@ -27,7 +27,7 @@ set -uo pipefail
 #   --dataset PATH        dataset YAML relative to benchmarks/ (mcp-gateway-registry)
 #   --dollars-per-hour N  instance $/hr, recorded in the summary (0 = unset)
 #   --agent NAME          coding agent that runs each task: claude (default) or pi
-#   --skill NAME          SWE skill: swe2 (default) or swe3 (single-agent, no subagents)
+#   --skill NAME          SWE skill: swe3 (default, single-agent) or swe2 (multi-agent)
 #   --no-detach           run in the foreground (do not self-detach)
 #   --skip-judge          run the harness only; score later
 #
@@ -67,7 +67,7 @@ REGISTRY=(
 DATASET="dataset/mcp-gateway-registry.yaml"
 DOLLARS_PER_HOUR="0"
 AGENT="claude"
-SKILL="swe2"
+SKILL="swe3"
 DETACH=1
 SKIP_JUDGE=""
 MODELS=()

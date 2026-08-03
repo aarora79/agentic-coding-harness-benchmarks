@@ -44,10 +44,11 @@ set -euo pipefail
 #                          way. Both support every --provider: an
 #                          OpenAI-compatible endpoint (vllm/litellm) or native
 #                          Amazon Bedrock.
-#   --skill NAME           SWE skill: swe2 (default, multi-agent fan-out) or swe3
-#                          (single-agent, no subagents). Same six artifacts; swe3
-#                          results land under a <harness>-swe3 folder so they
-#                          never overwrite swe2 results.
+#   --skill NAME           SWE skill: swe3 (default, single-agent, no subagents)
+#                          or swe2 (multi-agent fan-out). Same six artifacts. The
+#                          default maps to the canonical harness folder; the
+#                          non-default swe2 lands under <harness>-swe2 so the two
+#                          never overwrite each other.
 #   --count N              run only the first N tasks (0 = all, default)
 #   --tasks a,b,c          run only these task ids (comma-separated); scopes the
 #                          folder-clear and the judge to the same set. Useful to
@@ -76,7 +77,7 @@ VLLM_DIR="$REPO_ROOT/self-hosted/vllm"
 
 # Defaults
 AGENT="claude"            # coding agent: claude (Claude Code) or pi (pi agent)
-SKILL="swe2"              # SWE skill: swe2 (multi-agent) or swe3 (single-agent)
+SKILL="swe3"              # SWE skill: swe3 (single-agent, default) or swe2 (multi-agent)
 PROVIDER=""
 MODEL=""
 DATASET=""

@@ -8,6 +8,16 @@
 > It is not meant for production use. Review and harden all scripts, configurations,
 > and IAM permissions before using in any production or sensitive environment.
 
+> [!WARNING]
+> **These results are actively churning -- expect the numbers to move for a few days.**
+> We are re-running benchmarks almost hourly and learning a great deal about how
+> different **coding-harness x model** combinations behave: their real token usage,
+> caching, cost, and how each model drives (or under-drives) a long-horizon agentic
+> task. As we learn, methodology improves (e.g. counting subagent tokens, switching
+> the default skill to a single-agent variant) and figures get re-measured. Treat
+> the current numbers as a **live snapshot**, not final -- they should settle over
+> the coming days.
+
 ## Why this exists
 
 Enterprises are adopting coding agents and models at scale, and the bill grows with every developer and every task. The two big levers on that bill -- **which harness** drives the work and **which model** it drives -- are usually chosen on gut feel or on public leaderboards that may already be **saturated**: models can be tuned toward well-known public test sets, so a high headline number does not reliably predict performance on a team's actual, messy, long-horizon coding work.

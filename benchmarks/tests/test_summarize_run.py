@@ -108,6 +108,49 @@ class SummarizeRunTest(unittest.TestCase):
             # A single-shot run defaults to one invocation, no top-ups.
             self.assertEqual(row["agent_invocations"], 1)
             self.assertEqual(row["topped_up_artifacts"], [])
+            # total_tokens = input + output + cache read + write (all processed
+            # tokens); summed here from the block for older metrics.json.
+            self.assertEqual(row["total_tokens"], 1000 + 200 + 900 + 100)
+
+    def test_reads_normalized_metrics_block_and_result_subtype(self) -> None:
+        # New-format metrics.json carries a "metrics" block (total_tokens,
+        # total_cost_usd) and a top-level result_subtype; summarize must read them.
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            scope = Path(tmp) / "m" / "claude-code" / "r"
+            d = scope / "task-a"
+            d.mkdir(parents=True)
+            for name in ("github-issue.md", "lld.md", "review.md", "testing.md"):
+                (d / name).write_text("x", encoding="utf-8")
+            (d / "eval.json").write_text(
+                json.dumps({"task_score": 70.0, "scores": {}}), encoding="utf-8"
+            )
+            (d / "metrics.json").write_text(
+                json.dumps(
+                    {
+                        "task": "task-a",
+                        "complexity": "medium",
+                        "result_subtype": "error_max_turns",
+                        "metrics": {
+                            "input_tokens": 5,
+                            "output_tokens": 100,
+                            "cache_read_tokens": 2000,
+                            "cache_write_tokens": 50,
+                            "total_tokens": 2155,
+                            "total_cost_usd": 1.23,
+                            "num_turns": 40,
+                            "latency_seconds": 12.0,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            row = summarize._summarize(scope, run_date=None)["tasks"][0]
+            self.assertEqual(row["total_tokens"], 2155)
+            self.assertEqual(row["total_cost_usd"], 1.23)
+            self.assertEqual(row["result_subtype"], "error_max_turns")
+            self.assertEqual(row["input_tokens"], 5)
 
     def test_topup_provenance_surfaced(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
