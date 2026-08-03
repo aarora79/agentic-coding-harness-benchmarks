@@ -75,12 +75,19 @@ class TargetDirsTest(unittest.TestCase):
         dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", agent="pi")
         self.assertTrue(str(dirs[0]).endswith("qwen3-coder-30b/pi/my-repo/task-one"))
 
-    def test_swe3_skill_appends_to_harness_level(self) -> None:
-        # A swe3 run must target <harness>-swe3 so it never checks/clears the
-        # swe2 tree.
+    def test_default_skill_maps_to_canonical_harness_level(self) -> None:
+        # swe3 is the default skill, so it maps to the canonical folder.
         dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", skill="swe3")
         self.assertTrue(
-            str(dirs[0]).endswith("qwen3-coder-30b/claude-code-swe3/my-repo/task-one")
+            str(dirs[0]).endswith("qwen3-coder-30b/claude-code/my-repo/task-one")
+        )
+
+    def test_nondefault_swe2_skill_appends_to_harness_level(self) -> None:
+        # The non-default swe2 run targets <harness>-swe2 so it never checks/clears
+        # the canonical (swe3) tree.
+        dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", skill="swe2")
+        self.assertTrue(
+            str(dirs[0]).endswith("qwen3-coder-30b/claude-code-swe2/my-repo/task-one")
         )
 
 

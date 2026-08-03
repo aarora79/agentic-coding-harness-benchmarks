@@ -127,17 +127,23 @@ DEFAULT_AGENT = AGENT_CLAUDE
 # results, migrated under this name), "pi" -> "pi".
 HARNESS_SLUGS = {AGENT_CLAUDE: "claude-code", AGENT_PI: "pi"}
 
-# Which SWE skill drives the run. "swe2" is the default multi-agent skill (it fans
-# out to parallel Task subagents for codebase analysis and the five expert
-# reviews). "swe3" is the single-agent variant: identical six artifacts and rigor,
-# but ALL work done inline in the main loop with NO subagent fan-out -- used to
-# measure single-agent harness cost for an apples-to-apples comparison against a
-# harness with no subagent mechanism (e.g. pi). Both produce the same artifacts,
-# so everything downstream (judge, summarize, charts) is skill-agnostic.
+# Which SWE skill drives the run. "swe3" is the DEFAULT single-agent skill: all
+# work is done inline in the main loop with NO subagent fan-out, so its token/cost
+# accounting is complete and comparable across harnesses (including agents like pi
+# that have no subagent mechanism). "swe2" is the older multi-agent variant that
+# fans out to parallel Task subagents (codebase analysis + five expert reviews) --
+# same six artifacts and rigor, but its main-agent usage undercounts subagent
+# tokens. Both produce the same artifacts, so everything downstream (judge,
+# summarize, charts) is skill-agnostic.
+#
+# The default skill maps to the canonical harness folder (e.g. "claude-code"); a
+# non-default skill is suffixed ("claude-code-swe2"). So with swe3 as default, a
+# swe3 run lands in "claude-code/" (and overwrites older data there as models are
+# re-run), while a swe2 run goes to "claude-code-swe2/". See harness_slug.
 SKILL_SWE2 = "swe2"
 SKILL_SWE3 = "swe3"
 VALID_SKILLS = {SKILL_SWE2, SKILL_SWE3}
-DEFAULT_SKILL = SKILL_SWE2
+DEFAULT_SKILL = SKILL_SWE3
 
 # Amazon Bedrock model ids carry a region/vendor inference-profile prefix
 # (e.g. "us.anthropic.claude-opus-4-8") and may carry a bracketed context-window

@@ -692,8 +692,62 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
+def _claude_token_usage(result: dict[str, Any]) -> dict[str, int]:
+    """Return COMPLETE token counts from a claude -p result, subagents included.
+
+    Claude Code reports two usage views:
+
+    * ``usage`` -- the MAIN agent's tokens only. Task subagents' tokens are NOT
+      in here, so on a multi-agent run (e.g. /swe2 fanning out) it undercounts
+      the real work, and the token-derived cost does not reconcile with the
+      billed ``total_cost_usd``.
+    * ``modelUsage`` -- a per-model rollup that DOES include subagent tokens (all
+      subagents run on ``CLAUDE_CODE_SUBAGENT_MODEL`` = the benchmarked model, so
+      they fold into that model's entry). Its ``costUSD`` equals ``total_cost_usd``
+      to the cent, which is the proof it is complete.
+
+    We prefer ``modelUsage`` (summed across model entries) and fall back to
+    ``usage`` only when ``modelUsage`` is absent (older Claude Code). Keys are
+    normalized to input/output/cache_read/cache_creation.
+
+    Args:
+        result: The parsed JSON result object from ``claude -p``.
+
+    Returns:
+        Dict with input_tokens, output_tokens, cache_read_tokens,
+        cache_creation_tokens (each an int; cache fields 0 when not reported).
+    """
+    model_usage = result.get("modelUsage")
+    if isinstance(model_usage, dict) and model_usage:
+        agg = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_read_tokens": 0,
+            "cache_creation_tokens": 0,
+        }
+        for entry in model_usage.values():
+            if not isinstance(entry, dict):
+                continue
+            agg["input_tokens"] += entry.get("inputTokens") or 0
+            agg["output_tokens"] += entry.get("outputTokens") or 0
+            agg["cache_read_tokens"] += entry.get("cacheReadInputTokens") or 0
+            agg["cache_creation_tokens"] += entry.get("cacheCreationInputTokens") or 0
+        return agg
+    # Fallback: main-agent usage only (undercounts a fan-out run).
+    usage = result.get("usage") or {}
+    return {
+        "input_tokens": usage.get("input_tokens", 0),
+        "output_tokens": usage.get("output_tokens", 0),
+        "cache_read_tokens": usage.get("cache_read_input_tokens", 0),
+        "cache_creation_tokens": usage.get("cache_creation_input_tokens", 0),
+    }
+
+
 def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, Any]:
-    """Extract the six benchmark metrics from a claude -p JSON result.
+    """Extract the benchmark metrics from a claude -p JSON result.
+
+    Token counts come from ``_claude_token_usage`` (modelUsage-first, so subagent
+    tokens are included and the counts reconcile with the billed cost).
 
     Args:
         result: The parsed JSON result object from `claude -p`.
@@ -703,12 +757,13 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
         A metrics dictionary keyed by the dataset's metric names.
     """
     usage = result.get("usage") or {}
+    tokens = _claude_token_usage(result)
     duration_ms = result.get("duration_ms")
     latency = round(duration_ms / 1000, 1) if duration_ms else round(elapsed, 1)
     is_error = result.get("is_error", False)
     metrics = {
-        "input_tokens": usage.get("input_tokens", 0),
-        "output_tokens": usage.get("output_tokens", 0),
+        "input_tokens": tokens["input_tokens"],
+        "output_tokens": tokens["output_tokens"],
         "latency_seconds": latency,
         "num_turns": result.get("num_turns", 0),
         "total_cost_usd": result.get("total_cost_usd"),
@@ -720,16 +775,14 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
         "result_subtype": result.get("subtype"),
         "session_id": result.get("session_id"),
     }
-    # Only report cache-token fields the backend actually returned. vLLM's
-    # Anthropic-compatible route does not emit these, so against vLLM they are
-    # absent here rather than a misleading 0. (Real prefix-cache utilization is
-    # captured separately, from vLLM's Prometheus /metrics; see the
-    # "vllm_prometheus" block in the saved record.) They ARE populated against
-    # backends that report them, such as Amazon Bedrock or the Anthropic API.
-    if "cache_read_input_tokens" in usage:
-        metrics["cache_read_tokens"] = usage["cache_read_input_tokens"]
-    if "cache_creation_input_tokens" in usage:
-        metrics["cache_creation_tokens"] = usage["cache_creation_input_tokens"]
+    # Cache-token fields: from modelUsage (subagent-inclusive) when the backend
+    # reports them (Amazon Bedrock / Anthropic API). vLLM's OpenAI route reports
+    # none, so they stay absent here and the real prefix-cache utilization is
+    # recovered from vLLM's Prometheus /metrics ("vllm_prometheus" block) instead.
+    if tokens["cache_read_tokens"] or "cache_read_input_tokens" in usage:
+        metrics["cache_read_tokens"] = tokens["cache_read_tokens"]
+    if tokens["cache_creation_tokens"] or "cache_creation_input_tokens" in usage:
+        metrics["cache_creation_tokens"] = tokens["cache_creation_tokens"]
     # Streaming-only: peak running estimate of extended-thinking tokens for
     # reasoning models. output_tokens already includes these; this records the
     # thinking portion the model streamed as system/thinking_tokens events.
@@ -1586,21 +1639,41 @@ def _summary_metrics(
             "no vLLM server for this provider, so no server-side cache telemetry."
         )
     )
+    # total_tokens counts ALL tokens the model processed (input + output + cache
+    # read + cache write), so a heavily-cached run is not understated ~100x by an
+    # input+output-only sum. total_cost_usd is the agent's own metered bill (null
+    # for a self-hosted model, which has no per-token price).
+    inp = metrics.get("input_tokens") or 0
+    out = metrics.get("output_tokens") or 0
+    total_tokens = inp + out + (cache_read or 0) + (cache_write or 0)
+    token_src = (
+        f"{api}.modelUsage (per-model rollup; INCLUDES subagent tokens)"
+        if agent == "claude"
+        else f"{api}.usage"
+    )
     summary = {
         "note": note,
         "input_tokens": metrics.get("input_tokens"),
         "output_tokens": metrics.get("output_tokens"),
         "cache_read_tokens": cache_read,
         "cache_write_tokens": cache_write,
+        "total_tokens": total_tokens,
+        "total_cost_usd": metrics.get("total_cost_usd"),
         "latency_seconds": metrics.get("latency_seconds"),
         "num_turns": metrics.get("num_turns"),
         "generation_tokens_per_sec": generation_tokens_per_sec,
     }
     sources = {
-        "input_tokens": f"{api}.usage.input_tokens",
-        "output_tokens": f"{api}.usage.output_tokens",
+        "input_tokens": f"{token_src}.input",
+        "output_tokens": f"{token_src}.output",
         "cache_read_tokens": cache_read_src,
         "cache_write_tokens": cache_write_src,
+        "total_tokens": "sum(input + output + cache_read + cache_write)",
+        "total_cost_usd": (
+            f"{api}.total_cost_usd (metered)"
+            if metrics.get("total_cost_usd") is not None
+            else "null (self-hosted: no per-token bill; cost is hardware-derived)"
+        ),
         "latency_seconds": f"harness wall-clock (or {api}.duration_ms)",
         "num_turns": f"{api}.num_turns",
         "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
@@ -1677,7 +1750,11 @@ def _save_metrics(
         "artifacts_produced": len(produced),
         "artifacts_expected": len(ARTIFACT_FILENAMES),
         "generation_tokens_per_sec": generation_tokens_per_sec,
-        "metrics_that_matter": _summary_metrics(
+        # The normalized, cross-agent metric block -- the single source of truth
+        # for tokens/cost/turns/latency + provenance. summarize_run and the charts
+        # read this. Filled to whatever extent the agent reports (nulls where a
+        # signal is unavailable, never a misleading 0).
+        "metrics": _summary_metrics(
             metrics,
             vllm_prometheus,
             generation_tokens_per_sec,
@@ -1686,6 +1763,10 @@ def _save_metrics(
         ),
         **metrics,
     }
+    # Back-compat alias: older tooling / committed readers referenced
+    # "metrics_that_matter". Keep it pointing at the same normalized block for one
+    # release so nothing breaks; new code should read "metrics".
+    record["metrics_that_matter"] = record["metrics"]
     # vLLM Prometheus telemetry only exists for an HTTP endpoint; omit the block
     # for Amazon Bedrock rather than write a permanently-unavailable stub.
     if include_vllm:
@@ -2052,13 +2133,14 @@ def _maybe_topup(
     )
     base = _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
 
-    # metrics_that_matter renames cache-write; total_cost_usd is top-level only.
+    # The normalized block ("metrics", aliased as "metrics_that_matter") renames
+    # cache-write to cache_write_tokens; total_cost_usd lives there too now.
     _MM_KEY = {"cache_creation_tokens": "cache_write_tokens"}
 
     def _pass_value(record: dict[str, Any], key: str) -> float:
-        """Read an additive field from a pass, preferring metrics_that_matter."""
-        mm = record.get("metrics_that_matter") or {}
-        val = mm.get(_MM_KEY.get(key, key))
+        """Read an additive field from a pass, preferring the normalized block."""
+        block = record.get("metrics") or record.get("metrics_that_matter") or {}
+        val = block.get(_MM_KEY.get(key, key))
         if val is None:
             val = record.get(key)
         return val or 0
@@ -2135,28 +2217,36 @@ def _annotate_metrics_topup(
     additive fields -- tokens, turns, latency, total_cost_usd, and cache tokens --
     to the sum across all agent invocations (the task's true cost) and record how
     many invocations it took and which artifacts were topped up. The summed values
-    are written to BOTH the top-level fields and the nested metrics_that_matter
-    block, because summarize_run reads the tokens/turns/cache from
-    metrics_that_matter (and total_cost_usd from top-level) -- writing only one
-    place would leave the summary showing a single pass. Best-effort: a write
-    failure is logged, not fatal.
+    are written to the top-level fields AND to the normalized block ("metrics",
+    plus its "metrics_that_matter" alias), because summarize_run reads them from
+    the normalized block -- writing only one place would leave the summary showing
+    a single pass. Best-effort: a write failure is logged, not fatal.
     """
     path = _artifact_dir(config, task) / "metrics.json"
     record = _read_json_file(path)
     if record is None:
         return
-    # Top-level copy (total_cost_usd is read from here by summarize_run).
+    # Top-level copy.
     record.update(totals)
-    # Nested metrics_that_matter copy (tokens/turns/latency/cache read from here).
-    # It renames cache-write to cache_write_tokens and has no total_cost_usd, so
-    # map the top-level additive keys onto the mm keys before writing.
-    mm = record.get("metrics_that_matter")
-    if isinstance(mm, dict):
-        mm_key = {"cache_creation_tokens": "cache_write_tokens"}
+    # Normalized block(s): "metrics" is canonical, "metrics_that_matter" the alias.
+    # The block renames cache-write to cache_write_tokens; recompute total_tokens.
+    mm_key = {"cache_creation_tokens": "cache_write_tokens"}
+    for block_name in ("metrics", "metrics_that_matter"):
+        block = record.get(block_name)
+        if not isinstance(block, dict):
+            continue
         for k, v in totals.items():
             target = mm_key.get(k, k)
-            if target in mm:
-                mm[target] = v
+            if target in block:
+                block[target] = v
+        # total_tokens is derived, not in `additive`; recompute from the summed parts.
+        if "total_tokens" in block:
+            block["total_tokens"] = (
+                (totals.get("input_tokens") or 0)
+                + (totals.get("output_tokens") or 0)
+                + (totals.get("cache_read_tokens") or 0)
+                + (totals.get("cache_creation_tokens") or 0)
+            )
     record["agent_invocations"] = invocations
     record["topped_up_artifacts"] = topped_up
     try:

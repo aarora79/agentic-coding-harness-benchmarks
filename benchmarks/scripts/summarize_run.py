@@ -65,7 +65,9 @@ def _task_row(task_dir: Path) -> dict[str, Any] | None:
     metrics = _read_json(task_dir / "metrics.json")
     if metrics is None:
         return None
-    mm = metrics.get("metrics_that_matter", {}) or {}
+    # The normalized cross-agent block ("metrics"); fall back to the legacy
+    # "metrics_that_matter" alias for older metrics.json files.
+    mm = metrics.get("metrics") or metrics.get("metrics_that_matter", {}) or {}
     eval_data = _read_json(task_dir / "eval.json")
     score = None
     if eval_data and isinstance(eval_data.get("task_score"), (int, float)):
@@ -92,8 +94,24 @@ def _task_row(task_dir: Path) -> dict[str, Any] | None:
         "num_turns": mm.get("num_turns"),
         "input_tokens": mm.get("input_tokens"),
         "output_tokens": mm.get("output_tokens"),
+        # total_tokens = input + output + cache read + write (all tokens the model
+        # processed); from the normalized block, falling back to a sum for older
+        # metrics.json that predate the field.
+        "total_tokens": mm.get("total_tokens")
+        if mm.get("total_tokens") is not None
+        else (
+            (mm.get("input_tokens") or 0)
+            + (mm.get("output_tokens") or 0)
+            + (mm.get("cache_read_tokens") or 0)
+            + (mm.get("cache_write_tokens") or 0)
+        ),
         "latency_seconds": mm.get("latency_seconds"),
-        "total_cost_usd": metrics.get("total_cost_usd"),
+        # Cost from the normalized block (which now carries it); fall back to the
+        # top-level field for older metrics.json.
+        "total_cost_usd": mm.get("total_cost_usd", metrics.get("total_cost_usd")),
+        # Why the run ended (success / error_max_turns / ...), so a topped-up or
+        # failed task is diagnosable from the committed rollup alone.
+        "result_subtype": metrics.get("result_subtype"),
         "task_score": score,
         # Derived serving-efficiency signals, folded up from metrics.json so the
         # committed rollup carries them even though the per-task metrics.json is

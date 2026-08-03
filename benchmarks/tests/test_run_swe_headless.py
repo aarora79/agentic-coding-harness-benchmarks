@@ -349,6 +349,53 @@ class MetricsFromResultTest(unittest.TestCase):
         self.assertEqual(metrics["latency_seconds"], 7.2)
         self.assertEqual(metrics["num_turns"], 0)
 
+    def test_prefers_modelusage_over_main_agent_usage(self) -> None:
+        # modelUsage includes subagent tokens; usage is main-agent-only. On a
+        # fan-out run the harness MUST use modelUsage or it undercounts + fails to
+        # reconcile with total_cost_usd. Here modelUsage output (1988) >> usage (349).
+        result = {
+            "num_turns": 5,
+            "total_cost_usd": 0.107,
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 349,
+                "cache_read_input_tokens": 31299,
+                "cache_creation_input_tokens": 611,
+            },
+            "modelUsage": {
+                "us.anthropic.claude-haiku-4-5-20251001-v1:0": {
+                    "inputTokens": 494,
+                    "outputTokens": 1988,
+                    "cacheReadInputTokens": 124537,
+                    "cacheCreationInputTokens": 67660,
+                    "costUSD": 0.107,
+                }
+            },
+        }
+        m = harness._metrics_from_result(result, elapsed=1.0)
+        self.assertEqual(m["input_tokens"], 494)
+        self.assertEqual(m["output_tokens"], 1988)
+        self.assertEqual(m["cache_read_tokens"], 124537)
+        self.assertEqual(m["cache_creation_tokens"], 67660)
+
+    def test_sums_modelusage_across_multiple_models(self) -> None:
+        result = {
+            "modelUsage": {
+                "model-a": {"inputTokens": 100, "outputTokens": 200},
+                "model-b": {"inputTokens": 5, "outputTokens": 10},
+            }
+        }
+        m = harness._metrics_from_result(result, elapsed=1.0)
+        self.assertEqual(m["input_tokens"], 105)
+        self.assertEqual(m["output_tokens"], 210)
+
+    def test_falls_back_to_usage_when_no_modelusage(self) -> None:
+        # Older Claude Code without modelUsage: use main-agent usage.
+        result = {"usage": {"input_tokens": 7, "output_tokens": 8}}
+        m = harness._metrics_from_result(result, elapsed=1.0)
+        self.assertEqual(m["input_tokens"], 7)
+        self.assertEqual(m["output_tokens"], 8)
+
 
 class ArtifactDirTest(unittest.TestCase):
     def test_path_follows_skill_convention(self) -> None:
