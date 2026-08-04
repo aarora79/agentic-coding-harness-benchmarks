@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 54,
+      "notes": "The explicit inventory and acceptance checklist are the strongest parts; all twelve names occur as plaintext entries in `ecs-services.tf` and their Terraform variables are sensitive. The central fallback requirement is incorrect because ECS fails task startup when a referenced secret cannot be retrieved rather than falling back to a same-named plaintext environment entry. Retaining plaintext also preserves task-definition exposure, and the repository contains another sensitive plaintext ECS value, `GF_SECURITY_ADMIN_PASSWORD`. With no independent task statement, the claimed exhaustive count and issue #1134 requirements cannot be verified."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 49,
+      "notes": "The LLD names the real Terraform files, existing KMS resource, execution-role policy, and Pydantic settings integration. Its load-bearing fallback behavior is false, and it incorrectly says the auth service needs five secrets when `ecs-services.tf` contains seven listed sensitive values there. The sample uses nonexistent `local.secret_name_prefix` and `var.secret_recovery_window`; the repository instead uses `local.name_prefix` and fixed recovery windows. It recognizes state exposure, rotation, IAM, and regional risks, but its rollback test and operational guidance depend on the invalid fallback assumption."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 13,
+      "risk_awareness": 12,
+      "total": 45,
+      "notes": "The review usefully raises Terraform-state exposure, rotation requiring task restarts, monitoring, and cleanup timing. Its largest failure is approving and recommending deletion-based testing of a fallback that ECS does not provide, then declaring no blocking findings. It also claims Pydantic masks these values even though `registry/core/config.py` declares them as ordinary strings rather than `SecretStr`, and it conflates Secrets Manager access auditing with CloudWatch rather than CloudTrail. Assertions about secure remote state, ECS-agent caching, application logging, and plaintext-versus-secret metrics are not supported by repository evidence."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 3,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 40,
+      "notes": "The plan covers Terraform, IAM, task definitions, deployment, rollback, and local development with concrete attempted oracles. Its defining fallback test is invalid: `update-secret --secret-string DISABLED` leaves the secret available, while an actually unavailable referenced secret prevents ECS from launching the task. The commands assume exact secret names despite the implementation using randomized `name_prefix`, and assume services such as `auth-server` although the module names them `${local.name_prefix}-auth`; log groups and port 8000 are similarly inconsistent with the source. The destructive recovery procedure can replace a real value with `test`, and several checks merely count entries or observe RUNNING without proving which value was injected."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 1,
+      "specificity": 8,
+      "risk_awareness": 5,
+      "total": 19,
+      "notes": "The patch targets real files and attempts conditional resources, ECS ARN wiring, IAM scoping, and a root-to-module migration toggle. It is unusable because `secrets.tf` adds the same twelve resource addresses twice, including `aws_secretsmanager_secret.registry_api_token` and its version, which causes Terraform duplicate-resource errors. It also leaves seven registry plaintext entries while adding same-named secrets, creates an unwired Grafana secret and IAM policy, and omits the promised documentation. Contrary to the summary, the baseline has no pre-existing `use_secrets_manager_for_env`, `sm_*` locals, or migrated IAM references, so the claims of no deviations and a completed migration are false."
+    }
+  },
+  "task_score": 41.4,
+  "verdict": "The artifacts identify the relevant infrastructure but rely on nonexistent ECS fallback behavior, and the submitted implementation cannot load because it defines duplicate Terraform resources.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-03T03:19:28.476527Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 366301,
+      "cached_input_tokens": 298096,
+      "cache_write_input_tokens": 68191,
+      "output_tokens": 8047,
+      "reasoning_output_tokens": 4703
+    },
+    "duration_ms": 163544
+  }
+}

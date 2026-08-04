@@ -1,0 +1,123 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "security",
+    "ssrf",
+    "python",
+    "fastapi",
+    "input-validation"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "claude",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 53.9,
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 16314,
+    "output_tokens": 252862,
+    "cache_read_tokens": 33055019,
+    "cache_write_tokens": 716927,
+    "latency_seconds": 4690.1,
+    "num_turns": 173,
+    "generation_tokens_per_sec": 53.9,
+    "sources": {
+      "input_tokens": "claude_api.usage.input_tokens",
+      "output_tokens": "claude_api.usage.output_tokens",
+      "cache_read_tokens": "claude_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "claude_api.usage.cache_creation_input_tokens",
+      "latency_seconds": "harness wall-clock (or claude_api.duration_ms)",
+      "num_turns": "claude_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 16314,
+  "output_tokens": 252862,
+  "latency_seconds": 4690.1,
+  "num_turns": 173,
+  "total_cost_usd": 51.73899175000001,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 33055019,
+  "cache_creation_tokens": 716927,
+  "run_started_at": "2026-08-02T15:25:59.139150Z",
+  "run_ended_at": "2026-08-02T16:44:11.314151Z",
+  "evaluation": {
+    "task": "ssrf-hardening-outbound-url-validation",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 19,
+        "specificity": 24,
+        "risk_awareness": 23,
+        "total": 89,
+        "notes": "The issue provides unusually concrete sinks, compatibility constraints, testable acceptance criteria, and explicit exclusions. Repository checks confirmed `_is_safe_url` in `registry/services/skill_service.py`, the unguarded agent requests in `agent_routes.py`, and eight redirect-following health requests in `registry/health/service.py`. Its largest defect is stale acceptance criteria requiring configuration in the `mcpgw` chart even though that pod does not run these sinks, contradicting the revised LLD and implementation. No independent task statement was supplied, and actual metadata-service reachability in a deployed ECS environment could not be verified from the repository."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 23,
+        "total": 83,
+        "notes": "The LLD is grounded in real integration points such as `get_endpoint_url_from_server_info`, `_check_server_endpoint_transport_aware`, the stdio shortcut, and the existing skill allowlist. It commits to concrete policy semantics, fetch-time enforcement, async DNS, return contracts, deployment wiring, and rollback limitations. Its largest weakness is internal inconsistency and incomplete security reasoning: stale `require_resolution` and chart/logging descriptions remain, `_normalize_ip` does not actually normalize NAT64, and loopback-only self-reference detection does not cover the registry's private service address. The accepted redirect design also revalidates only after the internal request has already been issued, leaving a material SSRF capability that is documented but unresolved."
+      },
+      "review": {
+        "completeness": 23,
+        "correctness": 18,
+        "specificity": 24,
+        "risk_awareness": 24,
+        "total": 89,
+        "notes": "The review finds several genuine load-bearing defects, including policy-dependent weakening of `_is_safe_url`, blocking DNS on the event loop, validation before the stdio shortcut, and divergent health-call return contracts. These findings align with the real code in `skill_service.py` and `registry/health/service.py`, and the recommendations are prioritized and actionable. Its largest deficiency is overstating the revisions as complete: it incorrectly says normalization covers NAT64 and treats loopback-port blocking as removing self-reference despite private service-address access remaining possible. Some runtime assertions, including exact resolver and network behavior in deployed environments, remain unverified."
+      },
+      "testing": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 82,
+        "notes": "The plan covers policy behavior, compatibility, configuration, deployment surfaces, blocked-call oracles, redirects, async DNS, and the existing skill guard with concrete expected values. Its commands and principal paths match the repository's `uv`, pytest, Helm, Terraform, and chart structure. The largest gap is that several supplied tests do not prove what their names claim: the blocked-detail test never compares an ordinary failure, async redirect tests patch the synchronous resolver, and no test covers redirects inside `_initialize_mcp_session` or `_try_ping_without_auth`. The `off`-policy test would correctly expose the submitted implementation's failure to resolve, log, and count would-be address blocks."
+      },
+      "implementation": {
+        "completeness": 17,
+        "correctness": 9,
+        "specificity": 21,
+        "risk_awareness": 16,
+        "total": 63,
+        "notes": "The inline diff targets real files and symbols and implements substantial pre-fetch validation, configuration wiring, observability, documentation, and focused tests. However, `_initialize_mcp_session` and `_try_ping_without_auth` still use `follow_redirects=True` without final-URL validation, and the transport-in-URL branch still precedes the stdio shortcut, so some claimed protections are absent. Under `off`, `_needs_resolution` skips DNS entirely and therefore cannot log or count would-be metadata blocks, while raw rejected URLs containing embedded credentials are written to logs. No standalone `patch.diff` existed for `git apply --check`, and the summary explicitly states that tests and formatters were not executed."
+      }
+    },
+    "task_score": 81.2,
+    "verdict": "The design package is detailed and repository-aware, but the implementation retains material redirect and policy-path defects and was not executed against its own tests.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-02T16:47:40.823558Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 637285,
+        "cached_input_tokens": 521484,
+        "cache_write_input_tokens": 115789,
+        "output_tokens": 9591,
+        "reasoning_output_tokens": 7078
+      },
+      "duration_ms": 108344
+    }
+  },
+  "skill": "swe2"
+}

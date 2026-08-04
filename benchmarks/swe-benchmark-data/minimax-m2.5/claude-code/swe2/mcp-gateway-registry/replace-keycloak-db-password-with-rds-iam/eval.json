@@ -1,0 +1,56 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 52,
+      "notes": "Well structured with scope, fallback, and acceptance criteria, but it specifies the nonexistent rds:GenerateDBAuthToken permission on the execution role; the application instead needs rds-db:connect through its task role. It also omits connection-pool token renewal, IAM database-user provisioning, and TLS. No independent task statement was supplied."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 4,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 43,
+      "notes": "The file-level plan is concrete, but the central implementation is not viable: it uses the wrong IAM action, role, and resource, generates only one token, leaves required environment wiring and password fallback incomplete, and does not provision the IAM-enabled database user. The proxy still uses SECRETS while the design claims rotation becomes unused, and token renewal remains an open question."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 15,
+      "risk_awareness": 16,
+      "total": 53,
+      "notes": "It correctly rejects the startup-only token lifecycle and identifies missing database-user and proxy decisions. However, it misses the wrong IAM permission model and recommends unsound remedies: cron cannot update a running JVM's environment, short-lived tokens should not be stored in Secrets Manager, the standard driver can accept a token as a password, and the shown local-exec SQL is not executable as written."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 4,
+      "specificity": 14,
+      "risk_awareness": 11,
+      "total": 44,
+      "notes": "Coverage spans both flag modes, local development, deployment, rollback, and availability, but several tests are unusable: describe-db-cluster is not an AWS CLI command, the plan checks grep nonexistent files, image names conflict, and docker command overrides bypass the proposed CMD wrapper. It never tests a new connection after token expiry, IAM database-user grants, TLS, authorization denial, or cleanup."
+    }
+  },
+  "task_score": 48.0,
+  "verdict": "The artifacts are polished and broad but remain below implementation-ready quality because their core AWS IAM authorization and token-lifecycle design is technically incorrect and repository-specific claims are insufficiently grounded.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-24T17:23:23.981398Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 195124,
+      "cached_input_tokens": 168844,
+      "cache_write_input_tokens": 26262,
+      "output_tokens": 7846,
+      "reasoning_output_tokens": 6620
+    },
+    "duration_ms": 206086
+  }
+}

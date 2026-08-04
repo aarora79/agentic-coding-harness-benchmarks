@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 18,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 65,
+      "notes": "The issue clearly identifies dependency, configuration, documentation, search behavior, tests, and explicit non-goals. Its largest gap is the missing transition behavior for supported file-storage deployments when DocumentDB is unavailable. Repository evidence confirms `pyproject.toml` contains `faiss-cpu` and the factory currently selects FAISS outside `MONGODB_BACKENDS`, making that compatibility question material. No independent task statement establishes whether dropping file-backed search is acceptable, and related issue #1285 could not be verified."
+    },
+    "lld": {
+      "completeness": 8,
+      "correctness": 5,
+      "specificity": 11,
+      "risk_awareness": 4,
+      "total": 28,
+      "notes": "The design's strongest aspect is naming real files and symbols, including `registry/search/service.py`, `get_search_repository()`, and `DocumentDBSearchRepository`. Its integration analysis omits numerous direct `faiss_service` callers in `server_routes.py` and `agent_routes.py`, plus startup behavior in `registry/main.py`, so deleting the service as proposed would break imports and update workflows. `registry/main.py:496-504` explicitly distinguishes persistent DocumentDB from FAISS reindexing, while the proposed factory unconditionally constructs DocumentDB without resolving file-backend configuration. Claims that metrics, errors, scaling, and behavior remain unchanged are unsupported; the repository still exposes `faiss_search_time_ms` metrics and no independent task statement confirms a DocumentDB-only deployment mandate."
+    },
+    "review": {
+      "completeness": 7,
+      "correctness": 6,
+      "specificity": 6,
+      "risk_awareness": 7,
+      "total": 26,
+      "notes": "The most useful observation is the SRE concern that DocumentDB must be configured in every environment, alongside checking API response compatibility. The review nevertheless records no blockers and misses the design's direct FAISS callers, startup reindexing path, and loss of the file-storage search backend. Repository references in `registry/main.py`, `registry/api/server_routes.py`, and `registry/api/agent_routes.py` make those concrete correctness blockers rather than minor verification items. Assertions that DocumentDB is already well tested, security-neutral, and performance-compatible are not substantiated by cited tests or measurements."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 7,
+      "specificity": 9,
+      "risk_awareness": 8,
+      "total": 34,
+      "notes": "The plan's strongest portion provides concrete requests for the real `POST /api/search/semantic` endpoint and includes functional, compatibility, deployment, and performance categories. It lacks deterministic seeded results and exact oracles, dependency/import smoke tests, repository-wide FAISS-reference checks, startup tests, and factory coverage for both MongoDB and file backends. `README.md:234` states that semantic search requires session-cookie or JWT authentication, but every curl command omits authentication while expecting 200; requiring identical results across different search engines is also not a defensible oracle. Terraform and Helm checks, acceptable latency thresholds, and a concrete rollback procedure are not grounded in identified repository paths or commands."
+    },
+    "implementation": {
+      "completeness": 2,
+      "correctness": 1,
+      "specificity": 4,
+      "risk_awareness": 0,
+      "total": 7,
+      "notes": "The strongest valid change is removal of the real `faiss-cpu` dependency, and the factory patch targets an existing function and repository class. The implementation leaves `registry/search/service.py` intact along with many direct callers and documentation/tests, and its config hunk removes only `faiss_metadata_path` while retaining `faiss_index_path`, contradicting its summary. The submitted unified diff is also malformed around the leading-space `diff --git` marker and provides no deletion hunk for the nonempty file repository, so it cannot reliably apply as presented. Unconditionally constructing DocumentDB for file-backed configurations is not backward compatible, yet the summary claims unchanged behavior and provides no migration, fallback, or acknowledged deviation."
+    }
+  },
+  "task_score": 32.0,
+  "verdict": "The issue provides a useful high-level target, but the design and review miss critical file-backend and caller impacts, while the submitted patch is malformed and leaves substantial FAISS-dependent code behind.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T02:01:58.033450Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 375470,
+      "cached_input_tokens": 338242,
+      "cache_write_input_tokens": 37204,
+      "output_tokens": 7396,
+      "reasoning_output_tokens": 5430
+    },
+    "duration_ms": 144051
+  }
+}

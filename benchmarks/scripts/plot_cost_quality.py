@@ -56,21 +56,24 @@ DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
 DEFAULT_IMAGES_DIR = _REPO_ROOT / "docs" / "images"
 METRICS_FILENAME = "metrics.json"
 
-# Short per-harness code used to suffix chart filenames so each agent's chart is
-# self-identifying and never overwrites another's (cost-quality-cc.png,
-# cost-quality-pi.png). An unknown harness falls back to its own slug.
+# Short per-harness code used (with the skill) to suffix chart filenames so each
+# agent+skill's chart is self-identifying and never overwrites another's
+# (cost-quality-cc-swe2.png, cost-quality-pi-swe3.png). An unknown harness falls
+# back to its own slug.
 HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
 
 
-def _default_output(harness: str, dark: bool) -> Path:
-    """Committed docs/images path for a harness's cost-quality chart.
+def _default_output(harness: str, skill: str, dark: bool) -> Path:
+    """Committed docs/images path for a (harness, skill) cost-quality chart.
 
+    Keyed by both harness and skill (e.g. cost-quality-cc-swe3.png), because
+    swe2 and swe3 differ materially in tokens/accuracy and get separate charts.
     Defaults here so the chart the README embeds stays in sync when re-run.
     (swe-benchmark-data is gitignored; docs/images is tracked.)
     """
     code = HARNESS_CODES.get(harness, harness)
     suffix = "-dark" if dark else ""
-    return DEFAULT_IMAGES_DIR / f"cost-quality-{code}{suffix}.png"
+    return DEFAULT_IMAGES_DIR / f"cost-quality-{code}-{skill}{suffix}.png"
 
 
 EVAL_FILENAME = "eval.json"
@@ -289,7 +292,9 @@ def _aggregate_model(model_repo_dir: Path, model: str) -> ModelPoint | None:
     )
 
 
-def _collect_points(data_dir: Path, repo: str, harness: str) -> list[ModelPoint]:
+def _collect_points(
+    data_dir: Path, repo: str, harness: str, skill: str
+) -> list[ModelPoint]:
     """Collect one ModelPoint per model that has ``harness`` runs for ``repo``.
 
     Artifacts live at ``<data-dir>/<model>/<harness>/<repo>/``; this plots the
@@ -309,7 +314,7 @@ def _collect_points(data_dir: Path, repo: str, harness: str) -> list[ModelPoint]
     """
     points: list[ModelPoint] = []
     for model_dir in sorted(p for p in data_dir.iterdir() if p.is_dir()):
-        repo_dir = model_dir / harness / repo
+        repo_dir = model_dir / harness / skill / repo
         if not repo_dir.is_dir():
             continue
         point = _aggregate_model(repo_dir, model_dir.name)
@@ -626,8 +631,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--harness",
         default="claude-code",
-        help="Coding-agent folder to read: 'claude-code' (default, the published "
-        "leaderboard) or 'pi'. Artifacts live at <model>/<harness>/<repo>/.",
+        help="Coding-agent folder to read: 'claude-code' (default) or 'pi'. "
+        "Artifacts live at <model>/<harness>/<skill>/<repo>/.",
+    )
+    parser.add_argument(
+        "--skill",
+        default="swe3",
+        help="SWE skill folder to read: 'swe3' (default) or 'swe2'. swe2 and swe3 "
+        "get separate charts (they differ in tokens/accuracy).",
     )
     parser.add_argument(
         "--out",
@@ -665,10 +676,10 @@ def main() -> None:
         raise SystemExit(f"data dir not found: {data_dir}")
 
     mode = "dark" if args.dark else "light"
-    output = args.out or _default_output(args.harness, args.dark)
+    output = args.out or _default_output(args.harness, args.skill, args.dark)
     title = args.title or f"Cost vs. quality -- {args.repo}"
 
-    points = _collect_points(data_dir, args.repo, args.harness)
+    points = _collect_points(data_dir, args.repo, args.harness, args.skill)
     for point in points:
         logger.info(
             "  %-32s score=%.2f cost=$%.2f (%d/%d scored)",

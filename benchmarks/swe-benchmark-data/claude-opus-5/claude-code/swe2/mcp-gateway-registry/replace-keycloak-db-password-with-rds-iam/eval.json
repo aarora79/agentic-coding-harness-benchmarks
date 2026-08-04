@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 10,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 71,
+      "notes": "The issue gives unusually concrete scope, migration behavior, security controls, and testable acceptance criteria tied to real symbols such as `aws_rds_cluster.keycloak`, `KC_DB_PASSWORD`, and `aws_db_proxy.keycloak`. Its largest defect is contradictory requirements: it requires both `manage_master_user_password = true` and `random_password`, while also both destroying the proxy and declaring proxy deletion out of scope. It additionally requires `KC_DB_DRIVER` in the rendered task even though the revised design correctly says this is a build-time option. No independent task statement was supplied, so the asserted issue history and exact intended fallback scope cannot be independently verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 70,
+      "notes": "The LLD makes strong load-bearing decisions around per-connection token generation, RDS-managed master credentials, scoped `rds-db:connect`, TLS, and bootstrap ordering. However, several revision-1 statements remain and contradict revision 2, including `random_password`, a retained rotating `keycloak/database` secret, and a claim that no alarm is introduced. More seriously, `command = local.keycloak_db_iam_auth ? null : [\"start\"]` breaks the documented password-mode validation phase and rollback because the custom optimized image still receives an extra `start` argument while IAM is false. The design is highly specific to the named Terraform and Docker files, but these inconsistencies prevent it from being implementation-ready."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 88,
+      "notes": "The review identifies concrete, consequential failures, including the build-time driver option, missing dependency closure, state exposure from `random_password`, bootstrap networking, and absent rollout protection. Findings cite exact resources and failure strings and provide actionable resolutions rather than generic role-based approval. Its main weakness is declaring every blocker resolved without rechecking revision 2: the IAM-flag-based command condition still breaks the password-mode custom-image phase and rollback. The claimed empirical image reproductions are detailed but have no submitted execution output, so they remain unverified assertions."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 75,
+      "notes": "The plan covers image construction, Terraform rendering, negative cases, compatibility, bootstrap idempotency, deployment, rollback, and end-to-end authentication with concrete expected outcomes. Several commands are unusable as written: the password-mode container runs in the foreground while the subsequent health check expects to run, and only port 8080 is published while it checks port 9000. It also invokes `terraform show` on `/tmp/iam.plan.json`, orders the IAM variable file before an overriding `terraform.tfvars`, and calls HTTP load a forced new physical connection without actually forcing pool reconnection. These defects materially weaken the otherwise strong regression and operational coverage."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 63,
+      "notes": "The patch broadly implements the intended Terraform, IAM, JDBC wrapper, TLS, bootstrap, rotation gating, monitoring, and documentation surfaces using the named repository conventions. The decisive defect is `command = local.keycloak_db_iam_auth ? null : [\"start\"]`: the documented password-mode custom-image rollout and rollback both use IAM false and therefore append `start` to an entrypoint already containing `start --optimized`. The bootstrap also does not verify its stated oracle: an existing user with the wrong authentication plugin is not repaired by `ALTER USER ... REQUIRE SSL`, and the script reports success solely from exit code without checking the final `SELECT`. The diff contexts align with the submitted baseline symbols, but repository command execution was unavailable, so `git apply --check` and build validity could not be independently confirmed."
+    }
+  },
+  "task_score": 73.4,
+  "verdict": "The submission is exceptionally detailed and risk-conscious, but contradictory design text and a broken custom-image rollout and rollback path keep the implementation from being production-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-02T07:33:46.896701Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 288024,
+      "cached_input_tokens": 215653,
+      "cache_write_input_tokens": 72363,
+      "output_tokens": 10376,
+      "reasoning_output_tokens": 9160
+    },
+    "duration_ms": 147316
+  }
+}

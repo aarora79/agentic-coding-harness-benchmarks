@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 72,
+      "notes": "The issue clearly identifies direct SSRF targets, affected workflows, explicit exclusions, and testable private, loopback, link-local, metadata, and compatibility outcomes. The cited guards in registry/services/skill_service.py and outbound paths in agent_validator.py, agent_routes.py, and health/service.py all exist. Its largest flaw is claiming that pre-request DNS resolution prevents DNS rebinding, although the proposed check and subsequent HTTP request resolve independently; redirects are also omitted. No independent task statement was supplied, and the claimed related issue #1282 and assertion of no dependencies could not be verified from the repository."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "The design is grounded in real symbols, including _check_endpoint_reachability, check_agent_health, _check_server_endpoint_transport_aware, and SkillService's existing private-IP guard. It commits to schemes, fail-closed resolution, IPv4 and IPv6 handling, all-address checks, and an exact-host allowlist setting. The check-then-request design knowingly leaves DNS rebinding unresolved and does not address redirect destinations or blocking socket.getaddrinfo calls from asynchronous request and health-check paths. Its backward-compatibility claim is unsupported for existing private agents, and blocked-request behavior, configuration exposure, tests, rollout, and rollback remain underspecified."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 18,
+      "specificity": 18,
+      "risk_awareness": 18,
+      "total": 71,
+      "notes": "The strongest finding correctly identifies the DNS time-of-check/time-of-use gap and recommends socket-level validation or IP pinning. It also raises multiple-address resolution, IPv6, fail-closed DNS errors, and health-loop latency, all relevant to the repository's synchronous resolver design. However, it makes rebinding mitigation optional despite the issue's acceptance criterion, misses redirect-based SSRF and compatibility with existing tests, and incorrectly describes http://1.2.3.4 as having no hostname. Claims that the utility placement avoids circular dependencies are plausible from the checked imports, but the requested strict allowlist validation is not defined concretely."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 13,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The plan supplies concrete inputs and expected allow or block results for loopback, private, link-local, IPv6, DNS, schemes, and configured hosts. It does not name test files or mocking strategy and largely tests is_safe_url directly rather than proving that each real call site suppresses its HTTP request. The repository uses registry/ rather than src/, so uv run bandit -r src/ is incorrect, while uv run pytest is consistent with pyproject.toml. Rebinding, redirects, multiple integration paths, malformed allowlist values, resolver blocking, and the existing skill-service test contract are not covered, and tests relying on live example.com DNS would be nondeterministic."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 54,
+      "notes": "The patch targets real source context and centralizes the existing guard while adding checks to the principal agent and health paths plus federation and MCP clients. It removes _trusted_domains and _is_safe_url from skill_service.py without updating tests/unit/services/test_skill_service_ssrf_allowlist.py, whose tests import and patch those exact symbols, so the existing suite will fail. The synchronous, timeout-free socket.getaddrinfo check remains vulnerable to DNS rebinding and can block async paths, while health/service.py follows redirects and get_mcp_connection_result can use an unvalidated server_info mcp_endpoint after validating only base_url. No tests accompany the patch, so the summary's verification and backward-compatibility claims are unsubstantiated and overstate end-to-end coverage."
+    }
+  },
+  "task_score": 64.6,
+  "verdict": "The submission is repository-aware and provides meaningful basic SSRF hardening, but it leaves critical rebinding and redirect gaps and ships a patch that breaks existing tests.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T06:00:03.644416Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 459754,
+      "cached_input_tokens": 414953,
+      "cache_write_input_tokens": 44777,
+      "output_tokens": 6797,
+      "reasoning_output_tokens": 3688
+    },
+    "duration_ms": 128553
+  }
+}

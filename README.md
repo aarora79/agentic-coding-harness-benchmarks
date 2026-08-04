@@ -26,7 +26,7 @@ This repo measures the thing that actually matters instead: **harness x model, o
 
 ## Overview
 
-This repository is a **benchmark and harness for measuring how well different LLMs perform real-world software-engineering tasks** when driven by a coding agent. It supports **two coding agents (harnesses)** today -- [Claude Code](https://docs.anthropic.com/en/docs/claude-code), Anthropic's command-line coding agent, and [pi](https://github.com/earendil-works/pi-coding-agent), a lightweight open-source agent -- with [opencode](https://opencode.ai) being added soon. Each is wired to run with a model hosted in any of **three different places**, so you can put many models through the *same* tasks with the *same* harness and compare them directly on both quality and cost. Pick the harness per run with `--agent claude` (default) or `--agent pi`; results are kept separate on disk (`<model>/<harness>/<repo>/<task>`) so the two agents never overwrite each other.
+This repository is a **benchmark and harness for measuring how well different LLMs perform real-world software-engineering tasks** when driven by a coding agent. It supports **two coding agents (harnesses)** today -- [Claude Code](https://docs.anthropic.com/en/docs/claude-code), Anthropic's command-line coding agent, and [pi](https://github.com/earendil-works/pi-coding-agent), a lightweight open-source agent -- with [opencode](https://opencode.ai) being added soon. Each is wired to run with a model hosted in any of **three different places**, so you can put many models through the *same* tasks with the *same* harness and compare them directly on both quality and cost. Pick the harness per run with `--agent claude` (default) or `--agent pi`, and the skill with `--skill swe2`/`--skill swe3`; results are kept separate on disk (`<model>/<harness>/<skill>/<repo>/<task>`) so neither the two agents nor the two skills ever overwrite each other.
 
 It runs **two complementary benchmarks**, and combining them is the whole point:
 
@@ -57,7 +57,7 @@ To show what the harness produces, we ran it against [agentic-community/mcp-gate
 
 ### Cost vs. quality
 
-![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality-cc.png)
+![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality-cc-swe2.png)
 
 Mean cost per task (x) against mean task score (y), one point per model. For **self-hosted** models with a throughput sweep, cost is **hardware-derived**: the model's blended cost per token (instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](docs/cost-per-task-methodology.md)) times its *actual* input+output tokens per task, averaged over non-failed tasks. The four **Anthropic** points (Opus-4.8, Sonnet-5, Opus-5, Haiku-4.5) are **real token-metered Bedrock bills**; every self-hosted model now has a throughput sweep, so all of their costs are hardware-derived (no token-priced estimates remain) -- comparable as spend, different in kind. The cost/quality frontier runs **Qwen3-Coder-30B ($0.98 / 30.20) -> Qwen3.6-35B ($1.03 / 50.32) -> MiniMax-M2.5 ($1.16 / 51.56) -> Gemma-4-31B ($3.27 / 51.60) -> DeepSeek-V3.2 ($4.81 / 52.20) -> Kimi-K2.7-Code ($7.93 / 58.68) -> GLM-5.2 ($11.09 / 61.96) -> Claude-Opus-4.8 ($27.14 / 79.12)**. Opus-4.8 is both the **top-quality point and the top of the frontier**: it beats every other model on score at $27.14/task. Everything else is **dominated**: notably **Claude-Opus-5 ($36.15 / 76.00) and Claude-Sonnet-5 ($36.26 / 76.96) are both beaten by Opus-4.8 on score AND cost** -- Opus-4.8 scores higher and costs less than either. Claude-Haiku-4.5 (45.64 at $1.23) is beaten by MiniMax-M2.5 on both axes; Devstral-2-123B ($1.74 / 43.12), Nemotron-Ultra-550B ($1.75 / 50.20), and Qwen3-Coder-480B ($7.43) are dominated too. Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task (footnote ⁵). Regenerate with `uv run scripts/plot_cost_quality.py` (add `--dark`) from `benchmarks/`.
 
@@ -139,18 +139,18 @@ Each artifact is scored 0-100 by an independent judge session (`codex exec`, `gp
 
 The single task score hides *how* a model earns it. The radar below breaks the judge's scores out by **rubric criterion** (left -- is the model complete? correct? specific? risk-aware?) and by **artifact** (right -- which deliverable is it best at?). It reads the per-artifact `eval_scores` embedded in each run's `run-summary.json`.
 
-![Radar charts of quality by rubric criterion and by artifact, for the models with per-artifact eval data](docs/images/quality-radar-cc.png)
+![Radar charts of quality by rubric criterion and by artifact, for the models with per-artifact eval data](docs/images/quality-radar-cc-swe2.png)
 
 The shape is as informative as the size: qwen3.6-35b leads on specificity and its review/testing artifacts; gemma-4-31b is strongest on risk-awareness; the coder-tuned qwen3-coder-30b trails on every axis and collapses on implementation. Every model dips hardest on **implementation** and **correctness** -- landing working code is the hard part. This view currently covers the models whose runs carry the per-artifact breakdown; the rest are being backfilled. Regenerate with `uv run scripts/plot_quality_radar.py` (add `--dark`) from `benchmarks/`.
 
 ### Results by harness
 
-The same models can be driven by different coding agents (harnesses). Each harness has its own results document -- one running table of every model benchmarked under that agent, plus its cost-quality and quality-radar charts -- generated from the committed run-summaries by `gen_agent_report.py`. The cross-agent write-up compares them head to head.
+The same models can be driven by different coding agents (harnesses), and each harness can run more than one SWE skill (`swe2`, the multi-agent skill, vs `swe3`, the single-agent skill) -- token consumption and accuracy differ enough between skills that results are kept per (harness, skill). Each such combination has its own results document -- one running table of every model benchmarked under that agent and skill, plus its cost-quality and quality-radar charts -- generated from the committed run-summaries by `gen_agent_report.py`. The published numbers below are the `swe2` runs; the cross-agent write-up compares harnesses head to head.
 
-| Harness | Results doc | Status |
+| Harness | Results doc (swe2) | Status |
 |---|---|---|
-| Claude Code | [docs/harness-claude-code.md](docs/harness-claude-code.md) | 14 models |
-| pi | [docs/harness-pi.md](docs/harness-pi.md) | 3 models |
+| Claude Code | [docs/harness-claude-code-swe2.md](docs/harness-claude-code-swe2.md) | 15 models |
+| pi | [docs/harness-pi-swe2.md](docs/harness-pi-swe2.md) | 4 models |
 | opencode | _coming_ ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) | not yet wired |
 | kiro-cli | _coming_ ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) | not yet wired |
 | _cross-agent comparison_ | [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi |

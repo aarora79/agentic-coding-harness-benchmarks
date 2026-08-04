@@ -226,23 +226,26 @@ class PiBedrockTest(unittest.TestCase):
 
 
 class SkillConfigTest(unittest.TestCase):
-    """The skill field selects swe3 (default) or swe2 and shapes the harness slug."""
+    """The skill field selects swe3 (default) or swe2; it is a SEPARATE path level,
+    so harness_slug is agent-only and never encodes the skill."""
 
-    def test_default_skill_is_swe3_and_maps_to_canonical_folder(self) -> None:
-        # swe3 (single-agent) is the default and maps to the canonical folder, so
-        # a default run lands in claude-code/ (overwriting older data on re-run).
+    def test_default_skill_is_swe3(self) -> None:
         config = load_runner_config(_write(_MINIMAL))
         self.assertEqual(config.skill, "swe3")
-        self.assertEqual(config.harness_slug, "claude-code")
 
-    def test_swe2_appends_to_harness_slug(self) -> None:
-        # The non-default (swe2, multi-agent) skill lands in a parallel tree.
-        config = load_runner_config(_write(_MINIMAL), {"skill": "swe2"})
-        self.assertEqual(config.harness_slug, "claude-code-swe2")
-
-    def test_swe2_appends_for_pi_too(self) -> None:
-        config = load_runner_config(_write(_MINIMAL), {"agent": "pi", "skill": "swe2"})
-        self.assertEqual(config.harness_slug, "pi-swe2")
+    def test_harness_slug_is_agent_only_regardless_of_skill(self) -> None:
+        # Skill lives in its own path segment, so it never appears in harness_slug.
+        for skill in ("swe2", "swe3"):
+            self.assertEqual(
+                load_runner_config(_write(_MINIMAL), {"skill": skill}).harness_slug,
+                "claude-code",
+            )
+            self.assertEqual(
+                load_runner_config(
+                    _write(_MINIMAL), {"agent": "pi", "skill": skill}
+                ).harness_slug,
+                "pi",
+            )
 
     def test_invalid_skill_rejected(self) -> None:
         with self.assertRaisesRegex(RunnerConfigError, "skill"):

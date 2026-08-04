@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 62,
+      "notes": "The issue provides concrete acceptance criteria, fallback behavior, non-goals, and accurately identifies the static credentials in Terraform and the ECS task. Its largest gap is leaving token generation, token renewal, database-user provisioning, and endpoint selection unresolved despite those being central to viable IAM authentication. The reference to `rds:GenerateDBAuthToken` is technically wrong because token generation is local SigV4 signing rather than an IAM API action. No independent task statement or accessible evidence for related issue #1303 was supplied, limiting verification of requirement coverage."
+    },
+    "lld": {
+      "completeness": 9,
+      "correctness": 5,
+      "specificity": 12,
+      "risk_awareness": 9,
+      "total": 35,
+      "notes": "The design names real files and resources, including `keycloak-database.tf`, `keycloak-ecs.tf`, the task role, RDS cluster, proxy, and custom Dockerfile. Its central data flow contradicts the repository: `aws_ssm_parameter.keycloak_database_url` contains a JDBC URL for the Aurora cluster endpoint, not the proxy endpoint the design says will receive the token. The proposed policy uses `cluster_identifier` instead of the required RDS database resource ID, while database IAM-user configuration, token renewal for later pool connections, TLS, conditional secret removal, and selection of the custom image are omitted. Consequently, the claimed zero-downtime rollout and backward compatibility are not substantiated, particularly because the same feature flag simultaneously changes infrastructure and application behavior."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 11,
+      "risk_awareness": 12,
+      "total": 42,
+      "notes": "The review identifies relevant concerns around image size, token logging, IAM scope, startup failure, and the 15-minute token lifetime. Its largest error is noticing token expiration but then declaring a startup-only token sufficient; any new pooled connection after expiration would still use stale credentials. It also misses repository-specific defects such as the JDBC-form `KC_DB_URL`, the incorrect cluster-identifier ARN, the official default `keycloak_image_uri`, and unconditional static-secret injection. The approval verdict is therefore unsupported even though several individual security recommendations are useful."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 11,
+      "risk_awareness": 8,
+      "total": 38,
+      "notes": "The plan covers both feature-flag modes, Terraform state, container wiring, readiness, and an end-to-end login flow. Readiness is not an adequate IAM-auth oracle because `KC_DB_PASSWORD` remains injected and a successful connection could still use password authentication; the repository's actual ECS health probe also uses `http://localhost:9000/health/ready`, not the proposed public placeholder URL. The local mocked-credentials test does not specify a mock or expected generated token, while `terraform apply` lacks working directory, variables, plan inspection, and rollback controls. Tests for expired-token reconnection, token-generation failure, denied IAM scope, absent static secrets, TLS, Docker build context, and database-user configuration are missing."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 2,
+      "specificity": 11,
+      "risk_awareness": 3,
+      "total": 21,
+      "notes": "The diff targets real files and matching symbols, and the default-false feature flag preserves the existing password path. The IAM path is nonfunctional: `KC_DB_URL` is a full JDBC cluster URL passed as `--hostname`, the policy uses `cluster_identifier` rather than `cluster_resource_id`, and no IAM-enabled database user is configured. The repository builds Keycloak with context `docker/keycloak`, so `COPY docker/keycloak/entrypoint.sh` cannot resolve, while `keycloak_image_uri` still defaults to the unmodified official image and `KC_DB_PASSWORD` remains an unconditional ECS secret. A startup-only token cannot authenticate later replacement connections after expiry, so the summary's claims of complete implementation, no deviations, and no follow-ups are materially false."
+    }
+  },
+  "task_score": 39.6,
+  "verdict": "The issue is a useful starting point, but the design and patch miss multiple repository-specific requirements and produce an IAM authentication path that cannot build or connect successfully.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-01T18:59:19.348373Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 297866,
+      "cached_input_tokens": 263922,
+      "cache_write_input_tokens": 33922,
+      "output_tokens": 9169,
+      "reasoning_output_tokens": 6036
+    },
+    "duration_ms": 101012
+  }
+}

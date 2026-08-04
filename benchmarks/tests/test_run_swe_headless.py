@@ -398,17 +398,28 @@ class MetricsFromResultTest(unittest.TestCase):
 
 
 class ArtifactDirTest(unittest.TestCase):
-    def test_path_follows_skill_convention(self) -> None:
+    def test_path_follows_model_harness_skill_convention(self) -> None:
+        # Layout: <output>/<model>/<harness>/<skill>/<repo>/<task> -- skill (default
+        # swe3) is its own level between harness and repo.
         path = harness._artifact_dir(_config(output_dir="swe-benchmark-data"), _task())
         self.assertEqual(
-            path.parts[-5:],
+            path.parts[-6:],
             (
                 "swe-benchmark-data",
                 "qwen3.6-35b",
                 "claude-code",
+                "swe3",
                 "mcp-gateway-registry",
                 "remove-faiss",
             ),
+        )
+
+    def test_swe2_lands_in_its_own_level(self) -> None:
+        path = harness._artifact_dir(
+            _config(output_dir="swe-benchmark-data", skill="swe2"), _task()
+        )
+        self.assertEqual(
+            path.parts[-3:], ("swe2", "mcp-gateway-registry", "remove-faiss")
         )
 
 

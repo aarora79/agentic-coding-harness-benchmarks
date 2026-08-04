@@ -48,21 +48,21 @@ The README's two headline charts now exist for both harnesses.
 
 Claude Code:
 
-![Cost vs quality, Claude Code harness](images/cost-quality-cc.png)
+![Cost vs quality, Claude Code harness](images/cost-quality-cc-swe2.png)
 
 pi:
 
-![Cost vs quality, pi harness](images/cost-quality-pi.png)
+![Cost vs quality, pi harness](images/cost-quality-pi-swe2.png)
 
 ### Quality by dimension (radar)
 
 Claude Code:
 
-![Quality radar, Claude Code harness](images/quality-radar-cc.png)
+![Quality radar, Claude Code harness](images/quality-radar-cc-swe2.png)
 
 pi:
 
-![Quality radar, pi harness](images/quality-radar-pi.png)
+![Quality radar, pi harness](images/quality-radar-pi-swe2.png)
 
 ## Claude Code
 

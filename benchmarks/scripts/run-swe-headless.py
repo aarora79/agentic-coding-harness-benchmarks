@@ -773,7 +773,9 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
         # logic can tell an exhausted turn budget (not retryable) from a
         # transient failure (retryable).
         "result_subtype": result.get("subtype"),
-        "session_id": result.get("session_id"),
+        # NOTE: the agent session UUID is intentionally NOT recorded -- metrics.json
+        # is now committed to git, and a per-run session id is machine/run-specific
+        # noise, not useful provenance. (Nothing downstream reads it.)
     }
     # Cache-token fields: from modelUsage (subagent-inclusive) when the backend
     # reports them (Amazon Bedrock / Anthropic API). vLLM's OpenAI route reports
@@ -1532,9 +1534,12 @@ def _run_claude_streaming(
 def _artifact_dir(config: RunnerConfig, task: Task) -> Path:
     """Return the directory where the skill writes a task's artifacts.
 
-    Mirrors the skill's convention, grouped by the coding agent (harness) that
-    produced the run so a pi run never overwrites a Claude Code run of the same
-    model: ``benchmarks/<output_dir>/<model>/<harness>/<repo-name>/<task-id>/``.
+    Layout: ``benchmarks/<output_dir>/<model>/<harness>/<skill>/<repo>/<task>/``.
+    Model, harness (coding agent), and skill are each their own path level, so
+    runs never collide: a pi run never overwrites a Claude Code run, and a swe3
+    run never overwrites a swe2 run of the same model. swe2 and swe3 are sibling
+    folders under the harness -- they differ materially in token use and accuracy,
+    so each is its own dimension rather than a suffix.
 
     Args:
         config: The runner config.
@@ -1549,6 +1554,7 @@ def _artifact_dir(config: RunnerConfig, task: Task) -> Path:
         / config.output_dir
         / config.model_slug
         / config.harness_slug
+        / config.skill
         / _repo_name(task.repo)
         / task.id
     )
@@ -1734,6 +1740,9 @@ def _save_metrics(
         "model": config.model,
         "model_slug": config.model_slug,
         "agent": config.agent,
+        # The SWE skill that drove the run (swe2 multi-agent / swe3 single-agent).
+        # Recorded so a result self-identifies its skill regardless of folder path.
+        "skill": config.skill,
         "provider": config.provider,
         "endpoint": config.endpoint if not config.is_bedrock else None,
         "aws_region": config.resolved_region() if config.is_bedrock else None,

@@ -179,7 +179,9 @@ class EvaluateWithCodexTest(unittest.TestCase):
         self.assertEqual(result["judge"]["provider"], "codex-exec")
         self.assertTrue(result["judge"]["repo_grounded"])
         self.assertEqual(result["judge"]["repo_ref"], "v1.2.3")
-        self.assertEqual(result["judge"]["repo_root"], str(fake_clone))
+        # The local working checkout path is deliberately NOT recorded (eval.json /
+        # metrics.json are committed; a /tmp path is machine-specific noise).
+        self.assertNotIn("repo_root", result["judge"])
         self.assertEqual(result["judge"]["reasoning_effort"], "high")
         self.assertEqual(result["judge"]["duration_ms"], 12345)
         self.assertEqual(result["judge"]["token_usage"]["input_tokens"], 100)
@@ -233,7 +235,8 @@ class EvaluateWithCodexTest(unittest.TestCase):
                         folder, repo=local_repo
                     )
             clone_fn.assert_not_called()
-            self.assertEqual(result["judge"]["repo_root"], str(local_repo.resolve()))
+            # Local working path not recorded (committed files stay path-free).
+            self.assertNotIn("repo_root", result["judge"])
             self.assertNotIn("repo_ref", result["judge"])
 
     def test_invalid_arithmetic_does_not_write_outputs(self) -> None:

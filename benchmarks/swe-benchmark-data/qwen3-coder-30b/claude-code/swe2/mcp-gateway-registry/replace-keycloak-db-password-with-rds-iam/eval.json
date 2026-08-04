@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 13,
+      "risk_awareness": 9,
+      "total": 44,
+      "notes": "The issue clearly identifies the existing Aurora MySQL password flow, limits scope to ECS/Terraform, and defines an opt-in fallback. Repository evidence confirms the named infrastructure exists in `terraform/aws-ecs/keycloak-database.tf` and `keycloak-ecs.tf`. Its central permission claim is incorrect: token generation is local signing, while database authorization requires `rds-db:connect`, and it omits IAM database-user provisioning, token refresh, TLS, and migration details. With no independent task statement, the claimed fallback and related issue #1303 could not be verified as requirements."
+    },
+    "lld": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 29,
+      "notes": "The LLD names real Terraform resources and accurately locates the cluster, proxy, task roles, settings, and existing secret wiring. Its core design is nonfunctional: the proposed environment variables are not Keycloak configuration, no component generates or refreshes a token, and `registry/utils/keycloak_manager.py` manages the Admin REST API rather than Keycloak's database connection. It also assigns a nonexistent `rds:GenerateDBAuthToken` permission to the execution role instead of granting `rds-db:connect` to the task role, while the JDBC URL still targets the cluster endpoint. Database-user setup, TLS requirements, token expiry under connection pooling, workable fallback semantics, and rollback are left undecided, and the asserted RDS Proxy behavior could not be substantiated."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 4,
+      "specificity": 8,
+      "risk_awareness": 9,
+      "total": 29,
+      "notes": "The review usefully raises driver compatibility, IAM scoping, fallback testing, monitoring, and rollback as material concerns. It nevertheless approves the design without resolving the decisive problem that stock Keycloak has no proposed token-generation or refresh mechanism. The claimed resolutions are contradicted by the LLD: no CloudWatch authentication configuration is added, the policy remains wildcarded and uses the wrong action, and no RDS Proxy update is actually designed there. Its statement that proxy configuration was confirmed is unverifiable and conflicts with the repository's cluster-endpoint `keycloak_database_url`."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 4,
+      "specificity": 10,
+      "risk_awareness": 7,
+      "total": 31,
+      "notes": "The plan covers Terraform, configuration defaults, fallback, ECS inspection, deployment, and a nominal end-to-end path with concrete commands. Most oracles do not test Keycloak database authentication: `generate-db-auth-token` does not connect to the database or prove IAM authorization, and `${KEYCLOAK_DATABASE_CLUSTER}` is an identifier rather than the required endpoint hostname. `python -m registry.utils.keycloak_manager` exercises no database path, while `keycloak_task_exec_ssm_policy` is inline and cannot be fetched through the proposed managed-policy ARN command. No executable unit or integration cases are specified for token refresh, IAM failure, TLS, database-user mapping, or password fallback, so the checklist could pass while the feature remains broken."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 2,
+      "specificity": 8,
+      "risk_awareness": 2,
+      "total": 16,
+      "notes": "The patch's hunk contexts and symbols match the real files, and enabling `iam_database_authentication_enabled` is a valid supporting infrastructure change. It does not implement IAM authentication: the stock Keycloak container ignores the three added variables, continues receiving `KC_DB_PASSWORD`, and has no code or sidecar to generate and refresh a token. The policy uses nonexistent `rds:GenerateDBAuthToken` on the execution role rather than scoped `rds-db:connect` on the task role, and no IAM database user or grants are provisioned. The summary's claims that the password was replaced, backward compatibility was implemented, and there were no LLD deviations are therefore false; static master and application password paths remain."
+    }
+  },
+  "task_score": 29.8,
+  "verdict": "The submission identifies the correct infrastructure area but never designs, tests, or implements a working Keycloak IAM token lifecycle, and the patch is fundamentally nonfunctional.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T02:03:34.787160Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 165722,
+      "cached_input_tokens": 124318,
+      "cache_write_input_tokens": 41394,
+      "output_tokens": 5277,
+      "reasoning_output_tokens": 2545
+    },
+    "duration_ms": 96742
+  }
+}

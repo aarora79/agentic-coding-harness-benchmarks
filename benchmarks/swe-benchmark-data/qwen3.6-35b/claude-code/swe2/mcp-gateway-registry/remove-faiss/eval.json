@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 10,
+      "correctness": 7,
+      "specificity": 12,
+      "risk_awareness": 8,
+      "total": 37,
+      "notes": "The issue provides concrete removal criteria, non-goals, and a clear deployment motivation despite the absence of an independent task statement. Its primary targets are wrong: `src/registry/vector_store/faiss_store.py` and `tests/unit/test_vector_store_faiss.py` do not match the repository, whose implementations are `registry/search/service.py` and `tests/unit/search/test_faiss_service.py`; the Dockerfile also has no `libgomp1` reference. It omits active integration points such as `registry/repositories/factory.py`, direct route imports, configuration, telemetry, metrics, and the file-backend compatibility decision. The claim that DocumentDB can simply become the sole backend is not supported with migration or failure behavior for `STORAGE_BACKEND=file`."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 16,
+      "risk_awareness": 12,
+      "total": 58,
+      "notes": "The revised LLD has a strong repository inventory and correctly identifies `registry/search/service.py`, `FaissSearchRepository`, `get_search_repository()`, direct route coupling, scripts, telemetry, and metrics as integration points. Its critical implementation decision remains unresolved because route calls may become either no-ops or repository calls, even though those choices have different indexing behavior, and unconditionally returning `DocumentDBSearchRepository` requires a database that the file backend does not provide. It also incorrectly states Python 3.10+ while `pyproject.toml` requires Python 3.14+, and it describes a direct FAISS dependency in `search_routes.py` although that route already depends on `SearchRepositoryBase`. The design recognizes file-backend breakage and lack of rollback but treats a database connection failure as an acceptable deprecation signal and provides no compatible metrics-column migration."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 78,
+      "notes": "The review's strongest contribution is its concrete repository audit: it finds the real service and test paths, the factory branch, route bypasses, configuration properties, scripts, metrics, and the file-backend blast radius. These findings align with inspected symbols such as `get_search_repository()` in `registry/repositories/factory.py` and the direct `faiss_service` calls in `registry/api/agent_routes.py`. Its main limitation is version ambiguity: it criticizes an earlier LLD file list while the submitted LLD says it was revised after this review, so several stated LLD omissions no longer describe the submitted design. Some statements are internally inconsistent, including claims of no Terraform or compose references alongside later identification of those references, and the original LLD version cannot be verified."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 13,
+      "total": 56,
+      "notes": "The plan covers static removal checks, imports, dependency locking, scripts, API behavior, DocumentDB workflows, and negative queries with generally concrete pass criteria. Several commands and APIs contradict the repository: semantic search is a POST route rather than the proposed GET, and `SearchRepositoryBase` defines methods such as `search`, `index_server`, and `remove_entity`, not the listed `search_mixed` and `add_or_update`. The endpoint checks often accept merely a non-500 response, and the E2E cases do not specify the required MongoDB setup, fixtures, or exact response values. It also lacks tests for existing metrics-database migration, explicit file-backend behavior, and the indexing regression caused by removing CRUD update calls."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 5,
+      "total": 37,
+      "notes": "The visible patch targets real repository files and removes the central FAISS dependency, service, repository implementation, fixtures, and many verified call sites. However, it replaces agent registration, update, toggle, deletion, and batch indexing with no-ops even though `DocumentDBSearchRepository.index_agent()` and `remove_entity()` maintain a separate embeddings collection, so semantic search becomes stale; analogous server paths are also removed without consistent replacements. It additionally forces DocumentDB for file storage while retaining file-specific startup branching, emits telemetry values inconsistent with its updated collector schema and tests, renames an SQLite column without an upgrade migration, and introduces corrupted documentation such as `semantic search_ids` and references to deleted files. The summary materially understates these risks, and complete applicability cannot be verified because the submitted patch is explicitly truncated and contains non-reproducible binary-database placeholders."
+    }
+  },
+  "task_score": 53.2,
+  "verdict": "The repository analysis is often strong, but the implementation removes required indexing behavior and introduces compatibility, migration, telemetry, and documentation regressions.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T00:23:18.648214Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 2357079,
+      "cached_input_tokens": 2252825,
+      "cache_write_input_tokens": 104204,
+      "output_tokens": 8686,
+      "reasoning_output_tokens": 4495
+    },
+    "duration_ms": 212072
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "us.anthropic.claude-sonnet-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The issue provides unusually concrete scope, feature-flag behavior, migration prerequisites, and testable acceptance criteria. Its repository claims match `keycloak-database.tf`, `keycloak-ecs.tf`, the 30-day rotation configuration, and the existing `documentdb_use_iam` variable. The largest weakness is security framing: the long-lived master password remains in Secrets Manager, despite language suggesting no durable database password needs to exist, and extraction through ECS task metadata or logs is asserted too broadly. No independent task statement was supplied, so the claimed external constraints and linked issue #1303 could not be verified."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 78,
+      "notes": "The LLD is highly repository-specific and accurately identifies the existing cluster, direct cluster URL, unused RDS Proxy, task and execution roles, custom Dockerfile, and conditional Terraform patterns. It commits to concrete URL, IAM ARN, environment, image, TLS, rollout, and rollback decisions. Its largest correctness gap is the unsupported claim that globally building Keycloak with `software.amazon.jdbc.Driver` is inert for the unchanged `jdbc:mysql://` password path; it also contradicts its own client-side signing explanation by predicting an AWS SDK or RDS `AccessDenied` during token generation. The non-destructive one-resource plan was not demonstrated, and the proposed checksum remains `REPLACE_WITH_SHA256_DIGEST`, so those claims are not implementation-ready."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 87,
+      "notes": "The review finds several real, consequential defects, including the JDBC protocol, driver registration, TLS, image command interaction, CloudTrail misconception, overbroad grants, and missing image precondition. These findings are tied to actual repository constructs such as `command = [\"start\"]`, the custom Dockerfile entrypoint, and the stock `keycloak_image_uri`. Its main technical weakness is claiming RDS Proxy would eliminate client-side IAM token generation; requiring IAM authentication at the proxy still requires the client to present an IAM token. It also declares checksum pinning resolved even though the revised design and eventual patch retain a placeholder digest."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The plan covers both flag states, IAM policy wiring, image boot, rollback, rotation, login, write behavior, and several negative cases with concrete expected results. However, `terraform/aws-ecs/versions.tf` and the `keycloak_db_endpoint` output do not exist, so documented prerequisites and shared commands fail against this repository. Omitting `--ssl-mode=REQUIRED` does not force an unencrypted MySQL connection, and the local Docker IAM test lacks guaranteed VPC connectivity and ECS credentials, making those oracles unreliable. It also omits the central post-15-minute new-connection refresh test, while its rotation check can pass using existing pooled connections without detecting stale injected password credentials."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 65,
+      "notes": "The embedded diff targets the correct five files, matches the inspected source context, and implements the principal Terraform branches, scoped `rds-db:connect` policy, TLS URL, command change, documentation, and image guard. The largest defect is that the Dockerfile defaults to `REPLACE_WITH_SHA256_DIGEST`, so the existing `make build-and-push-keycloak` workflow necessarily fails and the submitted feature is not buildable without an undocumented workflow modification or explicit build argument. Compatibility is also not established for existing custom-image password deployments after globally selecting `software.amazon.jdbc.Driver`, and the precondition accepts any image differing from one exact stock tag without proving wrapper support. The summary honestly reports that no validation or runtime testing occurred; the claimed `git apply --check` could not be independently reproduced because no standalone patch file was present, although the displayed contexts match the repository."
+    }
+  },
+  "task_score": 75.6,
+  "verdict": "The design and review are strong and repository-aware, but the implementation is not merge-ready because its required image cannot build through the repository workflow and several central compatibility and test claims remain unverified.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-02T22:30:27.959833Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 457319,
+      "cached_input_tokens": 391617,
+      "cache_write_input_tokens": 65686,
+      "output_tokens": 9792,
+      "reasoning_output_tokens": 6205
+    },
+    "duration_ms": 112982
+  }
+}

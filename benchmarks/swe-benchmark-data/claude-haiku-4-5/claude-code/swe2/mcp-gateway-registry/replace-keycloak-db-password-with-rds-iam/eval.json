@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 54,
+      "notes": "The issue clearly states the security motivation, phased fallback, scope, and explicit non-goals. The repository confirms static credentials in `keycloak-ecs.tf` and IAM-capable Aurora in `keycloak-database.tf`. Its central permission is wrong: database login requires `rds-db:connect` on a DB-user ARN, not `rds:GenerateDBAuthToken`. With no independent task statement, coverage is additionally uncertain, and the criteria conflict between IAM being the default and gradual opt-in."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 16,
+      "total": 49,
+      "notes": "The LLD names real files and identifies genuine concerns including token expiry, JDBC compatibility, and rollout. Repository evidence contradicts its topology: `KC_DB_URL` already targets the cluster directly, the security groups permit ECS-to-cluster traffic, and the default ECS image is the stock Keycloak image. The design grants an invalid action to the execution role instead of granting `rds-db:connect` to the runtime task role, while leaving token refresh and driver integration unresolved. It also contradicts itself about adding variables and leaves load-bearing decisions as open questions."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 18,
+      "total": 60,
+      "notes": "The review's strongest contribution is identifying JDBC incompatibility, token lifetime, observability, documentation, and operational provisioning risks. It nevertheless misses the wrong IAM action, wrong role, wrong ARN type, and default-image wiring problem. Its claimed resolutions are absent from the submitted LLD and technically inconsistent: a startup token plus an unconfigured wrapper does not provide automatic per-connection refresh. Claims that token generation is CloudTrail-audited and tokens are non-replayable are incorrect, while `aws rds modify-db-cluster` cannot create a SQL user."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 52,
+      "notes": "The plan spans infrastructure, container, fallback, rollout, recovery, and end-to-end health checks with many concrete commands. Several commands or assumptions are unusable, including the mismatched policy name, `keycloak:latest`, nonexistent `aws ecs update-task-definition`, and changing a running task's environment for a canary. Generic log searches do not prove IAM authentication, and the proxy SQL command is commented out. The critical expiry case is explicitly untested, while the revoked-permission test expects graceful fallback that the entrypoint does not implement."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 7,
+      "total": 28,
+      "notes": "The patch contexts and symbols match baseline commit `b0fcb2db453f933da63389c0b18ccc044ee505b5`, including the five cited files. The enabled path is nonfunctional: Terraform defaults to the stock Keycloak image that lacks the new entrypoint, the custom Dockerfile never installs AWS CLI or the JDBC wrapper, and runtime authorization is attached to the wrong role with the wrong action and ARN. The script generates one 15-minute token without a working refresh mechanism, and no IAM database user is provisioned. The summary admits the missing wrapper while claiming no LLD deviations and overstates validation, auditability, and rollback safety."
+    }
+  },
+  "task_score": 48.6,
+  "verdict": "The artifacts identify several real migration risks, but the implementation cannot authenticate through RDS IAM because its runtime image, IAM policy, database user, and token-refresh path are incomplete or incorrect.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-03T03:31:33.431846Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 330797,
+      "cached_input_tokens": 275032,
+      "cache_write_input_tokens": 55751,
+      "output_tokens": 8270,
+      "reasoning_output_tokens": 5611
+    },
+    "duration_ms": 193609
+  }
+}

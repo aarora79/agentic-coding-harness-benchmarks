@@ -161,9 +161,9 @@ if [[ "$DETACH" == "1" && -z "${MMB_DETACHED:-}" ]]; then
 fi
 
 SCOPE="$(basename "$DATASET" .yaml)"
-# Harness folder level (claude -> claude-code, pi -> pi) from the single source
-# of truth, so summarize/commit paths match the tree the harness writes to.
-HARNESS_SLUG="$(cd "$BENCH_DIR" && uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import RunnerConfig; print(RunnerConfig.model_validate({'agent':'$AGENT','skill':'$SKILL','provider':'bedrock','aws_region':'us-east-1','model':'m','dataset':'d.yaml'}).harness_slug)")"
+# Harness folder level (claude -> claude-code, pi -> pi). Skill (swe2/swe3) is its
+# own path level, so summarize/commit target <model>/<harness>/<skill>/<repo>.
+HARNESS_SLUG="$(cd "$BENCH_DIR" && uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import HARNESS_SLUGS; print(HARNESS_SLUGS['$AGENT'])")"
 
 wait_ready() {  # $1 served-name
   local name="$1" i served
@@ -236,18 +236,20 @@ for want in "${MODELS[@]}"; do
     mv "$VLLM_DIR/benchmark-output/vllm-metrics.duckdb" \
        "$VLLM_DIR/benchmark-output/vllm-metrics_${SLUG}_${SCOPE}_${TS}.duckdb" 2>/dev/null || true
 
+  TARGET="swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SKILL/$SCOPE"
   say "  summarizing $SLUG ..."
   ( cd "$BENCH_DIR" && uv run python scripts/summarize_run.py \
-      --folder "swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE" --run-date "$(date -u +%Y-%m-%d)" \
+      --folder "$TARGET" --run-date "$(date -u +%Y-%m-%d)" \
       >>"$SCRATCH/e2e-$SLUG.log" 2>&1 ) || say "  WARN summarize failed for $SLUG"
 
-  # Commit the run-summary (only the scrubbed rollup is tracked; task folders are gitignored).
+  # Commit the run-summary plus the now-tracked per-task metrics.json/eval.json
+  # (the six large artifacts stay gitignored).
   ( cd "$REPO_ROOT"
-    git add "benchmarks/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE/run-summary.json" \
-            "benchmarks/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SCOPE/run-summary.md" 2>/dev/null
-    git diff --cached --quiet || git commit -q -m "$SLUG ($AGENT): /swe2 benchmark run on $SCOPE (implementation + judge scores)"
+    git add "benchmarks/$TARGET/run-summary.json" "benchmarks/$TARGET/run-summary.md" \
+            "benchmarks/$TARGET"/*/metrics.json "benchmarks/$TARGET"/*/eval.json 2>/dev/null
+    git diff --cached --quiet || git commit -q -m "$SLUG ($AGENT, $SKILL): benchmark run on $SCOPE (implementation + judge scores)"
     git pull --rebase -q 2>/dev/null; git push -q 2>/dev/null
-  ) && say "  committed+pushed $SLUG run-summary" || say "  WARN commit failed for $SLUG"
+  ) && say "  committed+pushed $SLUG run" || say "  WARN commit failed for $SLUG"
 
   # Remove any stray untracked root-level .md files a /swe2 task may have misplaced.
   ( cd "$REPO_ROOT" && for f in $(git ls-files --others --exclude-standard -- '*.md' | grep -vE '/'); do

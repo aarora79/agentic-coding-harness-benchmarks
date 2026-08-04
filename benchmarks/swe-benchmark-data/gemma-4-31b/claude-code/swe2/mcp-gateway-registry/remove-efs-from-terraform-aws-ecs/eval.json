@@ -1,0 +1,64 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 9,
+      "total": 60,
+      "notes": "The issue's strongest aspect is its concrete resource, mount, variable, and output acceptance criteria plus explicit non-goals. Repository checks confirm the named EFS module, ECS mounts, and outputs, but operational consumers in `scripts/post-deployment-setup.sh` and `run-scopes-init-task.sh` are absent from the criteria. The plan cannot show only EFS resource deletions because changing ECS volumes and environment variables necessarily revises task definitions, and the root `variables.tf` and `terraform.tfvars.example` contain no EFS variables. With no independent task statement, the claimed completed migration and issue #1286 are unverifiable, while destructive-data and rollback risks are only assumed away."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 12,
+      "total": 59,
+      "notes": "The LLD is well grounded in real files and accurately locates `module \"efs\"`, the task-definition mounts, outputs, variables, and deployment scripts. Its largest defect is Step 5's instruction to delete `_initialize_scopes` entirely: the existing function also detects DocumentDB and invokes `run-documentdb-init.sh`, so this would remove required initialization for the default backend. Step 0 identifies `FileScopeRepository` and `scopes_loader.py` but leaves supported file-backend behavior as a verification exercise rather than making a decision. It also omits the `elasticfilesystem:*` documentation in `terraform/aws-ecs/README.md` and provides no staged destruction, backup confirmation, or rollback procedure."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 64,
+      "notes": "The review usefully surfaces application-path coupling, environment-specific state plans, IAM cleanup, and fragile line-number guidance. It nevertheless misses the LLD's most consequential error: deleting `_initialize_scopes` also deletes the current DocumentDB initialization branch. The Byte concern is marked resolved merely because a verification step was added, despite the root module still supporting `file` and external MongoDB backends and no behavior decision being recorded. No EFS permission exists in the checked task-role Terraform, although `terraform/aws-ecs/README.md` does retain a broad `elasticfilesystem:*` deployment permission, and the migration claim remains unverifiable."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 13,
+      "total": 53,
+      "notes": "The plan covers static Terraform checks, task-definition inspection, runtime startup, storage operations, scripts, and staged environments. Its central plan oracle is incorrect because removing mounts and environment variables must modify ECS task definitions rather than produce only EFS resource destructions. `terraform validate` is plausible but initialization and environment inputs are unspecified, while generated-JSON inspection and runtime storage operations lack executable steps and precise state assertions. It also fails to test preservation of `run-documentdb-init.sh`, supported non-DocumentDB backends, shell syntax, migration confirmation, or rollback after destructive apply."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 3,
+      "specificity": 16,
+      "risk_awareness": 4,
+      "total": 32,
+      "notes": "The Terraform deletions target real repository symbols and correctly remove the EFS module, variables, outputs, mounts, and volume definitions. The root `outputs.tf` hunk adds a new `monitoring_sns_topic` block while retaining the existing block, creating a duplicate output declaration that makes validation fail. Despite the summary, the patch contains neither changes to `post-deployment-setup.sh` nor deletion of `run-scopes-init-task.sh`, leaving `mcp_gateway_efs_id` required after that output is removed and guaranteeing post-deployment failure. The claimed script cleanup, application verification, and clean simulated plan therefore overstate the submitted diff, with no effective mitigation for the resulting operational breakage."
+    }
+  },
+  "task_score": 53.6,
+  "verdict": "The design artifacts are repository-specific but miss a critical DocumentDB initialization dependency, and the implementation is non-mergeable because it introduces a duplicate Terraform output while omitting the promised script cleanup.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T05:49:23.215777Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 920704,
+      "cached_input_tokens": 861224,
+      "cache_write_input_tokens": 59426,
+      "output_tokens": 16972,
+      "reasoning_output_tokens": 8093
+    },
+    "duration_ms": 299434
+  }
+}

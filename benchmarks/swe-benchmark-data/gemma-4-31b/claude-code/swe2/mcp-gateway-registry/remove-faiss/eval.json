@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 8,
+      "total": 57,
+      "notes": "The issue provides concrete acceptance criteria tied to real locations such as `pyproject.toml`, `uv.lock`, and `registry/core/config.py`. Its largest flaw is treating FAISS as redundant while `Settings.storage_backend` still defaults to `file` and `get_search_repository()` selects `FaissSearchRepository` for that default. Declaring no dependencies also ignores the operational DocumentDB requirement and the need to define migration or failure behavior for file-backend users. No independent task statement or repository evidence for related issue #1285 was supplied."
+    },
+    "lld": {
+      "completeness": 10,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 7,
+      "total": 43,
+      "notes": "The design correctly identifies real classes and methods including `FaissService`, `FaissSearchRepository`, `SearchRepositoryBase.index_server`, and `DocumentDBSearchRepository`. Its central factory decision is unsound: returning the DocumentDB repository for the default file backend would attempt a MongoDB connection while entity repositories remain file-based. The call-site inventory is substantially incomplete, omitting numerous FAISS calls in `server_routes.py`, telemetry behavior, `build_and_run.sh`, metrics storage schemas, Terraform scripts, and extensive documentation. It provides no migration, reindexing, rollback, or clear unsupported-backend strategy, so the claimed regression-free transition cannot be verified."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 9,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 41,
+      "notes": "The QA feedback usefully identifies the need to preserve generic search coverage and test hybrid ranking rather than simply deleting tests. The review notices the file-backend question but recommends defaulting it to `DocumentDBSearchRepository`, despite `storage_backend` defaulting to `file` and the repository requiring a live MongoDB-compatible connection. It fails to challenge the LLD's incomplete call-site and operational cleanup inventory, including many remaining imports in `registry/api/server_routes.py`. Claims that the design has no security or architectural concerns are not supported by analysis of migration, availability, rollback, or deployment configuration."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 11,
+      "risk_awareness": 11,
+      "total": 49,
+      "notes": "The plan covers search modes, lifecycle indexing, access control, startup without FAISS, dependency inspection, latency, and ranking quality. It incorrectly names `/api/tags`; `registry/main.py` mounts the search router at `/api/search`, making the actual endpoint `/api/search/tags`. Most cases lack concrete fixtures, payloads, expected ordering, timing bounds, or a defined golden-query baseline, so assertions such as comparable ranking are not reproducible or decisive. It also omits the highest-risk default file-backend behavior, stale imports across lifecycle routes, telemetry changes, and operational-script verification."
+    },
+    "implementation": {
+      "completeness": 0,
+      "correctness": 0,
+      "specificity": 0,
+      "risk_awareness": 0,
+      "total": 0,
+      "notes": "The implementation artifact is empty, so no patch or implementation summary was submitted and all four criteria score zero. There is no code change to compare with the design or repository conventions. No diff targets, symbol context, application check, or implementation tests were available. This absence is the artifact's decisive limitation rather than a repository defect."
+    }
+  },
+  "task_score": 38.0,
+  "verdict": "The submission offers a partially grounded removal design, but it leaves the default file-backend transition unsafe and provides no implementation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T05:54:57.441101Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1542510,
+      "cached_input_tokens": 1476821,
+      "cache_write_input_tokens": 65613,
+      "output_tokens": 8459,
+      "reasoning_output_tokens": 3119
+    },
+    "duration_ms": 334205
+  }
+}
