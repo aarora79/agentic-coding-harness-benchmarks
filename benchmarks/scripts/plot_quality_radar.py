@@ -50,9 +50,10 @@ DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
 DEFAULT_OUT_DIR = _REPO_ROOT / "docs" / "images"
 RUN_SUMMARY_FILENAME = "run-summary.json"
 
-# Short per-harness code used to suffix chart filenames so each agent's charts
-# are self-identifying and never overwrite another's (e.g. quality-radar-cc.png,
-# quality-radar-pi.png). An unknown harness falls back to its own slug.
+# Short per-harness code used (with the skill) to suffix chart filenames so each
+# agent+skill's charts are self-identifying and never overwrite another's (e.g.
+# quality-radar-cc-swe2.png, quality-radar-pi-swe3.png). An unknown harness falls
+# back to its own slug.
 HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
 
 
@@ -140,12 +141,12 @@ def _model_dimensions(
 
 
 def _collect(
-    data_dir: Path, repo: str, harness: str, top_n: int | None = None
+    data_dir: Path, repo: str, harness: str, skill: str, top_n: int | None = None
 ) -> tuple[list[tuple[str, dict, dict]], int]:
     """Return ([(model, by_criterion, by_artifact)], total_eligible).
 
-    Reads ``<data-dir>/<model>/<harness>/<repo>/run-summary.json`` so the radar
-    plots one coding agent's runs at a time. When more models are eligible than
+    Reads ``<data-dir>/<model>/<harness>/<skill>/<repo>/run-summary.json`` so the
+    radar plots one (agent, skill) at a time. When more models are eligible than
     ``top_n`` (a readable/validated-palette cap), only the ``top_n`` highest by
     mean task score are returned; ``total_eligible`` reports how many qualified so
     the caption can say "top N of M". A too-dense radar (7 overlapping polygons)
@@ -154,7 +155,7 @@ def _collect(
     """
     scored: list[tuple[float, str, dict, dict]] = []
     for model_dir in sorted(p for p in data_dir.iterdir() if p.is_dir()):
-        summary = _read_json(model_dir / harness / repo / RUN_SUMMARY_FILENAME)
+        summary = _read_json(model_dir / harness / skill / repo / RUN_SUMMARY_FILENAME)
         if summary is None:
             continue
         # Skip a run with no scored tasks (e.g. a 0/5 harness collapse): its
@@ -216,6 +217,7 @@ def _plot(
     mode: str,
     repo: str,
     harness: str,
+    skill: str,
     n_total: int,
     out_dir: Path,
 ) -> Path:
@@ -285,7 +287,7 @@ def _plot(
     # Every harness gets a short-code suffix (cc, pi, ...) so each agent's chart
     # is self-identifying and never overwrites another's.
     mode_suffix = "-dark" if mode == "dark" else ""
-    out = out_dir / f"quality-radar-{_harness_code(harness)}{mode_suffix}.png"
+    out = out_dir / f"quality-radar-{_harness_code(harness)}-{skill}{mode_suffix}.png"
     fig.savefig(out, bbox_inches="tight", facecolor=theme["surface"])
     plt.close(fig)
     logger.info("wrote %s (%d models)", out, n_shown)
@@ -303,7 +305,12 @@ def _parse_args() -> argparse.Namespace:
         "--harness",
         default="claude-code",
         help="Coding-agent folder to read (default: claude-code). Artifacts live "
-        "at <model>/<harness>/<repo>/.",
+        "at <model>/<harness>/<skill>/<repo>/.",
+    )
+    p.add_argument(
+        "--skill",
+        default="swe3",
+        help="SWE skill folder to read: 'swe3' (default) or 'swe2'.",
     )
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     p.add_argument("--dark", action="store_true", help="Render the dark-theme variant")
@@ -324,11 +331,13 @@ def main() -> None:
     # Default cap is the validated palette size: more series is both unreadable
     # and beyond the colorblind-safe colors we have validated.
     top_n = args.top_n if args.top_n is not None else len(_THEME["light"]["series"])
-    models, n_total = _collect(args.data_dir, args.repo, args.harness, top_n=top_n)
+    models, n_total = _collect(
+        args.data_dir, args.repo, args.harness, args.skill, top_n=top_n
+    )
     if len(models) < 1:
         raise SystemExit(
             f"no models with eval_scores under "
-            f"{args.data_dir}/*/{args.harness}/{args.repo}"
+            f"{args.data_dir}/*/{args.harness}/{args.skill}/{args.repo}"
         )
     if len(models) > len(_THEME["light"]["series"]):
         raise SystemExit(
@@ -342,6 +351,7 @@ def main() -> None:
         mode=mode,
         repo=args.repo,
         harness=args.harness,
+        skill=args.skill,
         n_total=n_total,
         out_dir=args.out_dir,
     )

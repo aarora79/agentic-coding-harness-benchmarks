@@ -42,6 +42,9 @@ def _write_task(
         "task": task,
         "ref": "1.2.3",
         "model": "test-model",
+        "model_slug": "test-model",
+        "agent": "claude",
+        "skill": "swe3",
         "provider": "endpoint",
         "complexity": "medium",
         "serving": {
@@ -91,8 +94,9 @@ class SummarizeRunTest(unittest.TestCase):
             self.assertEqual(s["mean_cost_usd_excl_failed"], 5.0)
             self.assertEqual(s["serving"]["precision"], "BF16")
             self.assertEqual(s["model_slug"], "test-model")
-            # The harness level is read back as the run's agent.
-            self.assertEqual(s["agent"], "claude-code")
+            # agent + skill come from the metrics.json identity fields.
+            self.assertEqual(s["agent"], "claude")
+            self.assertEqual(s["skill"], "swe3")
 
     def test_efficiency_signals_folded_into_task_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

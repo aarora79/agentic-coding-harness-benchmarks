@@ -379,20 +379,19 @@ class RunnerConfig(BaseModel):
 
     @property
     def harness_slug(self) -> str:
-        """Folder name for the coding agent (+ skill) that produced a run's artifacts.
+        """Folder name for the coding agent (harness) that produced a run's artifacts.
 
-        Artifacts are grouped as ``<model-slug>/<harness-slug>/<repo>/<task>/`` so
-        runs of the same model never collide. The base is the agent slug
-        (``claude`` -> ``claude-code``, ``pi`` -> ``pi``; see ``HARNESS_SLUGS``).
-        The default ``swe2`` skill keeps that base unchanged (so historical results
-        stay in place); a non-default skill is appended (e.g. ``claude-code-swe3``)
-        so a single-agent swe3 run lands beside, not on top of, the swe2 results.
+        Just the agent slug (``claude`` -> ``claude-code``, ``pi`` -> ``pi``; see
+        ``HARNESS_SLUGS``). The skill is a SEPARATE path level (see ``skill`` and
+        ``_artifact_dir``), so the full layout is
+        ``<model>/<harness>/<skill>/<repo>/<task>/`` -- model, harness, and skill
+        are each their own dimension. swe2 and swe3 are sibling folders that never
+        collide.
 
         Returns:
-            The harness folder name for this run's agent + skill.
+            The harness folder name for this run's agent.
         """
-        base = HARNESS_SLUGS[self.agent]
-        return base if self.skill == DEFAULT_SKILL else f"{base}-{self.skill}"
+        return HARNESS_SLUGS[self.agent]
 
     @property
     def auto_compact_window(self) -> int | None:

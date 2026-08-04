@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "us.anthropic.claude-opus-4-8[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 86,
+      "notes": "The issue accurately identifies the plaintext entries in terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf and observability.tf and supplies unusually testable acceptance criteria. Its largest deficiency is presenting the fallback as an uncomplicated escape hatch without disclosing that count-based resources with recovery_window_in_days = 0 make disabling it destructive. It also requires updating both terraform.tfvars.example files, although the repository's second example belongs to the separate telemetry-collector stack and the LLD and patch correctly omit it. No independent task statement was supplied, so the claimed external issue requirements and reference issue could not be verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 88,
+      "notes": "The LLD is strongly grounded in real resources such as aws_kms_key.secrets, aws_iam_policy.ecs_secrets_access, and the existing MongoDB conditional arms, and it commits to exact gating and ordering behavior. It correctly addresses Terraform-sensitive count expressions, secret-version ordering, state exposure, empty values, Grafana's sidecar, and destructive rollback semantics. The largest design weakness is knowingly extending a shared policy attached to unrelated execution and task roles, materially expanding access to tokens and private keys while describing per-service policies as a follow-up. The Grafana KMS role-name match also remains an open verification item rather than a resolved design fact."
+    },
+    "review": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 89,
+      "notes": "The review finds real load-bearing defects, including plaintext Terraform state, version-before-service ordering, destructive toggle behavior, Grafana over-grant, and secret_string ignore_changes semantics. Its repository references are largely supported, including the GitHub key normalization in registry/utils/github_auth.py and the Grafana credential URL in observability.tf. The principal weakness is accepting the existing shared ecs_secrets_access policy even though the patch broadens it across mcpgw, metrics, auth, registry, and task roles that do not consume most new secrets. Some persona material is low-value, but the consolidated triage is concrete and actionable."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 78,
+      "notes": "The plan covers enabled, disabled, empty-value, IAM, KMS, task-definition, rollout, rollback, and Grafana-sidecar behavior using real Terraform paths and default service names. The strongest oracles inspect secrets[].name versus environment[].name and verify denied Grafana access to unrelated secrets. The E2E registry command is not executable as written because it uses the invented placeholder /api/..., while the terraform graph grep is not a reliable dependency assertion and the claimed byte-for-byte baseline ignores environment-list reordering. Printing SecretString directly and performing destructive rollback validation also need safer handling, and none of the commands were executed."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 81,
+      "notes": "The diff targets matching source contexts and implements all 13 gates, secret/version resources, container injections, IAM additions, Grafana handling, root wiring, and explicit version dependencies. The conditional count and mutually exclusive environment/secrets arms are internally consistent with the repository's Terraform conventions. Its largest defect is the claim of least privilege: ecs_secrets_access is attached to multiple execution and task roles, so unrelated workloads gain access to all 12 new application secrets; disabling the toggle also immediately deletes every migrated secret. The summary acknowledges state exposure and destructive rollback, but the Grafana KMS role-pattern assumption remains unverified, the second example-file acceptance criterion is not implemented, and Terraform validation was not executed."
+    }
+  },
+  "task_score": 84.4,
+  "verdict": "This is a highly specific and mostly coherent migration, but broad cross-service secret access and destructive fallback semantics remain material security and operational limitations.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-03T03:53:21.884875Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 964076,
+      "cached_input_tokens": 902443,
+      "cache_write_input_tokens": 61599,
+      "output_tokens": 9539,
+      "reasoning_output_tokens": 5405
+    },
+    "duration_ms": 342737
+  }
+}

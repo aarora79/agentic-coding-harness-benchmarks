@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 11,
+      "risk_awareness": 8,
+      "total": 43,
+      "notes": "The issue clearly states the security objective, affected AWS mechanisms, scope, non-goals, and broad acceptance criteria. Its largest deficiency is the unspecified and technically dubious plaintext fallback, while `ecs-services.tf` still contains additional sensitive values such as `AUTH0_MANAGEMENT_API_TOKEN`, `REGISTRY_API_TOKEN`, `FEDERATION_STATIC_TOKEN`, and `GITHUB_APP_PRIVATE_KEY` that its inventory does not identify. Merely using Secrets Manager does not establish rotation or keep Terraform-provisioned secret values out of state, and no independent task statement was supplied to verify the intended migration set."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 39,
+      "notes": "The LLD names real files and approximately correct integration points, including `ecs-services.tf`, `secrets.tf`, and the `ecs_secrets_access` policy in `iam.tf`. Its largest defect is misreading the baseline: the named secret resources and ECS `secrets` entries already exist, while residual sensitive plaintext variables elsewhere in `ecs-services.tf` are omitted. It never defines a workable fallback, secret bootstrap or state-handling strategy, and removing variables while also retaining them as fallback is internally inconsistent. The rollout and failure discussion is superficial, leaving IAM/KMS behavior, rollback consequences, and rotation as unresolved questions."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 7,
+      "specificity": 8,
+      "risk_awareness": 11,
+      "total": 36,
+      "notes": "The review usefully raises least-privilege IAM, rotation, monitoring, and fallback testing concerns. Its largest weakness is approving the design while repeating its unsupported claim of comprehensive variable coverage; `ecs-services.tf` contains numerous sensitive plaintext values absent from the LLD. The frontend recommendation is unrelated to ECS secret injection, and the CloudWatch monitoring recommendation does not specify the required CloudTrail or event integration. It does not catch the already-existing secret resources, the invalid fallback assumption, Terraform-state exposure, or the missing secret migration procedure."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 6,
+      "risk_awareness": 11,
+      "total": 36,
+      "notes": "The plan spans deployment, negative IAM, rollback, service health, and test-data isolation, which provides useful high-level coverage. Most actions and oracles remain non-specific, such as \u201coperate normally,\u201d with no module path, variable fixture, generated task-definition assertion, service endpoint, or repository-specific automation command. Accessing Secrets Manager from inside a task tests the task role rather than ECS startup retrieval through the execution role, and removing secret references does not validate the proposed runtime fallback. It also omits checks for plaintext leakage and treats CloudWatch logs and 90% code coverage as meaningful without defining supporting instrumentation or testable Terraform code."
+    },
+    "implementation": {
+      "completeness": 0,
+      "correctness": 0,
+      "specificity": 0,
+      "risk_awareness": 0,
+      "total": 0,
+      "notes": "The submitted implementation artifact is empty, with no `patch.diff` or implementation summary. Consequently, no candidate change can be applied or compared with the real Terraform sources, which already contain Secrets Manager resources and ECS secret references. All implementation criteria receive zero as required for a missing implementation."
+    }
+  },
+  "task_score": 30.8,
+  "verdict": "The submission identifies the right AWS integration concept but misreads the existing Terraform, leaves the central fallback and migration mechanics unresolved, and provides no implementation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T01:57:35.521750Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 304981,
+      "cached_input_tokens": 269890,
+      "cache_write_input_tokens": 35069,
+      "output_tokens": 6501,
+      "reasoning_output_tokens": 3316
+    },
+    "duration_ms": 106012
+  }
+}

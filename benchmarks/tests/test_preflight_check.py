@@ -56,38 +56,36 @@ class TargetDirsTest(unittest.TestCase):
     def test_one_dir_per_task_with_slug(self) -> None:
         dirs = pf._target_dirs(str(self.ds), "us.anthropic.claude-opus-4-8")
         self.assertEqual(len(dirs), 2)
-        # Layout is <model-slug>/<harness>/<repo>/<task>; default agent claude ->
-        # claude-code; Bedrock prefix stripped for the model slug.
+        # Layout is <model>/<harness>/<skill>/<repo>/<task>; default agent claude ->
+        # claude-code, default skill swe3; Bedrock prefix stripped for the slug.
         self.assertTrue(
-            str(dirs[0]).endswith("claude-opus-4-8/claude-code/my-repo/task-one")
+            str(dirs[0]).endswith("claude-opus-4-8/claude-code/swe3/my-repo/task-one")
         )
         self.assertTrue(
-            str(dirs[1]).endswith("claude-opus-4-8/claude-code/my-repo/task-two")
+            str(dirs[1]).endswith("claude-opus-4-8/claude-code/swe3/my-repo/task-two")
         )
 
     def test_plain_model_slug_unchanged(self) -> None:
         dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b")
         self.assertTrue(
-            str(dirs[0]).endswith("qwen3-coder-30b/claude-code/my-repo/task-one")
+            str(dirs[0]).endswith("qwen3-coder-30b/claude-code/swe3/my-repo/task-one")
         )
 
     def test_pi_agent_uses_pi_harness_level(self) -> None:
         dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", agent="pi")
-        self.assertTrue(str(dirs[0]).endswith("qwen3-coder-30b/pi/my-repo/task-one"))
-
-    def test_default_skill_maps_to_canonical_harness_level(self) -> None:
-        # swe3 is the default skill, so it maps to the canonical folder.
-        dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", skill="swe3")
         self.assertTrue(
-            str(dirs[0]).endswith("qwen3-coder-30b/claude-code/my-repo/task-one")
+            str(dirs[0]).endswith("qwen3-coder-30b/pi/swe3/my-repo/task-one")
         )
 
-    def test_nondefault_swe2_skill_appends_to_harness_level(self) -> None:
-        # The non-default swe2 run targets <harness>-swe2 so it never checks/clears
-        # the canonical (swe3) tree.
-        dirs = pf._target_dirs(str(self.ds), "qwen3-coder-30b", skill="swe2")
+    def test_skill_is_its_own_path_level(self) -> None:
+        # swe2 and swe3 are sibling levels under the harness; neither is a suffix.
+        swe3 = pf._target_dirs(str(self.ds), "qwen3-coder-30b", skill="swe3")
+        swe2 = pf._target_dirs(str(self.ds), "qwen3-coder-30b", skill="swe2")
         self.assertTrue(
-            str(dirs[0]).endswith("qwen3-coder-30b/claude-code-swe2/my-repo/task-one")
+            str(swe3[0]).endswith("qwen3-coder-30b/claude-code/swe3/my-repo/task-one")
+        )
+        self.assertTrue(
+            str(swe2[0]).endswith("qwen3-coder-30b/claude-code/swe2/my-repo/task-one")
         )
 
 

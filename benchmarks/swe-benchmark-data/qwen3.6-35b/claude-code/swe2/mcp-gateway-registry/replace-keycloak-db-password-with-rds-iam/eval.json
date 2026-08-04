@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 55,
+      "notes": "The issue provides concrete scope, non-goals, migration intent, and mostly testable acceptance criteria. Its central technical criteria are flawed: the AWS provider uses `iam_database_authentication_enabled`, the repository's `KC_DB_URL` already targets the cluster rather than the proxy, and password fallback conflicts with removing `keycloak_database_password`. The checked files `terraform/aws-ecs/keycloak-database.tf` and `keycloak-ecs.tf` also show that the master password remains required and that the current task uses the stock Keycloak image. No independent task statement was supplied, so the claimed zero-downtime requirement and outage history cannot be independently verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 4,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 46,
+      "notes": "The LLD is unusually concrete about the real Terraform files, existing ECS locals, secret rotation resources, and rollout phases. Its core authentication path is not viable: stock `quay.io/keycloak/keycloak:25.0` has no established IAM-token JDBC integration, `enableIAMAuth=true` is unsupported by the standard MySQL driver, and no database user is configured with `AWSAuthenticationPlugin`. It also specifies the invalid `iam_enabled` argument, a nonexistent `rds:GenerateDBAuthToken` IAM action, and an `rds-db:connect` ARN based on `cluster_identifier` instead of the cluster resource ID. The proposed rollback destroys the current secret and may recreate it with a stale Terraform password, while the single feature flag cannot independently stage cluster IAM enablement as claimed."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 52,
+      "notes": "The review identifies real repository-specific hazards, including counted-resource references, conditional local construction, secret removal, and the unresolved database-user DDL requirement. Its largest deficiency is approving the design while recommending invalid fixes such as scoping `rds:GenerateDBAuthToken`, using lifecycle handling for an input variable, and assuming the stock JDBC stack generates IAM tokens. Repository inspection confirms `keycloak_db_secret` is referenced by the proxy, execution-role policy, and rotation policy, so broader count-index changes were required than the review enforced. The asserted four-person review process is unverifiable, and the verdict is not defensible given the unresolved authentication mechanism."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 60,
+      "notes": "The plan covers enabled and disabled modes, rollback, persistence, task restart, token lifetime, security, and load with concrete expected states. Several procedures are invalid: `terraform state list` cannot prove an input variable is absent, `aws iam get-policy-version` does not inspect the submitted inline role policy, and the ECS service does not enable the proposed SSH or ECS Exec workflow. The localhost health probe is only meaningful inside the task, while merely generating a CLI token does not prove Keycloak's JDBC driver can use it. The broad integration scenarios would expose some failures, but the plan omits a repository-level `terraform validate` oracle and assumes the unsupported implementation can reach deployment."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 0,
+      "specificity": 8,
+      "risk_awareness": 1,
+      "total": 13,
+      "notes": "The patch targets real files and matching source context, but it cannot produce a usable Terraform configuration. Its `variables.tf` hunk deletes 1,318 lines through end-of-file, removing nearly every deployment variable, while counted resources remain referenced without indexes in the proxy target, task execution policy, and rotation policy. It additionally uses invalid `iam_enabled`, adds nonexistent `rds:GenerateDBAuthToken`, constructs the database-user ARN from the wrong identifier, omits SSM permission for the new username parameter, and supplies no working IAM-aware JDBC component or database-user migration. The summary falsely says the proxy IAM role is gated, and neither it nor the patch acknowledges the catastrophic variable deletion or destructive rollback risk."
+    }
+  },
+  "task_score": 45.2,
+  "verdict": "The artifacts are detailed and repository-aware, but the unsupported IAM authentication design and catastrophically invalid Terraform patch make the submission unshippable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T00:25:47.272050Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 833796,
+      "cached_input_tokens": 769940,
+      "cache_write_input_tokens": 63826,
+      "output_tokens": 8991,
+      "reasoning_output_tokens": 5186
+    },
+    "duration_ms": 148611
+  }
+}

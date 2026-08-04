@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "us.anthropic.claude-opus-4-8[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The issue precisely identifies the three outbound paths and gives testable configuration and compatibility criteria. Repository inspection confirmed `_is_safe_url` in `registry/services/skill_service.py`, the unguarded agent requests, and eight redirect-following health requests with server headers. Its largest defect is claiming metadata and bad schemes are blocked regardless of configuration while also defining a master switch that disables those checks, and initial-URL validation alone cannot satisfy that claim across redirects. No independent task statement establishes the intended scope, and the assertion that default private-network blocking would break common deployments is plausible but not verifiable from the repository alone."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 85,
+      "notes": "The LLD is unusually repository-specific, correctly tracing explicit endpoint precedence through `registry/core/endpoint_utils.py` and the health triggers through `_check_server_endpoint_transport_aware`. It makes concrete decisions for IP normalization, redirect handling, status compatibility, configuration, deployment surfaces, and residual risks. The largest gap is operational consistency: `SSRF_PROTECTION_ENABLED=false` does not restore pre-change behavior because redirects remain disabled, while the promised registration warning is not propagated by the successful response in `agent_routes.py`. It also contradicts its own DNS-rebinding analysis by labeling fetch-time validation rebinding-resistant in the alternatives matrix."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 88,
+      "notes": "The review finds real, high-impact defects, including cross-host `mcp_endpoint` precedence, the `AgentCard.tsx` exact status match, mapped IPv6, deployment-variable wiring, and credentialed redirects. Those claims are supported by the checked repository symbols in `endpoint_utils.py`, `AgentCard.tsx`, the compose files, and `health/service.py`. Its principal weakness is declaring all critical findings resolved even though DNS rebinding is explicitly deferred and the master switch cannot roll back the redirect behavior. It also misses that successful agent registration discards `validation_result.warnings`, so the reviewed design's registration-warning contract is incomplete."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 69,
+      "notes": "The shared-guard matrix has strong, concrete oracles for metadata variants, allowlist precedence, private-address compatibility, resolution failures, and the master switch. However, the functional commands use `/agents/...` instead of the application's `/api/agents/...` routes, and the E2E registration payload omits the required `supportedProtocol` field from `AgentRegistrationRequest`. It also expects `.warnings` from a successful registration even though `registry/api/agent_routes.py` does not include warnings in its 201 response, and it omits a unit test for the agent-health call site and redirect disabling. The plan states tests were not executed, so none of its functional or deployment expectations have execution evidence."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 73,
+      "notes": "The patch substantially implements the revised design: its contexts and symbols match the real source, and it adds a normalized shared guard, all three requested call-site checks, configuration, compose wiring, redirect disabling, and focused unit tests. The largest behavioral defect is that the advertised escape hatch does not restore prior health-check behavior because `follow_redirects=False` remains active, potentially breaking redirect-dependent servers even with protection disabled. It also leaves successful registration warnings unsurfaced, performs blocking attacker-influenced DNS on async paths, overvalidates unused explicit transport endpoints, and has no agent-health or redirect regression test. The summary honestly discloses DNS rebinding, async DNS, MCP-client exposure, and unexecuted tests, but its claim that the revised design is fully realized overstates these omissions."
+    }
+  },
+  "task_score": 78.6,
+  "verdict": "This is strong, repository-grounded hardening, but incomplete rollback semantics, invalid functional-test assumptions, and the unresolved DNS-rebinding gap prevent it from providing a reliable end-to-end SSRF guarantee.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-03T04:11:05.866295Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1315594,
+      "cached_input_tokens": 1209115,
+      "cache_write_input_tokens": 106449,
+      "output_tokens": 9186,
+      "reasoning_output_tokens": 4557
+    },
+    "duration_ms": 268323
+  }
+}

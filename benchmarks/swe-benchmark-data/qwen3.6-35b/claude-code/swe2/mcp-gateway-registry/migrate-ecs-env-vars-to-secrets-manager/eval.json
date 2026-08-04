@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 51,
+      "notes": "The issue clearly defines the ECS/Terraform scope, exclusions, dependencies, and testable resource-level outcomes. Its largest flaw is the contradictory requirement to migrate secrets out of plaintext task definitions and state while retaining the same plaintext environment entries; Terraform-managed secret_string values also remain in state. The referenced KMS key and ecs_secrets_access policy exist in terraform/aws-ecs/modules/mcp-gateway/secrets.tf and iam.tf. Because no independent task statement was supplied, the intended secret inventory and whether a transitional plaintext phase was actually required cannot be independently verified."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 6,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 54,
+      "notes": "The LLD is unusually concrete about real Terraform files, resource patterns, IAM integration, secret names, and rollout operations. Its per-container matrix is contradicted by ecs-services.tf: the Auth Server also references FEDERATION_STATIC_TOKEN, FEDERATION_ENCRYPTION_KEY, ANS_API_KEY, and ANS_API_SECRET, but the design labels them Registry-only. More fundamentally, retaining environment values preserves plaintext in task definitions and state, and ECS secret-resolution failure prevents task startup rather than falling back to environment values, making several rollback procedures unsound. It identifies state exposure, ignore_changes behavior, IAM breadth, restart requirements, and KMS risks, but the required migration duration and complete inventory remain unverifiable without an independent task statement."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 12,
+      "total": 54,
+      "notes": "The review's strongest work is its specific treatment of ignore_changes, IAM breadth, deletion recovery, monitoring, rollback, and the earlier design contradiction. It nevertheless approves the false fallback model and repeats the incorrect container matrix, missing the Auth Server references at ecs-services.tf:258-279 and the continuing task-definition/state exposure. Its recommendation that secret_string be marked sensitive is not a supported resource meta-argument, while the claimed low migration risk is not defensible when secret resolution can stop tasks from launching. The asserted five-person review process cannot be verified from repository evidence."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 45,
+      "notes": "The plan spans Terraform, Secrets Manager, IAM, ECS definitions, compatibility, deployment, rotation, and application-level checks with concrete secret names. Several commands are not executable as written: TF_VARS_FILE becomes an invalid relative path after changing directories, PREFIX is undefined, and the detailed-exitcode compatibility check treats the expected exit code 2 as failure. The referenced ecs_secrets_policy_arn, ecs_secrets_policy_version, registry_api_token, and federation_static_token Terraform outputs do not exist, and register-task-definition is neither a dry run nor supplied a complete task definition. It also fails to test both container matrices, state leakage, or the claimed fallback behavior, while AWS runtime outcomes and placeholder endpoints cannot be verified from the repository."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 0,
+      "specificity": 15,
+      "risk_awareness": 5,
+      "total": 28,
+      "notes": "The patch targets the real Terraform files and attempts the specified secret resources, IAM ARNs, ECS injections, and example-token cleanup. It is unusable as submitted: the Auth Server hunk closes concat with a bracket, and both ECS hunks pass bare objects as concat arguments instead of wrapping the additions in a list. Every new secret version also references aws_secretsmanager_secret.<name>[0].id although the corresponding resource has no count, while four existing Auth Server secret references are omitted and all plaintext environment entries remain. The summary acknowledges state exposure and broad IAM access but falsely describes failed secret resolution as a working fallback and does not disclose these deviations or any validation result."
+    }
+  },
+  "task_score": 46.4,
+  "verdict": "The artifacts are repository-specific and detailed, but the implementation is invalid Terraform and the design's plaintext fallback defeats the stated security migration.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T00:17:40.220075Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 333867,
+      "cached_input_tokens": 268502,
+      "cache_write_input_tokens": 65353,
+      "output_tokens": 8927,
+      "reasoning_output_tokens": 5978
+    },
+    "duration_ms": 118295
+  }
+}

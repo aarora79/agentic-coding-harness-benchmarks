@@ -588,7 +588,10 @@ def evaluate_artifact_folder_with_codex(
         "model": model or "codex-config-default",
         "provider": "codex-exec",
         "repo_grounded": True,
-        "repo_root": str(working_root),
+        # NOTE: the local working checkout path (working_root, e.g. /tmp/swe-judge-
+        # repos/...) is deliberately NOT recorded -- eval.json and metrics.json are
+        # committed to git, and a machine-specific /tmp path is noise, not
+        # provenance. repo_ref below captures the meaningful grounding.
         "evaluated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     if repo_ref is not None:

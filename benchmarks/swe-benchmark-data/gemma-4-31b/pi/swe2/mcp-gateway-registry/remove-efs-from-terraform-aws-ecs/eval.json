@@ -1,0 +1,64 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 18,
+      "specificity": 20,
+      "risk_awareness": 11,
+      "total": 67,
+      "notes": "The issue defines a concrete removal scope and testable acceptance criteria matching real resources in `storage.tf`, `ecs-services.tf`, and both output files. Repository inspection confirms the EFS module, task mounts, and outputs exist, while `terraform.tfvars.example` contains no EFS variable values. Its largest deficiency is treating data readiness as an assumption and declaring no dependencies despite this being destructive infrastructure removal with application configuration consequences. No independent task statement establishes the claimed completed S3/DocumentDB migration, and the Terraform deployment still supports file and external MongoDB backends."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 8,
+      "total": 52,
+      "notes": "The LLD is strongly grounded in real files and correctly identifies the EFS module, mounts, variables, outputs, and script consumers. Its critical error is declaring `/app/auth_server/scopes.yml` the auth image path: `docker/Dockerfile.auth` copies the contents of `auth_server/` directly into `/app`, placing the file at `/app/scopes.yml`. Retaining `run-scopes-init-task.sh` without a mount is also incoherent because `docker/Dockerfile.scopes-init` requires writable `/mnt`, and the design misses the scopes-init ECR/build references in `codebuild.tf`. It provides no destroy-ordering, rollback, downstream-output compatibility, or migration-readiness treatment for removing stateful infrastructure."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 10,
+      "total": 44,
+      "notes": "The review's strongest contribution is identifying that removing the auth-config mount while retaining the old `SCOPES_CONFIG_PATH` would break file-based scope loading. It then falsely resolves that concern by asserting `/app/auth_server/scopes.yml` is correct without checking `docker/Dockerfile.auth`, which establishes `/app/scopes.yml` instead. Most reviewer sections are generic approvals and do not challenge the now-purposeless scopes-init task, output compatibility, or destructive rollout behavior. The central migration-complete premise also remains unverified because no independent task statement was supplied."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 10,
+      "specificity": 15,
+      "risk_awareness": 6,
+      "total": 40,
+      "notes": "The plan supplies valid Terraform initialization, validation, and planning commands with concrete resource and task-definition inspection goals. However, it asserts the incorrect auth image path and gives the egress rule without its `module.mcp_gateway` address. Declaring functional and backward-compatibility tests inapplicable omits file-backend behavior, shell syntax checks, deployment, service health, and verification that every mount point has a corresponding volume. Consequently it would miss both the retained `mcp-logs` mount and the introduced shell parse error, and no submitted execution evidence verifies the proposed plan result."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 3,
+      "total": 33,
+      "notes": "The patch targets real source contexts and removes the core EFS module, outputs, variables, and most EFS-backed task-definition configuration. Critically, the auth container retains the `mcp-logs` mount while `volume` becomes empty, producing an ECS task definition with an unknown source volume. The patch also introduces an unmatched `)` in `run-scopes-init-task.sh`, confirmed by a simulated `bash -n`, and points the auth service at a nonexistent image path while leaving a scopes-init image whose entrypoint requires `/mnt`. It omits scopes-init references in `codebuild.tf` and the EFS fallback in `post-deployment-setup.sh`, so the summary's claims of exact implementation and no follow-ups materially overstate a deployment-breaking change."
+    }
+  },
+  "task_score": 47.2,
+  "verdict": "The artifacts identify most EFS integration points, but the implementation is not deployable because it leaves an orphaned ECS mount, adds a shell syntax error, and uses the wrong auth configuration path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-01T18:54:30.237074Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 531376,
+      "cached_input_tokens": 460805,
+      "cache_write_input_tokens": 70551,
+      "output_tokens": 9256,
+      "reasoning_output_tokens": 4818
+    },
+    "duration_ms": 91989
+  }
+}

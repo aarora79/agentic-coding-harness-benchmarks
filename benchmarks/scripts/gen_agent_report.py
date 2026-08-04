@@ -11,12 +11,13 @@ file with:
     quality radar), which the chart scripts render with harness-suffixed names.
 
 The doc is regenerated from data, so it never drifts from the run-summaries.
-Charts are NOT rendered here -- run ``plot_cost_quality.py --harness <h>`` and
-``plot_quality_radar.py --harness <h>`` first; this only embeds them.
+Charts are NOT rendered here -- run ``plot_cost_quality.py --harness <h> --skill
+<s>`` and ``plot_quality_radar.py --harness <h> --skill <s>`` first; this only
+embeds them.
 
 Usage:
-    uv run scripts/gen_agent_report.py --harness pi
-    uv run scripts/gen_agent_report.py --harness claude-code --out-dir ../docs
+    uv run scripts/gen_agent_report.py --harness pi --skill swe3
+    uv run scripts/gen_agent_report.py --harness claude-code --skill swe2
 """
 
 from __future__ import annotations
@@ -53,9 +54,9 @@ HARNESS_LABELS = {
     "kiro-cli": "kiro-cli",
 }
 
-# Short per-harness code that suffixes chart filenames (cost-quality-cc.png,
-# quality-radar-pi.png). Must match the codes the plot scripts use so the doc
-# links resolve to the files they write.
+# Short per-harness code that (with the skill) suffixes chart filenames
+# (cost-quality-cc-swe2.png, quality-radar-pi-swe3.png). Must match the codes the
+# plot scripts use so the doc links resolve to the files they write.
 HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
 
 
@@ -108,15 +109,17 @@ def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _collect(data_dir: Path, harness: str, repo: str) -> list[dict[str, Any]]:
-    """Return one row per model that has a run-summary under this harness.
+def _collect(
+    data_dir: Path, harness: str, skill: str, repo: str
+) -> list[dict[str, Any]]:
+    """Return one row per model that has a run-summary under this harness+skill.
 
-    Reads ``<data-dir>/<model>/<harness>/<repo>/run-summary.json``. Rows are
-    sorted by mean score (a None mean -- a full harness collapse -- sorts last).
+    Reads ``<data-dir>/<model>/<harness>/<skill>/<repo>/run-summary.json``. Rows
+    are sorted by mean score (a None mean -- a full harness collapse -- sorts last).
     """
     rows: list[dict[str, Any]] = []
     for model_dir in sorted(p for p in data_dir.iterdir() if p.is_dir()):
-        summary = _read_json(model_dir / harness / repo / RUN_SUMMARY_FILENAME)
+        summary = _read_json(model_dir / harness / skill / repo / RUN_SUMMARY_FILENAME)
         if summary is None:
             continue
         totals = _run_totals(summary)
@@ -170,19 +173,20 @@ def _render(
     rows: list[dict[str, Any]],
     *,
     harness: str,
+    skill: str,
     repo: str,
     dollars_per_hour: float,
     out_dir: Path,
 ) -> str:
     """Render the per-agent Markdown doc from the collected rows."""
     label = HARNESS_LABELS.get(harness, harness)
-    # Charts live in docs/images, suffixed by the harness code (cc, pi, ...) so
-    # each agent's charts are self-identifying -- must match the names the plot
-    # scripts write. Link relative to the doc's out_dir.
+    # Charts live in docs/images, suffixed by the harness code (cc, pi, ...) and
+    # skill (swe2, swe3) so each agent+skill's charts are self-identifying -- must
+    # match the names the plot scripts write. Link relative to the doc's out_dir.
     code = HARNESS_CODES.get(harness, harness)
     img = (out_dir / "images").resolve()
-    cq = img / f"cost-quality-{code}.png"
-    radar = img / f"quality-radar-{code}.png"
+    cq = img / f"cost-quality-{code}-{skill}.png"
+    radar = img / f"quality-radar-{code}-{skill}.png"
 
     def _rel(p: Path) -> str:
         try:
@@ -191,13 +195,13 @@ def _render(
             return p.as_posix()
 
     lines = [
-        f"# Results: {label} harness",
+        f"# Results: {label} harness ({skill})",
         "",
         f"Benchmark results for every model run under the **{label}** coding agent "
-        f"on `{repo}`, generated from the committed `run-summary.json` files. "
-        "Regenerate with `uv run scripts/gen_agent_report.py --harness "
-        f"{harness}`. Companion to the cross-agent [harness comparison]"
-        "(harness-comparison.md).",
+        f"with the **{skill}** skill on `{repo}`, generated from the committed "
+        "`run-summary.json` files. Regenerate with `uv run "
+        f"scripts/gen_agent_report.py --harness {harness} --skill {skill}`. "
+        "Companion to the cross-agent [harness comparison](harness-comparison.md).",
         "",
         "## Results by model",
         "",
@@ -282,6 +286,11 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         help="Harness slug: claude-code, pi, opencode, kiro-cli.",
     )
+    parser.add_argument(
+        "--skill",
+        default="swe3",
+        help="SWE skill folder to read: 'swe3' (default) or 'swe2'.",
+    )
     parser.add_argument("--repo", default="mcp-gateway-registry", help="Dataset scope.")
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument(
@@ -303,21 +312,23 @@ def main() -> None:
     """Collect one harness's run-summaries and write its results doc."""
     args = _parse_args()
     data_dir = args.data_dir.expanduser().resolve()
-    rows = _collect(data_dir, args.harness, args.repo)
+    rows = _collect(data_dir, args.harness, args.skill, args.repo)
     if not rows:
         raise SystemExit(
-            f"no run-summary.json found under {data_dir}/*/{args.harness}/{args.repo}"
+            f"no run-summary.json found under "
+            f"{data_dir}/*/{args.harness}/{args.skill}/{args.repo}"
         )
     doc = _render(
         rows,
         harness=args.harness,
+        skill=args.skill,
         repo=args.repo,
         dollars_per_hour=args.dollars_per_hour,
         out_dir=args.out_dir.expanduser().resolve(),
     )
     out_dir = args.out_dir.expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"harness-{args.harness}.md"
+    out_path = out_dir / f"harness-{args.harness}-{args.skill}.md"
     out_path.write_text(doc, encoding="utf-8")
     logger.info("wrote %s (%d models)", out_path, len(rows))
 

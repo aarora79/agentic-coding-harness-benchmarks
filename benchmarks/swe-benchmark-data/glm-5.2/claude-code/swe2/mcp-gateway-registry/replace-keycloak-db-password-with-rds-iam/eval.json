@@ -1,0 +1,56 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 71,
+      "notes": "Clear motivation, scope, fallback behavior, and testable criteria. However, it mixes the AWS Advanced JDBC Wrapper URL with the incorrect driver class `software.aws.rds.jdbc.mysql.Driver` (the wrapper uses `software.amazon.jdbc.Driver`), and omits major bootstrap, TLS, dependency-packaging, and rollout risks. No independent task statement establishes several self-defined requirements."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 7,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 59,
+      "notes": "Highly concrete component mapping and rollout discussion, but the core configuration is not implementation-ready. It uses the wrong wrapper driver class, likely the wrong region property, makes the master password nullable while still requiring it for cluster/bootstrap/fallback, and leaves the secure DB-user executor unresolved. Its sample environment list is not actually conditional, so the flag-off path would retain `KC_DB_DRIVER` and duplicate `KC_DB_USERNAME`. The local-exec exposes credentials and assumes unestablished runner-to-Aurora access."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 22,
+      "total": 76,
+      "notes": "The review surfaces important classpath, datasource-validation, secret-exposure, networking, image, observability, and drift concerns with prioritized recommendations. Its accuracy is weakened by findings contradicted by the LLD, including claims that rollback and exact grants are absent, and by questionable assertions that IAM users prevent disabling cluster IAM auth and that removing only the rotation resource destroys the Lambda. The persona-heavy repetition dilutes the otherwise useful verdict."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 9,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "Covers both flag states, a real deployment, IAM identity, logs, rollback, and application smoke tests. Several oracles are invalid or ineffective: the no-diff test does not inspect actions, the image assertion compares against a nonexistent field, ECS `describe-tasks` does not expose resolved environment/secrets, the 15-minute wait does not force a new connection, and rollback relies on the unsupported IAM-user prohibition claim. Commands also hardcode unverified AWS names and expose the master password in process arguments."
+    }
+  },
+  "task_score": 68.5,
+  "verdict": "The submission is detailed and security-conscious, but core JDBC configuration errors, an unresolved and unsafe database-user bootstrap, internal contradictions, and multiple invalid test oracles prevent it from being implementation-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-24T14:17:33.667681Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 337986,
+      "cached_input_tokens": 292781,
+      "cache_write_input_tokens": 45189,
+      "output_tokens": 6871,
+      "reasoning_output_tokens": 5958
+    },
+    "duration_ms": 138273
+  }
+}

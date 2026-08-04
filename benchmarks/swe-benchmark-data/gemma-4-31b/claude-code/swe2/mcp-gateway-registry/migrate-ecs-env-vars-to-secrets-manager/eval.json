@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 53,
+      "notes": "The strongest aspect is the clear security motivation, migration scope, IAM requirement, and explicit exclusions. The largest defect is the acceptance criterion requiring plaintext environment variables as fallbacks: ECS secret retrieval failure prevents task startup, as the LLD later acknowledges, so this is not a valid fallback. The repository confirms plaintext values such as REGISTRY_API_TOKEN in terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf and an existing aws_iam_policy.ecs_secrets_access pattern. No independent task statement was supplied, related issue #1134 is not verifiable from the checkout, and the issue never enumerates what \u201call identified\u201d secrets means."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 55,
+      "notes": "The strongest aspect is repository grounding: all three primary files exist, and the documented ECS secrets, KMS key, and IAM policy patterns match the source. The largest defect is failure to preserve the existing mongodb_connection_string_secret_arn interface and conditional behavior; unconditional injection of a newly empty secret conflicts with the repository\u2019s existing plaintext-or-external-ARN selection. The proposed policy split also omits current ecs_secrets_access consumers in the MCPGW and optional metrics services, while the claimed CloudWatch metric filter has no defined event-to-log delivery path or file change. Avoiding secret versions, using a recovery window, and recognizing startup failure are sound, but the stated canary rollout has no Terraform mechanism, atomic staging boundary, or concrete rollback procedure."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 16,
+      "specificity": 17,
+      "risk_awareness": 18,
+      "total": 66,
+      "notes": "The review\u2019s strongest contribution is identifying two real high-impact errors: Terraform-managed secret values leaking into state and ECS lacking runtime plaintext fallback after secret resolution failure. It also gives concrete mitigations for IAM scope, deletion recovery, and rollout rather than merely approving the design. Its \u201call blockers resolved\u201d verdict is too strong because it misses the existing external MongoDB ARN path, unconditional optional secrets, and ecs_secrets_access references in ecs-services.tf and observability.tf that must survive or be migrated. The review also calls the rollout comprehensive despite no implementable canary or rollback design, and the absent independent task statement prevents verifying inventory completeness."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 9,
+      "specificity": 12,
+      "risk_awareness": 10,
+      "total": 43,
+      "notes": "The strongest aspect is inclusion of concrete runtime oracles such as ECS RUNNING state, HTTP 200 health, successful OAuth flow, secret existence, and an allowed IAM simulation result. The largest defect is that the supplied defaults do not match the repository: the cluster defaults to mcp-gateway-ecs-cluster and the region to us-west-2, while the plan uses mcp-gateway, us-east-1, and an undefined DOMAIN. It omits terraform fmt/validate despite the repository workflow running them, does not assert removal of plaintext task-definition entries, does not test denied access to unrelated secrets, and provides no missing-secret failure test. \u201cCrashLoopBackOff\u201d is not an ECS state, the health check does not prove each migrated value is correct, and the plan does not cover the GitHub credential path or existing MongoDB ARN compatibility."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 9,
+      "risk_awareness": 8,
+      "total": 25,
+      "notes": "The fenced diff targets real files and matching source context, and it correctly creates KMS-backed secret shells without Terraform-managed secret versions. The largest defect is fatal: iam.tf removes aws_iam_policy.ecs_secrets_access, but the patch does not update references in ecs-services.tf or observability.tf, so Terraform validation cannot succeed. It also removes GITHUB_PAT, GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, and GITHUB_APP_PRIVATE_KEY while adding no GitHub entries to the registry secrets block, and it unconditionally duplicates MONGODB_CONNECTION_STRING when the existing external ARN is configured. The summary falsely claims IAM attachment and MCPGW changes absent from the diff; mandatory empty secret shells, omitted alerting, and no focused validation or tests make the implementation unsafe to deploy despite the seven-day recovery setting."
+    }
+  },
+  "task_score": 48.4,
+  "verdict": "The submission identifies the core security concern and several sound design principles, but the implementation is undeployable due to unresolved IAM references and additionally breaks GitHub and MongoDB configuration paths.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T05:44:23.768985Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 378301,
+      "cached_input_tokens": 326401,
+      "cache_write_input_tokens": 51882,
+      "output_tokens": 8028,
+      "reasoning_output_tokens": 4160
+    },
+    "duration_ms": 229044
+  }
+}

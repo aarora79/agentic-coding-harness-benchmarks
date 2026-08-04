@@ -24,8 +24,10 @@ radar = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(radar)
 
 
-def _write_model(root: Path, model: str, harness: str, repo: str, mean: float) -> None:
-    d = root / model / harness / repo
+def _write_model(
+    root: Path, model: str, harness: str, repo: str, mean: float, skill: str = "swe3"
+) -> None:
+    d = root / model / harness / skill / repo
     d.mkdir(parents=True)
     # eval_scores must be present for the model to be radar-eligible.
     scores = {
@@ -55,7 +57,7 @@ class RadarTopNTest(unittest.TestCase):
             root = Path(tmp)
             for name, mean in [("a", 90), ("b", 80), ("c", 70), ("d", 60), ("e", 50)]:
                 _write_model(root, name, "claude-code", "repo", mean)
-            models, total = radar._collect(root, "repo", "claude-code", top_n=3)
+            models, total = radar._collect(root, "repo", "claude-code", "swe3", top_n=3)
             self.assertEqual(total, 5)  # all 5 eligible
             self.assertEqual([m[0] for m in models], ["a", "b", "c"])  # top 3 by score
 
@@ -64,7 +66,7 @@ class RadarTopNTest(unittest.TestCase):
             root = Path(tmp)
             for name, mean in [("a", 90), ("b", 80)]:
                 _write_model(root, name, "claude-code", "repo", mean)
-            models, total = radar._collect(root, "repo", "claude-code", top_n=4)
+            models, total = radar._collect(root, "repo", "claude-code", "swe3", top_n=4)
             self.assertEqual(total, 2)
             self.assertEqual(len(models), 2)
 

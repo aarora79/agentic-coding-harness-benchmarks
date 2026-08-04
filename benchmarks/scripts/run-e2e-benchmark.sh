@@ -369,13 +369,13 @@ BENCH_ARGS=(--config "$CONFIG" --agent "$AGENT" --skill "$SKILL" --provider "$HA
 [[ -n "$PRECISION" ]] && BENCH_ARGS+=(--precision "$PRECISION")
 
 SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import model_to_slug; print(model_to_slug('$MODEL'))")"
-# Harness folder level (claude -> claude-code, pi -> pi; a non-default skill like
-# swe3 appends, e.g. claude-code-swe3), from the single source of truth so the
-# judge/summary target the same tree the harness writes.
-HARNESS_SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import RunnerConfig; print(RunnerConfig.model_validate({'agent':'$AGENT','skill':'$SKILL','provider':'bedrock','aws_region':'us-east-1','model':'m','dataset':'d.yaml'}).harness_slug)")"
+# Harness folder level (claude -> claude-code, pi -> pi), from the single source of
+# truth. Skill (swe2/swe3) is its OWN path level, so artifacts live under
+# <model>/<harness>/<skill>/<repo>/<task> and the judge/summary target that tree.
+HARNESS_SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import HARNESS_SLUGS; print(HARNESS_SLUGS['$AGENT'])")"
 info "Command:"
 info "  uv run scripts/run-swe-headless.py ${BENCH_ARGS[*]}"
-info "Artifacts will land under: swe-benchmark-data/$SLUG/$HARNESS_SLUG/<repo>/<task>/"
+info "Artifacts will land under: swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SKILL/<repo>/<task>/"
 info "Watch GPU metrics (vllm path):  cd $VLLM_DIR && uv run python -m clients.build_dashboard && open benchmark-output/dashboard.html"
 echo
 uv run scripts/run-swe-headless.py "${BENCH_ARGS[@]}" \
@@ -393,7 +393,7 @@ else
     # Judge only the folders this model+dataset just produced: point at the
     # <model-slug>/<repo> subtree and let --recursive + --no-overwrite handle it.
     REPO_SUBDIR="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from dataset_loader import load_dataset; d=load_dataset('$DATASET_PATH'); import importlib.util,pathlib; s=importlib.util.spec_from_file_location('h','scripts/run-swe-headless.py'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m._repo_name(d.tasks[0].repo))")"
-    JUDGE_TARGET="swe-benchmark-data/$SLUG/$HARNESS_SLUG/$REPO_SUBDIR"
+    JUDGE_TARGET="swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SKILL/$REPO_SUBDIR"
     info "Command:"
     info "  (cd scripts && uv run python codex_judge.py --recursive --no-overwrite --folder ../$JUDGE_TARGET)"
     info "codex exec buffers output and prints only its final message per folder -- a few minutes each at high effort is normal."
@@ -419,4 +419,4 @@ step "Done"
 # =============================================================================
 ok "End-to-end benchmark finished for provider=$PROVIDER model=$MODEL dataset=$DATASET"
 info "Per-task results (metrics.json cost + eval.json quality) are under:"
-info "  $BENCHMARKS_DIR/swe-benchmark-data/$SLUG/$HARNESS_SLUG/*/*/"
+info "  $BENCHMARKS_DIR/swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SKILL/*/*/"

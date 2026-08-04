@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 61,
+      "notes": "The issue clearly identifies the credential risk, ECS/RDS/Terraform scope, explicit non-goals, and a testable authentication toggle. The repository confirms the baseline: keycloak-database.tf configures password authentication and keycloak-ecs.tf injects KC_DB_PASSWORD from Secrets Manager. Its largest defect is requiring both removal of static passwords and a working static-password fallback without defining a transitional state; it also omits database-user provisioning, proxy behavior, TLS, and token lifecycle concerns. No independent task statement was supplied, and related issue #1303 could not be verified in the repository."
+    },
+    "lld": {
+      "completeness": 9,
+      "correctness": 4,
+      "specificity": 11,
+      "risk_awareness": 9,
+      "total": 33,
+      "notes": "The strongest aspect is its use of real Terraform files and its recognition of the 15-minute token lifetime and custom-image requirement. The central design is not viable: it proposes the invalid proxy value iam_auth = \"ENABLED\", uses cluster_identifier instead of an RDS resource ID in the connect ARN, points the JDBC URL at the cluster while claiming proxy use, and never provisions an IAM-enabled database user or enables the JDBC IAM plugin. It also names a new root Dockerfile although the repository uses docker/keycloak/Dockerfile, omits a compatible image publishing strategy, and contradicts itself by both choosing and rejecting the AWS JDBC driver. Transparent refresh and the proposed driver artifact cannot be verified from repository evidence and are unsupported by the supplied configuration."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 9,
+      "specificity": 8,
+      "risk_awareness": 10,
+      "total": 35,
+      "notes": "The review correctly identifies token expiration and a missing AWS CLI as fatal flaws in a startup-only wrapper approach, and recommending a JDBC integration is directionally sound. All five reviewer personas repeat essentially the same observation and appear to review a stale wrapper design rather than stress the revised LLD. It misses the invalid proxy enum, wrong IAM ARN, missing database-user migration, absent IAM plugin configuration, image-tag failure, and continued password injection, while incorrectly declaring the policy scope resolved. Repository evidence therefore does not support its claim that the revised design is production-stable."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 6,
+      "specificity": 11,
+      "risk_awareness": 9,
+      "total": 37,
+      "notes": "The plan covers IAM startup, operation beyond 20 minutes, password fallback, infrastructure inspection, rollback, and representative Keycloak operations. Its primary oracle cannot prove IAM authentication because the task still receives KC_DB_PASSWORD, and there is no poisoned-password or denied-IAM test to distinguish the authentication paths. The ECS command tails a nonexistent container log file despite the repository using the /ecs/keycloak awslogs group, the Docker command will be intercepted by the image's fixed Keycloak entrypoint, and the proxy query does not correctly select IAMAuth from the Auth array. It also omits Terraform validation/plan, image build and tag checks, database-user/plugin setup, static-secret removal, and negative permission coverage."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 2,
+      "specificity": 10,
+      "risk_awareness": 4,
+      "total": 21,
+      "notes": "The patch hunk contexts and named symbols match the real Dockerfile and three Terraform files, and it concretely attempts the feature flag, cluster setting, task policy, URL, and driver image changes. It cannot deploy as written because the AWS provider accepts REQUIRED or DISABLED for proxy iam_auth, not ENABLED, and the default image becomes the nonexistent quay.io/keycloak/keycloak:25.0-iam while repository build tooling publishes keycloak:latest. The connect ARN uses cluster_identifier rather than the cluster or proxy resource ID, the URL bypasses the proxy, no IAM database user or wrapper IAM plugin is configured, and keycloak_database_password, its secret, rotation, and KC_DB_PASSWORD injection all remain. The driver download was not verifiable from repository evidence, no tests are added, and the default-on flag makes the implementation summary's replacement and fallback claims materially inaccurate."
+    }
+  },
+  "task_score": 37.4,
+  "verdict": "The submission identifies the right security objective and repository area, but the design and patch contain multiple deployment-blocking AWS, JDBC, IAM, and image-integration errors.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-07-29T05:57:55.077385Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 662153,
+      "cached_input_tokens": 602824,
+      "cache_write_input_tokens": 59299,
+      "output_tokens": 11665,
+      "reasoning_output_tokens": 6050
+    },
+    "duration_ms": 177624
+  }
+}

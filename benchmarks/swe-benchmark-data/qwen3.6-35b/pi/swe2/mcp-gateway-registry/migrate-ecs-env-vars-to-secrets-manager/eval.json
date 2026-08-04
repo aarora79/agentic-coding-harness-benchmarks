@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 52,
+      "notes": "The issue names real files and existing resources, and its acceptance criteria cover ECS injection, IAM, Grafana, rotation, and migration scope. Its central security claim is incorrect: values assigned to aws_secretsmanager_secret_version.secret_string remain in Terraform state, while retaining non-empty plaintext environment entries leaves values in ECS task definitions. The claimed cross-account support is contradicted by secrets.tf, whose KMS policy restricts PrincipalAccount and PrincipalArn to the current account, and the repository has no corresponding secret resource policy. No independent task statement establishes the rotation or cross-account requirements, and automatic rotation currently covers DocumentDB and Keycloak database credentials, not secret_key."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 42,
+      "notes": "The LLD is concrete about the real secrets.tf, ecs-services.tf, observability.tf, iam.tf, existing variables, and ECS module version. Its design unconditionally creates and injects secrets backed by optional variables that default to empty, while incorrectly claiming Terraform will reject them at plan time; this can instead fail during apply or task startup and makes the proposed plaintext path ineffective as a fallback. Repository mappings are also wrong: GF_SECURITY_ADMIN_PASSWORD exists in both grafana and grafana-config but only the sidecar is migrated, while registry tokens exist in auth-server and several registration and GitHub values do not. The document alternates between 13 and 14 secrets, retains values in Terraform state, and incorrectly proposes secret ARNs as resources for kms:Decrypt rather than the existing KMS key ARN."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 49,
+      "notes": "The review identifies the real plaintext MongoDB fallback in ecs-services.tf and the wildcard task-exec principal condition in secrets.tf, and it discusses concrete rotation consequences. It misses the more fundamental state-retention, unconditional empty-secret, duplicate environment/secrets-name, incorrect KMS resource, and unhandled main Grafana container problems. Its resolution summary claims local.new_secrets_arns was added, but the submitted LLD contains no such definition and still inconsistently specifies 13 versus 14 resources. The approval verdict is therefore not defensible even though several individual security observations are useful."
+    },
+    "testing": {
+      "completeness": 8,
+      "correctness": 4,
+      "specificity": 13,
+      "risk_awareness": 5,
+      "total": 30,
+      "notes": "The plan includes useful terraform validate commands and checks the correct Terraform files and several real environment names. Most plan commands target a hard-coded path not present here and run the child module without supplying required inputs; pipelines also lack pipefail, so Terraform failures can masquerade as empty successful results. Resource-count checks are internally contradictory, and patterns such as aws_secretsmanager_secret_version.${secret} do not match Terraform resource declarations, while broad grep counts do not prove block placement or conditional behavior. It omits executable coverage for empty optional values, runtime secret retrieval, duplicate-name precedence, rotation, cross-account access, and the issue's backward-compatibility promises."
+    },
+    "implementation": {
+      "completeness": 0,
+      "correctness": 0,
+      "specificity": 0,
+      "risk_awareness": 0,
+      "total": 0,
+      "notes": "No implementation was submitted; the implementation artifact is empty and no patch.diff is present. Consequently there is no code change to apply or compare with the real Terraform sources. All implementation criteria are therefore zero."
+    }
+  },
+  "task_score": 34.6,
+  "verdict": "The submission is repository-specific but its design preserves secrets in Terraform state, mishandles optional values and Grafana coverage, and includes no implementation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-01T16:40:42.846898Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 258811,
+      "cached_input_tokens": 201220,
+      "cache_write_input_tokens": 57579,
+      "output_tokens": 8029,
+      "reasoning_output_tokens": 4767
+    },
+    "duration_ms": 80304
+  }
+}

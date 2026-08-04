@@ -118,13 +118,13 @@ def _target_dirs(
         tasks = [t for t in tasks if t.id in wanted]
     repo_name = _repo_name_from_harness()
     slug = model_to_slug(model)
-    # Mirror RunnerConfig.harness_slug: base agent folder, with a non-default
-    # skill appended (e.g. "claude-code-swe3") so we check the tree the harness
-    # will actually write to.
-    base = HARNESS_SLUGS[agent]
-    harness = base if skill == DEFAULT_SKILL else f"{base}-{skill}"
+    # Layout: <model>/<harness>/<skill>/<repo>/<task> -- skill is its own level, so
+    # check the exact tree the harness will write to.
+    harness = HARNESS_SLUGS[agent]
     root = benchmarks_dir / _OUTPUT_DIR
-    return [root / slug / harness / repo_name(task.repo) / task.id for task in tasks]
+    return [
+        root / slug / harness / skill / repo_name(task.repo) / task.id for task in tasks
+    ]
 
 
 def _existing(dirs: list[Path]) -> list[Path]:

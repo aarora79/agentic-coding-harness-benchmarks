@@ -1,0 +1,129 @@
+{
+  "task": "remove-faiss",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "dependency-removal",
+    "python",
+    "fastapi",
+    "search",
+    "docker",
+    "docs"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "claude",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 77.9,
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 20,
+    "output_tokens": 8636,
+    "cache_read_tokens": 1964598,
+    "cache_write_tokens": 224821,
+    "latency_seconds": 110.9,
+    "num_turns": 10,
+    "generation_tokens_per_sec": 77.9,
+    "sources": {
+      "input_tokens": "claude_api.usage.input_tokens",
+      "output_tokens": "claude_api.usage.output_tokens",
+      "cache_read_tokens": "claude_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "claude_api.usage.cache_creation_input_tokens",
+      "latency_seconds": "harness wall-clock (or claude_api.duration_ms)",
+      "num_turns": "claude_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 20,
+  "output_tokens": 8636,
+  "latency_seconds": 110.9,
+  "num_turns": 10,
+  "total_cost_usd": 28.037521,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1964598,
+  "cache_creation_tokens": 224821,
+  "run_started_at": "2026-08-02T03:39:33.874705Z",
+  "run_ended_at": "2026-08-02T03:59:10.077818Z",
+  "agent_invocations": 2,
+  "topped_up_artifacts": [
+    "patch.diff",
+    "implementation.md"
+  ],
+  "evaluation": {
+    "task": "remove-faiss",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 18,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 74,
+        "notes": "The issue is unusually concrete about files, exclusions, telemetry compatibility, dependency removal, and observable acceptance criteria. Its claims about `FaissSearchRepository`, `tests/conftest.py`, and the factory are supported by the submitted source contexts. The largest omission is upgrade population of DocumentDB search data for existing file-backed entities; the proposed startup change removes their only re-index path while claiming no migration is needed. It also retains a stale non-goal saying the file replacement is lexical, contradicting its chosen DocumentDB hybrid-search solution, and no independent task statement was supplied."
+      },
+      "lld": {
+        "completeness": 17,
+        "correctness": 14,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 71,
+        "notes": "The LLD provides decision-ready integration details across the factory, routes, services, tests, lockfile, operations, telemetry, and documentation. It correctly identifies several real traps, including the global FAISS test mock and the FAISS-only `index_entity` method. Its central rollout assertion is wrong: existing file deployments previously populated only FAISS, so deleting the file-backend startup re-index leaves their DocumentDB search collection unpopulated despite database connectivity. It also overlooks `internal_register_service`, which auto-enables through `toggle_service()` and then loses the post-toggle index update even though the LLD itself states that method does not re-index."
+      },
+      "review": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 82,
+        "notes": "The review genuinely challenges the first design and identifies concrete scoring, event-loop, telemetry, security, filtering, and frontend regressions with actionable resolutions. Findings such as duplicate route-level writes and the collector's silent 204 behavior are tied to named symbols and source contexts. It does not perform an equally rigorous second review of the revised design and consequently declares all blockers resolved while missing the file-to-DocumentDB index bootstrap requirement. Its conclusion that only the agent toggle needs a new repository write is also contradicted by the submitted `internal_register_service` flow, which toggles after registration and removes its final state-aware index update."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 11,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 68,
+        "notes": "The plan covers collection, dependency removal, API shape, telemetry, deployment surfaces, lifecycle behavior, rollback, and the important `query='*'` case with concrete commands. It lacks a controlled upgrade test starting with file-backed entities and an empty DocumentDB embeddings collection, so it would not reliably expose the principal migration failure. Several executable oracles are incorrect: agent discovery and toggle examples send JSON where the shown FastAPI signatures use query parameters, and disabled entities are expected in searches that exclude disabled results by default. The relevance-score `jq` pipeline reports OK on both success and failure, while the baseline procedure references undefined `BASE_SHA` and uses fragile `git stash` state manipulation."
+      },
+      "implementation": {
+        "completeness": 13,
+        "correctness": 11,
+        "specificity": 20,
+        "risk_awareness": 10,
+        "total": 54,
+        "notes": "The patch broadly performs the advertised removal, rewires `get_search_repository()`, removes the dependency and FAISS implementation, preserves telemetry compatibility, and updates many direct consumers and documents. However, deleting `registry/main.py`'s file-backend re-index means existing file-backed servers, agents, and skills have no path into the newly selected DocumentDB search collection, so search can be empty after upgrade. The patch also removes the state-aware update after `internal_register_service` calls `toggle_service(path, True)`, leaving the indexed enabled state stale because `toggle_service()` does not re-index. No tests were executed and the lockfile was hand-edited; additionally, the execution sandbox failed before an independent `git apply --check` or full repository inspection could be completed."
+      }
+    },
+    "task_score": 69.8,
+    "verdict": "The submission is detailed and repository-specific, but it misses the required index migration for existing file-backed deployments and therefore does not preserve search end to end.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-02T07:31:19.567488Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 609084,
+        "cached_input_tokens": 505941,
+        "cache_write_input_tokens": 103131,
+        "output_tokens": 6390,
+        "reasoning_output_tokens": 4888
+      },
+      "duration_ms": 97505
+    }
+  },
+  "skill": "swe2"
+}

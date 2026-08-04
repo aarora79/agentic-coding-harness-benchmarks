@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 22,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 82,
+      "notes": "The issue clearly defines the SSRF problem, affected workflows, allowlist requirement, and testable scope boundaries. Repository inspection confirms the existing guards in `registry/services/skill_service.py` and the outbound request sites in `registry/utils/agent_validator.py`, `registry/api/agent_routes.py`, and `registry/health/service.py`. Its main gap is omitting redirect handling, DNS rebinding, and precise failure semantics from the acceptance criteria. No independent task statement was supplied, and the linked issue #1282 could not be verified from repository evidence."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 13,
+      "total": 54,
+      "notes": "The design is grounded in real files and symbols, including `_check_endpoint_reachability`, `check_agent_health`, and `HealthMonitoringService._check_server_endpoint_transport_aware`. Its proposed post-response validation cannot prevent SSRF when `follow_redirects=True`, because the unsafe redirect request has already occurred, while the current agent health client does not follow redirects by default. Registration reachability failures become warnings rather than validation errors, so the described 422 behavior does not follow from the proposed change. It also omits compatibility aliases or test updates for `_is_safe_url` and `_trusted_domains`, which existing skill-service tests import and patch directly."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 14,
+      "total": 50,
+      "notes": "The review correctly identifies synchronous DNS resolution, DNS rebinding, and redirect handling as change-specific risks. Its critical recommendation is technically unsound because validating `response.url` after automatic redirects does not stop the request to the unsafe destination. It misses the registration warning semantics, explicit `mcp_endpoint` and `sse_endpoint` paths, SSE branches, and compatibility with tests that patch the old skill-service symbols. Approving the design while its sole critical security finding remains unresolved weakens the verdict."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 5,
+      "specificity": 9,
+      "risk_awareness": 7,
+      "total": 30,
+      "notes": "The plan covers private addresses, allowlisting, external URLs, persistence, and the two major health workflows with some concrete expected outcomes. Both agent registration payloads omit the required `supportedProtocol` field from `AgentRegistrationRequest`, so they can return 422 before exercising SSRF validation, and reachability failure currently produces only a warning rather than rejecting registration. The server scenario supplies an unspecified `url` instead of the repository's `proxy_pass_url` registration field, while exporting `GITHUB_EXTRA_HOSTS` after the service is running will not update loaded settings and the expected trusted-host log is emitted at debug level. Redirects, multiple DNS answers, IPv6 ranges, malformed schemes, explicit transport endpoints, and concrete unit-test commands and oracles are largely absent."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 8,
+      "risk_awareness": 4,
+      "total": 21,
+      "notes": "The diff targets real source locations and attempts the designed utility extraction plus checks in agent and server health paths. Its agent-route and agent-validator hunks replace `import httpx` with the utility import even though both modules still call and catch `httpx`, causing runtime `NameError` failures in registration and health checks. Server validation occurs after requests in redirect cases and misses direct SSE, initialization, unauthenticated retry, default fallback, and independently configured `mcp_endpoint` or `sse_endpoint` requests. The patch also removes `_is_safe_url`, `_trusted_domains`, and related symbols still used throughout existing tests, adds no replacement tests, and therefore contradicts the summary's claim of exact, backward-compatible implementation."
+    }
+  },
+  "task_score": 47.4,
+  "verdict": "The design artifacts establish a useful repository-grounded direction, but the implementation breaks core agent workflows and leaves substantial SSRF paths unprotected.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-01T19:00:46.302487Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 373557,
+      "cached_input_tokens": 288052,
+      "cache_write_input_tokens": 85491,
+      "output_tokens": 8505,
+      "reasoning_output_tokens": 4932
+    },
+    "duration_ms": 86941
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 17,
+      "risk_awareness": 8,
+      "total": 52,
+      "notes": "The issue provides concrete removal criteria tied to real artifacts such as pyproject.toml, registry/core/config.py, and faiss_service call sites. The repository confirms faiss-cpu and the named configuration properties exist. Its largest gap is treating DocumentDB as a drop-in replacement without addressing the supported file storage backend, whose factory currently selects FaissSearchRepository. With no independent task statement, the strategic requirement to make DocumentDB mandatory cannot be verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 11,
+      "total": 48,
+      "notes": "The LLD names many real files and correctly identifies get_search_repository, DocumentDBSearchRepository, telemetry, configuration, and infrastructure integration points. Its central design does not explain how file-backed deployments will search once the factory always creates a repository whose get_documentdb_client requires MongoDB. It also proposes index_entity even though SearchRepositoryBase and DocumentDBSearchRepository expose index_agent instead, with the latter requiring an AgentCard rather than a dictionary. The metric rename acknowledges dashboard breakage but omits a migration for existing SQLite discovery_metrics tables, so the rollout is not implementation-ready."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 47,
+      "notes": "The review usefully flags score normalization, metric-name compatibility, factory-based access, and the need for a repository-wide FAISS search. Its largest deficiency is approving the design without finding the active file-backend dependency, missing SQLite migration, or repository interface mismatch. The claim that all call sites were identified is contradicted by numerous imports in registry/api/agent_routes.py, registry/api/server_routes.py, and tests. Recommendations about external dashboards are reasonable but no dashboard or alarm configuration was identified in the supplied repository."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 8,
+      "specificity": 12,
+      "risk_awareness": 7,
+      "total": 39,
+      "notes": "The plan includes search, indexing, compatibility, Docker, and lifecycle coverage, and /api/search/semantic matches the registered search router. The indexing curl is invalid for this repository: registration is POST /api/servers/register with form fields including name, path, description, and deployment-specific data, not JSON to /api/servers. Several oracles such as results being relevant or image size being reduced lack deterministic expected values or baselines. It omits file-backend startup, SQLite schema migration, import/static checks, shell syntax validation, and tests proving every removed service call was replaced."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 1,
+      "specificity": 8,
+      "risk_awareness": 1,
+      "total": 16,
+      "notes": "The patch targets several genuine FAISS dependencies and correctly removes faiss-cpu and the two core FAISS implementation files. It is not runnable: build_and_run.sh loses many unrelated fi and done statements, agent registration uses an undefined is_enabled, agent updates import search_service from the deleted module, and server deletion calls nonexistent remove_server. DocumentDBSearchRepository.index_agent expects AgentCard, no index_entity method exists, tests import an unadded mock_search module, and the telemetry test expects search while production always emits documentdb. The summary's claims of complete removal and no LLD deviations are false, and full patch applicability could not be verified because the submitted diff is explicitly truncated."
+    }
+  },
+  "task_score": 40.4,
+  "verdict": "The design artifacts identify much of the removal surface, but the implementation is fundamentally broken by invalid shell structure, nonexistent interfaces, deleted-module imports, and an unresolved file-backend migration.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-01T18:57:38.324463Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 2110580,
+      "cached_input_tokens": 2000893,
+      "cache_write_input_tokens": 109643,
+      "output_tokens": 8677,
+      "reasoning_output_tokens": 3940
+    },
+    "duration_ms": 188074
+  }
+}

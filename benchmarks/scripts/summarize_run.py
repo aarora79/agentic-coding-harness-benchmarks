@@ -175,12 +175,15 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
     costs = [r["total_cost_usd"] for r in scored if r["total_cost_usd"] is not None]
     mean_cost = round(sum(costs) / len(costs), 2) if costs else None
 
-    # Layout: <model-slug>/<harness>/<repo>. folder is the <repo> (scope) dir, so
-    # its parent is the harness and its grandparent is the model slug.
+    # Layout: <model-slug>/<harness>/<skill>/<repo>. folder is the <repo> (scope)
+    # dir. Prefer the identity fields the metrics.json records (model_slug, agent,
+    # skill); fall back to path position for older files. Path fallbacks assume the
+    # new 4-level depth (skill=parent, harness=parent.parent, model=parent^3).
     summary: dict[str, Any] = {
         "model": first.get("model"),
-        "model_slug": folder.parent.parent.name,
-        "agent": first.get("agent") or folder.parent.name,
+        "model_slug": first.get("model_slug") or folder.parent.parent.parent.name,
+        "agent": first.get("agent") or folder.parent.parent.name,
+        "skill": first.get("skill") or folder.parent.name,
         "scope": folder.name,
         "provider": first.get("provider"),
         "ref": first.get("ref"),
@@ -220,6 +223,8 @@ def _render_markdown(summary: dict[str, Any]) -> str:
         f"# Benchmark run summary: {s['model']} on {s['scope']}",
         "",
         f"- Model: {s['model']}",
+        f"- Agent (harness): {s.get('agent')}",
+        f"- Skill: {s.get('skill')}",
         f"- Provider: {s['provider']}",
         f"- Dataset scope: {s['scope']} ({s['num_tasks']} tasks, ref {s['ref']})",
         f"- Serving: {serving_line}",

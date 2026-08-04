@@ -1,0 +1,124 @@
+{
+  "task": "remove-faiss",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "dependency-removal",
+    "python",
+    "fastapi",
+    "search",
+    "docker",
+    "docs"
+  ],
+  "model": "us.anthropic.claude-opus-4-8[1m]",
+  "model_slug": "claude-opus-4-8",
+  "agent": "claude",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 63.8,
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 17612,
+    "output_tokens": 206781,
+    "cache_read_tokens": 56567906,
+    "cache_write_tokens": 460162,
+    "latency_seconds": 3240.9,
+    "num_turns": 256,
+    "generation_tokens_per_sec": 63.8,
+    "sources": {
+      "input_tokens": "claude_api.usage.input_tokens",
+      "output_tokens": "claude_api.usage.output_tokens",
+      "cache_read_tokens": "claude_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "claude_api.usage.cache_creation_input_tokens",
+      "latency_seconds": "harness wall-clock (or claude_api.duration_ms)",
+      "num_turns": "claude_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 17612,
+  "output_tokens": 206781,
+  "latency_seconds": 3240.9,
+  "num_turns": 256,
+  "total_cost_usd": 49.26169425000002,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 56567906,
+  "cache_creation_tokens": 460162,
+  "run_started_at": "2026-08-03T00:49:13.515808Z",
+  "run_ended_at": "2026-08-03T01:43:16.491928Z",
+  "evaluation": {
+    "task": "remove-faiss",
+    "model": "us.anthropic.claude-opus-4-8[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 21,
+        "correctness": 19,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 80,
+        "notes": "The issue clearly scopes dependency, code, deployment, documentation, and lifecycle changes, with testable acceptance criteria and useful non-goals. Repository checks confirm `faiss-cpu` in `pyproject.toml`, `FaissService` in `registry/search/service.py`, the default `file` backend, and numerous direct route calls. Its largest gap is assuming observable ranking parity: the existing `_distance_to_relevance` maps positive inner products to `1 - score`, so direct cosine relevance is not behaviorally equivalent. No independent task statement establishes additional requirements, and cache migration, concurrency, and telemetry rollout risks receive limited issue-level treatment."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 20,
+        "specificity": 24,
+        "risk_awareness": 22,
+        "total": 89,
+        "notes": "The LLD is unusually implementation-ready, naming real factory, repository, route, configuration, telemetry, deployment, and test integration points. Checks confirmed the 12 server-route calls, four agent-route calls, two batch calls, startup reindex loop, `SearchRepositoryBase`, and DocumentDB `AgentCard` contract it discusses. Its main weakness is incomplete consistency around persistence and contracts: two separately replaced cache files are not transactionally atomic, and accepting dict-or-`AgentCard` is specified only for the file implementation while broader compatibility is claimed. The stated low-thousands scale and operational adequacy are reasonable but not directly established by a supplied task statement."
+      },
+      "review": {
+        "completeness": 23,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 23,
+        "total": 89,
+        "notes": "The review surfaces concrete, consequential defects across backend contracts, score handling, concurrency, unsafe loading, telemetry sequencing, stale files, and lockfile maintenance. Repository evidence supports key findings, including DocumentDB dereferencing `agent_card.name`, the startup reindex, the dead file-repository `rebuild_index`, and `uv lock --check` in CI. Its largest deficiency is overstating resolution: batching remains deferred, and the closing claim that the patch preserves score parity is contradicted by the submitted change to `_distance_to_relevance`. Some operational assertions, particularly inevitable rejection of any hand-edited lockfile, were not demonstrated."
+      },
+      "testing": {
+        "completeness": 21,
+        "correctness": 11,
+        "specificity": 18,
+        "risk_awareness": 19,
+        "total": 69,
+        "notes": "The plan broadly covers semantic and tag search, lifecycle indexing, score and dedup behavior, telemetry rollout, rollback, dependency removal, and both storage paths. Its central API oracle is wrong: `SemanticSearchResponse` exposes `servers`, `tools`, and `agents` at the top level, not under `.results`, and agent details reside in `agent_card`. Several greps also demand no `faiss` text while the design intentionally retains `faiss_search_time_ms`, transition-regex compatibility, historical fixture names, and stale-file cleanup wording. The golden test leaves expected values unspecified, and no concrete corrupt-cache or concurrency test would catch the implementation's locking failures; execution was explicitly not performed."
+      },
+      "implementation": {
+        "completeness": 14,
+        "correctness": 9,
+        "specificity": 17,
+        "risk_awareness": 13,
+        "total": 53,
+        "notes": "The visible diff targets real source and follows the repository architecture by replacing `FaissService`, updating the file repository and factory, and rerouting direct API writes. The largest defect is a behavioral regression: baseline `_distance_to_relevance(0.9)` returns approximately `0.1`, while the patch changes it to `0.9`, contradicting the promised score and ranking parity. The lock does not cover ID allocation or metadata mutation, and search snapshots vectors and IDs outside the lock, allowing duplicate IDs, mismatched metadata, or a zero-row `argpartition` race during concurrent writes. The submitted diff is explicitly truncated mid-hunk and no standalone `patch.diff` exists in the repository, so the claimed 71-file change, replacement tests, lockfile edits, and `git apply --check` result cannot be fully verified."
+      }
+    },
+    "task_score": 76.0,
+    "verdict": "The design and review are strong and repository-aware, but the implementation artifact is truncated and its visible code breaks promised score parity while leaving serious concurrency races.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-03T04:03:29.066398Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1542782,
+        "cached_input_tokens": 1428301,
+        "cache_write_input_tokens": 114451,
+        "output_tokens": 10806,
+        "reasoning_output_tokens": 7534
+      },
+      "duration_ms": 277225
+    }
+  },
+  "skill": "swe2"
+}

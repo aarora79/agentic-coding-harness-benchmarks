@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 62,
+      "notes": "The issue provides concrete acceptance criteria covering dependencies, configuration, tests, documentation, and API compatibility, with useful non-goals. Its largest flaw is claiming no user impact while the repository defaults `storage_backend` to `file`, whose search factory selects `FaissSearchRepository`. Direct FAISS consumers also remain in `registry/api/server_routes.py`, `registry/api/agent_routes.py`, and other modules, making compatibility a central requirement rather than an incidental detail. With no independent task statement, claims about issue #1285, migration scripts, production use, and exactly 49 affected files could not be verified."
+    },
+    "lld": {
+      "completeness": 9,
+      "correctness": 5,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 32,
+      "notes": "The LLD correctly identifies the main service, configuration properties, dependencies, persisted metadata, and ID-model differences. Its load-bearing routing decision remains unresolved and uses the wrong contract: the real `/api/search/semantic` route calls `SearchRepositoryBase.search`, while `DocumentDBSearchRepository` implements `search`, not `search_mixed`. It misses numerous direct imports of `registry.search.service`, the default-file factory path, and the existing `registry/repositories/file/search_repository.py` adapter. Removing `sentence-transformers` also contradicts the default provider in `registry/core/config.py` and DocumentDB's use of the shared embeddings factory, a deployment risk the rollout does not resolve."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 7,
+      "specificity": 12,
+      "risk_awareness": 8,
+      "total": 36,
+      "notes": "The strongest finding correctly challenges the unverified `search_mixed` assumption and requests a concrete repository check. However, the review ends by saying all findings are addressed even though its blocking item remains open, and most persona approvals merely repeat the LLD's unsupported claims. Repository evidence shows the actual DocumentDB method is `search`, while many server, agent, batch-processing, integration-test, and file-repository callers still import the service proposed for deletion. Assertions that FAISS is unmaintained, production replacement is proven, and there are no security or architectural concerns were not substantiated."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 13,
+      "total": 50,
+      "notes": "The plan spans dependency, API, validation, schema, lifecycle, failure, latency, lockfile, and Docker checks with several concrete response oracles. Its prerequisites are materially wrong: `EMBEDDINGS_PROVIDER=bedrock` is unsupported by `create_embeddings_client`, and its suggested `STORAGE_BACKEND=file` fallback depends on the deleted FAISS service. The commanded `tests/integration/test_search_integration.py` imports `FaissService` at module scope, so the submitted patch would fail collection before its skip marker could help. It also expects `max_results=100` to be capped despite the real Pydantic field enforcing `le=50`, and it provides no rigorous pre/post relevance-equivalence test."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 2,
+      "specificity": 6,
+      "risk_awareness": 5,
+      "total": 17,
+      "notes": "The patch contexts match the repository and it does remove the primary service, two configuration properties, declared dependencies, and dedicated FAISS unit-test infrastructure. Deleting `registry/search/service.py` leaves the default `file` backend broken through `get_search_repository()` and leaves many live imports in server routes, agent routes, batch processing, and tests. It also removes `sentence-transformers` despite that being the configured default and still used by the DocumentDB embeddings path, while leaving `uv.lock`, documentation, the file repository, and factory unchanged. The summary admits the file backend and embedding dependency may fail but still falsely claims all FAISS paths were removed and there were no LLD deviations; no replacement tests were added."
+    }
+  },
+  "task_score": 39.4,
+  "verdict": "The artifacts identify the intended dependency cleanup, but the implementation deletes the shared service without migrating its callers or default backend, leaving startup, routes, tests, and default embeddings behavior broken.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-03T03:28:19.810046Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 910060,
+      "cached_input_tokens": 819675,
+      "cache_write_input_tokens": 90357,
+      "output_tokens": 9802,
+      "reasoning_output_tokens": 4297
+    },
+    "duration_ms": 327407
+  }
+}
