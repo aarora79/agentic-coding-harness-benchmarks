@@ -13,6 +13,7 @@
   "model": "us.anthropic.claude-opus-5[1m]",
   "model_slug": "claude-opus-5",
   "agent": "pi",
+  "skill": "swe2",
   "provider": "bedrock",
   "endpoint": null,
   "aws_region": "us-east-1",
@@ -24,100 +25,126 @@
   },
   "artifacts_produced": 6,
   "artifacts_expected": 6,
-  "generation_tokens_per_sec": 0.8,
-  "metrics_that_matter": {
+  "generation_tokens_per_sec": 82.5,
+  "metrics": {
     "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
-    "input_tokens": 2,
-    "output_tokens": 995,
-    "cache_read_tokens": 191660,
-    "cache_write_tokens": 367,
-    "latency_seconds": 1222.5,
-    "num_turns": 100,
-    "generation_tokens_per_sec": 0.8,
+    "input_tokens": 118,
+    "output_tokens": 96594,
+    "cache_read_tokens": 6331013,
+    "cache_write_tokens": 172490,
+    "total_tokens": 6600215,
+    "total_cost_usd": 6.659009000000001,
+    "latency_seconds": 1171.1,
+    "num_turns": 59,
+    "generation_tokens_per_sec": 82.5,
     "sources": {
-      "input_tokens": "pi_api.usage.input_tokens",
-      "output_tokens": "pi_api.usage.output_tokens",
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
       "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
       "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
       "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
       "num_turns": "pi_api.num_turns",
       "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
     }
   },
-  "input_tokens": 2,
-  "output_tokens": 995,
-  "latency_seconds": 1222.5,
-  "num_turns": 100,
-  "total_cost_usd": 0.12300875,
+  "input_tokens": 118,
+  "output_tokens": 96594,
+  "latency_seconds": 1171.1,
+  "num_turns": 59,
+  "total_cost_usd": 6.659009000000001,
   "is_error": false,
   "result_subtype": "success",
-  "cache_read_tokens": 191660,
-  "cache_creation_tokens": 367,
-  "run_started_at": "2026-08-01T23:46:55.569690Z",
-  "run_ended_at": "2026-08-02T00:07:24.273806Z",
+  "cache_read_tokens": 6331013,
+  "cache_creation_tokens": 172490,
+  "run_started_at": "2026-08-05T10:17:51.277525Z",
+  "run_ended_at": "2026-08-05T10:37:31.215602Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 118,
+    "output_tokens": 96594,
+    "cache_read_tokens": 6331013,
+    "cache_write_tokens": 172490,
+    "total_tokens": 6600215,
+    "total_cost_usd": 6.659009000000001,
+    "latency_seconds": 1171.1,
+    "num_turns": 59,
+    "generation_tokens_per_sec": 82.5,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
   "evaluation": {
     "task": "ssrf-hardening-outbound-url-validation",
     "model": "us.anthropic.claude-opus-5[1m]",
     "scores": {
       "github_issue": {
-        "completeness": 22,
-        "correctness": 21,
-        "specificity": 24,
-        "risk_awareness": 23,
-        "total": 90,
-        "notes": "The issue provides unusually concrete, testable acceptance criteria and correctly names real symbols including `skill_service._is_safe_url`, `agent_validator._check_endpoint_reachability`, and `HealthMonitoringService._check_server_endpoint_transport_aware`. Its largest gap is describing server probes solely in terms of `proxy_pass_url`; `registry/core/endpoint_utils.py` shows that caller-controlled `mcp_endpoint` and `sse_endpoint` can become the actual request targets. The credential-exposure, compatibility, redirect, metadata, and DNS-rebinding risks are otherwise well scoped. No independent task statement was supplied, so intended coverage beyond the task identifier and repository cannot be verified."
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 82,
+        "notes": "The issue provides concrete affected symbols, testable acceptance criteria, compatibility requirements, configuration, documentation, and explicit non-goals. Repository inspection confirms the unguarded agent fetch in registry/utils/agent_validator.py and redirect-following health requests in registry/health/service.py. Its largest omission is that health requests may use explicit mcp_endpoint or sse_endpoint values through get_endpoint_url_from_server_info(), not necessarily the validated proxy_pass_url. With no independent task statement, broader requirement coverage and the asserted issue references cannot be verified."
       },
       "lld": {
         "completeness": 18,
-        "correctness": 14,
-        "specificity": 22,
+        "correctness": 13,
+        "specificity": 23,
         "risk_awareness": 19,
         "total": 73,
-        "notes": "The LLD is strongly grounded in real files, existing tests, configuration surfaces, and the health-check call chain. Its central design misses actual derived `mcp_endpoint` and `sse_endpoint` targets, while `registry/health/service.py` contains numerous `follow_redirects=True` requests despite the design claiming new paths will not follow redirects. It also assigns agent health checks to `SSRFContext.AGENT_CARD`, contradicting the documented health-check override, and its host-allowlist ordering permits an allowlisted hostname resolving to metadata. The TOCTOU, rollout, credential, and observability discussion is substantial, but these unresolved bypasses prevent the design from being implementation-ready."
+        "notes": "The LLD is unusually concrete about files, settings, status propagation, compatibility, logging, rollout, and the acknowledged DNS-rebinding limitation. However, it incorrectly states that registry/core/endpoint_utils.py only appends a path, while that helper prioritizes explicit mcp_endpoint and sse_endpoint URLs that can have another origin. It also misses the follow_redirects=True request in _initialize_mcp_session(), and its claim that skill_service semantics remain unchanged conflicts with the new userinfo denial and expanded classification. The design recognizes many realistic risks but does not resolve these critical remaining outbound paths or the allowlisted-host-to-metadata bypass."
       },
       "review": {
         "completeness": 18,
         "correctness": 14,
         "specificity": 22,
-        "risk_awareness": 20,
-        "total": 74,
-        "notes": "The review surfaces concrete concerns such as DNS rebinding, metadata allowlisting, credential decryption order, blocking DNS, and response-oracle leakage. Its largest defect is declaring several findings resolved when the revised design and patch do not resolve them: server health requests still follow redirects, and global host allowlisting bypasses DNS before metadata can be checked. It also misses the distinct-host `mcp_endpoint`/`sse_endpoint` bypass and the mismatch between agent-health context and `SSRF_HEALTH_CHECK_PROTECTION_MODE`. The recommendations are prioritized and technically specific, but the final approval overstates the design's security."
+        "risk_awareness": 19,
+        "total": 73,
+        "notes": "The review raises actionable findings on mapped IPv6, userinfo, suffix matching, cache bounds, log sanitization, compatibility, and detective redirect validation. Its backend reviewer explicitly asks whether get_endpoint_url_from_server_info() can change hosts, but accepts an answer contradicted by the repository helper's explicit-endpoint priority. It likewise declares redirect coverage resolved despite the patch omitting _initialize_mcp_session(), and overlooks that host allowlisting occurs before DNS metadata-address checks. These misses undermine the otherwise detailed security and operational review verdict."
       },
       "testing": {
-        "completeness": 18,
+        "completeness": 17,
         "correctness": 14,
         "specificity": 22,
         "risk_awareness": 18,
-        "total": 72,
-        "notes": "The plan supplies concrete commands, hostile-address matrices, call-site assertions, compatibility checks, deployment validation, and meaningful no-request oracles. It omits server redirect and alternate `mcp_endpoint`/`sse_endpoint` cases, and it never verifies that the health-check override controls agent health. More seriously, the submitted metadata-host allowlist test would fail because `validate_outbound_url` returns success before DNS, while existing `test_skill_service_ssrf_allowlist.py` patches `registry.services.skill_service.socket.getaddrinfo` after the patch removes that module's `socket` import. The candidate explicitly states that no tests were executed, so the claimed compatibility remains unverified."
+        "total": 71,
+        "notes": "The plan supplies concrete unit cases and expected reason codes for IP forms, modes, allowlists, compatibility, rollback, redirects, and deployment configuration. It omits tests for explicit mcp_endpoint or sse_endpoint origins, initialization redirects, and an allowlisted hostname resolving to metadata, which are the implementation's important bypasses. Several shell checks are weak or race-prone: the first curl does not capture the claimed HTTP 201, the health check is read without actually triggering the stated toggle, and grep followed by '|| true' proves nothing. The implementation summary confirms that none of the planned tests or full regression suite was executed, leaving its repository-specific API assumptions unverified."
       },
       "implementation": {
-        "completeness": 16,
-        "correctness": 9,
-        "specificity": 19,
-        "risk_awareness": 11,
-        "total": 55,
-        "notes": "The patch substantially implements the proposed utility, call-site guards, settings, deployment wiring, documentation, metrics, and focused tests, and its target symbols and diff contexts match the repository source. It does not secure the server path end to end: `registry/health/service.py` still follows redirects, and `get_endpoint_url_from_server_info` can select unvalidated `mcp_endpoint` or `sse_endpoint` values after only `proxy_pass_url` is checked. An allowlisted hostname resolving to metadata is incorrectly accepted, agent health uses the wrong policy context, and removal of `skill_service.socket` breaks existing tests that patch that symbol. No standalone `patch.diff` was present for an independent apply check, and the implementation summary materially oversells these unresolved security and compatibility defects."
+        "completeness": 15,
+        "correctness": 11,
+        "specificity": 20,
+        "risk_awareness": 15,
+        "total": 61,
+        "notes": "The patch's target files and surrounding symbols match the repository, and it implements substantial validation, configuration, agent preflight, health status, tool-fetch guarding, documentation, and focused tests. Critical SSRF paths remain: only proxy_pass_url is preflighted although explicit endpoints may change origin, _initialize_mcp_session() still follows redirects without checking them, and an allowlisted hostname returns before DNS can reveal a metadata address. The health call site also logs raw proxy_pass_url after the shared sanitizer logs it safely, while the claimed unchanged skill behavior is false because the delegated policy newly rejects userinfo and additional address classes. The summary overstates complete redirect coverage and compatibility, and the unexecuted regression suite leaves likely interactions with existing DNS-mocked tests unresolved."
       }
     },
-    "task_score": 72.8,
-    "verdict": "The submission is exceptionally detailed and repository-aware, but the implementation retains practical SSRF bypasses through redirects and alternate endpoint fields and contains compatibility-breaking tests.",
+    "task_score": 72.0,
+    "verdict": "The submission is detailed and repository-aware, but the implementation leaves multiple concrete SSRF bypasses in explicit endpoints, initialization redirects, and allowlisted DNS resolution.",
     "judge": {
       "model": "openai.gpt-5.6-sol",
       "provider": "codex-exec",
       "repo_grounded": true,
-      "evaluated_at": "2026-08-02T00:50:07.737869Z",
+      "evaluated_at": "2026-08-05T11:32:08.890639Z",
       "repo_ref": "1.24.4",
       "reasoning_effort": "high",
       "token_usage": {
-        "input_tokens": 801985,
-        "cached_input_tokens": 710021,
-        "cache_write_input_tokens": 91944,
-        "output_tokens": 9886,
-        "reasoning_output_tokens": 4922
+        "input_tokens": 918965,
+        "cached_input_tokens": 834722,
+        "cache_write_input_tokens": 84219,
+        "output_tokens": 9655,
+        "reasoning_output_tokens": 6388
       },
-      "duration_ms": 101465
+      "duration_ms": 286110
     }
-  },
-  "skill": "swe2"
+  }
 }

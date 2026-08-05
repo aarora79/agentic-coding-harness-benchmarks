@@ -3,63 +3,63 @@
   "model": "us.anthropic.claude-opus-5[1m]",
   "scores": {
     "github_issue": {
-      "completeness": 22,
-      "correctness": 20,
+      "completeness": 19,
+      "correctness": 19,
       "specificity": 23,
-      "risk_awareness": 22,
-      "total": 87,
-      "notes": "The issue precisely identifies the three outbound paths, credential exposure, redirect bypass, compatibility constraints, and testable acceptance criteria. Its largest weakness is that the stated goal of refusing attacker-chosen internal targets conflicts with the default SSRF_BLOCK_PRIVATE_IPS=false policy, which still permits RFC1918 and loopback scanning. The submitted source context supports the named integration points, including skill_service._is_safe_url, agent_validator._check_endpoint_reachability, check_agent_health, and _check_server_endpoint_transport_aware. No independent task statement establishes the intended private-network policy, and the claimed low-privilege registration and credential-replacement capabilities could not be independently established."
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The issue precisely identifies verified symbols including `skill_service._is_safe_url`, `agent_validator._check_endpoint_reachability`, and `agent_routes.check_agent_health`, with unusually testable acceptance criteria. Its largest omission is that `registry/core/endpoint_utils.py` gives user-configurable `mcp_endpoint` and `sse_endpoint` precedence over `proxy_pass_url`, so the claimed inventory of outbound user-supplied URLs is incomplete. Compatibility, metadata, scheme, redirect, logging, and DNS-rebinding risks are otherwise treated concretely. No independent task statement was supplied, and the repository alone cannot establish the asserted ECS runtime reachability."
     },
     "lld": {
-      "completeness": 21,
-      "correctness": 16,
-      "specificity": 23,
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 22,
       "risk_awareness": 18,
-      "total": 78,
-      "notes": "The LLD is highly specific about policies, call sites, redirect handling, compatibility shims, health statuses, rollout, and residual DNS rebinding risk. Its largest defect is treating synchronous socket.getaddrinfo plus a TTL cache as resolution of the async event-loop concern; the proposed cache is also unbounded for attacker-controlled hostnames. It incorrectly states that ipaddress.is_private covers CGNAT, while Python leaves most 100.64.0.0/10 addresses neither private nor reserved, and its deployment checklist omits SSRF_DNS_TIMEOUT_SECONDS from Helm and Terraform despite the issue requiring all four settings there. The assumed server counts and acceptable DNS latency are not supported by repository evidence."
+      "total": 68,
+      "notes": "The LLD is strongly grounded in real files, settings patterns, health statuses, sample private URLs, and existing patchable skill-service symbols. Its critical design error is treating post-response validation of `response.url` as redirect protection: with `follow_redirects=True`, the blocked destination has already been contacted, and `registry/health/service.py` contains numerous redirect-following POST and GET paths beyond the two selected. It also misses explicit `mcp_endpoint` and `sse_endpoint` values resolved by `get_endpoint_url_from_server_info`, allowing a direct unvalidated target despite the proposed choke point. DNS rebinding, rollout, rollback, and observability are handled well, but the claimed SKILL.md behavior equivalence is weakened by applying the global allowlist and `ssrf_allow_http` to that path."
     },
     "review": {
-      "completeness": 20,
-      "correctness": 17,
+      "completeness": 17,
+      "correctness": 13,
       "specificity": 22,
-      "risk_awareness": 20,
-      "total": 79,
-      "notes": "The review finds concrete repository-specific risks such as redirect credential leakage, nginx health classification, malformed ports, metadata variants, and exact allowlist matching. Its largest error is declaring the blocking-DNS must-fix resolved even though caching and literal short-circuits do not prevent cold lookups from blocking async request and health-check execution. It also misses the unbounded DNS cache, incomplete CGNAT classification, missing DNS-setting deployment wiring, and agent_validator logging a blocked credential-bearing URL verbatim. The review's frontend behavior claims and deployment-volume assumptions were not independently demonstrated."
+      "risk_awareness": 18,
+      "total": 70,
+      "notes": "The review surfaces concrete defects such as malformed-port exceptions, DNS rebinding, secret-bearing URLs, deployment propagation, and the stdio exemption. Its largest failure is approving post-request final-URL inspection as the fix for redirects, which detects an SSRF only after the protected address has been reached. It also misses the writable `mcp_endpoint` and `sse_endpoint` bypass and overlooks that `_final_url_allowed` logs raw original and final URLs despite the sanitization finding. The summary's assertion that all blocking findings are realized by the patch is therefore contradicted by the repository and diff."
     },
     "testing": {
-      "completeness": 22,
-      "correctness": 17,
-      "specificity": 21,
-      "risk_awareness": 17,
-      "total": 77,
-      "notes": "The plan spans focused unit tests, route behavior, credential-decryption prevention, compatibility, configuration rendering, rollback, nginx behavior, and end-to-end traffic checks with meaningful oracles. Its largest problem is directing tests at real metadata addresses, including with SSRF_PROTECTION_ENABLED=false, so a failing control can contact an actual cloud metadata service instead of an isolated test target. The patch's tests concretely assert that httpx and _build_headers_for_server are not called, but the redirect test invokes the hook directly rather than proving through an httpx transport that no follow-up request is sent. Several operational commands depend on undeclared infrastructure, and the claimed single warning is not asserted and conflicts with validation of multiple agent-health candidates plus the fallback."
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 73,
+      "notes": "The plan provides concrete mode matrices, call-site assertions, compatibility checks, deployment commands, and expected response fields rather than generic success criteria. Its redirect tests assert only the resulting status or call `_final_url_allowed` on a synthetic completed response, so they would pass even though the client already fetched the metadata target. No test covers user-controlled `mcp_endpoint` or `sse_endpoint`, nor the several redirect-following POST and fallback paths in `registry/health/service.py`. The referenced repository paths and major commands are plausible, but no execution evidence was submitted, so the proposed outcomes remain unverified."
     },
     "implementation": {
-      "completeness": 19,
-      "correctness": 14,
+      "completeness": 14,
+      "correctness": 9,
       "specificity": 21,
-      "risk_awareness": 15,
-      "total": 69,
-      "notes": "The patch implements the shared validator, all three primary call sites, redirect hooks, compatibility shims, health status, documentation, configuration, and substantial unit coverage. Material defects remain: dns_timeout_seconds is never enforced, Helm and Terraform omit it, synchronous DNS blocks async execution, the TTL dictionary has no size bound, and arbitrary CGNAT targets evade block_private_ips. In registry/utils/agent_validator.py the blocked-path warning interpolates the original URL and can therefore write rejected userinfo credentials to logs, while strict_policy also merges SSRF_ALLOWED_HOSTS and can weaken the previously independent SKILL.md policy. The summary acknowledges rebinding and unexecuted tests but overstates that every must-fix and deployment requirement was completed."
+      "risk_awareness": 11,
+      "total": 55,
+      "notes": "The patch context matches the real source and implements a substantial shared validator, direct metadata blocking, settings, call-site handling, documentation, and focused tests. The largest defect is a direct bypass: `registry/core/endpoint_utils.py` can return writable `mcp_endpoint` or `sse_endpoint` values, while the patch validates only `proxy_pass_url` before requesting those derived endpoints. Redirect checking is both too late and incomplete, since it occurs after `follow_redirects=True` has contacted the destination and covers only two of the many redirect-following calls in `registry/health/service.py`; the helper also logs unsanitized redirect URLs. The implementation summary consequently overstates end-to-end coverage and sanitization, and it truthfully reports that tests and linters were not executed."
     }
   },
-  "task_score": 78.0,
-  "verdict": "The submission provides strong repository-specific design work and broad implementation coverage, but the code leaves significant DNS, configuration, logging, and IP-classification gaps in the security boundary, with no independent task statement available to resolve the private-network policy ambiguity.",
+  "task_score": 69.6,
+  "verdict": "The submission is detailed and repository-aware, but its core implementation remains bypassable through explicit MCP/SSE endpoints and redirects that are validated only after the outbound request occurs.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-05T02:23:38.920913Z",
+    "evaluated_at": "2026-08-05T09:35:30.576297Z",
     "repo_ref": "1.24.4",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 354944,
-      "cached_input_tokens": 293736,
-      "cache_write_input_tokens": 61196,
-      "output_tokens": 10381,
-      "reasoning_output_tokens": 8664
+      "input_tokens": 2906259,
+      "cached_input_tokens": 2813774,
+      "cache_write_input_tokens": 92413,
+      "output_tokens": 11231,
+      "reasoning_output_tokens": 6071
     },
-    "duration_ms": 188982
+    "duration_ms": 765779
   },
   "skill": "swe3"
 }
