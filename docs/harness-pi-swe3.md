@@ -6,11 +6,11 @@ Benchmark results for every model run under the **pi** coding agent with the **s
 
 | Model | Mean score | Completed | Input | Output | Cache read | Cache write | Tokens processed† | Wall-clock | Run cost | Cost basis* |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| claude-opus-5 | 78.52 | 5/5 | 10 | 7,682 | 955,695 | 2,955 | 966,342 | 99.2m | $0.69 | metered (Bedrock) |
+| claude-opus-5 | 75.72 | 5/5 | 774 | 462,242 | 48,639,156 | 886,691 | 49,988,863 | 94.0m | $41.42 | metered (Bedrock) |
 | glm-5.2 | 70.52 | 5/5 | 756,340 | 5,593 | 56,140,480 | 343,726 | 57,246,139 | 90.5m | $15.83 | hardware-derived |
-| claude-opus-4-8 | 67.20 | 5/5 | 10 | 5,450 | 639,580 | 2,810 | 647,850 | 57.5m | $0.47 | metered (Bedrock) |
-| claude-sonnet-5 | 66.76 | 5/5 | 10 | 3,756 | 902,051 | 1,798 | 907,615 | 84.0m | $0.22 | metered (Bedrock) |
-| claude-haiku-4-5 | 52.40 | 5/5 | 22 | 6,397 | 406,645 | 6,239 | 419,303 | 30.7m | $0.08 | metered (Bedrock) |
+| claude-sonnet-5 | 66.52 | 5/5 | 948 | 384,852 | 65,823,081 | 822,296 | 67,031,177 | 73.7m | $19.07 | metered (Bedrock) |
+| claude-opus-4-8 | 60.68 | 5/5 | 430 | 322,184 | 21,532,803 | 666,666 | 22,522,083 | 62.5m | $22.99 | metered (Bedrock) |
+| claude-haiku-4-5 | 47.12 | 5/5 | 20,461 | 188,060 | 17,459,585 | 403,623 | 18,071,729 | 29.0m | $3.21 | metered (Bedrock) |
 
 \* **Cost basis differs by row and the dollars are NOT directly comparable.** _hardware-derived_ (self-hosted vLLM): a rented GPU has no per-token bill, so cost is `($/hr / 3600) x wall-clock seconds` at g6e.12xlarge on-demand ($10.49/hr). _metered (Bedrock)_: a hosted API's real per-token bill, summed over the run. It is a metered invoice, not a hardware estimate, and (unlike the self-hosted rows) it benefits from Bedrock prompt caching. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
 

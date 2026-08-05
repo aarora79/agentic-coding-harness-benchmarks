@@ -3,63 +3,63 @@
   "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
   "scores": {
     "github_issue": {
-      "completeness": 18,
-      "correctness": 14,
-      "specificity": 18,
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 14,
       "risk_awareness": 8,
-      "total": 58,
-      "notes": "The issue provides clear scope, non-goals, and mostly testable removal criteria. Repository evidence supports the named FAISS dependency and the existence of both FAISS and DocumentDB search implementations. Its largest defect is claiming full behavioral compatibility while requiring file-only deployments to add DocumentDB, which is an operationally breaking change with no migration or fallback criteria. No independent task statement was supplied, so the linked issue and claims that DocumentDB is production-ready could not be independently verified."
+      "total": 50,
+      "notes": "The issue clearly identifies dependency, configuration, Docker, documentation, testing, and API-compatibility goals. Its repository references to registry/search/service.py and registry/repositories/documentdb/search_repository.py are real, but registry/api/search_routes.py already uses the repository factory rather than FaissService. It overlooks the supported file backend, which registry/repositories/factory.py maps to FaissSearchRepository, so requiring DocumentDB while promising unchanged behavior creates an unresolved compatibility break. Claims of identical speed, accuracy, and ranking are untestably broad, and no independent task statement was supplied to confirm those requirements."
     },
     "lld": {
-      "completeness": 14,
-      "correctness": 8,
-      "specificity": 16,
-      "risk_awareness": 11,
-      "total": 49,
-      "notes": "The design maps many real files, including registry/search/service.py, registry/repositories/factory.py, and the DocumentDB search repository. Its load-bearing data flow is incorrect: DocumentDBSearchRepository exposes index_server and index_agent and writes a separate embeddings collection, while the proposed sequence invokes a nonexistent index_entity path and removes route indexing calls without replacements. It also promises graceful file-backend behavior without defining or implementing the stated 503 response, startup warning, data backfill, or rollback strategy. The assertion that no open questions remain is inconsistent with these unresolved compatibility and indexing decisions."
-    },
-    "review": {
-      "completeness": 17,
-      "correctness": 15,
-      "specificity": 19,
-      "risk_awareness": 19,
-      "total": 70,
-      "notes": "The review's strongest contribution is identifying file-only deployment breakage and requesting explicit errors, migration guidance, embedding verification, and metadata auditing. Those concerns are specific and relevant to the repository's backend-dependent factory and separate DocumentDB embeddings collection. Its largest defect is claiming the blockers were incorporated even though the submitted LLD still lacks the promised 503 behavior, startup validation, and breaking-change section. It also misses the more fundamental absence of replacement indexing calls and approves several unsupported production and security claims."
-    },
-    "testing": {
-      "completeness": 16,
-      "correctness": 9,
-      "specificity": 17,
-      "risk_awareness": 14,
-      "total": 56,
-      "notes": "The plan covers source removal, API behavior, search quality, disabled entities, Docker packaging, and end-to-end registration workflows. Several proposed oracles are ineffective: jq without -e succeeds for false expressions, grep fallbacks can report success after command errors, and the configuration script prints hasattr without asserting it. Deleting mock_faiss.py also requires changes across tests/conftest.py, route tests, lifecycle tests, factory tests, and configuration tests, but the adjustment list covers only a small subset. Some endpoint payloads, CLI commands, and DocumentDB environment assumptions were not tied to verified repository fixtures."
-    },
-    "implementation": {
-      "completeness": 8,
+      "completeness": 11,
       "correctness": 5,
       "specificity": 12,
-      "risk_awareness": 4,
-      "total": 29,
-      "notes": "The patch targets real source context and removes the primary FAISS service, file search repository, configuration properties, and pyproject dependency. It immediately breaks test collection because tests/conftest.py still imports the deleted tests/fixtures/mocks/mock_faiss.py, with many additional tests still importing or patching registry.search.service. More fundamentally, agent and server lifecycle calls are deleted without equivalent index_agent or index_server calls even though DocumentDBSearchRepository stores search documents in a separate mcp_embeddings collection, so new or changed entities can remain unsearchable. The summary falsely claims complete LLD implementation and documentation cleanup despite numerous remaining FAISS references in tests, docs, scripts, telemetry expectations, and stale comments."
+      "risk_awareness": 9,
+      "total": 37,
+      "notes": "The LLD names several real files and recognizes ranking, configuration, persistence, and rollout concerns. Its load-bearing API design is wrong: get_search_repository is a synchronous function in registry/repositories/factory.py, is absent from registry/repositories/interfaces.py, and SearchRepositoryBase exposes index_server/index_agent rather than add_or_update_entity. The proposed FileSearchRepository delegation would recurse through the factory back to FaissSearchRepository, while deletion of registry/search/service.py also leaves direct imports in registry/api/agent_routes.py and startup/factory behavior unresolved. It acknowledges performance and stale-file cleanup, but treats file-mode breakage and error behavior as open questions instead of making implementable compatibility and fallback decisions."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 12,
+      "specificity": 17,
+      "risk_awareness": 18,
+      "total": 61,
+      "notes": "The strongest review work is its concrete challenge to ranking equivalence, keyword boosting, latency, and file-storage compatibility. The file-mode concern is verified by registry/repositories/factory.py, which selects FaissSearchRepository outside MongoDB backends, and the DocumentDB implementation uses materially different hybrid ranking logic. The review nevertheless misses the nonexistent interfaces.get_search_repository API and falsely accepts the LLD's complete call-site inventory despite four remaining imports in registry/api/agent_routes.py. Its resolution claims that error handling and graceful file-mode behavior were added when the LLD contains no such design, while security and performance assertions remain unverified."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 4,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 48,
+      "notes": "The plan covers dependency removal, response shape, ranking, latency, lifecycle workflows, startup, Docker, and documentation. Most functional commands target invented GET endpoints under /registry/search, whereas the repository exposes authenticated POST /api/search/semantic and GET /api/search/tags in registry/api/search_routes.py. The equivalence script concatenates JSON responses without separators, then calls json.load on the resulting .json file, expands its supposed top-five sets to all returned paths, never enforces the top-result condition, and exits successfully even after printing FAIL. Grep checks and pytest directory commands are useful, but the arbitrary performance thresholds, invalid API setup, and absence of replacement unit tests prevent this plan from reliably detecting the central regression."
+    },
+    "implementation": {
+      "completeness": 3,
+      "correctness": 0,
+      "specificity": 4,
+      "risk_awareness": 1,
+      "total": 8,
+      "notes": "The patch targets some real source contexts and removes faiss-cpu from pyproject.toml, but it does not produce runnable code. registry/repositories/file/search_repository.py is left with a dangling await search_repo. expression, while route changes import nonexistent interfaces.get_search_repository and await the synchronous factory; the agent change also calls index_agent with an invalid dict and extra arguments. Deleting registry/search/service.py leaves direct imports in registry/api/agent_routes.py, the file repository itself, and numerous surviving tests, and the patch omits factory, startup, lockfile, telemetry, schema, and extensive documentation cleanup. The summary's claims of a complete self-contained change, no deviations, no breaking changes, and identical results are therefore contradicted by the repository and patch."
     }
   },
-  "task_score": 52.4,
-  "verdict": "The submission identifies the right dependency-removal surface and major compatibility risk, but the implementation is incomplete, breaks the test suite, and removes indexing calls without a working DocumentDB replacement path.",
+  "task_score": 40.8,
+  "verdict": "The design artifacts identify several genuine migration risks, but the implementation is unusable because it relies on nonexistent or miscalled repository APIs, contains invalid syntax, and leaves major FAISS dependencies intact.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-04T23:09:43.112230Z",
+    "evaluated_at": "2026-08-05T05:40:28.709931Z",
     "repo_ref": "1.24.4",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 762244,
-      "cached_input_tokens": 670426,
-      "cache_write_input_tokens": 91800,
-      "output_tokens": 7766,
-      "reasoning_output_tokens": 5227
+      "input_tokens": 1557688,
+      "cached_input_tokens": 1462959,
+      "cache_write_input_tokens": 94693,
+      "output_tokens": 7849,
+      "reasoning_output_tokens": 3815
     },
-    "duration_ms": 151781
+    "duration_ms": 196860
   },
   "skill": "swe3"
 }

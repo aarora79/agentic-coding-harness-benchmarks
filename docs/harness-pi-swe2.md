@@ -6,7 +6,7 @@ Benchmark results for every model run under the **pi** coding agent with the **s
 
 | Model | Mean score | Completed | Input | Output | Cache read | Cache write | Tokens processed† | Wall-clock | Run cost | Cost basis* |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| claude-opus-5 | 71.40 | 5/5 | 10 | 6,272 | 896,737 | 3,550 | 906,569 | 88.1m | $0.63 | metered (Bedrock) |
+| claude-opus-5 | 77.00 | 5/5 | 812 | 480,622 | 57,197,580 | 951,263 | 58,630,277 | 98.3m | $46.56 | metered (Bedrock) |
 | qwen3.6-35b | 47.15 | 4/5 | 609,647 | 17,757 | 26,707,296 | 672,843 | 28,007,543 | 29.4m | $5.14 | hardware-derived |
 | gemma-4-31b | 43.52 | 5/5 | 597,747 | 2,920 | 18,498,976 | 525,688 | 19,625,331 | 60.8m | $10.63 | hardware-derived |
 | qwen3-coder-30b | -- (0 scored) | 0/5 | 407,989 | 2,061 | 12,508,624 | 313,139 | 13,231,813 | 17.0m | $2.98 | hardware-derived |

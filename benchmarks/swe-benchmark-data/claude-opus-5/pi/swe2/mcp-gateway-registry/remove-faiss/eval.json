@@ -3,63 +3,63 @@
   "model": "us.anthropic.claude-opus-5[1m]",
   "scores": {
     "github_issue": {
-      "completeness": 18,
+      "completeness": 23,
       "correctness": 13,
-      "specificity": 20,
-      "risk_awareness": 15,
-      "total": 66,
-      "notes": "The issue provides unusually concrete scope, non-goals, affected files, and measurable removal criteria. Its API acceptance criteria are wrong: the repository exposes POST /api/search/semantic, GET /api/search/tags, and POST /api/agents/discover/semantic, not the paths and methods stated. It also misses the critical transition for existing file-backed servers and agents, whose FAISS-derived data is not present in DocumentDB and would not be rebuilt by the proposed startup flow. No independent task statement was supplied, so the broad metrics and telemetry rename could only be judged for internal consistency rather than confirmed necessity."
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 78,
+      "notes": "The issue comprehensively scopes code, dependencies, deployment files, documentation, compatibility residue, and operator impact. Its diagnosis that the file repository reads top-level tags absent from FaissService metadata is supported by registry/repositories/file/search_repository.py and registry/search/service.py. The largest defect is repository-inaccurate acceptance criteria: api/openapi.json identifies POST /api/search/semantic and POST /api/agents/discover/semantic, not the stated POST /api/search and GET /api/agents/search, while the no-FAISS grep cannot pass because telemetry code, tests, and docs deliberately retain the legacy value. Claims that scores remain unchanged and that all supported deployments already require DocumentDB are not established and conflict with the acknowledged algorithm and file-backend behavior changes."
     },
     "lld": {
-      "completeness": 19,
-      "correctness": 10,
-      "specificity": 22,
-      "risk_awareness": 14,
-      "total": 65,
-      "notes": "The LLD is highly specific about real symbols such as SearchRepositoryBase, get_search_repository, index_agent, and the route call sites. Its claim that DocumentDBSearchRepository.initialize() swallows connection failures is false because await self._get_collection() occurs before its try block, and get_documentdb_client() awaits server_info(). Removing the file-backend startup reindex also leaves existing file-stored servers and agents absent from the new DocumentDB index. The proposed metrics migration is not wired into metrics-service/app/main.py, which only calls init_database(), and several stated API paths are incorrect."
+      "completeness": 23,
+      "correctness": 13,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 81,
+      "notes": "The LLD is unusually concrete about factory behavior, startup sequencing, route-level indexing ownership, dependency removal, rollback, and the file backend's new MongoDB requirement. It correctly identifies the refresh, agent-toggle, startup-initialization, and retained file reindex hazards, but its exact FaissMetadata sample contradicts registry/core/schemas.py, whose model contains id, text_for_embedding, and full_server_info. More materially, it directs toggle_agent to pass an AgentCard where the search repository contract expects a dictionary, and it misses that internal_register_service toggles state after the service-layer index write without reindexing afterward. The rollout and observability treatment is strong, though it does not address reconciliation of stale DocumentDB records when file data is the source of truth."
     },
     "review": {
-      "completeness": 18,
-      "correctness": 13,
-      "specificity": 22,
-      "risk_awareness": 17,
-      "total": 70,
-      "notes": "The review identifies concrete defects including best-effort write handling, preserving load_agents_and_state(), legacy telemetry acceptance, and the need for a guarded SQLite rename. Its largest omission is the absence of any initial DocumentDB population for existing file-backend entities after the FAISS startup rebuild is deleted. It incorrectly endorses the assertion that initialize() cannot create a startup failure despite _get_collection() being outside the exception handler. It also treats migration 6 as resolved without noticing that MigrationManager is never invoked by the metrics-service startup path."
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 86,
+      "notes": "The review finds real, consequential defects rather than merely approving the design, especially the missing agent-toggle and refresh writes and the file-backend boot and startup-reindex hazards. Each blocker names concrete symbols such as AgentService.toggle_agent, refresh_service, and search_repo.initialize and supplies an actionable resolution. Its largest weakness is declaring all blockers resolved without catching the AgentCard-versus-dict call mismatch or the post-registration auto-enable state becoming stale in the search index. It also understates behavioral change by claiming score ordering is preserved and makes an unsubstantiated security escalation around faiss.read_index."
     },
     "testing": {
-      "completeness": 21,
-      "correctness": 6,
-      "specificity": 19,
-      "risk_awareness": 18,
-      "total": 64,
-      "notes": "The plan spans static checks, lifecycle behavior, compatibility, rollback, deployment, UI, and failure scenarios with concrete expected values. Many primary commands target nonexistent interfaces: search is /api/search/semantic, tags is /api/search/tags returning an object, and agent semantic discovery is POST rather than GET. The migration examples call nonexistent migrate_to_latest() and construct MetricsStorage with an unsupported path argument. Its expected 503 during a database outage is also unsupported because DocumentDBSearchRepository generally returns empty results on operation failures, while an initial connection failure can escape as a 500."
+      "completeness": 22,
+      "correctness": 9,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 75,
+      "notes": "The plan spans static removal, imports, factory selection, HTTP contracts, lifecycle indexing, outage behavior, Docker, Terraform, rollback, telemetry, and end-to-end workflows with many explicit oracles. Its central HTTP commands target repository-inconsistent routes such as POST /api/search and GET /api/agents/search, while api/openapi.json documents POST /api/search/semantic and POST /api/agents/discover/semantic. The static grep must also fail on intentional legacy references, the grep for faiss|documentdb omits -E, and the agent-toggle all(...) assertion passes vacuously when no agent is returned. No tests were executed, and the outage check permits 500 despite the stated 503 compatibility requirement."
     },
     "implementation": {
-      "completeness": 15,
-      "correctness": 8,
-      "specificity": 20,
-      "risk_awareness": 12,
-      "total": 55,
-      "notes": "The visible diff removes the principal FAISS implementation, dependency, factory branch, direct route calls, fixture injection, and associated documentation using real repository symbols and matching source context. The startup change is incomplete for existing file deployments: it switches search to DocumentDB while deleting the only server and agent rebuild loop, so previously registered entities are not indexed. The SQLite rename is effectively dead because metrics-service/app/main.py never runs MigrationManager, and converted agent-route tests patch factory.get_search_repository even though agent_routes holds a module-level imported binding. The submitted patch is explicitly truncated, so the claimed 86-file end state and clean application could not be fully verified."
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 70,
+      "notes": "The visible diff broadly implements dependency, factory, startup, route, configuration, telemetry, infrastructure, test-scaffolding, and documentation removal against real baseline symbols. The largest concrete bug is registry/api/agent_routes.py passing agent_card directly to index_agent even though the repository interface and existing implementations use dict data; the surrounding catch silently leaves toggle state stale. internal_register_service likewise indexes during register, then auto-enables through a service method that does not reindex, so the retained DocumentDB entry can remain disabled. The submitted patch is truncated and repository command execution was unavailable, so the claimed clean git apply, complete 79-file change, and unseen test edits could not all be independently verified."
     }
   },
-  "task_score": 64.0,
-  "verdict": "The submission is detailed and repository-aware, but its implementation omits the data and schema migration paths needed to keep existing file-backed search and metrics ingestion working.",
+  "task_score": 78.0,
+  "verdict": "The submission is broad and well-reasoned, but repository-inaccurate API tests and two silent search-index synchronization defects materially weaken an otherwise strong removal.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-02T00:46:33.053070Z",
+    "evaluated_at": "2026-08-05T11:24:04.902111Z",
     "repo_ref": "1.24.4",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 3214594,
-      "cached_input_tokens": 3076325,
-      "cache_write_input_tokens": 138217,
-      "output_tokens": 11912,
-      "reasoning_output_tokens": 5185
+      "input_tokens": 458111,
+      "cached_input_tokens": 365815,
+      "cache_write_input_tokens": 92286,
+      "output_tokens": 9283,
+      "reasoning_output_tokens": 7371
     },
-    "duration_ms": 227110
+    "duration_ms": 175016
   },
   "skill": "swe2"
 }
