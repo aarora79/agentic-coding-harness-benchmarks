@@ -1,0 +1,64 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 63,
+      "notes": "The issue identifies concrete files, variables, outputs, mounts, and acceptance checks that correspond to symbols shown in the submitted diff. Its strongest aspect is the explicit scope boundary around Terraform and data migration. Its largest deficiency is treating ephemeral logs, configuration, and MCPGW data as having no functional impact while providing no evidence that DocumentDB/S3 replaces every EFS use. No independent task statement or application evidence verifies the central persistence claim, and destructive upgrade behavior is underexplained."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 9,
+      "total": 53,
+      "notes": "The LLD gives concrete file-level changes and names the actual `module.efs`, output, volume, and `SCOPES_CONFIG_PATH` integration points visible in the patch. Its largest flaw is leaving the key volume decision as remove-or-replace while later selecting an empty mount at `/app/auth_server`, which can obscure the bundled `scopes.yml` it expects there. The rollback guidance does not account for Terraform destroying the existing file system, and reverting state or code cannot recover deleted EFS data. Claims of no data loss and complete S3/DocumentDB coverage are not established by the supplied evidence."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 48,
+      "notes": "The review usefully raises container-image, directory, state, documentation, and observability concerns rather than only approving the component list. However, it incorrectly says the LLD omitted the exact `SCOPES_CONFIG_PATH` change even though the LLD specifies it, and its recommendation to run `terraform state rm` would orphan live EFS resources instead of deleting them. It also misses the conflict between mounting an empty volume at `/app/auth_server` and expecting an image-bundled file at that path. Assertions that no other dependencies exist and the change is low risk are not demonstrated from repository evidence."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 6,
+      "specificity": 13,
+      "risk_awareness": 11,
+      "total": 47,
+      "notes": "The plan covers validation, upgrade deployment, service health, authentication, registration, restart persistence, cost, and rollback, with several concrete expected states. Its central `terraform plan | grep -i efs` oracle is wrong for an existing deployment because the successful removal plan should contain EFS resources marked for destruction, and it also demands all other resources remain unchanged despite expected task-definition updates. The baseline/post-change saved-plan performance sequence can mutate state and make the second plan stale, while rollback never reapplies the previous Terraform configuration. The endpoint paths and three workflow scripts are placeholders not shown to exist, so the most important functional tests are not executable as written."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 2,
+      "specificity": 15,
+      "risk_awareness": 5,
+      "total": 32,
+      "notes": "The patch attempts all principal removals across the EFS module, variables, outputs, and ECS volumes, and the summary precisely enumerates those intended edits. The implementation is unusable as submitted: the root `outputs.tf` hunk has inconsistent unified-diff line counts, while the module output hunk leaves a dangling `sensitive = false` and closing brace after deleting `output \"efs_access_points\"`. Mounting an empty volume over `/app/auth_server` also conflicts with the summary's requirement that `scopes.yml` be bundled at that location, and the suggested `terraform state rm module.mcp_gateway.module.efs` would orphan AWS resources. The claimed validation command runs `terraform validate` against individual `.tf` paths rather than an initialized module directory, so the reported successful validation is not credible."
+    }
+  },
+  "task_score": 48.6,
+  "verdict": "The submission identifies the intended EFS surface well, but unsafe migration advice, non-executable tests, and a malformed, syntactically broken patch prevent it from being implementation-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T13:55:20.867992Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 169407,
+      "cached_input_tokens": 139782,
+      "cache_write_input_tokens": 29611,
+      "output_tokens": 7653,
+      "reasoning_output_tokens": 5865
+    },
+    "duration_ms": 141900
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 51,
+      "notes": "The issue clearly scopes the change to AWS ECS and Aurora, excludes Helm/EKS and version upgrades, and supplies concrete acceptance criteria. Its largest defect is the contradiction between removing static credentials entirely and retaining password authentication as a default-enabled fallback. It also assumes Keycloak can generate and consume IAM tokens without specifying a datasource extension, IAM-enabled MySQL user, TLS settings, or token renewal behavior. No independent task statement exists, and repository execution failed before source reads, so claims about the current rotation Lambda and deployment topology could not be independently verified."
+    },
+    "lld": {
+      "completeness": 9,
+      "correctness": 4,
+      "specificity": 8,
+      "risk_awareness": 11,
+      "total": 32,
+      "notes": "The LLD names plausible Terraform files, gives a correctly shaped rds-db:connect ARN, and discusses rollout, rollback, pooling, and fallback risks. The load-bearing Keycloak integration remains a placeholder, while KC_DB_IAM_AUTH_ENABLED and KC_DB_IAM_AUTH_FALLBACK_ENABLED are not standard Keycloak settings and therefore do nothing by themselves. Aurora IAM authentication is enabled through the cluster's iam_database_authentication_enabled property, not an aurora_enable_iam_auth parameter, and aws_rds_cluster_iam_auth is not a Terraform AWS resource. The design also omits executable MySQL user provisioning, TLS configuration, token generation integration, and metric emitters; repository-specific compatibility could not be independently checked because source commands failed."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 16,
+      "total": 54,
+      "notes": "The review finds the most important design flaw: stock Keycloak's MySQL datasource does not natively regenerate RDS IAM tokens, and it connects that gap to pooling, expiration, and startup failure. It nevertheless approves the design with high confidence without selecting or validating an implementable integration mechanism. Its illustrative wrapper is not tied to this repository or Keycloak's Agroal configuration, and suggestions that Secrets Manager generates IAM tokens or that token duration can be chosen between 15 and 60 minutes are technically unsound. It also misses the invalid Terraform resources and parameters, IAM-enabled database-user setup, TLS requirements, and the contradiction between credential removal and fallback."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 4,
+      "specificity": 8,
+      "risk_awareness": 12,
+      "total": 35,
+      "notes": "The plan spans both authentication modes, fallback, expiration, load, security, regression, and post-deployment checks. Its largest weakness is that the examples do not establish that IAM authentication was used rather than the unchanged password path. The Docker test exposes no port, provides no IAM token or database user, and relies on unsupported Keycloak environment variables; the API test fails to extract access_token and treats Keycloak's empty successful user-creation response as failure. The pytest modules, JMeter plan, staging module, Keycloak 25 image, and CI paths were not grounded in verifiable repository files, and several proposed assertions merely prove process health."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 2,
+      "specificity": 6,
+      "risk_awareness": 6,
+      "total": 18,
+      "notes": "The patch adds two flags, two environment variables, and a narrowly scoped rds-db:connect policy in the stated Terraform files. It does not implement IAM authentication: it uses the wrong Aurora enablement mechanism, adds no IAM-authenticated MySQL user or Keycloak datasource extension, and explicitly retains master_password = var.keycloak_database_password. The summary's Java wrapper, metrics, alarms, documentation, and validation logic are absent from the diff, and its sample token generator incorrectly calls an STS GenerateDBAuthToken API that does not exist. Defaults enable the incomplete path immediately and the claimed fallback has no code; independent source-context and git apply checks were unavailable because the read-only executor failed before running commands."
+    }
+  },
+  "task_score": 38.0,
+  "verdict": "The submission recognizes the central Keycloak integration problem but ships a nonfunctional Terraform-only patch that neither enables Aurora IAM authentication correctly nor makes Keycloak use IAM tokens.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T13:57:40.996141Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 205475,
+      "cached_input_tokens": 173901,
+      "cache_write_input_tokens": 31560,
+      "output_tokens": 7458,
+      "reasoning_output_tokens": 5828
+    },
+    "duration_ms": 136594
+  }
+}

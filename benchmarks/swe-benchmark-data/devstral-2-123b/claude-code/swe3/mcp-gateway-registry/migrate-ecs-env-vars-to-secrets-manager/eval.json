@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 11,
+      "total": 55,
+      "notes": "The issue clearly identifies the exposure paths, affected secret classes, IAM work, and explicit exclusions. Its largest flaw is the unsupported fallback requirement: ECS resolves task-definition secrets before container startup, so an unavailable secret prevents the application from performing an environment fallback. The proposed aws_secretsmanager_secret_version resources also retain supplied plaintext in Terraform state, contradicting a primary motivation. No independent task statement establishes the exact required inventory or migration behavior."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 50,
+      "notes": "The LLD names concrete Terraform files, variables, resources, IAM integration, and rollout phases. Its core design is unsound because ECS injection cannot provide the described runtime fallback, rotation is not observed until tasks restart, and secret_string values remain in Terraform state. The proposed SecretRetrievalFailure AWS/ECS metric is not a native ECS metric, while recovery_window_in_days = 0 permits immediate deletion rather than protecting recovery. Repository execution failed before inspection, so claimed source line numbers and existing-pattern assertions could not be independently verified."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 51,
+      "notes": "The review surfaces actionable concerns around extra-variable classification, IAM policy size, state migration, monitoring, and fallback testing. It misses the fundamental impossibility of application fallback after ECS secret retrieval failure and does not challenge continued plaintext storage in Terraform state. It incorrectly says a zero-day recovery window prevents accidental deletion and treats rotation as a blocker despite the issue explicitly excluding automatic rotation. Several findings also describe monitoring or keyword classification as current after the LLD claims those sections were revised."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 4,
+      "specificity": 15,
+      "risk_awareness": 12,
+      "total": 45,
+      "notes": "The plan spans provisioning, compatibility, IAM, audit, rollback, rotation, and performance with concrete intended outcomes. Many procedures cannot establish those outcomes: describe-tasks does not expose task-definition secrets, updating only a secret description does not make it missing, and Secrets Manager rejects an empty SecretString. terraform output -raw cannot read the migrated_secrets map, the IAM test uses the operator identity rather than the ECS execution role, and the rotation check reuses a stale task ARN. Hardcoded service names, log groups, module targets, ECS Exec availability, and the temporary checkout path were not verified against the repository."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 12,
+      "risk_awareness": 7,
+      "total": 30,
+      "notes": "The unified diff concretely adds secret resources, task-definition references, IAM ARNs, and explicit sensitive-extra inputs, while the summary acknowledges partial scope. It does not implement the design end to end: only REGISTRY_API_TOKEN and REGISTRY_API_KEYS are removed from plaintext blocks, while added federation, ANS, GitHub, registration, Grafana, and mcpgw resources are not consistently removed from or injected into their consumers, and no fallback exists. The sensitive extra-env variables feed for_each keys and unsafely keyed cross-service maps, and outputs derived from sensitive variables omit sensitive = true, making the claim that terraform validate passes implausible. Repository inspection and git apply --check were unavailable because the read-only executor failed before running commands, so patch applicability and surrounding symbols could not be independently confirmed."
+    }
+  },
+  "task_score": 46.2,
+  "verdict": "The submission identifies the right security domain but its fallback model is infeasible and the partial Terraform patch is internally inconsistent and likely fails validation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T14:05:30.701725Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 219340,
+      "cached_input_tokens": 178518,
+      "cache_write_input_tokens": 40810,
+      "output_tokens": 7399,
+      "reasoning_output_tokens": 5648
+    },
+    "duration_ms": 132670
+  }
+}

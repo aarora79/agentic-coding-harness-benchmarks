@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 18,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 71,
+      "notes": "The issue clearly identifies the exposed outbound operations, names `registry/utils/agent_validator.py`, `registry/health/service.py`, and the existing skill-service guard, and supplies testable extraction and integration criteria. The submitted source hunks support those named symbols and show that `_is_safe_url` previously lived in `registry/services/skill_service.py`. Its largest gap is that backward compatibility is asserted without defining migration behavior for existing private endpoints or the existing `github_extra_hosts` trust configuration, and it omits redirect and DNS-rebinding behavior from acceptance criteria. No independent task statement was supplied, so broader requirement coverage beyond the identifier and internally consistent artifacts cannot be verified."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 55,
+      "notes": "The LLD is concrete about files, functions, configuration fields, IPv6 handling, logging, and failure-closed behavior. Its central redirect design is incorrect: both examples use `follow_redirects=True` and validate only `response.url`, after every redirect request, including a potentially internal request, has already occurred. It also proposes process-global `socket.setdefaulttimeout`, does not prevent DNS rebinding between validation and connection, and replaces the skill service's `github_extra_hosts` merge with `ssrf_allowlist`, contradicting its compatibility claim. The rollout is generic and documentation changes are omitted, while independent repository inspection was unavailable because read-only shell commands failed before execution in the provided sandbox."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 16,
+      "total": 57,
+      "notes": "The review surfaces specific and relevant concerns about redirects, DNS latency, IPv6, and inconsistent error contracts, with prioritized consequences and proposed actions. Its largest defect is declaring the findings resolved even though final-URL validation after automatic redirects cannot prevent SSRF and the proposed DNS timeout mechanism is process-global and unreliable for `getaddrinfo`. It also misses the regression caused by dropping `settings.github_extra_hosts`, the validation-to-connect DNS rebinding window, and blocking synchronous DNS inside the asynchronous health service. The multiple reviewer personas add limited evidence, and claims of compatibility and acceptable operational characteristics could not be independently validated."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 13,
+      "total": 51,
+      "notes": "The plan provides useful exact oracles for schemes, private IPv4 and IPv6 addresses, metadata IPs, allowlists, and DNS failures. Its most important omission is an integration test proving that no request is sent to an unsafe redirect target; unit-testing `validate_redirect_url` would pass while the implementation remains exploitable because `httpx` follows the redirect first. Several tests are placeholders rather than executable cases, including the health and skill compatibility checks, while `MockDNSServer.start` is empty and is not connected to `socket.getaddrinfo`; public-domain tests are also network-dependent. The proposed registration routes, expected 422 response, Terraform paths, and `uv` commands could not be independently checked against the repository due the unavailable shell."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 6,
+      "total": 37,
+      "notes": "The patch adds direct pre-request checks at the named agent and health integration points, centralizes the original validator, adds configuration, and includes focused utility tests. The core redirect protection is ineffective because `follow_redirects=True` performs unsafe intermediate requests before `validate_redirect_url` examines only the final URL, and separate DNS resolution leaves a rebinding window. On successful validation with an original default timeout of `None`, the conditional `finally` fails to restore the global socket timeout; additionally, skill validation stops honoring `github_extra_hosts`, no integration or documentation changes are included, and the summary's CIDR and backward-compatibility claims are false. The patch contexts are internally coherent, but `git apply --check` and independent source verification could not run because every shell invocation failed with `bwrap: loopback: Failed RTM_NEWADDR`."
+    }
+  },
+  "task_score": 54.2,
+  "verdict": "The submission has useful repository-specific framing, but its post-request redirect validation leaves the principal SSRF bypass open and the implementation introduces compatibility and global-timeout regressions.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T12:52:55.198536Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 239103,
+      "cached_input_tokens": 203381,
+      "cache_write_input_tokens": 35708,
+      "output_tokens": 6590,
+      "reasoning_output_tokens": 4961
+    },
+    "duration_ms": 128902
+  }
+}

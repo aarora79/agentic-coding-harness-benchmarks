@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 73,
+      "notes": "The issue clearly scopes agent-card fetching, agent health checks, and server health checks, with testable blocking and allowlist requirements. Its references to `_is_safe_url`, `skill_service.py`, and `settings.github_extra_hosts` agree with the submitted source context. The largest gap is the undefined compatibility policy: blocking health checks for existing private registrations conflicts with saying they continue to work unless migration or grandfathering behavior is specified. No independent task statement was supplied, so issue references and the exact compatibility obligation remain unverifiable, while redirect and DNS-rebinding risks are omitted."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 60,
+      "notes": "The design names concrete integration points including `check_agent_health`, `_check_server_endpoint_transport_aware`, `_validate_agent_url`, and the existing skill validation helpers. Its central security flaw is a validation-to-request race: `_is_safe_url` resolves an address, but the subsequent `httpx` request still uses the hostname and can resolve again. Redirect handling, synchronous DNS inside asynchronous paths, and the promised compatibility behavior are not resolved. Claims that deployment files already expose the setting and that validation costs only 1-5 ms are unsupported by supplied evidence."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 17,
+      "risk_awareness": 19,
+      "total": 65,
+      "notes": "The security review correctly identifies DNS rebinding as a concrete flaw in the LLD's check-then-fetch design. Its proposed resolution is incomplete and internally inconsistent: callers are told to reuse resolved IPs without explaining HTTP host and TLS handling, while DNS caching is proposed both without a real TTL and despite its security implications. Path traversal and CSP are largely unrelated to this SSRF boundary, while redirects and the unresolved existing-registration policy receive insufficient attention. The role-based reviews provide actionable observations, but several approvals and performance recommendations are unsupported by measurements or repository evidence."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 11,
+      "total": 44,
+      "notes": "The plan covers private, loopback, link-local, metadata, allowlist, health-check, and compatibility scenarios with many explicit inputs. Its E2E setup is not executable as described: it starts a loopback server that should be blocked, creates the card at the wrong location, and then tests `example.com` instead of that server. `docker exec -e` does not reconfigure the running registry, and an expected result of \"400 (or 200 with unhealthy status)\" is not a meaningful oracle. DNS rebinding remains a placeholder, redirect and mixed-address DNS cases are absent, and several authentication, endpoint, Terraform, Helm, and container commands are not established by the supplied source."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 1,
+      "specificity": 5,
+      "risk_awareness": 2,
+      "total": 12,
+      "notes": "The patch targets the intended existing functions but does not implement the design end to end. It imports `registry.utils.url_validation` from four files without including the claimed new module, and it includes none of the claimed unit or integration tests. `_validate_agent_url` changes from `bool` to a tuple without any caller updates, while validation there does not demonstrate protection before the agent-card fetch. DNS pinning is also false because health requests continue using `base_url` or `proxy_pass_url` and never consume resolved IPs; the summary's test, benchmark, compatibility, and deployment-ready claims therefore substantially overstate the patch."
+    }
+  },
+  "task_score": 50.8,
+  "verdict": "The design artifacts identify the right SSRF surfaces, but unresolved request-time DNS behavior and a fundamentally incomplete, internally incompatible patch prevent this submission from being deployable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T14:13:27.998499Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 249867,
+      "cached_input_tokens": 215048,
+      "cache_write_input_tokens": 34803,
+      "output_tokens": 6098,
+      "reasoning_output_tokens": 4390
+    },
+    "duration_ms": 137057
+  }
+}

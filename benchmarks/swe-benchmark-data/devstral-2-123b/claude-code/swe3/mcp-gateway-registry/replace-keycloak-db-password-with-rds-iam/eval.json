@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 49,
+      "notes": "The issue's strongest aspect is its explicit opt-in scope, non-goals, and acceptance checks covering the cluster, proxy, task role, documentation, and password compatibility. Its largest deficiency is promising automatic IAM token rotation and password fallback without specifying a Keycloak-compatible token generation and refresh mechanism; `KC_DB_IAM_AUTH_ENABLED` is not a standard Keycloak database option, and a proxy configured with `iam_auth = \"REQUIRED\"` will reject password authentication. The submitted source context shows `aws_db_proxy.keycloak` using `SECRETS` and the task consuming `KC_DB_PASSWORD`, so replacing client authentication requires more than infrastructure toggles. No independent task statement or issue history verifies references #1303 and #1026, and `GenerateDBAuthToken` is not an IAM action; authorization uses `rds-db:connect` while token creation is local SigV4 signing."
+    },
+    "lld": {
+      "completeness": 8,
+      "correctness": 4,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 31,
+      "notes": "The LLD is strongest where it identifies concrete Terraform files, existing resources, an opt-in default, and a staged rollout. Its load-bearing design is infeasible: it assumes Keycloak and its MySQL driver will interpret `KC_DB_IAM_AUTH_ENABLED`, generate and renew tokens, emit custom authentication logs and metrics, and fall back automatically, but it adds no driver, token provider, wrapper, or startup logic implementing any of those behaviors. The proposed proxy configuration sets IAM to `REQUIRED` when enabled while retaining `KC_DB_PASSWORD`, which creates mutually exclusive modes rather than the documented runtime fallback. Exact engine-version and existing-pattern claims could not be independently verified, while the unresolved token lifecycle, TLS configuration, database-user requirements, and wildcard `dbuser:*/...` scope leave major security and operational decisions open."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 6,
+      "specificity": 12,
+      "risk_awareness": 12,
+      "total": 40,
+      "notes": "The review's strongest contribution is identifying the precise questions the LLD needed to answer, including driver requirements, token renewal, fallback behavior, TLS, pooling, rollback, and failover. Its largest failure is declaring zero blockers and later claiming all findings were resolved even though the LLD still contains no mechanism that generates an IAM token or refreshes credentials for new pooled connections. The resolution that the MySQL driver handles expiration automatically is unsupported, and the recommendation to audit `GenerateDBAuthToken` through CloudTrail is technically inaccurate because token generation is local signing rather than an AWS API call. Several real risks are named, but they are treated as documentation improvements instead of correctness blockers, and claimed TLS, audit, rollback, and fallback resolutions are not present as implementable changes."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 4,
+      "specificity": 12,
+      "risk_awareness": 10,
+      "total": 35,
+      "notes": "The plan's strongest aspect is its broad coverage of Terraform validation, disabled-mode compatibility, deployment inspection, rollback, and attempted end-to-end checks with stated outcomes. Its largest deficiency is that most checks inspect text or hypothetical output rather than proving that Keycloak can generate a fresh IAM token, connect through the proxy, and create another physical connection after token expiry. Concrete defects include a hard-coded temporary repository path, a targeted plan that expects an untargeted IAM policy, nonexistent implementation log messages, and use of `aws logs get-log-events --log-stream-name-prefix`, which is not a valid invocation for that command. The fallback test would revoke the only IAM authorization while the proxy remains `REQUIRED`, so its expected uninterrupted password fallback is false; AWS deployment results and performance thresholds were also not executed or otherwise substantiated."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 2,
+      "specificity": 11,
+      "risk_awareness": 3,
+      "total": 20,
+      "notes": "The patch is focused and does add a false-by-default Terraform variable, cluster and proxy IAM settings, and an `rds-db:connect` task-role policy. It does not implement the essential client behavior: `KC_DB_IAM_AUTH_ENABLED` is not consumed by standard Keycloak, no IAM token is placed in the JDBC password path, and no refresh provider exists, so enabling `iam_auth = \"REQUIRED\"` leaves Keycloak sending its static `KC_DB_PASSWORD` to a proxy that requires IAM authentication. The always-created policy uses `dbuser:*/${var.keycloak_database_username}`, while the summary inaccurately calls this least privilege and claims working fallback, automatic rotation, TLS enforcement, CloudTrail token-generation events, and complete implementation. The hunks are internally plausible against the submitted resource context, but command-level applicability to the stated baseline could not be independently verified because repository shell access failed in the provided environment."
+    }
+  },
+  "task_score": 35.0,
+  "verdict": "The artifacts are detailed and well scoped, but the design and patch omit any Keycloak-compatible IAM token generation and refresh path, so enabling the feature would likely break database connectivity rather than replace password authentication.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T14:11:10.930080Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 175438,
+      "cached_input_tokens": 144614,
+      "cache_write_input_tokens": 30812,
+      "output_tokens": 7327,
+      "reasoning_output_tokens": 5243
+    },
+    "duration_ms": 131612
+  }
+}
