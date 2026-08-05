@@ -11,6 +11,7 @@ Benchmark results for every model run under the **Claude Code** coding agent wit
 | claude-sonnet-5 | 68.04 | 5/5 | 2,608 | 893,437 | 338,489,015 | 2,187,670 | 341,572,730 | 190.7m | $123.20 | metered (Bedrock) |
 | glm-5.2 | 65.60 | 5/5 | 86,412,298 | 366,782 | 0 | 0 | 86,779,080 | 96.2m | $16.82 | hardware-derived |
 | nemotron-ultra-550b | 53.68 | 5/5 | 95,277,127 | 326,132 | 0 | 0 | 95,603,259 | 81.7m | $14.29 | hardware-derived |
+| minimax-m2.5 | 48.36 | 5/5 | 38,909,159 | 120,433 | 0 | 0 | 39,029,592 | 22.3m | $3.90 | hardware-derived |
 | qwen3.6-35b | 48.16 | 5/5 | 37,541,216 | 276,328 | 0 | 0 | 37,817,544 | 46.9m | $8.20 | hardware-derived |
 | claude-haiku-4-5 | 41.08 | 5/5 | 428 | 147,913 | 24,580,868 | 635,273 | 25,364,482 | 23.0m | $3.99 | metered (Bedrock) |
 
