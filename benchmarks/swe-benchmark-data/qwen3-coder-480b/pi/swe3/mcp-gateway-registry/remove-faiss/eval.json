@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 60,
+      "notes": "The strongest aspect is the concrete checklist covering Python imports, pyproject.toml, Docker, tests, documentation, search behavior, and API compatibility. Its largest deficiency is the unresolved contradiction between preserving behavior and replacing the default file backend's FAISS search with DocumentDB while declaring algorithm changes and DocumentDB implementation changes out of scope. The submitted factory diff confirms that file and MongoDB backends previously selected distinct search repositories, making this an architectural migration rather than simple dependency removal. No independent task statement was supplied, and the claims that DocumentDB is fully functional for file-backed deployments and that issue 1285 establishes this direction could not be verified."
+    },
+    "lld": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 10,
+      "risk_awareness": 6,
+      "total": 31,
+      "notes": "The LLD names several real integration points corroborated by the patch, including registry/repositories/factory.py, registry/main.py, registry/search/service.py, and SearchRepositoryBase. Its central design remains undecided: the open questions still ask whether to remove or repurpose the service and whether to replace or remove the file repository, despite those being the load-bearing decisions. The existing factory branch shown in the diff deliberately chooses DocumentDB only for MONGODB_BACKENDS, yet the design provides no database provisioning, connection lifecycle, migration, or fallback for STORAGE_BACKEND=file. The claimed /api/search/semantic contract, CLI behavior, referenced design documents, and automatic compatibility of file storage with DocumentDB could not be independently verified."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 5,
+      "specificity": 8,
+      "risk_awareness": 7,
+      "total": 28,
+      "notes": "The review's strongest finding is that file-backend compatibility and comprehensive reference removal require explicit attention. Its largest deficiency is approving the design without resolving how a file-only deployment can use DocumentDB or examining the operational dependency this introduces. The resolution claims the LLD now defines an automatic migration and comprehensive search, but that LLD still contains those questions and supplies neither migration mechanics nor a repository-wide search command. Assertions about unchanged security properties, UI impact, and deployment simplification are unsupported by concrete repository evidence."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 6,
+      "specificity": 13,
+      "risk_awareness": 7,
+      "total": 37,
+      "notes": "The plan's strongest aspect is its concrete HTTP payloads and response-field checks for servers, tools, agents, search mode, and relevance scores. Its largest deficiency is that several checks can pass without testing the feature: the UI assertion accepts every nonnegative result count, the error check accepts an empty response, and the Docker and rollback sections merely print PASS. The file-backend test changes STORAGE_BACKEND after startup while leaving restart commented out, and the end-to-end registration setup is also commented out, so neither establishes its prerequisite state. The exact endpoint, CLI command, and DocumentDB environment variables could not be independently verified, and no replacement unit tests exercise the new repository selection or failure behavior."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 1,
+      "specificity": 6,
+      "risk_awareness": 1,
+      "total": 14,
+      "notes": "The patch does remove faiss-cpu from pyproject.toml and deletes FAISS mocks and tests while updating several documentation references. It does not implement the claimed replacement: registry/search/service.py only removes the import, field, and load call while retaining FaissService and the unchanged FAISS-dependent methods evidenced by the deleted tests, and registry/core/config.py merely comments out properties those methods used. The factory always constructs DocumentDBSearchRepository, making the rewritten FileSearchRepository dead code, while that class silently ignores entity types other than servers and agents and adds no compatibility tests. The summary materially overstates the service rewrite and claims no deviations or follow-ups; patch applicability and any lockfile residue could not be independently checked because repository command execution was unavailable."
+    }
+  },
+  "task_score": 34.0,
+  "verdict": "The issue identifies the main removal surfaces, but the design never resolves file-backend compatibility and the patch leaves FAISS-dependent code while routing all deployments to DocumentDB, making the implementation unmergeable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T22:36:00.562866Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 296009,
+      "cached_input_tokens": 252105,
+      "cache_write_input_tokens": 43890,
+      "output_tokens": 7034,
+      "reasoning_output_tokens": 5510
+    },
+    "duration_ms": 157273
+  }
+}
