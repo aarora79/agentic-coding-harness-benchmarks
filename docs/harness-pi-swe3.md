@@ -10,6 +10,7 @@ Benchmark results for every model run under the **pi** coding agent with the **s
 | glm-5.2 | 70.52 | 5/5 | 756,340 | 5,593 | 56,140,480 | 343,726 | 57,246,139 | 90.5m | $15.83 | hardware-derived |
 | claude-opus-4-8 | 67.20 | 5/5 | 10 | 5,450 | 639,580 | 2,810 | 647,850 | 57.5m | $0.47 | metered (Bedrock) |
 | claude-sonnet-5 | 66.76 | 5/5 | 10 | 3,756 | 902,051 | 1,798 | 907,615 | 84.0m | $0.22 | metered (Bedrock) |
+| kimi-k2.7-code | 61.12 | 5/5 | 832,788 | 2,449 | 55,271,904 | 1,095,234 | 57,202,375 | 57.2m | $10.00 | hardware-derived |
 | claude-haiku-4-5 | 52.40 | 5/5 | 22 | 6,397 | 406,645 | 6,239 | 419,303 | 30.7m | $0.08 | metered (Bedrock) |
 
 \* **Cost basis differs by row and the dollars are NOT directly comparable.** _hardware-derived_ (self-hosted vLLM): a rented GPU has no per-token bill, so cost is `($/hr / 3600) x wall-clock seconds` at g6e.12xlarge on-demand ($10.49/hr). _metered (Bedrock)_: a hosted API's real per-token bill, summed over the run. It is a metered invoice, not a hardware estimate, and (unlike the self-hosted rows) it benefits from Bedrock prompt caching. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
