@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 87,
+      "notes": "The issue defines concrete flag states, migration behavior, rollback, non-goals, and testable task-definition and IAM outcomes. Repository checks confirm the named aws_rds_cluster.keycloak, container secret locals, required password variable, stock image default, rotation Lambda, and CKV_AWS_162 suppression. Its largest defect is internal inconsistency: generated passwords still reside in Terraform state, and the requested missing-password failure cannot occur when random_password always supplies one. Issue numbers and the claimed production outage could not be independently verified beyond repository comments referencing issue #1026."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 79,
+      "notes": "The LLD is unusually specific about real integration points such as keycloak-database.tf, keycloak_container_secrets, the task-role/execution-role split, cluster_resource_id, and the existing command override. Its major technical flaw is treating aws rds generate-db-auth-token as an authorization preflight even though token generation is local and does not validate rds-db:connect; the proposed image also installs only the wrapper JAR, not its AWS SDK runtime dependencies. The stock-image precondition recognizes only quay.io prefixes, while ignore_changes on the rotated secret leaves an unaddressed cluster-replacement recovery mismatch. Rollout, rollback, TLS, token lifetime, and residual password-user risks are otherwise handled concretely, although no independent task statement establishes the broader requirements."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 83,
+      "notes": "The review catches a real blocking defect in the original boot-time-token design and gives specific consequences and resolutions for pooling, TLS, role placement, secret drift, and rollback. Its findings align with the repository's task/execution roles, plain JDBC URL, require_tls=false proxy, and custom-versus-stock image paths. However, it incorrectly declares the authorization preflight resolved and misses that the Dockerfile does not supply the JDBC wrapper's AWS SDK runtime dependencies. The verdict is therefore too confident despite strong prioritization and useful treatment of deferred password-user revocation and manual database-user provisioning."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 75,
+      "notes": "The plan supplies concrete oracles for both flag states, IAM ARN scope, secret removal, TLS parameters, rollback, log leakage, and post-expiry behavior. Several commands do not match the repository: aws_ecs_service.keycloak lacks enable_execute_command, and after cd terraform/aws-ecs the docker/keycloak paths in section 4.1 are invalid. The 60-request soak does not guarantee creation of a new physical connection, historical CloudWatch searches are not time-bounded, and invalid_grant is incorrectly classified as a database failure. It also omits an actual image build, terraform validate, and shell validation, so it would not catch missing runtime JAR dependencies or several patch-level failures."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The patch targets source that exists and implements most intended surfaces: the Aurora flag, scoped task-role policy, conditional ECS secrets, variables, documentation, bootstrap script, and custom entrypoint all fit the repository's surrounding symbols and structure. The largest defect is that the Dockerfile downloads only aws-advanced-jdbc-wrapper-2.5.4.jar and not the AWS SDK runtime dependencies required by its IAM plugin, risking image-build or runtime class-loading failure. Its advertised fail-fast check is also ineffective because generate-db-auth-token does not test rds-db:connect and the shipped Keycloak image does not install the AWS CLI, causing the check to be skipped. The summary honestly states that no tests or image build ran, but it consequently overstates end-to-end readiness and does not address secret/cluster divergence after replacement following rotation."
+    }
+  },
+  "task_score": 78.4,
+  "verdict": "The submission is repository-aware and operationally thoughtful, but the implementation remains unproven and likely nonfunctional because its JDBC runtime packaging and authorization preflight are incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T02:20:29.926352Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 419652,
+      "cached_input_tokens": 341868,
+      "cache_write_input_tokens": 77772,
+      "output_tokens": 9374,
+      "reasoning_output_tokens": 6547
+    },
+    "duration_ms": 139664
+  },
+  "skill": "swe3"
+}

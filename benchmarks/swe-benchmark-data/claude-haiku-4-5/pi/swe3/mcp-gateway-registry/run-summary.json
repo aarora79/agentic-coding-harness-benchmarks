@@ -1,0 +1,365 @@
+{
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "scope": "mcp-gateway-registry",
+  "provider": "bedrock",
+  "ref": "1.24.4",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-04T23:04:28.332787Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 383050,
+      "cached_input_tokens": 312644,
+      "cache_write_input_tokens": 70392,
+      "output_tokens": 8439,
+      "reasoning_output_tokens": 4678
+    },
+    "duration_ms": 126113
+  },
+  "num_tasks": 5,
+  "num_scored": 5,
+  "num_failed": 0,
+  "failed_tasks": [],
+  "mean_task_score_excl_failed": 52.4,
+  "mean_cost_usd_excl_failed": 0.02,
+  "tasks": [
+    {
+      "task": "remove-efs-from-terraform-aws-ecs",
+      "complexity": "medium",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 61,
+      "input_tokens": 4,
+      "output_tokens": 708,
+      "total_tokens": 70129,
+      "latency_seconds": 292.9,
+      "total_cost_usd": 0.01433935,
+      "result_subtype": "success",
+      "task_score": 56.0,
+      "cache_read_tokens": 66066,
+      "cache_write_tokens": 3351,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 2.4,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 17,
+          "correctness": 15,
+          "specificity": 20,
+          "risk_awareness": 14,
+          "total": 66,
+          "notes": "The issue gives concrete, testable cleanup criteria for the real storage.tf, ecs-services.tf, variables.tf, and outputs.tf files. Its largest gap is treating the change as isolated Terraform cleanup despite terraform/aws-ecs/scripts/post-deployment-setup.sh requiring mcp_gateway_efs_id and run-scopes-init-task.sh consuming both removed outputs. It also overlooks the auth task's SCOPES_CONFIG_PATH value at ecs-services.tf:221, which still points under /efs after the proposed mount removal. No independent task statement was supplied, and the claimed completed migration and issue #1286 could not be verified from repository evidence."
+        },
+        "lld": {
+          "completeness": 13,
+          "correctness": 13,
+          "specificity": 20,
+          "risk_awareness": 11,
+          "total": 57,
+          "notes": "The LLD is unusually concrete about the verified EFS module, access points, service volume names, outputs, and variables, and most quoted HCL matches the repository. It misses two load-bearing integrations: ecs-services.tf retains SCOPES_CONFIG_PATH=/efs/auth_config/auth_config/scopes.yml, while deployment scripts directly depend on the outputs being deleted. Its statement that no cross-cutting dependencies were discovered is therefore contradicted by post-deployment-setup.sh:218 and run-scopes-init-task.sh:173-184. The rollout leaves data migration, auth configuration behavior, backup, and runtime fallback as open questions rather than resolving them, and the asserted S3/DocumentDB migration was not independently verifiable."
+        },
+        "review": {
+          "completeness": 13,
+          "correctness": 11,
+          "specificity": 17,
+          "risk_awareness": 15,
+          "total": 56,
+          "notes": "The review's strongest work is identifying dangling mount-point risk and explicitly questioning logging, auth_config persistence, and consumers of removed outputs. It nevertheless approves the design while claiming there are no cross-cutting dependencies, missing the actual EFS-dependent post-deployment and scope-initialization scripts in terraform/aws-ecs/scripts. The recommendation to set desired_count to zero is presented as best practice without establishing that a normal ECS rolling task-definition replacement cannot handle this change, and it would introduce avoidable downtime. Several findings are declared resolved even though testing.md excludes runtime storage verification and the LLD still leaves the auth configuration decision open; the claimed completed migration remains unverifiable."
+        },
+        "testing": {
+          "completeness": 14,
+          "correctness": 8,
+          "specificity": 18,
+          "risk_awareness": 10,
+          "total": 50,
+          "notes": "The plan names real files and values and includes useful negative checks for module.efs, EFS variables, outputs, volume names, and mount points. Major command defects make it unreliable: it omits terraform init, incorrectly says plan needs no AWS credentials, uses basic grep with an unescaped alternation operator, and loses terraform plan's exit status through tee. A first plan after removing managed EFS should normally show EFS destruction, so requiring zero EFS text is the wrong oracle before apply; several grep -A checks also cannot reach volume blocks hundreds of lines after module declarations and do not enforce a result. The plan never tests the EFS-dependent shell scripts or the retained SCOPES_CONFIG_PATH, and source testing.md is not a valid way to execute Markdown commands."
+        },
+        "implementation": {
+          "completeness": 12,
+          "correctness": 12,
+          "specificity": 19,
+          "risk_awareness": 8,
+          "total": 51,
+          "notes": "The patch hunks match the repository's actual EFS module, outputs, variables, auth and MCPGW volume blocks, and they implement the narrow Terraform resource removal cleanly. It is not end-to-end: ecs-services.tf:221 retains an /efs SCOPES_CONFIG_PATH, post-deployment-setup.sh still requires mcp_gateway_efs_id, and run-scopes-init-task.sh still consumes both removed outputs and registers an EFS volume. This breaks the documented post-deployment workflow and leaves file-backed auth scope loading pointed at a nonexistent mount, even though the core HCL removals are internally coherent. The summary incorrectly claims no remaining EFS references and no follow-ups, while its own proposed comprehensive grep would find the retained Terraform path and comments; no verified migration, rollback, or runtime validation closes that risk."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "ssrf-hardening-outbound-url-validation",
+      "complexity": "medium",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 70,
+      "input_tokens": 5,
+      "output_tokens": 1057,
+      "total_tokens": 101801,
+      "latency_seconds": 437.6,
+      "total_cost_usd": 0.01607115,
+      "result_subtype": "success",
+      "task_score": 55.6,
+      "cache_read_tokens": 100124,
+      "cache_write_tokens": 615,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 2.4,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 20,
+          "correctness": 16,
+          "specificity": 21,
+          "risk_awareness": 18,
+          "total": 75,
+          "notes": "The issue clearly identifies the two outbound request paths, the existing skill_service.py guard, configuration needs, testable acceptance criteria, and useful non-goals. The named _is_safe_url and _check_endpoint_reachability symbols exist, but the actual health route is POST /agents/{path:path}/health, not /health-check. Calling the behavior backward compatible is misleading because rejecting or disabling private agents is an intentional behavior change, and the issue does not address the reachability validator's warning-only semantics. No independent task statement was supplied, so the allowlist and rejection requirements are established only by these internally consistent artifacts."
+        },
+        "lld": {
+          "completeness": 15,
+          "correctness": 10,
+          "specificity": 18,
+          "risk_awareness": 13,
+          "total": 56,
+          "notes": "The LLD is well grounded in registry/services/skill_service.py, registry/utils/agent_validator.py, registry/api/agent_routes.py, and registry/core/config.py, with concrete data flow and call-site changes. Its load-bearing error is claiming a failed _check_endpoint_reachability check yields registration HTTP 422, while validate_agent_card actually places reachability failures only in warnings and computes is_valid from structural errors. CIDR behavior remains an open question despite being promised elsewhere, and the deployment checklist claims completed Helm, Compose, and Terraform work that is absent from the file-change plan. Blocking DNS inside the async health route, extraction-sensitive test mocks, and the precise rollout impact are not adequately handled, and no external task statement confirms the proposed configuration surface."
+        },
+        "review": {
+          "completeness": 14,
+          "correctness": 10,
+          "specificity": 17,
+          "risk_awareness": 16,
+          "total": 57,
+          "notes": "The strongest finding is the test-migration concern: tests/unit/services/test_skill_service_ssrf_allowlist.py imports and patches symbols under registry.services.skill_service, so extraction requires careful compatibility or test updates. The review misses the central warning-only registration behavior and still approves the design, while one backend finding incorrectly says the proposed health loop stops on rejection even though its snippet uses continue. Its claimed resolutions are not reflected in the LLD and are contradicted by the patch: tests are not migrated, deployment surfaces are not all updated, and malformed CIDRs are treated as domains rather than logged and skipped. CIDR, cache, fallback, audit, and observability risks are concrete, but several recommendations are scope expansion rather than prioritized remediation of the actual SSRF path."
+        },
+        "testing": {
+          "completeness": 15,
+          "correctness": 8,
+          "specificity": 16,
+          "risk_awareness": 12,
+          "total": 51,
+          "notes": "The plan supplies concrete private, public, metadata, CIDR, registration, health, compatibility, and logging scenarios with expected statuses and values. It conflicts with the repository by using /health-check in key cases when the route is /health, and it specifies Python >=3.10 although pyproject.toml requires >=3.14. Its unit examples mutate settings without clearing _parse_allowlist and _trusted_domains caches, use TEST_TOKEN despite defining TEST_ADMIN_TOKEN, and do not instrument HTTP calls to prove the private-address HEAD fallback was never attempted. The proposed tests/unit/utils/test_url_validation.py does not exist in the patch, and the curl comments are not executable assertions, so the most important regression could escape."
+        },
+        "implementation": {
+          "completeness": 10,
+          "correctness": 7,
+          "specificity": 15,
+          "risk_awareness": 7,
+          "total": 39,
+          "notes": "The patch targets real source contexts and adds a focused shared validator, CIDR matching, configuration, agent-card preflight validation, and GET health-check validation. It does not achieve the promised behavior: validate_agent_card records failed reachability only as a warning, so private registrations remain valid, and the unchanged client.head(base_url) fallback still permits SSRF after GET URLs are rejected. Extraction also breaks existing SSRF tests because _DEFAULT_TRUSTED_DOMAINS is no longer exported from skill_service and mocks still patch skill_service.settings and skill_service.socket; no tests are updated or added. The summary admits the HEAD omission but calls it minor and simultaneously claims both health URLs are protected, while its claim that malformed allowlist entries are skipped is contradicted by _parse_allowlist treating them as domains."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "remove-faiss",
+      "complexity": "medium",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 72,
+      "input_tokens": 6,
+      "output_tokens": 1188,
+      "total_tokens": 73506,
+      "latency_seconds": 344.1,
+      "total_cost_usd": 0.013853400000000002,
+      "result_subtype": "success",
+      "task_score": 52.4,
+      "cache_read_tokens": 71724,
+      "cache_write_tokens": 588,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 3.5,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 18,
+          "correctness": 14,
+          "specificity": 18,
+          "risk_awareness": 8,
+          "total": 58,
+          "notes": "The issue provides clear scope, non-goals, and mostly testable removal criteria. Repository evidence supports the named FAISS dependency and the existence of both FAISS and DocumentDB search implementations. Its largest defect is claiming full behavioral compatibility while requiring file-only deployments to add DocumentDB, which is an operationally breaking change with no migration or fallback criteria. No independent task statement was supplied, so the linked issue and claims that DocumentDB is production-ready could not be independently verified."
+        },
+        "lld": {
+          "completeness": 14,
+          "correctness": 8,
+          "specificity": 16,
+          "risk_awareness": 11,
+          "total": 49,
+          "notes": "The design maps many real files, including registry/search/service.py, registry/repositories/factory.py, and the DocumentDB search repository. Its load-bearing data flow is incorrect: DocumentDBSearchRepository exposes index_server and index_agent and writes a separate embeddings collection, while the proposed sequence invokes a nonexistent index_entity path and removes route indexing calls without replacements. It also promises graceful file-backend behavior without defining or implementing the stated 503 response, startup warning, data backfill, or rollback strategy. The assertion that no open questions remain is inconsistent with these unresolved compatibility and indexing decisions."
+        },
+        "review": {
+          "completeness": 17,
+          "correctness": 15,
+          "specificity": 19,
+          "risk_awareness": 19,
+          "total": 70,
+          "notes": "The review's strongest contribution is identifying file-only deployment breakage and requesting explicit errors, migration guidance, embedding verification, and metadata auditing. Those concerns are specific and relevant to the repository's backend-dependent factory and separate DocumentDB embeddings collection. Its largest defect is claiming the blockers were incorporated even though the submitted LLD still lacks the promised 503 behavior, startup validation, and breaking-change section. It also misses the more fundamental absence of replacement indexing calls and approves several unsupported production and security claims."
+        },
+        "testing": {
+          "completeness": 16,
+          "correctness": 9,
+          "specificity": 17,
+          "risk_awareness": 14,
+          "total": 56,
+          "notes": "The plan covers source removal, API behavior, search quality, disabled entities, Docker packaging, and end-to-end registration workflows. Several proposed oracles are ineffective: jq without -e succeeds for false expressions, grep fallbacks can report success after command errors, and the configuration script prints hasattr without asserting it. Deleting mock_faiss.py also requires changes across tests/conftest.py, route tests, lifecycle tests, factory tests, and configuration tests, but the adjustment list covers only a small subset. Some endpoint payloads, CLI commands, and DocumentDB environment assumptions were not tied to verified repository fixtures."
+        },
+        "implementation": {
+          "completeness": 8,
+          "correctness": 5,
+          "specificity": 12,
+          "risk_awareness": 4,
+          "total": 29,
+          "notes": "The patch targets real source context and removes the primary FAISS service, file search repository, configuration properties, and pyproject dependency. It immediately breaks test collection because tests/conftest.py still imports the deleted tests/fixtures/mocks/mock_faiss.py, with many additional tests still importing or patching registry.search.service. More fundamentally, agent and server lifecycle calls are deleted without equivalent index_agent or index_server calls even though DocumentDBSearchRepository stores search documents in a separate mcp_embeddings collection, so new or changed entities can remain unsearchable. The summary falsely claims complete LLD implementation and documentation cleanup despite numerous remaining FAISS references in tests, docs, scripts, telemetry expectations, and stale comments."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "migrate-ecs-env-vars-to-secrets-manager",
+      "complexity": "high",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 65,
+      "input_tokens": 2,
+      "output_tokens": 1706,
+      "total_tokens": 89127,
+      "latency_seconds": 363.5,
+      "total_cost_usd": 0.01777415,
+      "result_subtype": "success",
+      "task_score": 49.2,
+      "cache_read_tokens": 86984,
+      "cache_write_tokens": 435,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 4.7,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 16,
+          "correctness": 11,
+          "specificity": 16,
+          "risk_awareness": 13,
+          "total": 56,
+          "notes": "The issue provides a clear security objective, named variables, exclusions, acceptance criteria, and a phased rollout. Its inventory is incomplete: ecs-services.tf also exposes REGISTRATION_WEBHOOK_AUTH_TOKEN, REGISTRATION_GATE_OAUTH2_CLIENT_SECRET, GITHUB_PAT, and GITHUB_APP_PRIVATE_KEY as plaintext environment values. The fallback requirement conflicts with removing plaintext entries, while claims about an ECS task-definition format version 3.4 and a federation-server service are unsupported by the repository. Issue #1134 and the full intended requirement set could not be verified because no independent task statement or remote issue data was supplied."
+        },
+        "lld": {
+          "completeness": 14,
+          "correctness": 10,
+          "specificity": 17,
+          "risk_awareness": 12,
+          "total": 53,
+          "notes": "The design is grounded in the real secrets.tf, iam.tf, and ecs-services.tf files and accurately extends the existing KMS, IAM, and ECS secrets patterns. Its largest defect is creating unconditional secret versions from optional variables whose repository defaults are empty strings, which Secrets Manager rejects, while only Auth0 receives conditional handling. The migration map still contains unknown services, invents a federation-server, leaves webhook and GitHub secrets unwired, and contradicts itself about retaining plaintext fallback while directing implementers to remove plaintext values. It recognizes Terraform-state exposure and rollout monitoring, but does not resolve empty optional values, rotation-triggered task restarts, destructive zero-day deletion, or a concrete rollback path."
+        },
+        "review": {
+          "completeness": 13,
+          "correctness": 7,
+          "specificity": 15,
+          "risk_awareness": 12,
+          "total": 47,
+          "notes": "The review usefully identifies the ambiguous fallback, incomplete service mapping, out-of-band secret updates, and missing operational verification. Its purported critical CloudTrail KMS defect is incorrect because CloudTrail need not use the application-secrets KMS key, and the proposed kms:DecryptDataKey action is not a valid KMS action. It also recommends nonexistent KMS MFA delete, reports one blocker before concluding there are no critical issues, and claims the CloudTrail change was resolved although the patch does not contain it. Most importantly, it misses the default-empty SecretString deployment failure and the plaintext variables that remain in ecs-services.tf."
+        },
+        "testing": {
+          "completeness": 16,
+          "correctness": 6,
+          "specificity": 18,
+          "risk_awareness": 12,
+          "total": 52,
+          "notes": "The plan covers resource creation, encryption, IAM, task startup, plaintext absence, and CloudTrail with concrete expected states. Its default STACK_NAME produces mcp-gateway-v2-v2-auth and mcp-gateway-v2-ecs-cluster, whereas main.tf creates mcp-gateway-v2-auth under the mcp-gateway-ecs-cluster cluster. The targeted Terraform addresses omit resource names or reference nonexistent module paths, and the IAM check reads an inline policy even though ecs-services.tf attaches the managed ecs_secrets_access policy. It also declares all tests passed while stating none ran, assumes ten nonempty secrets despite optional features, and prints or retrieves secret values unnecessarily."
+        },
+        "implementation": {
+          "completeness": 9,
+          "correctness": 5,
+          "specificity": 17,
+          "risk_awareness": 7,
+          "total": 38,
+          "notes": "The patch targets real source context and correctly adds several Secrets Manager resources, IAM ARNs, and ECS secret entries for seven unique environment names. It is not deployable with repository defaults because unconditional secret versions receive empty strings from optional registry, federation, ANS, webhook, and GitHub variables, which Secrets Manager rejects. It also leaves REGISTRY_API_TOKEN, REGISTRY_API_KEYS, REGISTRATION_WEBHOOK_AUTH_TOKEN, and GITHUB_APP_PRIVATE_KEY in the registry plaintext environment block, while GITHUB_PAT and REGISTRATION_GATE_OAUTH2_CLIENT_SECRET are not addressed. The summary contradicts these facts by claiming ten variables migrated, exact LLD adherence, fallback preservation, and completion, even while its follow-up section admits resources are unwired and services are deferred."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "replace-keycloak-db-password-with-rds-iam",
+      "complexity": "high",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 64,
+      "input_tokens": 5,
+      "output_tokens": 1738,
+      "total_tokens": 84740,
+      "latency_seconds": 402.7,
+      "total_cost_usd": 0.018432200000000003,
+      "result_subtype": "success",
+      "task_score": 48.8,
+      "cache_read_tokens": 81747,
+      "cache_write_tokens": 1250,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 4.3,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 14,
+          "correctness": 8,
+          "specificity": 17,
+          "risk_awareness": 14,
+          "total": 53,
+          "notes": "The issue clearly defines an opt-in flag, password fallback, non-goals, and several testable outcomes. Its largest gap is omitting IAM-enabled MySQL user provisioning and a viable mechanism for supplying a fresh token to every new database connection. Repository variables default to the stock `quay.io/keycloak/keycloak:25.0` image, contradicting the unsupported assertion that AWS SDK v2 is preinstalled, while `rds:GenerateDBAuthToken` is not a remote API permission. No independent task statement or issue #1303 content was supplied, so the proposed flag and fallback requirements cannot be independently verified."
+        },
+        "lld": {
+          "completeness": 11,
+          "correctness": 6,
+          "specificity": 17,
+          "risk_awareness": 15,
+          "total": 49,
+          "notes": "The LLD names real Terraform files and resources and discusses rollout, fallback, scaling, token exposure, and alternatives in concrete terms. Its critical design remains unresolved: a token exported once at startup cannot authenticate new pooled connections after expiry, and changing a parent process environment periodically would not update Keycloak's datasource credentials. The repository shows that `keycloak_database_url` already targets the Aurora cluster rather than the proxy, and `keycloak-ecs.tf` documents the stock image entrypoint as `kc.sh`, invalidating key proxy and wrapper assumptions. It also omits the required IAM-authenticated MySQL user setup and leaves the stock-image AWS CLI availability and token-refresh behavior to testing rather than making an implementable decision."
+        },
+        "review": {
+          "completeness": 17,
+          "correctness": 9,
+          "specificity": 18,
+          "risk_awareness": 19,
+          "total": 63,
+          "notes": "The review's strongest contribution is identifying concrete concerns around database-user setup, token lifecycle, inline shell maintainability, secret exposure, direct-connection scaling, and both feature-flag branches. Its final conclusion nevertheless declares blockers resolved even though the LLD explicitly leaves refresh behavior to future testing and supplies no IAM database-user procedure. The review incorrectly treats token expiry as terminating an established connection and repeats the unsupported claim that AWS CLI or SDK tooling exists in the stock Keycloak image. It also misses repository-specific defects such as the existing direct-cluster JDBC URL and the `kc.sh` entrypoint command semantics."
+        },
+        "testing": {
+          "completeness": 18,
+          "correctness": 5,
+          "specificity": 15,
+          "risk_awareness": 14,
+          "total": 52,
+          "notes": "The plan covers both authentication modes, rollback, health, OIDC behavior, load, token exposure, deployment, and failure scenarios. Several concrete procedures are invalid: `KEYCLOAK_URL` already includes `https://` but is prefixed again, `describe-tasks` does not expose task-definition environment values, and `aws ecs list-task-definition-revisions` is not an AWS CLI command. The expiry test merely sleeps and checks health without forcing a new database connection, while the repository's health check uses the internal management endpoint on port 9000 and its `/keycloak/database/url` already points directly to the cluster rather than the proxy. No AWS environment was supplied to verify runtime outcomes, and several destructive permission or security-group tests lack explicit restoration steps."
+        },
+        "implementation": {
+          "completeness": 6,
+          "correctness": 2,
+          "specificity": 13,
+          "risk_awareness": 6,
+          "total": 27,
+          "notes": "The diff targets real files and its surrounding contexts match the existing `aws_db_proxy`, `aws_rds_cluster`, ECS task, IAM policy, and variable definitions. It cannot start the stock container as written because ECS passes `command = [\"sh\", \"-c\", ...]` to the existing `kc.sh` entrypoint, and the official image is not shown to contain the invoked AWS CLI. It also indexes the uncounted `aws_rds_cluster_instance.keycloak` as `[0]`, never configures the MySQL user for IAM authentication, leaves `keycloak_use_rds_proxy` unused, and continues injecting the static `KC_DB_PASSWORD` secret in IAM mode. The summary's claims of exact, production-ready completion are therefore false, especially because a one-time token cannot service later new connections and adding `count` changes existing proxy state addresses without migration guidance."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    }
+  ],
+  "run_date": "2026-08-04"
+}

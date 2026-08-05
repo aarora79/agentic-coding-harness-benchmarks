@@ -1,0 +1,150 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "security",
+    "ssrf",
+    "python",
+    "fastapi",
+    "input-validation"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 2.4,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 5,
+    "output_tokens": 1057,
+    "cache_read_tokens": 100124,
+    "cache_write_tokens": 615,
+    "total_tokens": 101801,
+    "total_cost_usd": 0.01607115,
+    "latency_seconds": 437.6,
+    "num_turns": 70,
+    "generation_tokens_per_sec": 2.4,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 5,
+  "output_tokens": 1057,
+  "latency_seconds": 437.6,
+  "num_turns": 70,
+  "total_cost_usd": 0.01607115,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 100124,
+  "cache_creation_tokens": 615,
+  "run_started_at": "2026-08-04T22:42:05.745858Z",
+  "run_ended_at": "2026-08-04T22:49:25.989902Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 5,
+    "output_tokens": 1057,
+    "cache_read_tokens": 100124,
+    "cache_write_tokens": 615,
+    "total_tokens": 101801,
+    "total_cost_usd": 0.01607115,
+    "latency_seconds": 437.6,
+    "num_turns": 70,
+    "generation_tokens_per_sec": 2.4,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "ssrf-hardening-outbound-url-validation",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 21,
+        "risk_awareness": 18,
+        "total": 75,
+        "notes": "The issue clearly identifies the two outbound request paths, the existing skill_service.py guard, configuration needs, testable acceptance criteria, and useful non-goals. The named _is_safe_url and _check_endpoint_reachability symbols exist, but the actual health route is POST /agents/{path:path}/health, not /health-check. Calling the behavior backward compatible is misleading because rejecting or disabling private agents is an intentional behavior change, and the issue does not address the reachability validator's warning-only semantics. No independent task statement was supplied, so the allowlist and rejection requirements are established only by these internally consistent artifacts."
+      },
+      "lld": {
+        "completeness": 15,
+        "correctness": 10,
+        "specificity": 18,
+        "risk_awareness": 13,
+        "total": 56,
+        "notes": "The LLD is well grounded in registry/services/skill_service.py, registry/utils/agent_validator.py, registry/api/agent_routes.py, and registry/core/config.py, with concrete data flow and call-site changes. Its load-bearing error is claiming a failed _check_endpoint_reachability check yields registration HTTP 422, while validate_agent_card actually places reachability failures only in warnings and computes is_valid from structural errors. CIDR behavior remains an open question despite being promised elsewhere, and the deployment checklist claims completed Helm, Compose, and Terraform work that is absent from the file-change plan. Blocking DNS inside the async health route, extraction-sensitive test mocks, and the precise rollout impact are not adequately handled, and no external task statement confirms the proposed configuration surface."
+      },
+      "review": {
+        "completeness": 14,
+        "correctness": 10,
+        "specificity": 17,
+        "risk_awareness": 16,
+        "total": 57,
+        "notes": "The strongest finding is the test-migration concern: tests/unit/services/test_skill_service_ssrf_allowlist.py imports and patches symbols under registry.services.skill_service, so extraction requires careful compatibility or test updates. The review misses the central warning-only registration behavior and still approves the design, while one backend finding incorrectly says the proposed health loop stops on rejection even though its snippet uses continue. Its claimed resolutions are not reflected in the LLD and are contradicted by the patch: tests are not migrated, deployment surfaces are not all updated, and malformed CIDRs are treated as domains rather than logged and skipped. CIDR, cache, fallback, audit, and observability risks are concrete, but several recommendations are scope expansion rather than prioritized remediation of the actual SSRF path."
+      },
+      "testing": {
+        "completeness": 15,
+        "correctness": 8,
+        "specificity": 16,
+        "risk_awareness": 12,
+        "total": 51,
+        "notes": "The plan supplies concrete private, public, metadata, CIDR, registration, health, compatibility, and logging scenarios with expected statuses and values. It conflicts with the repository by using /health-check in key cases when the route is /health, and it specifies Python >=3.10 although pyproject.toml requires >=3.14. Its unit examples mutate settings without clearing _parse_allowlist and _trusted_domains caches, use TEST_TOKEN despite defining TEST_ADMIN_TOKEN, and do not instrument HTTP calls to prove the private-address HEAD fallback was never attempted. The proposed tests/unit/utils/test_url_validation.py does not exist in the patch, and the curl comments are not executable assertions, so the most important regression could escape."
+      },
+      "implementation": {
+        "completeness": 10,
+        "correctness": 7,
+        "specificity": 15,
+        "risk_awareness": 7,
+        "total": 39,
+        "notes": "The patch targets real source contexts and adds a focused shared validator, CIDR matching, configuration, agent-card preflight validation, and GET health-check validation. It does not achieve the promised behavior: validate_agent_card records failed reachability only as a warning, so private registrations remain valid, and the unchanged client.head(base_url) fallback still permits SSRF after GET URLs are rejected. Extraction also breaks existing SSRF tests because _DEFAULT_TRUSTED_DOMAINS is no longer exported from skill_service and mocks still patch skill_service.settings and skill_service.socket; no tests are updated or added. The summary admits the HEAD omission but calls it minor and simultaneously claims both health URLs are protected, while its claim that malformed allowlist entries are skipped is contradicted by _parse_allowlist treating them as domains."
+      }
+    },
+    "task_score": 55.6,
+    "verdict": "The artifacts are repository-aware and detailed, but the implementation leaves the health-check SSRF path exploitable and does not enforce the promised registration rejection.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-04T23:15:40.331025Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 811572,
+        "cached_input_tokens": 746961,
+        "cache_write_input_tokens": 64579,
+        "output_tokens": 10133,
+        "reasoning_output_tokens": 5720
+      },
+      "duration_ms": 229017
+    }
+  }
+}

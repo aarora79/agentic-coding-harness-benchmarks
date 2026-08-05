@@ -1,0 +1,150 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "terraform",
+    "aws",
+    "ecs",
+    "storage",
+    "infrastructure"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 2.4,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 4,
+    "output_tokens": 708,
+    "cache_read_tokens": 66066,
+    "cache_write_tokens": 3351,
+    "total_tokens": 70129,
+    "total_cost_usd": 0.01433935,
+    "latency_seconds": 292.9,
+    "num_turns": 61,
+    "generation_tokens_per_sec": 2.4,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 4,
+  "output_tokens": 708,
+  "latency_seconds": 292.9,
+  "num_turns": 61,
+  "total_cost_usd": 0.01433935,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 66066,
+  "cache_creation_tokens": 3351,
+  "run_started_at": "2026-08-04T22:37:09.828999Z",
+  "run_ended_at": "2026-08-04T22:42:03.658768Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 4,
+    "output_tokens": 708,
+    "cache_read_tokens": 66066,
+    "cache_write_tokens": 3351,
+    "total_tokens": 70129,
+    "total_cost_usd": 0.01433935,
+    "latency_seconds": 292.9,
+    "num_turns": 61,
+    "generation_tokens_per_sec": 2.4,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "remove-efs-from-terraform-aws-ecs",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 17,
+        "correctness": 15,
+        "specificity": 20,
+        "risk_awareness": 14,
+        "total": 66,
+        "notes": "The issue gives concrete, testable cleanup criteria for the real storage.tf, ecs-services.tf, variables.tf, and outputs.tf files. Its largest gap is treating the change as isolated Terraform cleanup despite terraform/aws-ecs/scripts/post-deployment-setup.sh requiring mcp_gateway_efs_id and run-scopes-init-task.sh consuming both removed outputs. It also overlooks the auth task's SCOPES_CONFIG_PATH value at ecs-services.tf:221, which still points under /efs after the proposed mount removal. No independent task statement was supplied, and the claimed completed migration and issue #1286 could not be verified from repository evidence."
+      },
+      "lld": {
+        "completeness": 13,
+        "correctness": 13,
+        "specificity": 20,
+        "risk_awareness": 11,
+        "total": 57,
+        "notes": "The LLD is unusually concrete about the verified EFS module, access points, service volume names, outputs, and variables, and most quoted HCL matches the repository. It misses two load-bearing integrations: ecs-services.tf retains SCOPES_CONFIG_PATH=/efs/auth_config/auth_config/scopes.yml, while deployment scripts directly depend on the outputs being deleted. Its statement that no cross-cutting dependencies were discovered is therefore contradicted by post-deployment-setup.sh:218 and run-scopes-init-task.sh:173-184. The rollout leaves data migration, auth configuration behavior, backup, and runtime fallback as open questions rather than resolving them, and the asserted S3/DocumentDB migration was not independently verifiable."
+      },
+      "review": {
+        "completeness": 13,
+        "correctness": 11,
+        "specificity": 17,
+        "risk_awareness": 15,
+        "total": 56,
+        "notes": "The review's strongest work is identifying dangling mount-point risk and explicitly questioning logging, auth_config persistence, and consumers of removed outputs. It nevertheless approves the design while claiming there are no cross-cutting dependencies, missing the actual EFS-dependent post-deployment and scope-initialization scripts in terraform/aws-ecs/scripts. The recommendation to set desired_count to zero is presented as best practice without establishing that a normal ECS rolling task-definition replacement cannot handle this change, and it would introduce avoidable downtime. Several findings are declared resolved even though testing.md excludes runtime storage verification and the LLD still leaves the auth configuration decision open; the claimed completed migration remains unverifiable."
+      },
+      "testing": {
+        "completeness": 14,
+        "correctness": 8,
+        "specificity": 18,
+        "risk_awareness": 10,
+        "total": 50,
+        "notes": "The plan names real files and values and includes useful negative checks for module.efs, EFS variables, outputs, volume names, and mount points. Major command defects make it unreliable: it omits terraform init, incorrectly says plan needs no AWS credentials, uses basic grep with an unescaped alternation operator, and loses terraform plan's exit status through tee. A first plan after removing managed EFS should normally show EFS destruction, so requiring zero EFS text is the wrong oracle before apply; several grep -A checks also cannot reach volume blocks hundreds of lines after module declarations and do not enforce a result. The plan never tests the EFS-dependent shell scripts or the retained SCOPES_CONFIG_PATH, and source testing.md is not a valid way to execute Markdown commands."
+      },
+      "implementation": {
+        "completeness": 12,
+        "correctness": 12,
+        "specificity": 19,
+        "risk_awareness": 8,
+        "total": 51,
+        "notes": "The patch hunks match the repository's actual EFS module, outputs, variables, auth and MCPGW volume blocks, and they implement the narrow Terraform resource removal cleanly. It is not end-to-end: ecs-services.tf:221 retains an /efs SCOPES_CONFIG_PATH, post-deployment-setup.sh still requires mcp_gateway_efs_id, and run-scopes-init-task.sh still consumes both removed outputs and registers an EFS volume. This breaks the documented post-deployment workflow and leaves file-backed auth scope loading pointed at a nonexistent mount, even though the core HCL removals are internally coherent. The summary incorrectly claims no remaining EFS references and no follow-ups, while its own proposed comprehensive grep would find the retained Terraform path and comments; no verified migration, rollback, or runtime validation closes that risk."
+      }
+    },
+    "task_score": 56.0,
+    "verdict": "The submission precisely removes the core HCL resources but misses repository-proven runtime and deployment-script dependencies, leaving the design, tests, and patch materially incomplete.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-04T23:07:11.317766Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 606699,
+        "cached_input_tokens": 526019,
+        "cache_write_input_tokens": 80660,
+        "output_tokens": 9818,
+        "reasoning_output_tokens": 4661
+      },
+      "duration_ms": 162963
+    }
+  }
+}

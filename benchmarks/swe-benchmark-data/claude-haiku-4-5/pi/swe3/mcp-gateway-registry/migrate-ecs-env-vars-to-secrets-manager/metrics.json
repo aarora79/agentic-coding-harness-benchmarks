@@ -1,0 +1,151 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "high",
+  "tags": [
+    "security",
+    "aws",
+    "secrets-manager",
+    "terraform",
+    "ecs",
+    "iam"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 4.7,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 1706,
+    "cache_read_tokens": 86984,
+    "cache_write_tokens": 435,
+    "total_tokens": 89127,
+    "total_cost_usd": 0.01777415,
+    "latency_seconds": 363.5,
+    "num_turns": 65,
+    "generation_tokens_per_sec": 4.7,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2,
+  "output_tokens": 1706,
+  "latency_seconds": 363.5,
+  "num_turns": 65,
+  "total_cost_usd": 0.01777415,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 86984,
+  "cache_creation_tokens": 435,
+  "run_started_at": "2026-08-04T22:49:28.292756Z",
+  "run_ended_at": "2026-08-04T22:55:34.337860Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 1706,
+    "cache_read_tokens": 86984,
+    "cache_write_tokens": 435,
+    "total_tokens": 89127,
+    "total_cost_usd": 0.01777415,
+    "latency_seconds": 363.5,
+    "num_turns": 65,
+    "generation_tokens_per_sec": 4.7,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "migrate-ecs-env-vars-to-secrets-manager",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 16,
+        "correctness": 11,
+        "specificity": 16,
+        "risk_awareness": 13,
+        "total": 56,
+        "notes": "The issue provides a clear security objective, named variables, exclusions, acceptance criteria, and a phased rollout. Its inventory is incomplete: ecs-services.tf also exposes REGISTRATION_WEBHOOK_AUTH_TOKEN, REGISTRATION_GATE_OAUTH2_CLIENT_SECRET, GITHUB_PAT, and GITHUB_APP_PRIVATE_KEY as plaintext environment values. The fallback requirement conflicts with removing plaintext entries, while claims about an ECS task-definition format version 3.4 and a federation-server service are unsupported by the repository. Issue #1134 and the full intended requirement set could not be verified because no independent task statement or remote issue data was supplied."
+      },
+      "lld": {
+        "completeness": 14,
+        "correctness": 10,
+        "specificity": 17,
+        "risk_awareness": 12,
+        "total": 53,
+        "notes": "The design is grounded in the real secrets.tf, iam.tf, and ecs-services.tf files and accurately extends the existing KMS, IAM, and ECS secrets patterns. Its largest defect is creating unconditional secret versions from optional variables whose repository defaults are empty strings, which Secrets Manager rejects, while only Auth0 receives conditional handling. The migration map still contains unknown services, invents a federation-server, leaves webhook and GitHub secrets unwired, and contradicts itself about retaining plaintext fallback while directing implementers to remove plaintext values. It recognizes Terraform-state exposure and rollout monitoring, but does not resolve empty optional values, rotation-triggered task restarts, destructive zero-day deletion, or a concrete rollback path."
+      },
+      "review": {
+        "completeness": 13,
+        "correctness": 7,
+        "specificity": 15,
+        "risk_awareness": 12,
+        "total": 47,
+        "notes": "The review usefully identifies the ambiguous fallback, incomplete service mapping, out-of-band secret updates, and missing operational verification. Its purported critical CloudTrail KMS defect is incorrect because CloudTrail need not use the application-secrets KMS key, and the proposed kms:DecryptDataKey action is not a valid KMS action. It also recommends nonexistent KMS MFA delete, reports one blocker before concluding there are no critical issues, and claims the CloudTrail change was resolved although the patch does not contain it. Most importantly, it misses the default-empty SecretString deployment failure and the plaintext variables that remain in ecs-services.tf."
+      },
+      "testing": {
+        "completeness": 16,
+        "correctness": 6,
+        "specificity": 18,
+        "risk_awareness": 12,
+        "total": 52,
+        "notes": "The plan covers resource creation, encryption, IAM, task startup, plaintext absence, and CloudTrail with concrete expected states. Its default STACK_NAME produces mcp-gateway-v2-v2-auth and mcp-gateway-v2-ecs-cluster, whereas main.tf creates mcp-gateway-v2-auth under the mcp-gateway-ecs-cluster cluster. The targeted Terraform addresses omit resource names or reference nonexistent module paths, and the IAM check reads an inline policy even though ecs-services.tf attaches the managed ecs_secrets_access policy. It also declares all tests passed while stating none ran, assumes ten nonempty secrets despite optional features, and prints or retrieves secret values unnecessarily."
+      },
+      "implementation": {
+        "completeness": 9,
+        "correctness": 5,
+        "specificity": 17,
+        "risk_awareness": 7,
+        "total": 38,
+        "notes": "The patch targets real source context and correctly adds several Secrets Manager resources, IAM ARNs, and ECS secret entries for seven unique environment names. It is not deployable with repository defaults because unconditional secret versions receive empty strings from optional registry, federation, ANS, webhook, and GitHub variables, which Secrets Manager rejects. It also leaves REGISTRY_API_TOKEN, REGISTRY_API_KEYS, REGISTRATION_WEBHOOK_AUTH_TOKEN, and GITHUB_APP_PRIVATE_KEY in the registry plaintext environment block, while GITHUB_PAT and REGISTRATION_GATE_OAUTH2_CLIENT_SECRET are not addressed. The summary contradicts these facts by claiming ten variables migrated, exact LLD adherence, fallback preservation, and completion, even while its follow-up section admits resources are unwired and services are deferred."
+      }
+    },
+    "task_score": 49.2,
+    "verdict": "The submission identifies the right infrastructure pattern but is undermined by an incomplete inventory, invalid default secret creation, inaccurate verification commands, and an implementation that leaves sensitive plaintext in ECS task definitions.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-04T23:04:28.332787Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 383050,
+        "cached_input_tokens": 312644,
+        "cache_write_input_tokens": 70392,
+        "output_tokens": 8439,
+        "reasoning_output_tokens": 4678
+      },
+      "duration_ms": 126113
+    }
+  }
+}

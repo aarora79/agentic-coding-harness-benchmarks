@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 53,
+      "notes": "The issue clearly defines an opt-in flag, password fallback, non-goals, and several testable outcomes. Its largest gap is omitting IAM-enabled MySQL user provisioning and a viable mechanism for supplying a fresh token to every new database connection. Repository variables default to the stock `quay.io/keycloak/keycloak:25.0` image, contradicting the unsupported assertion that AWS SDK v2 is preinstalled, while `rds:GenerateDBAuthToken` is not a remote API permission. No independent task statement or issue #1303 content was supplied, so the proposed flag and fallback requirements cannot be independently verified."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 49,
+      "notes": "The LLD names real Terraform files and resources and discusses rollout, fallback, scaling, token exposure, and alternatives in concrete terms. Its critical design remains unresolved: a token exported once at startup cannot authenticate new pooled connections after expiry, and changing a parent process environment periodically would not update Keycloak's datasource credentials. The repository shows that `keycloak_database_url` already targets the Aurora cluster rather than the proxy, and `keycloak-ecs.tf` documents the stock image entrypoint as `kc.sh`, invalidating key proxy and wrapper assumptions. It also omits the required IAM-authenticated MySQL user setup and leaves the stock-image AWS CLI availability and token-refresh behavior to testing rather than making an implementable decision."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 19,
+      "total": 63,
+      "notes": "The review's strongest contribution is identifying concrete concerns around database-user setup, token lifecycle, inline shell maintainability, secret exposure, direct-connection scaling, and both feature-flag branches. Its final conclusion nevertheless declares blockers resolved even though the LLD explicitly leaves refresh behavior to future testing and supplies no IAM database-user procedure. The review incorrectly treats token expiry as terminating an established connection and repeats the unsupported claim that AWS CLI or SDK tooling exists in the stock Keycloak image. It also misses repository-specific defects such as the existing direct-cluster JDBC URL and the `kc.sh` entrypoint command semantics."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 52,
+      "notes": "The plan covers both authentication modes, rollback, health, OIDC behavior, load, token exposure, deployment, and failure scenarios. Several concrete procedures are invalid: `KEYCLOAK_URL` already includes `https://` but is prefixed again, `describe-tasks` does not expose task-definition environment values, and `aws ecs list-task-definition-revisions` is not an AWS CLI command. The expiry test merely sleeps and checks health without forcing a new database connection, while the repository's health check uses the internal management endpoint on port 9000 and its `/keycloak/database/url` already points directly to the cluster rather than the proxy. No AWS environment was supplied to verify runtime outcomes, and several destructive permission or security-group tests lack explicit restoration steps."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 6,
+      "total": 27,
+      "notes": "The diff targets real files and its surrounding contexts match the existing `aws_db_proxy`, `aws_rds_cluster`, ECS task, IAM policy, and variable definitions. It cannot start the stock container as written because ECS passes `command = [\"sh\", \"-c\", ...]` to the existing `kc.sh` entrypoint, and the official image is not shown to contain the invoked AWS CLI. It also indexes the uncounted `aws_rds_cluster_instance.keycloak` as `[0]`, never configures the MySQL user for IAM authentication, leaves `keycloak_use_rds_proxy` unused, and continues injecting the static `KC_DB_PASSWORD` secret in IAM mode. The summary's claims of exact, production-ready completion are therefore false, especially because a one-time token cannot service later new connections and adding `count` changes existing proxy state addresses without migration guidance."
+    }
+  },
+  "task_score": 48.8,
+  "verdict": "The artifacts identify the right security objective and many relevant risks, but the proposed stock-container token mechanism and submitted Terraform patch are not deployable or functionally complete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-04T23:11:51.301649Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 239025,
+      "cached_input_tokens": 191554,
+      "cache_write_input_tokens": 47459,
+      "output_tokens": 8161,
+      "reasoning_output_tokens": 5092
+    },
+    "duration_ms": 128177
+  },
+  "skill": "swe3"
+}

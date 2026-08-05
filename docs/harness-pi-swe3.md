@@ -1,18 +1,16 @@
-# Results: Claude Code harness (swe3)
+# Results: pi harness (swe3)
 
-Benchmark results for every model run under the **Claude Code** coding agent with the **swe3** skill on `mcp-gateway-registry`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness claude-code --skill swe3`. Companion to the cross-agent [harness comparison](harness-comparison.md).
+Benchmark results for every model run under the **pi** coding agent with the **swe3** skill on `mcp-gateway-registry`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness pi --skill swe3`. Companion to the cross-agent [harness comparison](harness-comparison.md).
 
 ## Results by model
 
 | Model | Mean score | Completed | Input | Output | Cache read | Cache write | Tokens processed† | Wall-clock | Run cost | Cost basis* |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| claude-opus-5 | 70.76 | 5/5 | 1,426 | 986,884 | 172,663,618 | 1,477,502 | 175,129,430 | 198.6m | $120.25 | metered (Bedrock) |
-| claude-opus-4-8 | 69.24 | 5/5 | 981 | 510,834 | 55,313,612 | 1,223,230 | 57,048,657 | 112.8m | $49.51 | metered (Bedrock) |
-| claude-sonnet-5 | 68.04 | 5/5 | 2,608 | 893,437 | 338,489,015 | 2,187,670 | 341,572,730 | 190.7m | $123.20 | metered (Bedrock) |
-| glm-5.2 | 65.60 | 5/5 | 86,412,298 | 366,782 | 0 | 0 | 86,779,080 | 96.2m | $16.82 | hardware-derived |
-| nemotron-ultra-550b | 53.68 | 5/5 | 95,277,127 | 326,132 | 0 | 0 | 95,603,259 | 81.7m | $14.29 | hardware-derived |
-| qwen3.6-35b | 48.16 | 5/5 | 37,541,216 | 276,328 | 0 | 0 | 37,817,544 | 46.9m | $8.20 | hardware-derived |
-| claude-haiku-4-5 | 41.08 | 5/5 | 428 | 147,913 | 24,580,868 | 635,273 | 25,364,482 | 23.0m | $3.99 | metered (Bedrock) |
+| claude-opus-5 | 78.52 | 5/5 | 10 | 7,682 | 955,695 | 2,955 | 966,342 | 99.2m | $0.69 | metered (Bedrock) |
+| glm-5.2 | 70.52 | 5/5 | 756,340 | 5,593 | 56,140,480 | 343,726 | 57,246,139 | 90.5m | $15.83 | hardware-derived |
+| claude-opus-4-8 | 67.20 | 5/5 | 10 | 5,450 | 639,580 | 2,810 | 647,850 | 57.5m | $0.47 | metered (Bedrock) |
+| claude-sonnet-5 | 66.76 | 5/5 | 10 | 3,756 | 902,051 | 1,798 | 907,615 | 84.0m | $0.22 | metered (Bedrock) |
+| claude-haiku-4-5 | 52.40 | 5/5 | 22 | 6,397 | 406,645 | 6,239 | 419,303 | 30.7m | $0.08 | metered (Bedrock) |
 
 \* **Cost basis differs by row and the dollars are NOT directly comparable.** _hardware-derived_ (self-hosted vLLM): a rented GPU has no per-token bill, so cost is `($/hr / 3600) x wall-clock seconds` at g6e.12xlarge on-demand ($10.49/hr). _metered (Bedrock)_: a hosted API's real per-token bill, summed over the run. It is a metered invoice, not a hardware estimate, and (unlike the self-hosted rows) it benefits from Bedrock prompt caching. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
 
@@ -24,8 +22,8 @@ A task scoring 0 (missing/empty artifacts) is a model failure, excluded from the
 
 ### Cost vs. quality (Pareto frontier)
 
-![Cost vs quality, Claude Code harness](images/cost-quality-cc-swe3.png)
+![Cost vs quality, pi harness](images/cost-quality-pi-swe3.png)
 
 ### Quality by dimension (radar)
 
-![Quality radar, Claude Code harness](images/quality-radar-cc-swe3.png)
+![Quality radar, pi harness](images/quality-radar-pi-swe3.png)
