@@ -1209,12 +1209,17 @@ def _pi_result_from_events(
     """Normalize pi's JSON-lines event stream into the claude-shaped result dict.
 
     pi ``--mode json`` emits a stream of events, not one result object. The final
-    ``agent_end`` carries the settled conversation; the last assistant message's
-    ``usage`` holds cumulative tokens, and ``stopReason`` reports why it stopped.
-    Turns are counted from ``turn_start`` events. This maps those onto the same
-    keys ``_metrics_from_result`` reads for claude (``usage.input_tokens`` etc.,
-    ``num_turns``, ``subtype``, ``is_error``, ``total_cost_usd``) so the rest of
-    the harness is agent-agnostic.
+    ``agent_end`` carries the settled conversation, and ``stopReason`` reports why
+    it stopped. Turns are counted from ``turn_start`` events.
+
+    Token usage is PER-MESSAGE, not cumulative: each assistant message carries its
+    own ``usage`` (``input``/``output``/``cacheRead``/``cacheWrite``), matching pi's
+    own ``UsageTotals`` accounting (``addUsageToTotals`` is called once per message).
+    Reading only the last message's usage undercounts a multi-turn run by ~100x
+    (a 200-turn edit run would report only the final turn's tokens), so we SUM
+    usage across every assistant message -- the same fix as sourcing claude's tokens
+    from ``modelUsage`` rather than the main-agent-only ``usage``. This maps onto the
+    keys ``_metrics_from_result`` reads for claude so the harness stays agent-agnostic.
 
     Args:
         events: The parsed JSON-lines events pi emitted, in order.
@@ -1234,32 +1239,42 @@ def _pi_result_from_events(
     if agent_end is None:
         raise RuntimeError("pi emitted no agent_end event (no parseable result)")
     messages = agent_end.get("messages") or []
-    last_assistant = next(
-        (
-            m
-            for m in reversed(messages)
-            if isinstance(m, dict) and m.get("role") == "assistant"
-        ),
-        {},
-    )
-    usage = last_assistant.get("usage") or {}
-    stop_reason = last_assistant.get("stopReason")
-    # pi's usage keys (input/output) differ from claude's (input_tokens/...);
-    # remap so _metrics_from_result reads them unchanged.
+    assistant_msgs = [
+        m for m in messages if isinstance(m, dict) and m.get("role") == "assistant"
+    ]
+    # Sum per-message usage across the whole conversation (see docstring: usage is
+    # per-message, not cumulative). stopReason comes from the LAST assistant message.
+    totals = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "cost": 0.0}
+    for m in assistant_msgs:
+        u = m.get("usage") or {}
+        totals["input"] += u.get("input") or 0
+        totals["output"] += u.get("output") or 0
+        totals["cacheRead"] += u.get("cacheRead") or 0
+        totals["cacheWrite"] += u.get("cacheWrite") or 0
+        # Cost, when present, is per-message and additive (pi accrues it into
+        # UsageTotals.cost the same way). Shapes vary by pi version: a bare number
+        # or a {"total": ...} object -- accept both.
+        mc = u.get("cost")
+        if isinstance(mc, dict):
+            mc = mc.get("total")
+        if isinstance(mc, (int, float)):
+            totals["cost"] += mc
+    stop_reason = assistant_msgs[-1].get("stopReason") if assistant_msgs else None
+    # remap onto the keys _metrics_from_result reads for claude.
     remapped_usage: dict[str, Any] = {
-        "input_tokens": usage.get("input", 0),
-        "output_tokens": usage.get("output", 0),
+        "input_tokens": totals["input"],
+        "output_tokens": totals["output"],
     }
     # Cache tokens: against a vLLM endpoint pi reports 0 (real reuse comes from the
     # Prometheus block, so we omit them rather than record a misleading 0). Against
     # Amazon Bedrock pi DOES report native prompt-cache usage (cacheRead/cacheWrite)
     # -- pass those through under the keys _metrics_from_result expects, but only
     # when non-zero so the vLLM path stays clean.
-    if usage.get("cacheRead"):
-        remapped_usage["cache_read_input_tokens"] = usage["cacheRead"]
-    if usage.get("cacheWrite"):
-        remapped_usage["cache_creation_input_tokens"] = usage["cacheWrite"]
-    cost = (usage.get("cost") or {}).get("total")
+    if totals["cacheRead"]:
+        remapped_usage["cache_read_input_tokens"] = totals["cacheRead"]
+    if totals["cacheWrite"]:
+        remapped_usage["cache_creation_input_tokens"] = totals["cacheWrite"]
+    cost = totals["cost"] or None
     # An error retry (pi tried and gave up) or a non-"stop" terminal reason marks
     # the run failed so the harness's retry/failure logic can react.
     will_retry = agent_end.get("willRetry", False)
@@ -1331,6 +1346,13 @@ def _run_pi(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any]
         raise RuntimeError(
             f"pi -p output had no JSON events: {proc.stdout.strip()[:500]}"
         )
+    # Debug aid: dump the raw event stream when PI_RAW_EVENTS_DUMP is set, so the
+    # usage-summation logic can be validated against real pi output.
+    dump_path = os.environ.get("PI_RAW_EVENTS_DUMP")
+    if dump_path:
+        with open(dump_path, "w", encoding="utf-8") as fh:
+            for e in events:
+                fh.write(json.dumps(e) + "\n")
     result = _pi_result_from_events(events, elapsed)
     result["_elapsed_seconds"] = round(elapsed, 1)
     return result

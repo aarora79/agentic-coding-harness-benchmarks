@@ -545,15 +545,31 @@ class BuildPiCmdTest(unittest.TestCase):
 
 def _pi_events(usage: dict, stop: str = "stop") -> list[dict]:
     """Build a minimal pi event stream ending in agent_end with the given usage."""
-    msg = {
-        "role": "assistant",
-        "content": [{"type": "text", "text": "x"}],
-        "usage": usage,
-        "stopReason": stop,
-    }
+    return _pi_events_multi([usage], stop=stop)
+
+
+def _pi_events_multi(usages: list[dict], stop: str = "stop") -> list[dict]:
+    """Build a pi event stream with one assistant message per usage dict.
+
+    pi usage is PER-MESSAGE; the last assistant message carries the terminal
+    stopReason. One turn_start per assistant message so num_turns lines up.
+    """
+    turns: list[dict] = []
+    msgs: list[dict] = [{"role": "user"}]
+    for i, usage in enumerate(usages):
+        turns.append({"type": "turn_start"})
+        msgs.append(
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "x"}],
+                "usage": usage,
+                # only the final message carries the terminal stop reason.
+                "stopReason": stop if i == len(usages) - 1 else "end_turn",
+            }
+        )
     return [
-        {"type": "turn_start"},
-        {"type": "agent_end", "messages": [{"role": "user"}, msg], "willRetry": False},
+        *turns,
+        {"type": "agent_end", "messages": msgs, "willRetry": False},
     ]
 
 
@@ -596,6 +612,69 @@ class PiResultFromEventsTest(unittest.TestCase):
         metrics = harness._metrics_from_result(result, elapsed=2.0)
         self.assertEqual(metrics["cache_read_tokens"], 1000)
         self.assertEqual(metrics["cache_creation_tokens"], 3102)
+
+    def test_sums_usage_across_all_turns_not_just_last(self) -> None:
+        # pi usage is PER-MESSAGE, not cumulative. Reading only the last message
+        # (the old bug) undercounts a multi-turn run ~100x. Every assistant
+        # message's tokens/cost must be summed; stopReason comes from the last.
+        events = _pi_events_multi(
+            [
+                {
+                    "input": 3000,
+                    "output": 300,
+                    "cacheRead": 0,
+                    "cacheWrite": 100,
+                    "cost": {"total": 0.5},
+                },
+                {
+                    "input": 2,
+                    "output": 250,
+                    "cacheRead": 90000,
+                    "cacheWrite": 40,
+                    "cost": {"total": 0.3},
+                },
+                {
+                    "input": 1,
+                    "output": 200,
+                    "cacheRead": 96000,
+                    "cacheWrite": 60,
+                    "cost": {"total": 0.2},
+                },
+            ]
+        )
+        result = harness._pi_result_from_events(events, elapsed=5.0)
+        # summed, NOT the last message's 1 / 200 / 96000 / 60.
+        self.assertEqual(result["usage"]["input_tokens"], 3003)
+        self.assertEqual(result["usage"]["output_tokens"], 750)
+        self.assertEqual(result["usage"]["cache_read_input_tokens"], 186000)
+        self.assertEqual(result["usage"]["cache_creation_input_tokens"], 200)
+        self.assertAlmostEqual(result["total_cost_usd"], 1.0)
+        self.assertEqual(result["num_turns"], 3)
+        self.assertEqual(result["subtype"], "success")
+
+    def test_accepts_bare_number_cost_shape(self) -> None:
+        # Some pi versions report usage.cost as a bare number, not {"total": ...}.
+        events = _pi_events_multi(
+            [
+                {
+                    "input": 10,
+                    "output": 5,
+                    "cacheRead": 0,
+                    "cacheWrite": 0,
+                    "cost": 0.4,
+                },
+                {
+                    "input": 10,
+                    "output": 5,
+                    "cacheRead": 0,
+                    "cacheWrite": 0,
+                    "cost": 0.6,
+                },
+            ]
+        )
+        result = harness._pi_result_from_events(events, elapsed=1.0)
+        self.assertAlmostEqual(result["total_cost_usd"], 1.0)
+        self.assertEqual(result["usage"]["output_tokens"], 10)
 
 
 class BuildSettingsArgTest(unittest.TestCase):
