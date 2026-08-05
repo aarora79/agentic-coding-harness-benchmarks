@@ -1,0 +1,150 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "terraform",
+    "aws",
+    "ecs",
+    "storage",
+    "infrastructure"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 2.5,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 1529,
+    "cache_read_tokens": 109359,
+    "cache_write_tokens": 902,
+    "total_tokens": 111792,
+    "total_cost_usd": 0.09855200000000001,
+    "latency_seconds": 622.0,
+    "num_turns": 49,
+    "generation_tokens_per_sec": 2.5,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2,
+  "output_tokens": 1529,
+  "latency_seconds": 622.0,
+  "num_turns": 49,
+  "total_cost_usd": 0.09855200000000001,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 109359,
+  "cache_creation_tokens": 902,
+  "run_started_at": "2026-08-05T01:01:51.608898Z",
+  "run_ended_at": "2026-08-05T01:12:15.309821Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 1529,
+    "cache_read_tokens": 109359,
+    "cache_write_tokens": 902,
+    "total_tokens": 111792,
+    "total_cost_usd": 0.09855200000000001,
+    "latency_seconds": 622.0,
+    "num_turns": 49,
+    "generation_tokens_per_sec": 2.5,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "remove-efs-from-terraform-aws-ecs",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 86,
+        "notes": "The issue defines a concrete removal boundary, testable acceptance criteria, operator-script changes, documentation updates, and explicit non-goals. Repository checks confirm the 182-line storage.tf, six access points, three task mounts, EFS outputs, variables, and post-deployment dependency it identifies. Its logging rationale is imprecise because current application logs resolve under /var/log/containers/ai-registry and AuditLogger is MongoDB-only, rather than using the mounted /app/logs as described. No independent task statement or evidence about out-of-tree output consumers was supplied, limiting verification of requirement coverage and compatibility."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 84,
+        "notes": "The LLD is unusually implementation-ready, naming real files, symbols, task-definition blocks, output surfaces, rollout phases, destructive state behavior, and rollback options. Its central design matches storage.tf, ecs-services.tf, Dockerfile.auth, scopes_loader.py, and the existing registry volume-emptying pattern. It incorrectly equates a missing DocumentDB endpoint with storage_backend=file, overlooking the repository-supported mongodb-ce, mongodb, and mongodb-atlas modes whose DocumentDB output is also null, and its /app/logs durability analysis conflicts with current logging code. The destructive rollout and remote-state risks are recognized, but apply-time ordering between EFS destruction and ECS service replacement is not resolved."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 19,
+        "specificity": 22,
+        "risk_awareness": 22,
+        "total": 85,
+        "notes": "The review finds several real, consequential defects: the dangling scopes path, required-output failure, destructive apply, stale IAM permission, and non-failing file-backend bootstrap behavior. These findings are tied to verified repository details such as post-deployment-setup.sh required_outputs, the module's file default, and the root EFS re-exports. It does not catch the LLD's external-MongoDB misclassification or its inaccurate claim that the auth rotating log handler writes under the EFS-mounted /app/logs path. It appropriately leaves out-of-tree terraform_remote_state consumers as an explicit unanswered question rather than asserting compatibility."
+      },
+      "testing": {
+        "completeness": 22,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 21,
+        "total": 81,
+        "notes": "The plan covers static references, Terraform validation and plan inspection, image contents, scripts, authorization behavior, deployment stability, destructive apply, and rollback with concrete oracles. Its CLUSTER_NAME is incorrectly set to mcp-gateway-v2-cluster, while the repository consistently uses mcp-gateway-ecs-cluster, so several post-apply ECS checks would target a nonexistent cluster. It also claims coverage for MongoDB backends while post-deployment detection and run-documentdb-init.sh only handle the AWS DocumentDB endpoint, leaving supported external MongoDB modes untested. Actual Terraform, Docker, AWS, and pytest execution remains unavailable, but the plan clearly distinguishes those prerequisites."
+      },
+      "implementation": {
+        "completeness": 23,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 87,
+        "notes": "The patch implements the main design end to end: it deletes the real EFS module and bootstrap script, removes matching task volumes, variables and outputs, repoints SCOPES_CONFIG_PATH to the verified in-image /app/scopes.yml, and updates dependent scripts and documentation. Every edited target and cited symbol exists in the baseline source, and the displayed hunk contexts match the repository's current files and conventions. The largest defect is post-deployment-setup.sh treating every absent DocumentDB endpoint as file mode, producing a false message and skipping any initialization consideration for supported external MongoDB backends. The summary honestly reports unexecuted validation and destructive apply risk, although its git apply --check claim could not be independently rerun because no standalone patch.diff artifact exists in the repository."
+      }
+    },
+    "task_score": 84.6,
+    "verdict": "This is a strong, repository-grounded EFS removal package whose largest material limitation is mishandling and failing to test supported external MongoDB backend deployments.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-05T02:15:58.400264Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 779041,
+        "cached_input_tokens": 694209,
+        "cache_write_input_tokens": 84808,
+        "output_tokens": 9776,
+        "reasoning_output_tokens": 4105
+      },
+      "duration_ms": 238236
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "us.anthropic.claude-opus-4-8[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The issue clearly defines both modes, concrete acceptance criteria, exclusions, and the token-expiry risk, while accurately naming the existing ECS, Secrets Manager, and Aurora surfaces. Its largest defect is the requirement that keycloak_database_password be unnecessary in IAM mode while also retaining a password-based master user; terraform/aws-ecs/keycloak-database.tf uses that same variable as aws_rds_cluster.keycloak.master_password. The repository confirms the existing KC_DB_PASSWORD injection and rotation path, but enabling IAM unconditionally also prevents the deployment from being literally byte-for-byte unchanged. No independent task statement was supplied, and the cited issue histories could not be verified from the repository."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 8,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 66,
+      "notes": "The LLD is unusually concrete about real files, locals, IAM ARN construction, task versus execution roles, bootstrap ordering, and rollback. It misses two critical repository interactions: defaulting keycloak_database_password to an empty string leaves aws_rds_cluster.keycloak.master_password empty, and the required custom image has an ENTRYPOINT ending in start --optimized while the ECS definition appends command = [\"start\"], likely producing an invalid duplicate start argument. It also calls useSSL=true and requireSSL=true certificate verification even though Connector/J identity verification requires a stronger SSL mode. The existence and packaging behavior of wrapper release 2.5.4 could not be independently verified in the restricted environment."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 65,
+      "notes": "The review identifies concrete bootstrap-ordering, custom-image, token-lifetime, IAM-scope, observability, and TLS concerns, with prioritized recommendations. Its largest failure is approving the design as corrected while missing that an empty keycloak_database_password cannot satisfy the unchanged master_password argument and that the custom Docker ENTRYPOINT conflicts with ECS command = [\"start\"]. It also declares TLS resolved although the proposed parameters encrypt without verifying server identity, and calls password mode provably unchanged despite the new empty default and cluster modification. The persona framing provides no independently verifiable expertise, though several findings are grounded in the checked Terraform files."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 60,
+      "notes": "The plan covers validation, both modes, task-definition inspection, deployment, token lifetime, rollback, and an OAuth flow with generally concrete expected states. Several commands do not match the repository: terraform/aws-ecs/versions.tf and the keycloak_db_endpoint output do not exist, and Dockerfile paths become wrong after cd into terraform/aws-ecs. The IAM plan incorrectly expects success without a password even though the cluster still consumes it, while the OAuth pipeline can output null successfully and the no-log-events check does not reliably prove that a new physical connection authenticated. Actual AWS, Docker, and post-15-minute behavior was explicitly not executed and therefore remains unverified."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 49,
+      "notes": "The diff targets real files and matching symbols, and it implements the conditional ECS environment, scoped rds-db:connect policy, cluster flag, image dependency, variables, and operator documentation described by the design. The central IAM path is not deployable as claimed: variables.tf defaults keycloak_database_password to empty while keycloak-database.tf still passes it as master_password, and the required custom image's fixed start --optimized ENTRYPOINT conflicts with the existing ECS command = [\"start\"]. The patch also enables encryption without server-identity verification and relies on documentation rather than enforcing the custom-image prerequisite or bootstrap ordering. The summary honestly states that tests were not run, but its claim of no substantive deviation oversells an implementation whose primary mode has these unresolved blockers."
+    }
+  },
+  "task_score": 63.2,
+  "verdict": "The artifacts are detailed and repository-aware, but the implementation's IAM path is blocked by the empty Aurora master password and incompatible custom-image invocation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T00:25:40.342633Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 194655,
+      "cached_input_tokens": 152267,
+      "cache_write_input_tokens": 42378,
+      "output_tokens": 6802,
+      "reasoning_output_tokens": 4546
+    },
+    "duration_ms": 124296
+  },
+  "skill": "swe3"
+}

@@ -1,0 +1,65 @@
+{
+  "task": "remove-faiss",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The issue defines concrete removals, compatibility expectations, exclusions, and testable repository-wide acceptance checks. The submitted source context supports its main targets, including `registry/search/service.py`, `FaissSearchRepository`, the factory, configuration properties, tests, and `faiss-cpu`. Its largest correctness defect is naming `POST /api/search` and `/api/agents/discover`, while the existing OpenAPI operation IDs and deleted integration tests identify `/api/search/semantic` and `/api/agents/discover/semantic`; preserving relevance ordering across different ranking algorithms is also unsupported. No independent task statement was supplied, so the broad telemetry, metrics, and documentation scope can only be assessed as an internally consistent interpretation of `remove-faiss`. "
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 81,
+      "notes": "The LLD is unusually thorough about real files, factory behavior, file-backend reindexing, SQLite migration, telemetry compatibility, deployment surfaces, and per-call-site actions. Its named symbols such as `SearchRepositoryBase`, `get_search_repository()`, `DocumentDBSearchRepository`, and migration Python hooks agree with the submitted source context. The largest defect is its claim that indexing remains best-effort because callers already catch errors, while the proposed and implemented route calls directly await `index_server()` or `index_entity()` without such guards; it also promises preserved ordering without establishing equivalence between FAISS scoring and reciprocal-rank fusion. It contradicts itself over leaving migration 0001 untouched and repeats the incorrect API paths, so an implementer would still need to resolve material compatibility decisions."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 22,
+      "total": 80,
+      "notes": "The review surfaces concrete, consequential issues, especially duplicate indexing, file-backend availability coupling, the required SQLite migration, cross-version telemetry validation, and stale index files. Those concerns are grounded in the submitted source and several directly shaped the design, including migration 6 and the bounded collector regex. Its largest weakness is declaring all blocking findings resolved even though the resulting design and patch retain duplicate registration indexing and do not actually preserve best-effort failure handling at direct route call sites. It also misses the incorrect endpoint names and does not challenge the unsupported claim that result ordering remains equivalent across the two ranking implementations."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 10,
+      "specificity": 17,
+      "risk_awareness": 19,
+      "total": 65,
+      "notes": "The plan covers static removal, API behavior, file-backend operation, telemetry compatibility, migration, deployment, rollback, and entity lifecycle scenarios with many concrete oracles. Its central HTTP tests target `/api/search` and `/api/agents/discover`, whereas repository evidence points to `/api/search/semantic` and `/api/agents/discover/semantic`, so much of the functional and end-to-end plan would fail before exercising the change. Other commands are not execution-ready: `$BASE_SHA` is undefined, the migration invocation is speculative, and the batch and federation sections contain comments rather than procedures. It recognizes the important migration, 503, rollback, and file-backend risks, but supplies no automated test for migration 6 or `index_entity()` and only checks descending order rather than pre-change ordering compatibility."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 59,
+      "notes": "The patch substantially implements the removal by deleting the FAISS modules and dependency, making the factory DocumentDB-only, adding `SearchRepositoryBase.index_entity()`, rewriting call sites, and updating metrics, telemetry, operations, tests, and documentation. The largest defect is admitted in the summary: `register_service` still indexes explicitly even though `server_service.register_server()` also indexes, violating the exactly-once acceptance criterion; direct route and batch awaits also allow a search-backend failure to fail a completed write despite the stated best-effort contract. It omits the required legacy metrics metadata-key fallback, deletes the skipped integration suite without replacement, and adds no focused migration or dispatcher tests. The summary is candid about unexecuted verification and deviations, but its file accounting is internally inconsistent and the submitted diff is truncated, preventing independent verification of the claimed 86-file patch and all omitted test edits."
+    }
+  },
+  "task_score": 73.0,
+  "verdict": "The submission provides a strong, repository-specific design package and broad removal patch, but incorrect API paths, unresolved duplicate and failure-prone indexing, and weak executable regression coverage materially limit merge readiness.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T02:18:10.248471Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 470610,
+      "cached_input_tokens": 371945,
+      "cache_write_input_tokens": 98655,
+      "output_tokens": 7210,
+      "reasoning_output_tokens": 5645
+    },
+    "duration_ms": 131830
+  },
+  "skill": "swe3"
+}

@@ -1,0 +1,151 @@
+{
+  "task": "remove-faiss",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "dependency-removal",
+    "python",
+    "fastapi",
+    "search",
+    "docker",
+    "docs"
+  ],
+  "model": "us.anthropic.claude-opus-4-8[1m]",
+  "model_slug": "claude-opus-4-8",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 1.1,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 1528,
+    "cache_read_tokens": 238603,
+    "cache_write_tokens": 703,
+    "total_tokens": 240836,
+    "total_cost_usd": 0.16190525,
+    "latency_seconds": 1344.5,
+    "num_turns": 130,
+    "generation_tokens_per_sec": 1.1,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2,
+  "output_tokens": 1528,
+  "latency_seconds": 1344.5,
+  "num_turns": 130,
+  "total_cost_usd": 0.16190525,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 238603,
+  "cache_creation_tokens": 703,
+  "run_started_at": "2026-08-04T23:15:44.129019Z",
+  "run_ended_at": "2026-08-04T23:38:12.030401Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 1528,
+    "cache_read_tokens": 238603,
+    "cache_write_tokens": 703,
+    "total_tokens": 240836,
+    "total_cost_usd": 0.16190525,
+    "latency_seconds": 1344.5,
+    "num_turns": 130,
+    "generation_tokens_per_sec": 1.1,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "remove-faiss",
+    "model": "us.anthropic.claude-opus-4-8[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 85,
+        "notes": "The issue clearly defines the dependency removal, repository consolidation, acceptance criteria, and explicit non-goals. Its named components, including `FaissService`, `get_search_repository()`, `DocumentDBSearchRepository`, and the startup re-index path, correspond to the submitted source contexts. Its largest gap is treating file-to-Mongo migration as sufficient without requiring a backfill of DocumentDB search documents, while also promising unchanged result quality across different ranking implementations. No independent task statement was supplied, so requirements beyond the `remove-faiss` identifier and repository evidence could not be verified."
+      },
+      "lld": {
+        "completeness": 19,
+        "correctness": 15,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 74,
+        "notes": "The LLD is unusually concrete about files, method signatures, call-site conversions, startup flow, configuration, and deployment surfaces. The proposed `index_agent` conversions correctly pass `AgentCard` objects, and the factory and route guidance matches the submitted source context. Its largest flaw is declaring the rollout resolved while providing no search-document backfill for migrated file deployments and deliberately leaving roughly twenty tests targeting the deleted `registry.search.service` module. It also claims no public API change while renaming the `MetricsClient.emit_tool_discovery_metric` keyword and metadata key."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 16,
+        "specificity": 21,
+        "risk_awareness": 20,
+        "total": 76,
+        "notes": "The review identifies concrete concerns such as preserving `AgentCard` types, `is_enabled`, build-script behavior, migration, and stale test patches. Its strongest finding is SG2, which correctly predicts failures when tests patch the deleted `registry.search.service.faiss_service`. The principal weakness is that it treats disclosure of broken tests and migration guidance as resolution rather than requiring test repair and a search-index backfill. Its B3 equivalence claim is also imprecise because the original FAISS `remove_entity` agent-first fallback does not reach server removal when a missing agent merely returns."
+      },
+      "testing": {
+        "completeness": 16,
+        "correctness": 9,
+        "specificity": 18,
+        "risk_awareness": 15,
+        "total": 58,
+        "notes": "The static dependency, deleted-file, factory, and lingering-import checks are concrete and useful. However, the generated OpenAPI operation ID is `semantic_search_api_search_semantic_post`, indicating `/api/search/semantic`, while the primary curl cases repeatedly post to `/api/search`. Several manual assertions depend on an unstated time-server fixture, and most curl commands neither capture status nor enforce their stated result oracle. The plan also accepts a full test run containing known references to the deleted module, so it cannot establish regression safety."
+      },
+      "implementation": {
+        "completeness": 15,
+        "correctness": 14,
+        "specificity": 21,
+        "risk_awareness": 12,
+        "total": 62,
+        "notes": "The patch performs the central production changes: it removes `faiss-cpu`, deletes the FAISS service and adapter, makes the factory DocumentDB-only, and converts the displayed server and agent write paths to repository calls. The route conversions preserve the relevant objects and enabled state, and the startup branch is consistently simplified around persistent DocumentDB search. The largest defect is the admitted retention of roughly twenty tests that target the deleted module; additionally, both service-management scripts replace a real index check with an unconditional success no-op. No search backfill is added for file-to-Mongo migration, and no tests or builds were run to validate the broad behavioral change."
+      }
+    },
+    "task_score": 71.0,
+    "verdict": "The submission has strong, repository-specific design work, but the implementation remains incomplete because it knowingly breaks existing tests and lacks a credible migration backfill and executable validation path.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-05T00:23:36.035251Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 360012,
+        "cached_input_tokens": 286043,
+        "cache_write_input_tokens": 73959,
+        "output_tokens": 7190,
+        "reasoning_output_tokens": 5714
+      },
+      "duration_ms": 130467
+    }
+  }
+}

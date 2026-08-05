@@ -1,0 +1,151 @@
+{
+  "task": "remove-faiss",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "dependency-removal",
+    "python",
+    "fastapi",
+    "search",
+    "docker",
+    "docs"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 3.5,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 6,
+    "output_tokens": 1188,
+    "cache_read_tokens": 71724,
+    "cache_write_tokens": 588,
+    "total_tokens": 73506,
+    "total_cost_usd": 0.013853400000000002,
+    "latency_seconds": 344.1,
+    "num_turns": 72,
+    "generation_tokens_per_sec": 3.5,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 6,
+  "output_tokens": 1188,
+  "latency_seconds": 344.1,
+  "num_turns": 72,
+  "total_cost_usd": 0.013853400000000002,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 71724,
+  "cache_creation_tokens": 588,
+  "run_started_at": "2026-08-04T22:31:21.038247Z",
+  "run_ended_at": "2026-08-04T22:37:07.778381Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 6,
+    "output_tokens": 1188,
+    "cache_read_tokens": 71724,
+    "cache_write_tokens": 588,
+    "total_tokens": 73506,
+    "total_cost_usd": 0.013853400000000002,
+    "latency_seconds": 344.1,
+    "num_turns": 72,
+    "generation_tokens_per_sec": 3.5,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "remove-faiss",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 18,
+        "correctness": 14,
+        "specificity": 18,
+        "risk_awareness": 8,
+        "total": 58,
+        "notes": "The issue provides clear scope, non-goals, and mostly testable removal criteria. Repository evidence supports the named FAISS dependency and the existence of both FAISS and DocumentDB search implementations. Its largest defect is claiming full behavioral compatibility while requiring file-only deployments to add DocumentDB, which is an operationally breaking change with no migration or fallback criteria. No independent task statement was supplied, so the linked issue and claims that DocumentDB is production-ready could not be independently verified."
+      },
+      "lld": {
+        "completeness": 14,
+        "correctness": 8,
+        "specificity": 16,
+        "risk_awareness": 11,
+        "total": 49,
+        "notes": "The design maps many real files, including registry/search/service.py, registry/repositories/factory.py, and the DocumentDB search repository. Its load-bearing data flow is incorrect: DocumentDBSearchRepository exposes index_server and index_agent and writes a separate embeddings collection, while the proposed sequence invokes a nonexistent index_entity path and removes route indexing calls without replacements. It also promises graceful file-backend behavior without defining or implementing the stated 503 response, startup warning, data backfill, or rollback strategy. The assertion that no open questions remain is inconsistent with these unresolved compatibility and indexing decisions."
+      },
+      "review": {
+        "completeness": 17,
+        "correctness": 15,
+        "specificity": 19,
+        "risk_awareness": 19,
+        "total": 70,
+        "notes": "The review's strongest contribution is identifying file-only deployment breakage and requesting explicit errors, migration guidance, embedding verification, and metadata auditing. Those concerns are specific and relevant to the repository's backend-dependent factory and separate DocumentDB embeddings collection. Its largest defect is claiming the blockers were incorporated even though the submitted LLD still lacks the promised 503 behavior, startup validation, and breaking-change section. It also misses the more fundamental absence of replacement indexing calls and approves several unsupported production and security claims."
+      },
+      "testing": {
+        "completeness": 16,
+        "correctness": 9,
+        "specificity": 17,
+        "risk_awareness": 14,
+        "total": 56,
+        "notes": "The plan covers source removal, API behavior, search quality, disabled entities, Docker packaging, and end-to-end registration workflows. Several proposed oracles are ineffective: jq without -e succeeds for false expressions, grep fallbacks can report success after command errors, and the configuration script prints hasattr without asserting it. Deleting mock_faiss.py also requires changes across tests/conftest.py, route tests, lifecycle tests, factory tests, and configuration tests, but the adjustment list covers only a small subset. Some endpoint payloads, CLI commands, and DocumentDB environment assumptions were not tied to verified repository fixtures."
+      },
+      "implementation": {
+        "completeness": 8,
+        "correctness": 5,
+        "specificity": 12,
+        "risk_awareness": 4,
+        "total": 29,
+        "notes": "The patch targets real source context and removes the primary FAISS service, file search repository, configuration properties, and pyproject dependency. It immediately breaks test collection because tests/conftest.py still imports the deleted tests/fixtures/mocks/mock_faiss.py, with many additional tests still importing or patching registry.search.service. More fundamentally, agent and server lifecycle calls are deleted without equivalent index_agent or index_server calls even though DocumentDBSearchRepository stores search documents in a separate mcp_embeddings collection, so new or changed entities can remain unsearchable. The summary falsely claims complete LLD implementation and documentation cleanup despite numerous remaining FAISS references in tests, docs, scripts, telemetry expectations, and stale comments."
+      }
+    },
+    "task_score": 52.4,
+    "verdict": "The submission identifies the right dependency-removal surface and major compatibility risk, but the implementation is incomplete, breaks the test suite, and removes indexing calls without a working DocumentDB replacement path.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-04T23:09:43.112230Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 762244,
+        "cached_input_tokens": 670426,
+        "cache_write_input_tokens": 91800,
+        "output_tokens": 7766,
+        "reasoning_output_tokens": 5227
+      },
+      "duration_ms": 151781
+    }
+  }
+}
