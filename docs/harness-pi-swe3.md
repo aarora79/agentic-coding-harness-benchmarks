@@ -7,10 +7,12 @@ Benchmark results for every model run under the **pi** coding agent with the **s
 | Model | Mean score | Completed | Input | Output | Cache read | Cache write | Tokens processed† | Wall-clock | Run cost | Cost basis* |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | claude-opus-5 | 75.72 | 5/5 | 774 | 462,242 | 48,639,156 | 886,691 | 49,988,863 | 94.0m | $41.42 | metered (Bedrock) |
-| glm-5.2 | 70.52 | 5/5 | 756,340 | 5,593 | 56,140,480 | 343,726 | 57,246,139 | 90.5m | $15.83 | hardware-derived |
+| glm-5.2 | 70.76 | 5/5 | 40,983,637 | 535,508 | 40,663,808 | 532,339 | 82,715,292 | 104.8m | $18.32 | hardware-derived |
 | claude-sonnet-5 | 66.52 | 5/5 | 948 | 384,852 | 65,823,081 | 822,296 | 67,031,177 | 73.7m | $19.07 | metered (Bedrock) |
 | claude-opus-4-8 | 60.68 | 5/5 | 430 | 322,184 | 21,532,803 | 666,666 | 22,522,083 | 62.5m | $22.99 | metered (Bedrock) |
+| kimi-k2.7-code | 60.68 | 5/5 | 50,764,666 | 251,979 | 49,935,424 | 1,116,643 | 102,068,712 | 56.6m | $9.90 | hardware-derived |
 | nemotron-ultra-550b | 55.20 | 5/5 | 68,498,340 | 206,991 | 66,768,768 | 1,873,817 | 137,347,916 | 33.8m | $5.90 | hardware-derived |
+| deepseek-v3.2 | 54.44 | 5/5 | 22,180,582 | 165,360 | 21,784,192 | 396,390 | 44,526,524 | 32.8m | $5.74 | hardware-derived |
 | qwen3.6-35b | 52.30 | 4/5 | 18,857,234 | 209,367 | 18,224,976 | 632,258 | 37,923,835 | 29.0m | $5.06 | hardware-derived |
 | devstral-2-123b | 47.64 | 5/5 | 18,673,660 | 119,316 | 18,371,296 | 302,364 | 37,466,636 | 29.5m | $5.16 | hardware-derived |
 | claude-haiku-4-5 | 47.12 | 5/5 | 20,461 | 188,060 | 17,459,585 | 403,623 | 18,071,729 | 29.0m | $3.21 | metered (Bedrock) |
