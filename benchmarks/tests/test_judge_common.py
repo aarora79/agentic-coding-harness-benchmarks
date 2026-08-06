@@ -24,8 +24,10 @@ from judge_common import (  # noqa: E402
     EvaluationResult,
     JudgeError,
     _read_implementation,
+    missing_artifacts,
     parse_and_validate_result,
     render_judge_prompt,
+    resolve_artifact,
 )
 
 
@@ -124,6 +126,67 @@ class ImplementationRenderingTest(unittest.TestCase):
                 folder, task_context="t", repository_context="r"
             )
             self.assertIn("added line", prompt)
+
+
+class ArtifactAliasResolutionTest(unittest.TestCase):
+    """Weak models often produce the right artifact content under a variant
+    filename; resolve_artifact / missing_artifacts must accept common aliases,
+    prefer the canonical name, and never treat scaffolding as an artifact."""
+
+    def _folder(self, root: Path, names: list[str]) -> Path:
+        folder = root / "m" / "r" / "t"
+        folder.mkdir(parents=True)
+        for n in names:
+            (folder / n).write_text(f"# {n}\nbody\n", encoding="utf-8")
+        return folder
+
+    def test_canonical_name_wins(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            f = self._folder(Path(tmp), ["review.md", "EXPERT_REVIEW.md"])
+            self.assertEqual(resolve_artifact(f, "review").name, "review.md")
+
+    def test_common_aliases_resolve(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            f = self._folder(
+                Path(tmp),
+                [
+                    "GITHUB_ISSUE_SPEC.md",
+                    "low-level-design.md",
+                    "expert_review.md",
+                    "testing_plan.md",
+                ],
+            )
+            self.assertEqual(
+                resolve_artifact(f, "github_issue").name, "GITHUB_ISSUE_SPEC.md"
+            )
+            self.assertEqual(resolve_artifact(f, "lld").name, "low-level-design.md")
+            self.assertEqual(resolve_artifact(f, "review").name, "expert_review.md")
+            self.assertEqual(resolve_artifact(f, "testing").name, "testing_plan.md")
+            self.assertEqual(missing_artifacts(f), [])
+
+    def test_lowercase_preferred_on_collision(self) -> None:
+        # Both cases of the same artifact present -> the all-lowercase name wins.
+        with tempfile.TemporaryDirectory() as tmp:
+            f = self._folder(Path(tmp), ["EXPERT_REVIEW.md", "expert_review.md"])
+            self.assertEqual(resolve_artifact(f, "review").name, "expert_review.md")
+
+    def test_scaffolding_is_never_an_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            f = self._folder(Path(tmp), ["README.md", "answers.md"])
+            for key in ("github_issue", "lld", "review", "testing"):
+                self.assertIsNone(resolve_artifact(f, key))
+            self.assertEqual(
+                missing_artifacts(f),
+                ["github-issue.md", "lld.md", "review.md", "testing.md"],
+            )
+
+    def test_genuinely_missing_still_reported(self) -> None:
+        # Aliases present for 3 of 4; the 4th truly absent -> reported missing.
+        with tempfile.TemporaryDirectory() as tmp:
+            f = self._folder(
+                Path(tmp), ["issue_spec.md", "low_level_design.md", "testing_plan.md"]
+            )
+            self.assertEqual(missing_artifacts(f), ["review.md"])
 
 
 if __name__ == "__main__":

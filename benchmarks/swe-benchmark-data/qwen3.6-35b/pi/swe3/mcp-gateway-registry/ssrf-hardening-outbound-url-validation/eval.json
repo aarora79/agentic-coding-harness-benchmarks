@@ -1,0 +1,65 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 71,
+      "notes": "The issue identifies real vulnerable call sites in `registry/api/agent_routes.py` and `registry/health/service.py`, with concrete, testable acceptance criteria for direct URLs and redirects. Its largest omission is that health checks can use separate `mcp_endpoint` or `sse_endpoint` values and `perform_immediate_health_check()`, not only `proxy_pass_url`. The existing `_is_safe_url()` and trusted-domain logic were verified in `registry/services/skill_service.py`, but its post-request redirect check does not actually prevent the redirected request. No independent task statement was supplied, and the claimed upstream issue #1282 could not be verified from repository evidence."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 64,
+      "notes": "The LLD is unusually concrete about files, functions, configuration, failure responses, DNS work, tests, and rollout. Its central redirect design is unsound: validating `response.url` after a request with `follow_redirects=True` occurs after httpx has already contacted the unsafe target, while the claim that redirects are enabled by default is false for the agent client. It also validates only `proxy_pass_url`, although `registry/core/endpoint_utils.py` can select independently supplied `mcp_endpoint` and `sse_endpoint`, and it does not preserve the existing `github_extra_hosts` SKILL allowlist contract. The DNS rebinding race, ignored `ssrf_enabled` behavior, early-return loss of agent health persistence, and existing synchronous SSRF-test migration remain unresolved despite otherwise useful risk and rollout discussion."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 19,
+      "total": 67,
+      "notes": "The review surfaces concrete concerns about blocking DNS, DNS rebinding, redirect handling, timeouts, deployment disruption, and test coverage rather than merely approving the design. Its largest defect is declaring all blockers resolved even though post-response redirect validation cannot stop the redirected request from reaching an internal address. Repository evidence also shows unreviewed bypasses through `mcp_endpoint`, `sse_endpoint`, and `perform_immediate_health_check()`, plus existing tests tied to `github_extra_hosts`. The claimed 10-100 ms DNS latency and 500-server scenario are illustrative rather than repository-backed, and the suggested TLS options do not solve DNS rebinding."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 55,
+      "notes": "The plan spans utility, route, health-service, compatibility, configuration, deployment, and redirect cases with specific expected states. However, several proposed tests are not executable as written: the repository requires Python >=3.14 rather than 3.11, snippets reference undefined patch targets, and `httpx_mock` is not present in the declared dev dependencies. The custom-domain test changes the environment after the global `settings = Settings()` instance is created, public-URL tests depend on live DNS/network, and the redirect test assumes behavior the agent client does not enable. It also lacks assertions that blocked targets receive no request, and omits alternate endpoint, immediate-health, persisted-status, and existing SKILL allowlist regression coverage."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 44,
+      "notes": "The diff context and symbols match the repository, and it adds fail-closed direct-URL checks plus off-event-loop DNS resolution in the intended files. It does not implement the explicit redirect requirement, and validating only `proxy_pass_url` leaves independently configured `mcp_endpoint` and `sse_endpoint` values plus `perform_immediate_health_check()` unprotected. The extraction also breaks the established `github_extra_hosts` contract and existing synchronous tests in `tests/unit/services/test_skill_service_ssrf_allowlist.py`; additionally, the new agent tests omit required `AgentCard.version`, and `ssrf_enabled` is never read. The summary admits redirect validation is absent but still overstates coverage as all outbound paths, and no executed verification was supplied."
+    }
+  },
+  "task_score": 60.2,
+  "verdict": "The submission is concrete and repository-aware, but the implementation remains bypassable through redirects and alternate health endpoints while introducing clear compatibility and test regressions.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T07:00:37.855792Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 772537,
+      "cached_input_tokens": 696440,
+      "cache_write_input_tokens": 76073,
+      "output_tokens": 8142,
+      "reasoning_output_tokens": 3876
+    },
+    "duration_ms": 278494
+  },
+  "skill": "swe3"
+}

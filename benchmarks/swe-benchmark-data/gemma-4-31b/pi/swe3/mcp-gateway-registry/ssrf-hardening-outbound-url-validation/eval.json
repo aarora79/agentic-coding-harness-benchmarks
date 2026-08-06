@@ -1,0 +1,65 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The issue clearly identifies registration and health-check SSRF paths and gives testable criteria for private ranges, redirects, public URLs, and trusted domains. Repository evidence confirms the existing `_is_safe_url` in `registry/services/skill_service.py`, agent health requests in `registry/api/agent_routes.py`, and periodic probes in `registry/health/service.py`. Its largest gap is omitting DNS-rebinding, IPv6, and allowlist-abuse risks while leaving the custom configuration key and matching semantics unspecified. No independent task statement was supplied, and the asserted relationship to issue `#1282` could not be verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 56,
+      "notes": "The LLD maps the change to real services, describes redirect and DNS-rebinding goals, and includes error handling, logging, rollout, and compatibility considerations. However, `registry/utils/url_utils.py` already exists despite being listed as a new file, and registration reachability is actually performed by `registry/utils/agent_validator.py`, which the design does not address. Its load-bearing transport proposal is incomplete: replacing an HTTPS hostname with an IP while only preserving `Host` does not explain TLS SNI and certificate handling, and unconditional private-IP rejection conflicts with allowing private trusted domains. The negligible-latency claim is unsupported because synchronous `socket.getaddrinfo` remains on asynchronous request paths and is not DNS-cached."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 18,
+      "risk_awareness": 21,
+      "total": 73,
+      "notes": "The review's strongest contribution is prioritizing DNS rebinding, intermediate redirects, and IPv6 rather than merely approving the refactor. Its rebinding concern is borne out by the submitted `SafeUrlTransport`, which validates one resolution and then delegates to `AsyncHTTPTransport`, allowing another resolution during connection establishment. The review does not catch the trusted-domain conflict, TLS/SNI requirements, or the actual registration fetch inside `agent_validator.py`, and its top-level APPROVED table contradicts individual NEEDS REVISION verdicts. Claims that performance is negligible are not substantiated by measurements or repository evidence."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 13,
+      "specificity": 12,
+      "risk_awareness": 13,
+      "total": 51,
+      "notes": "The plan supplies useful literal cases for loopback, metadata, public URLs, private allowlisted hosts, redirects, and backward compatibility. The expected 422 detail matches the patch, and `GITHUB_EXTRA_HOSTS` corresponds to the repository's case-insensitive `github_extra_hosts` setting. Its largest omission is an executable DNS-rebinding test despite naming that risk as a prerequisite; it also lacks IPv6, multi-address DNS, malformed-scheme, fallback-HEAD, and exact health-state coverage. Several cases are only checklists or depend on external Google availability, and no registration endpoint, complete payload, fixture, or precise health-status oracle is provided."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 3,
+      "specificity": 10,
+      "risk_awareness": 4,
+      "total": 26,
+      "notes": "The patch targets real source contexts and adds concrete URL checks and a transport across the three intended services. The `agent_routes.py` import hunk deletes `get_client_ip`, `parse_if_match`, `updated_ms`, and `weak_etag_for_timestamp` even though that file still uses all four, breaking existing list and ETag paths. `SafeUrlTransport` does not pin the validated IP, does not honor trusted domains, and registration still fetches through `agent_validator._check_endpoint_reachability` without that transport. The health block returns a tuple from boolean `_check_single_service` without updating state, while the summary incorrectly claims no LLD deviations, complete rebinding protection, and no follow-ups despite adding no tests."
+    }
+  },
+  "task_score": 57.2,
+  "verdict": "The issue and security review are useful foundations, but the implementation introduces existing-route regressions and does not actually close the DNS-rebinding vulnerability it claims to solve.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T05:54:30.844791Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1041490,
+      "cached_input_tokens": 991049,
+      "cache_write_input_tokens": 50391,
+      "output_tokens": 12264,
+      "reasoning_output_tokens": 4915
+    },
+    "duration_ms": 422438
+  },
+  "skill": "swe3"
+}

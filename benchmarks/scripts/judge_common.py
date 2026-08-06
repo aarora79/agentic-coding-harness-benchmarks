@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from string import Template
@@ -46,6 +47,77 @@ IMPLEMENTATION_FILES = {
     "summary": "implementation.md",
     "patch": "patch.diff",
 }
+
+# Alias resolution. Weaker models often produce the right artifact CONTENT but
+# under a different filename (e.g. EXPERT_REVIEW.md, expert_review.md,
+# low-level-design.md, GITHUB_ISSUE_SPEC.md) instead of the canonical name. Rather
+# than score such a run 0 for a naming miss, resolve each canonical artifact to a
+# file on disk by matching a normalized stem against a per-artifact alias pattern.
+# The canonical name always wins if present; scaffolding files (README, the
+# clarifying-answers input) are never matched.
+#
+# Normalization: lowercase, strip the extension, and collapse any run of
+# non-alphanumeric characters (-, _, space) to a single separator, so
+# "Low-Level_Design" and "low level design" both normalize to "low level design".
+_ARTIFACT_ALIAS_PATTERNS: dict[str, re.Pattern[str]] = {
+    # e.g. github-issue, github issue, github_issue_spec, issue-spec, issue
+    "github_issue": re.compile(r"^(github[ ]?issue([ ]spec)?|issue([ ]spec)?)$"),
+    # e.g. lld, low-level-design, low level design, lowleveldesign, design-doc
+    "lld": re.compile(r"^(lld|low[ ]?level[ ]?design|design([ ]doc)?)$"),
+    # e.g. review, expert-review, expert_review, code-review
+    "review": re.compile(r"^((expert|code)[ ]?)?review$"),
+    # e.g. testing, testing-plan, test-plan, tests
+    "testing": re.compile(r"^(test(ing)?([ ]plan)?|tests)$"),
+}
+# Files that are NEVER an artifact even if a pattern might loosely match.
+_NON_ARTIFACT_STEMS = {"readme", "answers", "metrics", "eval", "run-summary"}
+
+
+def _normalize_stem(filename: str) -> str:
+    """Lowercase the filename's stem and collapse separators to single spaces."""
+    stem = Path(filename).stem.lower()
+    return re.sub(r"[^a-z0-9]+", " ", stem).strip()
+
+
+def resolve_artifact(artifact_dir: Path, key: str) -> Path | None:
+    """Resolve a canonical artifact ``key`` to an existing file in ``artifact_dir``.
+
+    Resolution order:
+      1. The canonical filename (e.g. ``review.md``) if it exists -- always wins.
+      2. Otherwise any ``*.md`` whose normalized stem matches the artifact's alias
+         pattern. On multiple matches (e.g. ``EXPERT_REVIEW.md`` AND
+         ``expert_review.md``), prefer an all-lowercase filename, then the shortest
+         name, then lexicographic order -- fully deterministic.
+
+    Args:
+        artifact_dir: The resolved task artifact directory.
+        key: An ``ARTIFACT_FILES`` key (github_issue, lld, review, testing).
+
+    Returns:
+        The resolved ``Path``, or None if neither the canonical name nor any alias
+        is present.
+    """
+    canonical = artifact_dir / ARTIFACT_FILES[key]
+    if canonical.exists():
+        return canonical
+    pattern = _ARTIFACT_ALIAS_PATTERNS.get(key)
+    if pattern is None:
+        return None
+    candidates: list[Path] = []
+    for path in artifact_dir.glob("*.md"):
+        stem = _normalize_stem(path.name)
+        if stem in _NON_ARTIFACT_STEMS:
+            continue
+        if pattern.match(stem):
+            candidates.append(path)
+    if not candidates:
+        return None
+    # Prefer all-lowercase names (islower() is False for MixedCase/UPPER), then
+    # shortest, then lexicographic -- deterministic on collisions.
+    candidates.sort(key=lambda p: (not p.name.islower(), len(p.name), p.name))
+    return candidates[0]
+
+
 # Cap the embedded patch so a large diff cannot blow the judge context. The head
 # of the patch carries the substantive change; the tail is truncated with a
 # marker so the judge knows content was elided rather than absent.
@@ -144,10 +216,11 @@ def missing_artifacts(folder: str | Path) -> list[str]:
     """
     artifact_dir = Path(folder).expanduser().resolve()
     missing: list[str] = []
-    for filename in ARTIFACT_FILES.values():
-        path = artifact_dir / filename
+    for key, filename in ARTIFACT_FILES.items():
+        # Accept the canonical name or a recognized alias (see resolve_artifact).
+        path = resolve_artifact(artifact_dir, key)
         try:
-            if not path.read_text(encoding="utf-8").strip():
+            if path is None or not path.read_text(encoding="utf-8").strip():
                 missing.append(filename)
         except (FileNotFoundError, OSError):
             missing.append(filename)
@@ -290,8 +363,25 @@ def _read_implementation(artifact_dir: Path) -> str:
         summary nor the patch is present/non-empty.
     """
     parts: list[str] = []
+    # implementation.md may appear case-variant (IMPLEMENTATION.md); patch.diff is
+    # the sole *.diff. Both optional -> missing content just scores this artifact 0.
     summary_path = artifact_dir / IMPLEMENTATION_FILES["summary"]
+    if not summary_path.exists():
+        impl_variants = sorted(
+            (
+                p
+                for p in artifact_dir.glob("*.md")
+                if _normalize_stem(p.name) == "implementation"
+            ),
+            key=lambda p: (not p.name.islower(), len(p.name), p.name),
+        )
+        if impl_variants:
+            summary_path = impl_variants[0]
     patch_path = artifact_dir / IMPLEMENTATION_FILES["patch"]
+    if not patch_path.exists():
+        diffs = sorted(artifact_dir.glob("*.diff"), key=lambda p: (len(p.name), p.name))
+        if diffs:
+            patch_path = diffs[0]
     try:
         summary = summary_path.read_text(encoding="utf-8").strip()
     except (FileNotFoundError, OSError):
@@ -383,8 +473,13 @@ def render_judge_prompt(
     if not isinstance(candidate_id, str) or not candidate_id.strip():
         raise JudgeError("candidate identifier must be a non-empty string")
 
+    # Resolve each artifact to its canonical name or a recognized alias, so a run
+    # that produced the right content under a variant filename is still judged.
     artifacts = {
-        name: read_text(artifact_dir / filename, filename)
+        name: read_text(
+            resolve_artifact(artifact_dir, name) or (artifact_dir / filename),
+            filename,
+        )
         for name, filename in ARTIFACT_FILES.items()
     }
     # The implementation artifact is optional: empty string -> judge scores it 0.

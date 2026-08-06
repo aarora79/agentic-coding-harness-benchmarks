@@ -1,0 +1,65 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 8,
+      "total": 49,
+      "notes": "The issue identifies the security problem and sets acceptance targets for Secrets Manager resources, ECS secret injection, and execution-role access, matching the repository's Terraform structure. Its central fallback requirement is invalid: ECS retrieves secrets before container startup, so duplicate plaintext environment entries do not provide fallback when retrieval fails and remain exposed in the task definition. The repository confirms these values exist in `ecs-services.tf`, but the issue does not enumerate them or define feature-dependent migration behavior, making \"all identified\" ambiguous. No independent task statement was supplied, and related issue #1134 could not be verified from repository evidence."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 6,
+      "total": 45,
+      "notes": "The LLD is concretely grounded in real files and symbols, including `secrets.tf`, `ecs-services.tf`, `iam.tf`, `aws_kms_key.secrets`, and `aws_iam_policy.ecs_secrets_access`. Its design is not deployment-safe because all ten input variables default to empty strings, yet it unconditionally creates secret versions whose `secret_string` cannot be empty. Retaining duplicate plaintext entries is not a functional fallback, leaves values visible in task definitions, and `ignore_changes` neither removes initial secret values from Terraform state nor defines how later updates reach Secrets Manager. The rollout lacks a staged switch, conditional handling for optional integrations, effective rollback, and justification for injecting registry-only GitHub and registration secrets into the auth container."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 5,
+      "specificity": 9,
+      "risk_awareness": 5,
+      "total": 27,
+      "notes": "The review checks a real KMS concern, and `secrets.tf` does contain an `Allow ECS Task Execution Role to Decrypt` policy statement. Its largest deficiency is approving two false claims: duplicate environment values do not provide fallback after secret retrieval failure, and `ignore_changes` does not remove `secret_string` from Terraform state. It misses the empty-default deployment failure, unnecessary cross-container secret exposure, duplicate-name behavior, and absence of a real staged migration. The persona framing adds little analysis, while the claim that the approach is an industry-standard zero-downtime migration is unsupported."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 7,
+      "specificity": 12,
+      "risk_awareness": 6,
+      "total": 36,
+      "notes": "The plan covers Terraform planning, ECS startup, runtime injection, and several application workflows, with a repository-consistent `terraform/aws-ecs` deployment surface. The plaintext fallback test cannot pass under the proposed design because ECS must retrieve every configured secret before starting the container, and an empty `secret_string` prevents successful provisioning. The E2E cases lack concrete endpoints and response oracles, while `aws ecs execute-command ... env` unnecessarily prints every container secret and only specifies manual value comparison. It also omits validation of default-empty inputs, duplicate environment names, denied IAM/KMS access, Terraform-state exposure, rotation behavior, and rollback."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 18,
+      "risk_awareness": 4,
+      "total": 40,
+      "notes": "The patch targets real source locations and existing symbols in `ecs-services.tf`, `iam.tf`, and `secrets.tf`, and its surrounding contexts match the repository. It is not deployable with repository defaults because all ten variables default to empty strings while every `aws_secretsmanager_secret_version` is unconditional, causing empty SecretString writes; it also retains plaintext task-definition values and therefore does not accomplish the stated security migration. Adding the same names to both `environment` and `secrets` does not create fallback, and adding registration and GitHub credentials to the auth container expands exposure beyond their existing registry-only use. The summary overstates completion, reports inaccurate line counts, and does not acknowledge these deviations or the continued presence of secret values in Terraform state."
+    }
+  },
+  "task_score": 39.4,
+  "verdict": "The submission is repository-specific and structurally detailed, but its invalid fallback model and unconditional empty secret versions make the proposed migration insecure and non-deployable under normal defaults.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T05:36:01.846083Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 317669,
+      "cached_input_tokens": 282012,
+      "cache_write_input_tokens": 35635,
+      "output_tokens": 6302,
+      "reasoning_output_tokens": 3522
+    },
+    "duration_ms": 217896
+  },
+  "skill": "swe3"
+}
