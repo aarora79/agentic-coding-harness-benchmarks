@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 55,
+      "notes": "The issue provides a concrete secret inventory, scoped exclusions, and mostly testable acceptance criteria. Its central solution contradicts its security goal: emitting the same credentials as `*_PLAINTEXT` environment entries leaves them visible in task definitions, while `aws_secretsmanager_secret_version.secret_string` also remains in Terraform state. The criterion claiming no sensitive values are rendered in container definitions is therefore incompatible with the proposed fallback. No independent task statement was supplied, and repository command execution was unavailable, so claims about `secrets.tf` and `aws_iam_policy.ecs_secrets_access` could not be directly verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 54,
+      "notes": "The LLD names concrete Terraform and Python integration points and specifies resource, IAM, environment, and rollout behavior. However, each source variable simultaneously controls both the managed secret and plaintext fallback, so normal deployments have both or neither; the fallback cannot rescue an ECS secret-retrieval failure because ECS fails before application startup. Gating secret existence on the secret value also forces operators to retain the value in Terraform, while `ignore_changes` makes later variable updates ineffective and removing the value destroys the secret. The asserted files and symbols, including `registry/core/config.py` and `aws_kms_key.secrets`, could not be verified directly against the repository."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 18,
+      "total": 66,
+      "notes": "The review's strongest contribution is identifying residual `*_PLAINTEXT` exposure and the surprising seed-only behavior caused by `ignore_changes`. It nevertheless approves the design without resolving those critical defects and misses that secret values remain in Terraform state and that the proposed fallback is unavailable when ECS retrieval fails. Several resolutions are contradicted by the LLD: the deployment checklist does not add root `terraform/aws-ecs/variables.tf`, and the rollout plan stages by environment rather than by secret class. Repository-specific assertions about existing IAM and KMS wiring could not be independently verified."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 45,
+      "notes": "The plan spans helper precedence, Settings behavior, Terraform planning, IAM, deployment, rollback, and an authentication path. Its central plan checks are invalid because sections 4.1 and 4.3 use the same name regex, so a correct `secrets` entry makes the environment-removal check fail; the scripts also only print failures and never exit nonzero. `aws ecs describe-tasks` does not expose container environment variables, and setting the shared Terraform variable to empty removes both the secret and its plaintext fallback, invalidating the rollback oracle. The hard-coded `REPO_ROOT` differs from the submitted workspace path, while the skeletal GitHub E2E case supplies no executable setup or strong oracle."
+    },
+    "implementation": {
+      "completeness": 0,
+      "correctness": 0,
+      "specificity": 0,
+      "risk_awareness": 0,
+      "total": 0,
+      "notes": "The implementation artifact is empty, with no patch, summary, target files, or executable change submitted. It therefore cannot implement the design or be checked against the repository, and every implementation criterion receives zero. No implementation deviation or runtime behavior can be assessed beyond its absence."
+    }
+  },
+  "task_score": 44.0,
+  "verdict": "The submission is detailed but unshippable because no implementation was submitted and the proposed migration still preserves plaintext credential exposure in ECS task definitions and Terraform state.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T02:51:42.834256Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 119679,
+      "cached_input_tokens": 93824,
+      "cache_write_input_tokens": 25845,
+      "output_tokens": 7406,
+      "reasoning_output_tokens": 5852
+    },
+    "duration_ms": 105978
+  }
+}

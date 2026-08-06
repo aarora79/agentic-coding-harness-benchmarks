@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 68,
+      "notes": "The issue clearly defines the feature flag, affected AWS components, fallback behavior, documentation work, and explicit non-goals. Its largest flaw is promising automatic credential rotation while prescribing a token generated only at task startup; new proxy connections will fail after that token expires. It also inaccurately describes token generation as an AWS API call requiring permission, although `generate-db-auth-token` signs locally and `rds-db:connect` is enforced during connection. No independent task statement was supplied, so requirement coverage beyond the identifier and artifacts is unverifiable."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 5,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 54,
+      "notes": "The LLD names concrete repository files and symbols, separates both flag states, and details task definition, proxy, cluster, secret, IAM, and documentation changes. The proposed ECS commands are nonfunctional because `command` does not replace the existing AWS CLI or Keycloak image entrypoints, so neither `/bin/sh` invocation runs as intended. The policy uses the Aurora cluster resource ID even though the client connects to an RDS Proxy, and `iam_auth = \"ENABLED\"` is not the required Aurora MySQL proxy mode; the design also knowingly leaves a startup token stale after 15 minutes. Its claim that `hashicorp/random` already exists is contradicted by the implementation adding that provider to `main.tf`."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 16,
+      "total": 56,
+      "notes": "The review identifies meaningful concerns including token expiry, file permissions, image availability, TLS behavior, and master-user reuse. Its most serious error is praising a policy scoped to the cluster resource ID, which cannot authorize an IAM-authenticated connection to the proxy endpoint. It also misses both container-entrypoint failures and the invalid proxy IAM mode while declaring that no blockers remain. Some recommendations are technically weak, including treating a redundant Terraform `depends_on` as required and naming an unverified `ClientConnectionFailed` proxy metric."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 53,
+      "notes": "The plan provides concrete plan, JSON inspection, compatibility, rollback, IAM-policy, and deployment checks for both feature states. The CloudTrail oracle is invalid because `aws rds generate-db-auth-token` performs local signing rather than a logged `GenerateDBAuthToken` API request. The readiness loop returns success after 30 failed attempts because its final `sleep` succeeds, and the plan incorrectly expects a cluster-resource IAM ARN for a proxy connection. It never forces a new connection after 15 minutes, so it misses the central stale-token regression, and its Terraform 1.2 prerequisite conflicts with cross-variable validation that requires Terraform 1.9 or newer."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 3,
+      "specificity": 17,
+      "risk_awareness": 8,
+      "total": 42,
+      "notes": "The submitted diff has coherent baseline context for the existing cluster, proxy, ECS task definition, variables, and documentation, and it structurally preserves the password-auth branch. The IAM path cannot start: both images retain their original entrypoints, so the new `command = [\"/bin/sh\", \"-c\", ...]` arrays are passed to those entrypoints instead of launching a shell. Even after fixing that, the `rds-db:connect` ARN uses `aws_rds_cluster.keycloak.cluster_resource_id` rather than the proxy resource ID, the proxy uses the wrong IAM mode, and the password token is never refreshed. Independent source reads and `git apply --check` could not run because the provided shell failed during sandbox setup, so applicability beyond the submitted matching contexts remains unverified."
+    }
+  },
+  "task_score": 54.6,
+  "verdict": "The artifacts are detailed and repository-shaped, but the proposed IAM path is operationally nonfunctional because of incorrect container entrypoint handling, proxy authorization configuration, and an unrefreshed 15-minute token.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T02:59:31.072106Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 323997,
+      "cached_input_tokens": 281949,
+      "cache_write_input_tokens": 42030,
+      "output_tokens": 10229,
+      "reasoning_output_tokens": 8429
+    },
+    "duration_ms": 193648
+  }
+}
