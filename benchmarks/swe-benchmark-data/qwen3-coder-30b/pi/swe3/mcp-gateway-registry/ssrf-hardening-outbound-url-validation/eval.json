@@ -1,0 +1,65 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 12,
+      "correctness": 11,
+      "specificity": 14,
+      "risk_awareness": 13,
+      "total": 50,
+      "notes": "The strongest aspect is the concrete identification of the agent health endpoint, outbound agent-card requests, and specific SSRF impacts. It lacks testable acceptance criteria and non-goals, and its scope is narrower than the registration and server-route changes claimed elsewhere. The patch contradicts the stated fix of wrapping skill_service: it creates registry/utils/ssrf_utils.py and expands into multiple server routes. No independent task statement exists, and repository inspection was unavailable because command execution failed at sandbox startup, leaving path and compatibility claims unverified."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 10,
+      "specificity": 15,
+      "risk_awareness": 9,
+      "total": 45,
+      "notes": "The design provides concrete names such as registry/api/agent_routes.py, check_agent_health, and _is_safe_url, plus explicit HTTP 400 behavior. Its largest gap is identifying agent registration as vulnerable without designing that change, while omitting the server routes later added by the implementation. It also overlooks redirect handling, DNS rebinding between validation and connection, trusted-domain bypass risks, and legitimate private-endpoint compatibility. The patch does not follow the proposed wrapper design, and the repository symbols could not be independently verified due the execution-environment failure."
+    },
+    "review": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 7,
+      "risk_awareness": 3,
+      "total": 19,
+      "notes": "The review at least names the two health-check URL forms and the intended validation controls. Its approval misses decisive defects and incorrectly describes a roughly 169-added-line, three-file patch as a 25-line change reusing the existing helper. The patch instead duplicates the helper, places the agent import inside a docstring, contains duplicate imports, and has inconsistent unified-diff hunk counts. Claims that the validator is proven, well-tested, fully backward compatible, and low risk are unsupported, while redirects, DNS rebinding, allowlist bypass, and absent tests receive no scrutiny."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 13,
+      "risk_awareness": 14,
+      "total": 51,
+      "notes": "The strongest aspect is the concrete matrix of public, private, metadata, malformed, scheme, and CGNAT inputs with status and response expectations. It lacks deterministic DNS and HTTP mocking details, executable commands, exact response oracles, and coverage for the registration and server endpoints changed by the patch. Notably, the planned 100.64.0.1 case would expose a real defect because the proposed _is_private_ip checks do not classify shared CGNAT space as private, loopback, link-local, or reserved. Redirect-based SSRF, DNS rebinding, IPv6, and redirect-chain assertions are absent, and tests/unit/api/test_agent_routes.py could not be verified against the repository."
+    },
+    "implementation": {
+      "completeness": 3,
+      "correctness": 0,
+      "specificity": 7,
+      "risk_awareness": 5,
+      "total": 15,
+      "notes": "The patch does not implement the design in an applicable form: the added agent_routes import is inside the module docstring and therefore cannot supply _is_safe_url. Multiple hunks show an if statement as unchanged context while adding only its required body, and the server diff includes duplicate logging imports and inconsistent hunk counts, indicating a malformed unified diff. Its strongest content is concrete endpoint coverage and checking every resolved address, but it duplicates rather than wraps skill_service, adds unrelated MAX_GITLAB_TREE_PAGES and re, configures global logging, adds no tests, and leaves redirect and DNS-rebinding bypasses. The summary overstates compatibility and consistency and materially deviates from the LLD; repository applicability could not be independently checked because command execution failed before process startup."
+    }
+  },
+  "task_score": 36.0,
+  "verdict": "The submission identifies relevant SSRF threats and useful test vectors, but its review is unreliable and the malformed, internally inconsistent patch is not a usable implementation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T04:46:26.732693Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 169987,
+      "cached_input_tokens": 145940,
+      "cache_write_input_tokens": 24029,
+      "output_tokens": 8342,
+      "reasoning_output_tokens": 6942
+    },
+    "duration_ms": 235477
+  },
+  "skill": "swe3"
+}

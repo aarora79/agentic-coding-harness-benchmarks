@@ -1,0 +1,65 @@
+{
+  "task": "remove-faiss",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 11,
+      "correctness": 10,
+      "specificity": 12,
+      "risk_awareness": 6,
+      "total": 39,
+      "notes": "The issue identifies real files including `registry/search/service.py`, `registry/core/config.py`, `pyproject.toml`, and both named test files. The repository also contains `DocumentDBSearchRepository`, so the proposed alternative has a factual basis. Its largest gap is ignoring `FaissSearchRepository`, backend selection in `get_search_repository`, numerous direct `faiss_service` callers, telemetry, and extensive documentation references. With no independent task statement, the claims that FAISS is obsolete and end users will be unaffected are unverifiable, while the compatibility criterion lacks a concrete behavioral oracle."
+    },
+    "lld": {
+      "completeness": 6,
+      "correctness": 4,
+      "specificity": 5,
+      "risk_awareness": 3,
+      "total": 18,
+      "notes": "The LLD names several real files and correctly recognizes dependency, configuration, test, and documentation work. However, `registry/repositories/factory.py` selects `DocumentDBSearchRepository` only for MongoDB backends and selects `FaissSearchRepository` for file storage, a central architectural distinction the design omits. It neither defines a replacement interface nor addresses the many routes and services importing `faiss_service`, leaving implementers to remake the critical compatibility and backend decisions. Claims of preserved behavior are unsupported because migration, index rebuilding, DocumentDB availability, failure handling, rollout, and rollback are unspecified."
+    },
+    "review": {
+      "completeness": 3,
+      "correctness": 0,
+      "specificity": 3,
+      "risk_awareness": 1,
+      "total": 7,
+      "notes": "The review at least names the intended dependency, service, configuration, test, and monitoring concerns. Its success verdict is contradicted by the patch: no `DocumentDBSearchService` is added, the `FaissService` body remains, and changing the global name breaks callers importing `faiss_service`. The claim that all references and documentation were removed is false because the patch contains no documentation changes and the repository has FAISS references across routes, repositories, tests, metrics, CLI scripts, and docs. The asserted verification has no supporting results, and the review fails to identify the non-applying hunks or any meaningful migration and backend risk."
+    },
+    "testing": {
+      "completeness": 6,
+      "correctness": 6,
+      "specificity": 4,
+      "risk_awareness": 4,
+      "total": 20,
+      "notes": "The plan covers startup, search, registration, indexing, and both agent and server workflows, which are relevant behavioral areas. It gives no repository command, fixture setup, backend matrix, named test cases, or concrete expected result values despite `pyproject.toml` defining pytest and the repository containing detailed search integration tests. Deleting `mock_faiss.py` would break imports in `tests/conftest.py` and `tests/test_infrastructure.py`, but the plan does not identify or replace those dependencies. It also omits negative DocumentDB cases, file-backend compatibility, migration checks, documentation scans, and a precise oracle for its unverifiable \u201csame results as before\u201d requirement."
+    },
+    "implementation": {
+      "completeness": 2,
+      "correctness": 0,
+      "specificity": 3,
+      "risk_awareness": 0,
+      "total": 5,
+      "notes": "The patch does not implement the described replacement: it removes an import while retaining the entire `FaissService` implementation and assigns an undefined `DocumentDBSearchService`. Its `pyproject.toml` hunk expects a duplicate FAISS dependency that the real file does not contain, and its configuration hunk expects `__init__` immediately after the FAISS properties although additional properties intervene, so the submitted patch does not fit the source. Even conceptually, renaming `faiss_service` breaks numerous route, service, test, and `FaissSearchRepository` imports, while deleting the mock breaks remaining test imports. No documentation changes, replacement tests, migration, or backend handling are present, making the summary's claims of complete removal and preserved behavior false."
+    }
+  },
+  "task_score": 17.8,
+  "verdict": "The submission recognizes the broad removal goal, but its design misses the repository's backend architecture and its non-applying, internally broken patch does not implement the claimed replacement.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T04:42:31.234634Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 253321,
+      "cached_input_tokens": 215225,
+      "cache_write_input_tokens": 38080,
+      "output_tokens": 5013,
+      "reasoning_output_tokens": 2606
+    },
+    "duration_ms": 333660
+  },
+  "skill": "swe3"
+}
