@@ -1,0 +1,65 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 80,
+      "notes": "The issue precisely inventories 13 variables, affected containers, Terraform surfaces, fallback semantics, and testable acceptance criteria. The named files and existing MongoDB dual-path pattern agree with the submitted patch context. Its largest defect is an internal conflict between per-task least privilege and extending one shared policy, compounded by promising unchanged behavior when no ARN is set despite the required Grafana policy attachment. No independent task statement establishes whether the 13-item inventory is exhaustive."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The LLD gives unusually concrete mappings for `ecs-services.tf`, `observability.tf`, `iam.tf`, both variable layers, and `main.tf`, including precedence and rollback behavior. It knowingly preserves a shared `ecs_secrets_access` policy that violates the issue's per-task scoping objective, while an unconditional Grafana attachment also contradicts the claimed no-change default. Its Grafana failure analysis is incorrect because the same invalid secret is injected into the essential Grafana container, so Grafana cannot remain healthy while only the sidecar fails; pre-start retrieval failures also surface primarily in ECS task/service events rather than container logs. Claims about existing alarms and exact runtime caching behavior were not independently verifiable."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 69,
+      "notes": "The review identifies concrete concerns around shared-policy breadth, external CMKs, precedence, structured secret values, mechanical copy errors, and documentation. It nevertheless approves deferring the central least-privilege defect and misses that attaching the existing shared policy gives Grafana access to pre-existing secret ARNs even when every new ARN is empty. It also repeats the incorrect sidecar-only degradation scenario although `GF_SECURITY_ADMIN_PASSWORD` is added to both Grafana containers in the patch. The detailed line references are plausible from the diff, but their exact baseline locations could not be independently confirmed."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 13,
+      "risk_awareness": 14,
+      "total": 52,
+      "notes": "The plan attempts to cover fallback behavior, all-ARN migration, IAM scope, rollback, multiline values, and live deployment checks. Its baseline method is unsound: a fresh clone initialized with `-backend=false` has no deployed state against which to establish a zero-diff plan, and a genuinely empty plan would not contain the environment names that Section 2.2 greps for. The grep commands do not distinguish containers, parse rendered JSON, prove mutual exclusion, or enforce the stated exactly-once IAM assertion. Section 4.6 has a false oracle because an invalid password secret also prevents the essential Grafana container from starting."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 14,
+      "total": 71,
+      "notes": "The patch consistently implements all 13 variable declarations and pass-throughs, 21 container-site fallback/secret pairs, conditional IAM resources, documentation, and the Grafana execution-role wiring described by the design. Its largest defect is the unconditional attachment of the shared `ecs_secrets_access` policy to Grafana, which grants access to existing policy resources with no new ARN set and directly breaks the default-behavior and least-privilege requirements. The summary acknowledges shared-policy breadth but incorrectly claims the default attachment authorizes nothing exploitable, and the patch adds no automated structural test for the large copy-heavy change. Independent `git apply --check` and source inspection could not complete because the read-only command sandbox failed before execution; this is an evidence gap rather than a candidate defect."
+    }
+  },
+  "task_score": 69.6,
+  "verdict": "The submission is concrete and largely end-to-end, but the shared IAM policy creates an unresolved cross-service access regression and the proposed tests cannot reliably prove the promised invariants.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T07:07:44.036966Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 217168,
+      "cached_input_tokens": 172166,
+      "cache_write_input_tokens": 44992,
+      "output_tokens": 6902,
+      "reasoning_output_tokens": 5272
+    },
+    "duration_ms": 147986
+  },
+  "skill": "swe3"
+}

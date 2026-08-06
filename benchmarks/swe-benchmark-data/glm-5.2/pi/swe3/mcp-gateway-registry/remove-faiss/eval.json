@@ -1,0 +1,65 @@
+{
+  "task": "remove-faiss",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 69,
+      "notes": "The issue gives unusually concrete scope, exclusions, file paths, and testable removal criteria. The supplied diff context confirms central claims about `FaissService`, `FaissSearchRepository`, the factory branch, configuration properties, and `faiss-cpu`. Its largest defect is promising unchanged results while replacing cosine scoring with RRF and making file-backed search depend on an external MongoDB-compatible service, neither of which is behavioral parity. No independent task statement was supplied, so the asserted requirement to use DocumentDB and the claimed absence of additional dependencies cannot be externally established."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The LLD maps real symbols and call sites to concrete changes, including `SearchRepositoryBase`, `get_search_repository()`, startup backfill, and the metrics schema migration. It also makes useful decisions for `skip_if_unchanged` and the legacy SQLite column rather than merely naming those risks. However, it contradicts itself about automatic versus operator-run metrics migration and overstates compatibility despite changed relevance semantics and the new database requirement for file storage. The full call-site counts and claim that every DocumentDB signature already matches could not be verified because the submitted patch excerpt is truncated."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 85,
+      "notes": "The review identifies the most consequential issues: score-semantic changes, file-backend database dependence, repeated embedding cost, SQLite migration, and loss of search coverage. Its findings name concrete symbols such as `skip_if_unchanged`, `_migrate_schema_if_needed`, and `discovery_metrics`, and the visible patch confirms both proposed mitigations were attempted. Its main weakness is declaring test coverage and LLD resolutions complete when `testing.md` only asks to confirm coverage and the LLD retains contradictory migration and rollout text. The downstream UI threshold concern is appropriately presented as an open question because no frontend evidence establishes such a consumer."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 57,
+      "notes": "The plan covers lifecycle indexing, deletion, tags, failures, dependencies, image imports, startup behavior, and repository-wide residue checks with concrete expected states. Several executable details are wrong: the OpenAPI patch identifies the semantic operation under `/api/search/semantic`, while most curls target `/api/search`, and the startup test requests a DocumentDB backend even though the patched backfill runs only for non-MongoDB storage. Its cumulative-log count cannot prove the second boot skipped embeddings, the score-order `jq` command is incomplete, and no test exercises the critical legacy-column migration. The hard-coded `REPO`, undefined `ART_DIR`, and contradiction between exactly four retained references and a final zero-reference checklist further reduce reproducibility."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 51,
+      "notes": "The visible production patch broadly implements the core direction by deleting both FAISS modules, changing the factory and route writes, removing the dependency, adding startup hash skipping, and guarding the SQLite rename. The largest defect is explicitly acknowledged in `implementation.md`: many repointed tests have incorrect mock semantics and are expected to fail at runtime; the shown `new_callable=AsyncMock` patches replace a synchronous repository factory with a coroutine rather than configuring its return value. Mechanical documentation edits also invent nonexistent APIs and files such as `DocumentDBService`, `registry/search/service.py`, `service_index.documentdb`, and the phrase `documentdb or documentdb`, while historical release notes are rewritten inaccurately. Tests were not run and the submitted diff is truncated, so full applicability and the claimed four-reference end state could not be independently verified."
+    }
+  },
+  "task_score": 67.4,
+  "verdict": "The design and review are strong, but the implementation is not merge-ready because it knowingly leaves runtime tests broken and mechanically introduces substantial documentation inaccuracies.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T07:12:52.648677Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 546848,
+      "cached_input_tokens": 454275,
+      "cache_write_input_tokens": 92561,
+      "output_tokens": 5819,
+      "reasoning_output_tokens": 4448
+    },
+    "duration_ms": 136548
+  },
+  "skill": "swe3"
+}
