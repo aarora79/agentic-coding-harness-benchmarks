@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 49,
+      "notes": "The issue provides concrete scope, non-goals, a named feature flag, and acceptance criteria covering both authentication modes. Its central authorization requirement is incorrect: generating a token is local request signing, while database access requires `rds-db:connect` against a DB-user resource ARN, not `rds:GenerateDBAuthToken` against a cluster. It also calls the change self-contained despite requiring database-principal provisioning and potentially a different JDBC driver, and it makes the migration-prone IAM mode the default. The submitted diff context supports the stated existing `master_password` and `KC_DB_PASSWORD` configuration, but no independent task statement was supplied and repository reads could not be completed because the read-only shell consistently failed during sandbox setup."
+    },
+    "lld": {
+      "completeness": 9,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 7,
+      "total": 31,
+      "notes": "The LLD names concrete Terraform files, resources, variables, and conditional configuration, which makes its intended change boundary clear. Its load-bearing design is technically invalid: `master_password = \"\"` is not a viable Aurora master credential, the IAM action and resource are wrong, a stock MySQL Connector/J does not gain token generation from `iam=1`, and a `SECRETS` proxy auth block cannot be converted by supplying an empty secret ARN. Database-user creation is left as an open deployment consideration, uses the questionable `AWSAUTH` syntax rather than Aurora MySQL's `AWSAuthenticationPlugin`, and the rollout does not mitigate making this incomplete path the default. Exact repository integration and provider-version compatibility could not be independently verified because repository shell access failed, although the submitted patch context contains the named files and symbols."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 12,
+      "risk_awareness": 7,
+      "total": 30,
+      "notes": "The review usefully identifies database-user provisioning, fallback behavior, rollback testing, and removal of the obsolete Checkov suppression. It nevertheless explicitly endorses the two most serious false claims: that `iam=1` is native Keycloak/MySQL behavior and that `rds:GenerateDBAuthToken` scoped to the cluster ARN is correct. It misses the invalid empty Aurora master password and proxy secret, the absent token-refresh implementation, and the dangerous default-on migration, then labels all remaining findings non-blocking. Repository-specific assertions such as the role separation and Checkov location were visible in submitted diff context but could not be independently checked because read-only repository commands failed."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 41,
+      "notes": "The plan covers both flag settings, deployment, health, proxy connectivity, and rollback with reasonably concrete expected states. Several tests cannot work against the submitted patch: a missing password cannot be rejected because the variable defaults to an empty string without validation, `keycloak_db_auth_mode` is not implemented, and the AWS CLI command is `describe-db-proxies`, not `describe-db-proxy`. It also omits the critical token-expiry and pooled-connection renewal case, does not prove static credentials are absent, uses unverified hard-coded resource names, and its realm test never captures or asserts the HTTP 201 status. The exact required Terraform inputs and deployed naming conventions could not be verified because repository shell access was unavailable."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 1,
+      "specificity": 12,
+      "risk_awareness": 4,
+      "total": 22,
+      "notes": "The patch is narrowly scoped to the four declared Terraform files and implements the proposed flag and conditional task configuration. It cannot deliver IAM authentication: it sets an invalid empty Aurora master password and proxy secret ARN, grants the nonexistent `rds:GenerateDBAuthToken` action on the wrong resource type instead of `rds-db:connect` on a DB-user ARN, and assumes unsupported token generation from `iam=1`. The required IAM-enabled database user and JDBC capability are absent while IAM is enabled by default, so a fresh or upgraded deployment is likely to fail before Keycloak starts; retaining the username secret also does not substantiate the summary's claim that static database credential infrastructure was eliminated. The summary acknowledges the unimplemented database migration and unexecuted verification but still claims exact completion; patch applicability and surrounding source could not be independently checked because every read-only shell invocation failed during sandbox setup."
+    }
+  },
+  "task_score": 34.6,
+  "verdict": "The artifacts are concrete but built around an invalid AWS/JDBC authentication design, leaving the implementation unable to establish a working Keycloak database connection.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T18:21:00.246024Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 147421,
+      "cached_input_tokens": 121129,
+      "cache_write_input_tokens": 26280,
+      "output_tokens": 7572,
+      "reasoning_output_tokens": 5378
+    },
+    "duration_ms": 134295
+  },
+  "skill": "swe3"
+}

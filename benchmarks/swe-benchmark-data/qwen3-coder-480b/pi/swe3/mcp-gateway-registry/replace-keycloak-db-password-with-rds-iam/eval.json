@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 8,
+      "total": 47,
+      "notes": "The issue clearly identifies the ECS/Aurora objective, fallback requirement, version constraint, and several testable acceptance criteria. Its largest omission is the existing `aws_db_proxy_target.keycloak` integration and the required database-user IAM setup, TLS behavior, and token-consumption mechanism. The repository artifacts show Secrets Manager password rotation already exists, so the claim that passwords are maintained in configuration files is overstated, while removing the password conflicts with retaining password fallback. No independent task statement was supplied, so the intended fallback semantics cannot be verified beyond the task identifier and artifacts."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 9,
+      "total": 35,
+      "notes": "The LLD names concrete Terraform files, resources, variables, and a staged rollout with the flag disabled initially. Its central design is not viable: ECS secret values are injected at task startup, Keycloak does not interpret `USE_IAM_AUTH`, `DB_TOKEN_REFRESH_INTERVAL`, or an `iam_token` field, and updating Secrets Manager cannot refresh Keycloak's database password. The proposed policy uses nonexistent IAM action `rds:GenerateDBAuthToken`, attaches it to the execution role instead of the task role, omits `rds-db:connect` on a database-user ARN, and never provisions the MySQL IAM-authenticated user or addresses the existing proxy. Claims that AWS CLI and mysql-client already exist, that fallback is automatic, and that retries or circuit breakers will occur are unsupported or contradicted by the shown configuration."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 11,
+      "risk_awareness": 14,
+      "total": 44,
+      "notes": "The review usefully identifies token expiration, refresh races, sidecar failure, horizontal scaling, monitoring, and rollback as concerns. It misses the fatal integration defects: Keycloak has no token consumer, ECS secrets do not refresh, the database IAM user is absent, and the policy action and role are wrong. Calling the policy least-privilege is contradicted by its `\"*\"` resource and invalid `rds:GenerateDBAuthToken` action, while frontend direct-database access and ECS role-credential rotation concerns are largely misplaced. An approved-with-changes verdict is not defensible when the review itself lists blockers and the proposed authentication path cannot operate."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 4,
+      "specificity": 15,
+      "risk_awareness": 9,
+      "total": 41,
+      "notes": "The plan spans Terraform, token generation, SQL connectivity, rollback, task-definition inspection, and Keycloak CRUD with several concrete expected values. Its IAM checks are invalid because `aws_iam_role_policy` is inline, while `list-attached-role-policies`, `detach-role-policy`, and the asserted policy ARN operate on managed policies; several referenced Terraform outputs are also unestablished. The fallback test cannot pass as designed because `KC_DB_PASSWORD` is deliberately omitted when IAM mode is enabled, and the SQL test omits IAM-user provisioning and required TLS/cleartext-auth considerations while bypassing the existing proxy path. The admin-token check accepts jq's nonempty `null`, user creation does not assert HTTP status, destructive targeted applies lack cleanup, and no static Terraform validation is included."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 1,
+      "specificity": 10,
+      "risk_awareness": 4,
+      "total": 20,
+      "notes": "The diff targets the relevant cluster, ECS locals, IAM roles, and variables, and the default-disabled flag preserves the existing password mode. It does not implement IAM authentication end to end: the new script is never invoked, Keycloak ignores the new environment variables, and enabling the flag removes `KC_DB_PASSWORD`, causing startup failure rather than token authentication or fallback. The policy uses invalid `rds:GenerateDBAuthToken`, is attached to `keycloak_task_exec_role`, and omits `rds-db:connect`, the database-user grant, TLS handling, and the existing RDS Proxy path. The summary falsely claims use of the rotation Lambda, while the standalone script hard-codes `keycloak/database` and logs part of the token; exact patch applicability could not be independently checked because the repository command runner failed before file reads."
+    }
+  },
+  "task_score": 37.4,
+  "verdict": "The artifacts are concrete but fundamentally nonfunctional because no implemented path supplies renewable IAM tokens to Keycloak, and the IAM policy, fallback, and database setup are incorrect.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T22:38:14.803669Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 169529,
+      "cached_input_tokens": 139693,
+      "cache_write_input_tokens": 29824,
+      "output_tokens": 6708,
+      "reasoning_output_tokens": 4805
+    },
+    "duration_ms": 134229
+  },
+  "skill": "swe3"
+}

@@ -1,0 +1,65 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 14,
+      "specificity": 12,
+      "risk_awareness": 9,
+      "total": 50,
+      "notes": "The issue clearly identifies agent-card and health-check fetches, proposes reuse of the existing guard, and states useful exclusions. Its acceptance criteria leave allowlist matching, redirect behavior, failure responses, and the meaning of \"valid URLs\" undecided, while excluding skill-validation changes despite requiring that function to be promoted. The submitted diff contains corresponding contexts for `check_agent_health`, `_check_endpoint_reachability`, and `HealthMonitoringService`, supporting the broad scope. No independent task statement exists, and local source verification was unavailable because the read-only shell failed before execution with a bwrap RTM_NEWADDR error."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 44,
+      "notes": "The LLD is concrete about files, call sites, configuration, and expected failure paths. Its central security design remains vulnerable to DNS rebinding and redirects: `is_safe_url_with_redirects` checks only the initial URL and is unused, while allowlisted hosts bypass address validation entirely. The proposed `is_safe_url` also repeats `global ssrf_blocked_count` and `global ssrf_allowed_count` after assignments in the same function, which is invalid Python syntax, and its process-local counters are not operational metrics. Repository-only claims about deployment surfaces and the original helper could not be verified because shell access failed before commands ran."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 34,
+      "notes": "The review at least identifies DNS rebinding, redirect handling, allowlist security, DNS latency, and rollback as relevant concerns. Its largest defect is approving the design with zero blockers while those core SSRF gaps remain unresolved. It also misses the repeated-global syntax error and incorrectly says redirect and security feedback was addressed when the LLD explicitly declines redirect validation. Source-dependent praise about codebase patterns could not be independently verified because repository shell commands could not start."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 40,
+      "notes": "The utility cases provide concrete expected booleans for public, private, loopback, metadata, IPv6, and allowlisted URLs. The plan omits redirect, DNS rebinding, mixed DNS results, malformed schemes, and an assertion that the HTTP client is never called, so its API checks could pass merely because an internal target is unreachable. Its checklist claims functional and integration tests are implemented, but the submitted patch contains no tests, and several endpoint methods and payloads remain unsubstantiated. The `uv run pytest tests/` command and API routes could not be checked locally because shell execution failed."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 0,
+      "specificity": 7,
+      "risk_awareness": 2,
+      "total": 13,
+      "notes": "The patch attempts validation at the agent-card, agent-health fallback, and multiple resolved server-health endpoints. It imports `registry.utils.url_validation` but contains no creation hunk for the summary's claimed new file, and it neither updates `skill_service.py` nor adds the promised tests. The `agent_routes.py` hunk leaves `status_label = \"healthy\"` between a newly indented `try` and its continuation, while the default streamable-health insertion in `service.py` has an unexpected extra indentation level, making the change syntax-invalid. The summary's claims of exact LLD compliance and no follow-ups are therefore false; `git apply --check` and source comparison could not run because the repository shell failed before command execution."
+    }
+  },
+  "task_score": 36.2,
+  "verdict": "The artifacts are concrete but leave major SSRF gaps, and the implementation is unusable because it omits the shared utility and contains syntax-breaking indentation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T20:54:56.761197Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 139492,
+      "cached_input_tokens": 114244,
+      "cache_write_input_tokens": 25236,
+      "output_tokens": 7865,
+      "reasoning_output_tokens": 6430
+    },
+    "duration_ms": 146853
+  },
+  "skill": "swe3"
+}

@@ -1,0 +1,65 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 58,
+      "notes": "The issue provides concrete acceptance criteria covering EFS resources, ECS mounts, variables, outputs, examples, validation, and planning. Its largest deficiency is asserting that no service depends on EFS while excluding application changes and providing no replacement behavior for auth configuration or gateway data. The submitted baseline diff shows mounts at `/app/logs`, `/efs/auth_config`, and `/app/data`, making that dependency claim material rather than hypothetical. No independent task statement establishes the S3/DocumentDB assertion, and migration, data deletion, and output compatibility risks are omitted."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 9,
+      "total": 58,
+      "notes": "The LLD names the relevant Terraform files, modules, variables, outputs, access points, and mount paths reflected in the submitted diff. Its load-bearing storage decision remains vague: auth configuration will use environment variables or unspecified alternatives, while MCPGW becomes ephemeral despite the claim that persistent storage moved to S3/DocumentDB. The rollout section contains only three generic phases, and data migration remains an open question without state, backup, destruction, rollback, or output-consumer handling. The claim that the applications already operate correctly without these mounts is not established by the supplied task context."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 52,
+      "notes": "The review identifies the important mount paths, persistence assumptions, migration risk, downtime, file permissions, and logging security. Its largest defect is approving the design by declaring those concerns resolved without evidence or committed mechanisms. The actual LLD still lists data migration and application dependencies as open questions, and its rollout does not contain the claimed new-deployment or maintenance-window guidance. Terraform state destruction, removed-output consumers, backup validation, and a concrete rollback procedure receive no actionable review."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 4,
+      "total": 36,
+      "notes": "The plan supplies concrete `terraform init`, `validate`, `plan`, and static-search commands with expected outcomes. Its principal plan oracle is invalid: `planned_values.root_module.resources` excludes nested module resources, `module.efs` is not a resource type, and planned values represent post-apply state rather than proving an EFS destruction occurred. It does not test removal of ECS mount points or volumes, service startup, auth configuration, data persistence, or the acceptance criterion that no service depends on EFS. Backward compatibility, deployment verification, rollback, and end-to-end behavior are incorrectly dismissed as not applicable despite the destructive existing-deployment path."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 8,
+      "total": 66,
+      "notes": "The patch consistently removes the submitted EFS module, security-group rule, task volumes and mounts, module variables, and module and root outputs across five focused Terraform files. The main unresolved correctness risk is runtime behavior: it removes `/efs/auth_config` and `/app/data` without demonstrating the promised environment-based configuration or S3/DocumentDB replacement, and the LLD explicitly characterizes MCPGW storage as ephemeral. The summary also claims no deviations or follow-ups despite the destructive migration and rollback work identified elsewhere, and its ECS line-count table ignores added empty assignments. Independent `git apply --check` against commit `b0fcb2db453f933da63389c0b18ccc044ee505b5` was unavailable in the read-only harness, although the submitted contexts and symbols are internally consistent."
+    }
+  },
+  "task_score": 54.0,
+  "verdict": "The submission precisely identifies and patches direct Terraform EFS references, but it does not resolve or meaningfully test the destructive migration and runtime replacement for currently mounted auth and gateway data.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T22:33:23.276208Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 112761,
+      "cached_input_tokens": 88680,
+      "cache_write_input_tokens": 24071,
+      "output_tokens": 7325,
+      "reasoning_output_tokens": 5877
+    },
+    "duration_ms": 130163
+  },
+  "skill": "swe3"
+}

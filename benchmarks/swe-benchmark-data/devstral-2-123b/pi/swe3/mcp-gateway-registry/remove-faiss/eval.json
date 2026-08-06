@@ -1,0 +1,65 @@
+{
+  "task": "remove-faiss",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 11,
+      "specificity": 16,
+      "risk_awareness": 8,
+      "total": 50,
+      "notes": "The issue clearly identifies dependency, configuration, test, documentation, and Docker surfaces, with several directly testable removal criteria. Its central deficiency is promising unchanged behavior while requiring DocumentDB for file-backed deployments without defining migration or unavailable-database behavior. The factory preimage selects DocumentDB only for MONGODB_BACKENDS and FaissSearchRepository otherwise, so the proposal materially changes an existing deployment mode. No independent task statement establishes the replacement architecture, and claims of mature feature parity and issue #1285 could not be verified."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 9,
+      "total": 41,
+      "notes": "The LLD names relevant files and accurately identifies the FAISS dependency, configuration properties, service, repository, and factory integration points shown by the baseline context. Its proposed FileSearchRepository imports `.documentdb.search_repository` from inside `registry.repositories.file`, which resolves to a nonexistent child package rather than the sibling `..documentdb` package. The factory simultaneously bypasses that wrapper entirely, while migration, file-only operation, and failure behavior remain unresolved despite the backward-compatibility claim. Assertions about comprehensive fallbacks, unchanged observability, and superior scaling are not tied to verified APIs or rollout checks."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 14,
+      "specificity": 16,
+      "risk_awareness": 18,
+      "total": 64,
+      "notes": "The review's strongest contribution is identifying the two load-bearing risks: file deployments without DocumentDB and loss of existing FAISS-backed search state. Those concerns are supported by the existing backend-conditional factory and the proposed deletion of persisted-index handling. Its resolutions remain indecisive, and the proposed migration script and `registry.cli migrate-search` command have no repository evidence and conflict with removing the FAISS dependency needed to read old indexes. It also misses the incorrect relative import, dead file repository design, and unchanged production FAISS callers, making the 4.2/5 verdict too favorable."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 6,
+      "specificity": 10,
+      "risk_awareness": 14,
+      "total": 45,
+      "notes": "The plan broadly covers search, indexing lifecycle, database failure, Docker, compatibility, performance, rollback, and observability. Its unit-test example patches `registry.repositories.file.search_repository.DocumentDBSearchRepository`, but the proposed implementation only imports that symbol locally inside `__init__`, so the patch target does not exist. The E2E commands use `/api/v1/servers` while the repository test preimage explicitly documents registration at `/api/servers/register`; the CLI command and several named test files are likewise unverified. Many assertions lack fixed fixtures or objective result oracles, although the unavailable-database and update/delete scenarios target relevant risks."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 27,
+      "notes": "The patch removes the declared dependency, configuration properties, FAISS service, and conditional factory branch, addressing the mechanical portion of removal. It deletes `registry/search/service.py` without modifying production server routes, while the existing test preimage explicitly patches the lazily imported `registry.search.service.faiss_service` for registration and toggle workflows, demonstrating an unhandled caller. The new file repository also has the invalid `.documentdb` import, is bypassed by the factory, leaves `rebuild_index` as a no-op, and is tested through a nonexistent module-level patch target. The summary admits incomplete tests, documentation, migration, and fallback work yet still claims complete preservation and graceful degradation; independent `git apply --check` execution was unavailable."
+    }
+  },
+  "task_score": 45.4,
+  "verdict": "The submission recognizes the main migration risks, but its implementation is incomplete and contains fatal integration and import errors that prevent a credible FAISS removal.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T12:50:46.277509Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 296835,
+      "cached_input_tokens": 253019,
+      "cache_write_input_tokens": 43802,
+      "output_tokens": 7551,
+      "reasoning_output_tokens": 6268
+    },
+    "duration_ms": 145154
+  },
+  "skill": "swe3"
+}

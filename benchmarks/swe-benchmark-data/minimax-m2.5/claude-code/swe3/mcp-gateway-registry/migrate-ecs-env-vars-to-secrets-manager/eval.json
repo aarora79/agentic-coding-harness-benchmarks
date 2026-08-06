@@ -1,0 +1,65 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 15,
+      "risk_awareness": 12,
+      "total": 55,
+      "notes": "The issue clearly states the security motivation, non-goals, dependencies, and a useful acceptance checklist. Its largest defect is the contradictory fallback requirement: the submitted patch selects Secrets Manager when a variable is nonempty and retains the environment entry only when that same value is empty, which is not a usable plaintext fallback. Creating secret versions from Terraform variables also leaves values in state, so the proposed solution does not fully address a central stated risk. No independent task statement was supplied, and the claims about all sensitive variables, the existing KMS key, and issue 1134 could not be independently established."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 53,
+      "notes": "The LLD is strongest in naming the nine variables, Terraform files, ECS injection flow, IAM integration, and phased rollout. Its central migration decision is unsound because the proposed fallback injects the same variable only when it is empty, with no mode flag, legacy value, or external secret ARN. Its examples are internally inconsistent: the resource is initially uncounted while later references use index `[0]`, and the implementation summary contradicts the planned variable additions by saying those variables already existed. It acknowledges state exposure and rotation limitations, but leaves rollback, fallback removal, and rotation-triggered ECS redeployment unresolved."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 51,
+      "notes": "The review usefully identifies persistent Terraform-state exposure, long-lived plaintext fallback risk, rotation documentation, and the absence of an operator runbook. Its largest failure is declaring no blockers while missing that the fallback cannot preserve a nonempty legacy value and that the LLD's conditional collection shapes are not valid Terraform designs. Calling immediate deletion via `recovery_window_in_days = 0` a security strength is questionable, and recommendations such as generic `min_length` validation and custom Secrets Manager encryption context are not implementation-ready Terraform guidance. Claims about the existing KMS policy and current policy size are asserted without repository evidence in the artifacts."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 10,
+      "total": 45,
+      "notes": "The plan covers plan/apply behavior, task definitions, IAM, mixed configurations, API checks, and security observations with concrete expected secret names. Several commands are unusable: `aws ecs describe-task-definitions` is not an AWS CLI operation, and `get-role-policy` cannot inspect the managed `aws_iam_policy.ecs_secrets_access` resource. The rollback depends on an unimplemented `use_secrets_manager` variable, the sensitivity grep checks only one variable without failing the run, and the ECS exec test prints a secret-bearing environment variable. The existence of `prod.tfvars`, `dev.tfvars`, the named CloudFormation stack, and the proposed federation endpoint is not established."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 2,
+      "specificity": 17,
+      "risk_awareness": 3,
+      "total": 33,
+      "notes": "The patch attempts all nine named migrations across `ecs-services.tf`, `iam.tf`, and `secrets.tf`, but omits the documentation required by the issue. It is not Terraform-valid: expressions such as `condition ? { name = ..., valueFrom = ... } : []` mix object and tuple result types, while the IAM list similarly mixes ARN strings with empty lists. The environment lists also emit `null` entries, and the alleged fallback exposes only an empty value; immediate secret destruction and `ignore_changes` further create recovery and rotation risks. Repository command execution was unavailable, so mechanical applicability to the stated baseline could not be confirmed, but these defects are present directly in the submitted diff and contradict the summary's claim of complete, deviation-free implementation."
+    }
+  },
+  "task_score": 47.4,
+  "verdict": "The submission is detailed and repository-shaped, but its migration model is logically broken and the implementation contains Terraform type errors that prevent a valid plan.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T17:32:32.109572Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 169945,
+      "cached_input_tokens": 140130,
+      "cache_write_input_tokens": 29803,
+      "output_tokens": 8103,
+      "reasoning_output_tokens": 6405
+    },
+    "duration_ms": 141202
+  },
+  "skill": "swe3"
+}
