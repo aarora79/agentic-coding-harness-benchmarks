@@ -1,0 +1,65 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 89,
+      "notes": "The issue clearly identifies three outbound request paths, their required failure behavior, configuration, tests, and explicit exclusions. Its largest weakness is broadening GITHUB_EXTRA_HOSTS into a general outbound allowlist while claiming unchanged configuration semantics, which increases trust beyond skill fetching. The submitted diff contexts corroborate the named symbols in agent_validator.py, agent_routes.py, health/service.py, and skill_service.py. No independent task statement was supplied, so requirements beyond the task identifier and artifacts could not be verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 81,
+      "notes": "The LLD is concrete about files, call flows, configuration, failure results, deployment wiring, and compatibility. Its load-bearing defect is placing proxy_pass_url validation before transport dispatch: the submitted existing stdio test uses localhost and expects healthy, but this ordering blocks it before stdio handling. It also incorrectly states that httpx follows redirects by default and overlooks sensitive full-URL logging. Claims such as batched health checks and exact baseline behavior could not be independently checked because repository shell access failed."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 80,
+      "notes": "The review finds concrete issues involving synchronous DNS, cache relocation, service-path plumbing, allowlist expansion, redirects, and deployment configuration. Its largest omission is the stdio regression caused by validating localhost before examining supported_transports, despite the affected test appearing in the patch. It also wrongly treats http://127.0.0.1@evil.com as targeting 127.0.0.1; urllib.parse identifies evil.com as the hostname. Frontend behavior and infrastructure requirements were asserted without independently verifiable repository evidence."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 73,
+      "notes": "The plan covers the utility, every guarded call site, compatibility, configuration loading, deployment wiring, and no-request oracles for blocked URLs. The auth-info assertion for http://127.0.0.1@evil.com is technically wrong and will normally fail because the request host is evil.com. Some manual snippets use undefined objects such as AsyncMock and agent_card, disagree on status versus health_status, and omit the existing stdio compatibility case. The uv commands and project prerequisites could not be independently verified against pyproject.toml."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 71,
+      "notes": "The patch implements the shared utility, settings and compose wiring, all three enforcement paths, documentation, and targeted tests. Its largest defect is that _check_server_endpoint_transport_aware validates proxy_pass_url before reading supported_transports, so the retained stdio test using http://localhost:8000 now fails and non-outbound stdio services become unhealthy. test_auth_info_urls_parsed_safely also contains a false expectation for http://127.0.0.1@evil.com, while the summary admits tests were not executed. The documented redirect, DNS-rebinding, and blocking-DNS limitations are honest, but the claimed git apply verification could not be independently confirmed because the repository shell was unavailable."
+    }
+  },
+  "task_score": 78.8,
+  "verdict": "Strong and specific design work is undermined by a concrete stdio regression and incorrect tests in the implementation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T03:01:29.008193Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 214564,
+      "cached_input_tokens": 167330,
+      "cache_write_input_tokens": 47224,
+      "output_tokens": 8010,
+      "reasoning_output_tokens": 6583
+    },
+    "duration_ms": 117924
+  },
+  "skill": "swe3"
+}
