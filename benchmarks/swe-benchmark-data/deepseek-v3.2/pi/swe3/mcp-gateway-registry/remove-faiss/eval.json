@@ -1,0 +1,65 @@
+{
+  "task": "remove-faiss",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 12,
+      "specificity": 16,
+      "risk_awareness": 11,
+      "total": 56,
+      "notes": "The issue clearly inventories dependency, code, configuration, documentation, tests, Docker, and both pyproject.toml and uv.lock. Its largest defect is contradictory behavior: it requires unchanged search and excludes scoring changes while replacing semantic FAISS search with DocumentDB or a later keyword fallback. The submitted diff confirms several named paths and symbols, including registry/search/service.py and registry/repositories/factory.py. With no independent task statement, the claimed equivalence of DocumentDB search and related issue #1285 could not be verified."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 54,
+      "notes": "The LLD names concrete integration points such as get_search_repository, FaissSearchRepository, server and agent indexing, configuration properties, and file-backend migration. It omits uv.lock from its implementation and file-change plans, leaves error behavior as either empty or keyword results, and contradicts its non-goal by introducing a new ranking algorithm and response metadata. The supplied baseline code shows FAISS search returned tools and richer server and agent fields, while the proposed SimpleSearchRepository design covers only servers and agents and does not preserve those contracts. Claims about Helm, Terraform, existing sanitization, rate limiting, audit logging, and suitability below 1000 entities were not substantiated."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 14,
+      "specificity": 15,
+      "risk_awareness": 17,
+      "total": 62,
+      "notes": "The review's strongest contribution is identifying cache synchronization, degraded search quality, memory growth, input handling, migration, and operational monitoring as concrete risks. It nevertheless declares all critical concerns resolved even though the revised LLD still lacks a concurrency-safe invalidation contract, measurable performance limits, and precise compatibility behavior. The patch confirms these concerns remain: _cache_loaded has no locking, tools are never produced, and the proposed search_backend response metadata is not implemented. The review also misses the unchanged uv.lock, tracked FAISS backup file, deleted tests without replacements, and backward-incompatible result fields."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 10,
+      "risk_awareness": 11,
+      "total": 42,
+      "notes": "The plan spans functional, compatibility, deployment, end-to-end, performance, negative, and telemetry checks for both backends. Many oracles are non-tests, allowing empty results, either HTTP 400 or success, or unspecified graceful behavior, so they would not reliably catch the proposed regression. The performance example calls an unimplemented _load_test_data method, the multiline python -c FAISS check is syntactically unreliable, and proposed metadata is absent from the patch. It supplies no replacement unit tests for SimpleSearchRepository and does not check uv.lock consistency, retained FAISS references, cache invalidation, tool results, status filters, or response-field compatibility."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 3,
+      "specificity": 8,
+      "risk_awareness": 6,
+      "total": 24,
+      "notes": "The summary honestly discloses deferred tests, documentation, telemetry, Docker work, cache invalidation, and degraded search, but those omissions leave most acceptance criteria unmet. The patch removes faiss-cpu only from pyproject.toml, leaves uv.lock untouched, adds a tracked search_repository.py.bak containing FAISS code, deletes 1131 lines of tests without replacements, and preserves the faiss_service compatibility name. Compared with the removed service, SimpleSearchRepository always returns no tools, drops established result fields, applies max_results globally, ignores draft and deprecated filters, and excludes tool data while calculating num_tools, so API behavior is not preserved. The read-only executor could not access the working tree to confirm patch application or repository method signatures, so unverified calls such as list_all receive no correctness credit."
+    }
+  },
+  "task_score": 47.6,
+  "verdict": "The submission identifies the main dependency-removal surfaces and several genuine risks, but the implementation is knowingly incomplete and introduces substantial search and API regressions without replacement tests.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T03:58:59.861478Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 328991,
+      "cached_input_tokens": 270834,
+      "cache_write_input_tokens": 58145,
+      "output_tokens": 7762,
+      "reasoning_output_tokens": 6331
+    },
+    "duration_ms": 132735
+  },
+  "skill": "swe3"
+}
