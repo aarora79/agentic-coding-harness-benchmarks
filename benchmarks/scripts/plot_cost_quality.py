@@ -234,7 +234,18 @@ def _blended_mean_cost(summary: dict, model: str) -> float | None:
     for task in summary.get("tasks", []):
         if task.get("failed") or task.get("task") in failed:
             continue
-        tokens = (task.get("input_tokens") or 0) + (task.get("output_tokens") or 0)
+        # Price ALL processed tokens (input + output + cache read + write), not
+        # just input+output. The blended rate was measured over every token the
+        # server processed, so the count must match. This also keeps pi and
+        # claude-code consistent: pi reports vLLM cache tokens in cache_read/
+        # cache_write, while claude-code folds them into input_tokens (its
+        # cache_read is 0) -- the two agree only on the total-processed sum.
+        tokens = (
+            (task.get("input_tokens") or 0)
+            + (task.get("output_tokens") or 0)
+            + (task.get("cache_read_tokens") or 0)
+            + (task.get("cache_write_tokens") or task.get("cache_creation_tokens") or 0)
+        )
         if tokens > 0:
             costs.append(tokens * per_token)
     return sum(costs) / len(costs) if costs else None

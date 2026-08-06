@@ -41,10 +41,15 @@ DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
 DEFAULT_OUT_DIR = _REPO_ROOT / "docs"
 RUN_SUMMARY_FILENAME = "run-summary.json"
 
-# g6e.12xlarge on-demand, the default self-hosted node here. Cost on a rented GPU
-# is hardware-derived: ($/hr / 3600) x wall-clock seconds (see
-# docs/cost-per-task-methodology.md). This is a display default only.
-DEFAULT_DOLLARS_PER_HOUR = 10.49
+# Throughput sweeps: each model's performance-summary.json carries a hardware-
+# derived, per-token cost (blended lens) at its REAL instance rate (g6e vs p5en),
+# precomputed by clients/build_performance_summary.py. A self-hosted run's cost is
+# that per-token rate x the tokens it processed -- NOT a flat wall-clock x $/hr,
+# which both charges idle agent-thinking time and applies one instance's price to
+# models served on another. See docs/cost-per-task-methodology.md.
+_THROUGHPUT_DIR = (
+    _REPO_ROOT / "self-hosted" / "vllm" / "benchmark-output" / "throughput"
+)
 
 # Human labels for the harness slug used in the doc title and prose.
 HARNESS_LABELS = {
@@ -67,6 +72,36 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def _blended_rate(model_slug: str) -> tuple[float, str] | None:
+    """Return (blended $/token, instance_type) for a self-hosted model, or None.
+
+    Uses the CHEAPEST blended cost-per-token across the model's throughput-sweep
+    concurrency levels -- the best sustainable per-token cost on its benchmarked
+    instance (a saturated box, not one idle request). The rate is precomputed at
+    the model's true instance price (g6e vs p5en) by build_performance_summary.py.
+    This mirrors plot_cost_quality._blended_cost_per_token so the doc's cost column
+    and the cost-quality chart agree.
+
+    Args:
+        model_slug: The model's clean slug (e.g. "glm-5.2").
+
+    Returns:
+        ``(min blended_cost_per_token_usd, instance_type)``, or None when no
+        throughput summary exists for the model.
+    """
+    summary = _read_json(_THROUGHPUT_DIR / model_slug / "performance-summary.json")
+    if summary is None:
+        return None
+    rates = [
+        r["blended_cost_per_token_usd"]
+        for r in summary.get("levels", [])
+        if isinstance(r.get("blended_cost_per_token_usd"), (int, float))
+    ]
+    if not rates:
+        return None
+    return (min(rates), summary.get("instance_type") or "self-hosted")
 
 
 def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
@@ -141,21 +176,21 @@ def _collect(
     return rows
 
 
-def _row_cost(row: dict[str, Any], dollars_per_hour: float) -> tuple[str, str]:
+def _row_cost(row: dict[str, Any]) -> tuple[str, str]:
     """Return (cost string, basis label) for a model row.
 
     Two cost bases, never mixed on one number:
-      * **metered** -- a hosted API (provider=bedrock) reports a real per-token
-        bill; use the summed ``total_cost_usd``.
-      * **hardware** -- a self-hosted model has no per-token price, so cost is
-        derived from the GPU it rents: ``($/hr / 3600) x wall-clock seconds``.
-
-    Applying the GPU hourly rate to a Bedrock run (or vice versa) would be
-    nonsense, so the basis is chosen per row and labelled in its own column.
+      * **metered (Bedrock)** -- a hosted API reports a real per-token bill; use
+        the summed ``total_cost_usd``.
+      * **hardware-derived (throughput)** -- a self-hosted model has no per-token
+        price, so cost is the model's blended cost-per-token (measured by the
+        throughput sweep at its true instance rate, peak concurrency) times the
+        tokens this run processed: ``blended_$/token x total_tokens``. This
+        replaces the old ``$/hr x wall-clock`` estimate, which charged idle
+        agent-thinking time and applied one instance's price to every model.
 
     Args:
-        row: A collected model row (provider, metered_cost, latency_seconds).
-        dollars_per_hour: Instance $/hr for the hardware-derived basis.
+        row: A collected model row (provider, metered_cost, model, total_tokens).
 
     Returns:
         A ``(cost, basis)`` pair, e.g. ``("$0.63", "metered (Bedrock)")``.
@@ -163,10 +198,13 @@ def _row_cost(row: dict[str, Any], dollars_per_hour: float) -> tuple[str, str]:
     if row.get("provider") == "bedrock":
         cost = row.get("metered_cost")
         return (f"${cost:.2f}" if cost else "--", "metered (Bedrock)")
-    seconds = row.get("latency_seconds") or 0
-    if not seconds:
+    # Self-hosted: price the tokens processed at the throughput-derived blended rate.
+    rate = _blended_rate(row.get("model", ""))
+    total_tokens = row.get("total_tokens") or 0
+    if rate is None or not total_tokens:
         return ("--", "hardware-derived")
-    return (f"${seconds * dollars_per_hour / 3600.0:.2f}", "hardware-derived")
+    cost_per_token, instance = rate
+    return (f"${cost_per_token * total_tokens:.2f}", f"hardware-derived ({instance})")
 
 
 def _render(
@@ -175,7 +213,6 @@ def _render(
     harness: str,
     skill: str,
     repo: str,
-    dollars_per_hour: float,
     out_dir: Path,
 ) -> str:
     """Render the per-agent Markdown doc from the collected rows."""
@@ -220,8 +257,8 @@ def _render(
         tok = f"{r.get('total_tokens', r['input_tokens'] + r['output_tokens']):,}"
         mins = (r["latency_seconds"] or 0) / 60.0
         wall = f"{mins:.1f}m" if mins else "--"
-        cost, basis = _row_cost(r, dollars_per_hour)
-        any_hardware = any_hardware or basis == "hardware-derived"
+        cost, basis = _row_cost(r)
+        any_hardware = any_hardware or basis.startswith("hardware-derived")
         any_metered = any_metered or basis.startswith("metered")
         lines.append(
             f"| {r['model']} | {mean} | {completed} | {tin} | {tout} | {tcr} | {tcw} "
@@ -235,9 +272,12 @@ def _render(
     ]
     if any_hardware:
         note.append(
-            f" _hardware-derived_ (self-hosted vLLM): a rented GPU has no per-token "
-            f"bill, so cost is `($/hr / 3600) x wall-clock seconds` at g6e.12xlarge "
-            f"on-demand (${dollars_per_hour}/hr)."
+            " _hardware-derived (throughput)_ (self-hosted vLLM): a rented GPU has no "
+            "per-token bill, so cost is the model's blended cost-per-token -- measured "
+            "by the throughput sweep at its true instance rate (g6e.12xlarge for L40S, "
+            "p5en.48xlarge for H200) and peak concurrency -- times the tokens this run "
+            "processed. This prices the real work done, unlike a wall-clock estimate "
+            "that would also charge idle agent-thinking time."
         )
     if any_metered:
         note.append(
@@ -299,12 +339,6 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_OUT_DIR,
         help="Directory to write harness-<slug>.md into (default: docs/).",
     )
-    parser.add_argument(
-        "--dollars-per-hour",
-        type=float,
-        default=DEFAULT_DOLLARS_PER_HOUR,
-        help="Instance $/hr for the hardware-derived cost column.",
-    )
     return parser.parse_args()
 
 
@@ -323,7 +357,6 @@ def main() -> None:
         harness=args.harness,
         skill=args.skill,
         repo=args.repo,
-        dollars_per_hour=args.dollars_per_hour,
         out_dir=args.out_dir.expanduser().resolve(),
     )
     out_dir = args.out_dir.expanduser().resolve()

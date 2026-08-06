@@ -12,6 +12,7 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
@@ -92,32 +93,44 @@ class RunTotalsTest(unittest.TestCase):
 
 class RowCostTest(unittest.TestCase):
     def test_bedrock_uses_metered_bill_not_gpu_time(self) -> None:
-        # A Bedrock run's cost is its summed metered bill, NOT the GPU-time
-        # estimate -- applying $/hr x wall-clock to an API run is nonsense.
-        row = {"provider": "bedrock", "metered_cost": 0.63, "latency_seconds": 5286}
-        cost, basis = gen._row_cost(row, dollars_per_hour=10.49)
+        # A Bedrock run's cost is its summed metered bill.
+        row = {"provider": "bedrock", "metered_cost": 0.63}
+        cost, basis = gen._row_cost(row)
         self.assertEqual(cost, "$0.63")
         self.assertEqual(basis, "metered (Bedrock)")
 
-    def test_endpoint_uses_hardware_derived_time(self) -> None:
-        # Self-hosted: cost = ($/hr / 3600) x seconds. 3600s at $10.49/hr = $10.49.
-        row = {"provider": "endpoint", "metered_cost": None, "latency_seconds": 3600}
-        cost, basis = gen._row_cost(row, dollars_per_hour=10.49)
-        self.assertEqual(cost, "$10.49")
-        self.assertEqual(basis, "hardware-derived")
-
-    def test_endpoint_without_time_is_dash(self) -> None:
-        row = {"provider": "endpoint", "metered_cost": None, "latency_seconds": 0}
-        cost, basis = gen._row_cost(row, dollars_per_hour=10.49)
-        self.assertEqual(cost, "--")
-        self.assertEqual(basis, "hardware-derived")
-
     def test_bedrock_without_metered_cost_is_dash(self) -> None:
-        # A bedrock run must never fall back to the GPU-time estimate.
-        row = {"provider": "bedrock", "metered_cost": None, "latency_seconds": 5286}
-        cost, basis = gen._row_cost(row, dollars_per_hour=10.49)
+        # A bedrock run must never fall back to a hardware estimate.
+        row = {"provider": "bedrock", "metered_cost": None}
+        cost, basis = gen._row_cost(row)
         self.assertEqual(cost, "--")
         self.assertEqual(basis, "metered (Bedrock)")
+
+    def test_endpoint_prices_all_processed_tokens_at_blended_rate(self) -> None:
+        # Self-hosted: cost = blended $/token (from throughput sweep) x TOTAL
+        # tokens processed. 1,000,000 tokens at 2e-6 $/token = $2.00, and the
+        # instance name flows into the basis label.
+        row = {"provider": "endpoint", "model": "some-model", "total_tokens": 1_000_000}
+        with mock.patch.object(
+            gen, "_blended_rate", return_value=(2e-6, "p5en.48xlarge")
+        ):
+            cost, basis = gen._row_cost(row)
+        self.assertEqual(cost, "$2.00")
+        self.assertEqual(basis, "hardware-derived (p5en.48xlarge)")
+
+    def test_endpoint_without_throughput_summary_is_dash(self) -> None:
+        # No performance-summary for the model -> no rate -> dash, not a guess.
+        row = {"provider": "endpoint", "model": "unswept", "total_tokens": 1_000_000}
+        with mock.patch.object(gen, "_blended_rate", return_value=None):
+            cost, basis = gen._row_cost(row)
+        self.assertEqual(cost, "--")
+        self.assertEqual(basis, "hardware-derived")
+
+    def test_endpoint_without_tokens_is_dash(self) -> None:
+        row = {"provider": "endpoint", "model": "some-model", "total_tokens": 0}
+        with mock.patch.object(gen, "_blended_rate", return_value=(2e-6, "g6e")):
+            cost, basis = gen._row_cost(row)
+        self.assertEqual(cost, "--")
 
 
 if __name__ == "__main__":
