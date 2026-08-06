@@ -1155,5 +1155,72 @@ class MetricsErrorTest(unittest.TestCase):
         self.assertNotIn("error", metrics)
 
 
+class TestCheckTokenAccounting(unittest.TestCase):
+    """The run-time guard against undercounted token accounting.
+
+    The extractor bug (#99) is fixed; this guard exists so a future regression in
+    either agent's usage extraction is caught during the run instead of in review.
+    Cases use real numbers from affected and healthy runs.
+    """
+
+    def test_flags_the_real_kimi_undercount(self) -> None:
+        # kimi-k2.7-code pi (PR #96): 1 output token recorded over 106 turns.
+        warning = harness._check_token_accounting(
+            {"num_turns": 106, "output_tokens": 1}, "pi", "[task=ssrf]"
+        )
+        assert warning is not None
+        self.assertIn("TOKEN ACCOUNTING SUSPECT", warning)
+        self.assertIn("0.0/turn", warning)
+
+    def test_flags_the_real_deepseek_undercount(self) -> None:
+        # deepseek-v3.2 pi (PR #97): 542 output over 69 turns = 7.9/turn. Subtler
+        # than kimi's but still an order of magnitude below plausible.
+        warning = harness._check_token_accounting(
+            {"num_turns": 69, "output_tokens": 542}, "pi", "[task=remove-efs]"
+        )
+        assert warning is not None
+        self.assertIn("7.9/turn", warning)
+
+    def test_passes_a_healthy_post_fix_pi_run(self) -> None:
+        # nemotron-ultra-550b pi, post-fix: 47,996 output over 240 turns = ~200/turn.
+        self.assertIsNone(
+            harness._check_token_accounting(
+                {"num_turns": 240, "output_tokens": 47996}, "pi", "[task=remove-faiss]"
+            )
+        )
+
+    def test_passes_a_healthy_claude_run(self) -> None:
+        # minimax-m2.5 claude-code: 21,383 output over 83 turns = ~258/turn.
+        self.assertIsNone(
+            harness._check_token_accounting(
+                {"num_turns": 83, "output_tokens": 21383},
+                "claude",
+                "[task=remove-faiss]",
+            )
+        )
+
+    def test_skips_short_runs_where_the_ratio_is_noise(self) -> None:
+        # A 2-turn run can legitimately emit very little; do not cry wolf.
+        self.assertIsNone(
+            harness._check_token_accounting(
+                {"num_turns": 2, "output_tokens": 5}, "pi", "[task=tiny]"
+            )
+        )
+
+    def test_handles_missing_and_zero_fields(self) -> None:
+        # A failed run may report no turns at all; must not divide by zero.
+        self.assertIsNone(harness._check_token_accounting({}, "pi", "[task=x]"))
+        self.assertIsNone(
+            harness._check_token_accounting(
+                {"num_turns": 0, "output_tokens": 0}, "pi", "[task=x]"
+            )
+        )
+        self.assertIsNone(
+            harness._check_token_accounting(
+                {"num_turns": None, "output_tokens": None}, "pi", "[task=x]"
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

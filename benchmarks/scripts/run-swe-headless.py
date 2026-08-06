@@ -66,6 +66,20 @@ IMPLEMENTATION_ARTIFACT_FILENAMES = ("patch.diff", "implementation.md")
 ARTIFACT_FILENAMES = DESIGN_ARTIFACT_FILENAMES + IMPLEMENTATION_ARTIFACT_FILENAMES
 GIT_CLONE_TIMEOUT_SECONDS = 300
 
+# Sanity floor for output tokens per turn, used to catch a token-accounting bug at
+# run time rather than in PR review. An agent that edits files emits hundreds of
+# output tokens per turn (measured: ~370-730 across claude-code and pi). A value in
+# the single digits is not a model behaviour -- it means usage was read from one
+# scope instead of summed across all of them, which is exactly how the pi
+# per-message usage bug (#99) and the earlier claude modelUsage bug undercounted
+# multi-turn runs by ~100x. The failure is silent (a plausible number in the right
+# field), so only a ratio check catches it. Set well below any real per-turn rate so
+# it fires on a genuine accounting fault, not on a terse run.
+MIN_PLAUSIBLE_OUTPUT_TOKENS_PER_TURN = 20
+# Below this turn count the ratio is noise (a 1-2 turn run can legitimately emit
+# very little), so the check is skipped.
+TOKEN_SANITY_MIN_TURNS = 5
+
 # The SWE skill file, shared by both agents. Claude Code auto-loads it from the
 # repo's .claude/skills tree via the matching slash command; pi is pointed at the
 # same file explicitly with `--skill` so both agents run the identical task. Which
@@ -741,6 +755,54 @@ def _claude_token_usage(result: dict[str, Any]) -> dict[str, int]:
         "cache_read_tokens": usage.get("cache_read_input_tokens", 0),
         "cache_creation_tokens": usage.get("cache_creation_input_tokens", 0),
     }
+
+
+def _check_token_accounting(
+    metrics: dict[str, Any],
+    agent: str,
+    label: str,
+) -> str | None:
+    """Warn loudly when output tokens per turn are implausibly low.
+
+    Guards against the token-accounting class of bug where usage is read from a
+    single scope (pi's last per-message ``usage``, or claude's main-agent-only
+    ``usage``) instead of summed across every message/model, undercounting a
+    multi-turn run roughly in proportion to its turn count. Such a run still writes
+    a well-formed metrics.json with a plausible-looking number, so nothing else in
+    the pipeline notices; the ratio is the only cheap signal.
+
+    This warns rather than fails: the artifacts and judge scores of an affected run
+    are still valid (only tokens and cost are wrong), so aborting would discard good
+    work. The warning names the run so it cannot be committed unnoticed.
+
+    Args:
+        metrics: The metrics dict from ``_metrics_from_result``.
+        agent: Which coding agent produced the run (for the message).
+        label: Task label used in log lines.
+
+    Returns:
+        The warning message if the check tripped, else None.
+    """
+    turns = metrics.get("num_turns") or 0
+    output_tokens = metrics.get("output_tokens") or 0
+    if turns < TOKEN_SANITY_MIN_TURNS:
+        return None
+    per_turn = output_tokens / turns
+    if per_turn >= MIN_PLAUSIBLE_OUTPUT_TOKENS_PER_TURN:
+        return None
+    message = (
+        f"{label} TOKEN ACCOUNTING SUSPECT: {output_tokens:,} output tokens over "
+        f"{turns} turns = {per_turn:.1f}/turn, below the {MIN_PLAUSIBLE_OUTPUT_TOKENS_PER_TURN} "
+        f"floor. An agent making edits emits hundreds per turn, so the {agent} usage "
+        f"is likely being read from one scope instead of summed across all of them "
+        f"(see the pi per-message usage bug, issue #99). Scores, turns, and latency "
+        f"are unaffected and still valid -- but DO NOT publish the token or cost "
+        f"columns from this run without re-checking the extractor."
+    )
+    logger.warning("!" * 100)
+    logger.warning(message)
+    logger.warning("!" * 100)
+    return message
 
 
 def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, Any]:
@@ -1752,6 +1814,11 @@ def _save_metrics(
     generation_tokens_per_sec = (
         round(metrics["output_tokens"] / latency, 1) if latency > 0 else 0
     )
+    # Persist the token-accounting verdict alongside the numbers it judges, so a
+    # suspect run is self-identifying on disk and not only in the run log.
+    token_accounting_warning = _check_token_accounting(
+        metrics, config.agent, f"[task={task.id}]"
+    )
     include_vllm = not config.is_bedrock
     record = {
         "task": task.id,
@@ -1781,6 +1848,11 @@ def _save_metrics(
         "artifacts_produced": len(produced),
         "artifacts_expected": len(ARTIFACT_FILENAMES),
         "generation_tokens_per_sec": generation_tokens_per_sec,
+        # Null on a healthy run. A string here means output-tokens-per-turn fell
+        # below MIN_PLAUSIBLE_OUTPUT_TOKENS_PER_TURN, i.e. the token/cost figures in
+        # this file are suspect (scores/turns/latency are not). Never publish a
+        # token or cost column from a run where this is set.
+        "token_accounting_warning": token_accounting_warning,
         # The normalized, cross-agent metric block -- the single source of truth
         # for tokens/cost/turns/latency + provenance. summarize_run and the charts
         # read this. Filled to whatever extent the agent reports (nulls where a
