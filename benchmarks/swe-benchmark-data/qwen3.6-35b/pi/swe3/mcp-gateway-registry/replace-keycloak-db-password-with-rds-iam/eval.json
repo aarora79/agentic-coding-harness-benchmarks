@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 15,
+      "risk_awareness": 9,
+      "total": 45,
+      "notes": "The issue gives concrete motivation, scope, and acceptance criteria tied to real resources such as aws_rds_cluster.keycloak and the ECS task definition. The repository confirms the static master password, Secrets Manager credential, rotation Lambda, and KC_DB_PASSWORD wiring it describes. Its solution omits creation of an Aurora user configured with AWSAuthenticationPlugin and incorrectly treats rds:GenerateDBAuthToken as an IAM permission, while the proposed Terraform flag cannot provide fallback without an apply. No independent task statement was supplied, so requirements beyond the task identifier and repository cannot be verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 4,
+      "specificity": 13,
+      "risk_awareness": 10,
+      "total": 40,
+      "notes": "The LLD names mostly real files and correctly identifies the existing direct cluster URL, SECRETS-based proxy, rotation resources, and ECS security-group path. Its core design is not viable: the repository defaults to quay.io/keycloak/keycloak:25.0 with no AWS CLI installation, aws_rds_cluster_instance has no iam_database_authentication_enabled argument, and token generation requires no rds:GenerateDBAuthToken IAM action. It also never provisions an IAM-enabled MySQL user, and its blocking kc.sh invocation provides no periodic eight-minute refresh or restart. Proxy, rollback, token storage, and rollout risks are discussed, but contradictory flags, unsupported JDBC assumptions, and unsupported load estimates leave major decisions unresolved."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 17,
+      "risk_awareness": 17,
+      "total": 59,
+      "notes": "The review's strongest contribution is identifying that changing a token file cannot update an already configured connection pool, while also demanding a user-scoped rds-db:connect ARN and safer token storage. It correctly verifies that direct ECS-to-database security-group access exists and highlights monitoring and rollback concerns. It misses more immediate blockers: the stock image lacks AWS CLI, no IAM-enabled database user is created, the cluster-instance argument is invalid, and rds:GenerateDBAuthToken is not an IAM action. It also incorrectly describes Keycloak 25 as using HikariCP and proposes an unsubstantiated kill -HUP restart mechanism, so several recommendations are not implementation-ready."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 10,
+      "total": 44,
+      "notes": "The plan covers Terraform rendering, fallback, staging deployment, IAM scope, rollback, and an end-to-end Keycloak request with concrete commands. However, it expects Terraform to accept iam_database_authentication_enabled on aws_rds_cluster_instance and an invalid IAM action, while several grep pipelines merely print counts or messages rather than fail on incorrect behavior. The token-expiry test completes its curl before sleeping, and ECS Exec verification cannot work because aws_ecs_service.keycloak does not enable execute-command support. It also omits checks for AWS CLI availability and IAM database-user configuration; none of the environment-dependent tests were executed."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 10,
+      "risk_awareness": 4,
+      "total": 22,
+      "notes": "The diff targets real files and its surrounding contexts match the repository, including keycloak-database.tf, keycloak-ecs.tf, and the rotation resources. It cannot work as submitted: aws_rds_cluster_instance rejects iam_database_authentication_enabled, the default Keycloak image has no installed aws command, and no MySQL user is configured with AWSAuthenticationPlugin. The loop blocks inside kc.sh start and contains no eight-minute timer, while KC_DB_PASSWORD and its secret remain injected and the two independent auth flags can produce inconsistent configurations. The summary falsely claims periodic restarts and no LLD deviations, despite deferring monitoring and leaving the static credential path active."
+    }
+  },
+  "task_score": 42.0,
+  "verdict": "The artifacts are repository-aware and the review catches one central lifecycle flaw, but the implementation is nonfunctional because it lacks a usable token generator, IAM-enabled database user, valid Terraform schema, and actual token refresh.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T06:55:59.348997Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 383825,
+      "cached_input_tokens": 319741,
+      "cache_write_input_tokens": 64070,
+      "output_tokens": 8230,
+      "reasoning_output_tokens": 5495
+    },
+    "duration_ms": 190146
+  },
+  "skill": "swe3"
+}

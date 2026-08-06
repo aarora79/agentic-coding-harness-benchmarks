@@ -1,0 +1,65 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 56,
+      "notes": "The acceptance criteria concretely identify the EFS module, task volumes, outputs, variables, and validation surfaces, all of which exist under terraform/aws-ecs. The claim that all persistence has migrated to S3/DocumentDB is not established: the module supports a file backend and post-deployment-setup.sh retains an EFS fallback. Declaring no dependencies also conflicts with run-scopes-init-task.sh and the mounted scopes initialization workflow. The issue omits data-retention prerequisites, staged rollout, and rollback, while no independent task statement or verifiable context for issue #1286 was supplied."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 52,
+      "notes": "The design is well grounded in real files and accurately identifies storage.tf, the ECS mounts, EFS outputs, throughput variables, and both dependent scripts. Its central replacement behavior is unsound: docker/Dockerfile.scopes-init only copies scopes.yml to /mnt, so removing that task's EFS volume does not transfer anything to S3 or DocumentDB. Removing SCOPES_CONFIG_PATH is also asserted without addressing the supported file backend, and post-deployment-setup.sh's EFS fallback requires a larger lifecycle decision than merely removing an output reference. The design lacks migration verification, backup or deletion safeguards, output compatibility planning, and a rollback sequence."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 13,
+      "specificity": 16,
+      "risk_awareness": 11,
+      "total": 54,
+      "notes": "The review identifies two real integration hazards: the auth-server path /efs/auth_config/auth_config/scopes.yml and script consumption of mcp_gateway_efs_id and efsVolumeConfiguration. It nevertheless approves a resolution claiming S3/DocumentDB handling without locating any replacement data flow; the scopes-init image demonstrably writes only to /mnt. It misses the supported file backend, EFS data destruction, the remaining EFS branch in post-deployment-setup.sh, and the persistence implications of removing mcpgw-data. The recommendations are concrete but do not resolve the design's load-bearing migration and compatibility questions."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 10,
+      "specificity": 13,
+      "risk_awareness": 6,
+      "total": 38,
+      "notes": "The plan names valid Terraform commands and gives a useful plan oracle covering module.mcp_gateway.module.efs and ECS task-definition changes. It omits terraform init or equivalent module/provider preparation and provides no state, variable, backend, or environment setup needed for a meaningful plan. Declaring functional and backward-compatibility testing inapplicable is incorrect because the change alters auth scopes initialization, task networking/configuration, and mcpgw persistent data behavior. Manual string inspection cannot replace shell syntax checks, Terraform formatting, service deployment smoke tests, scope lookup verification, and negative coverage for file or external MongoDB configurations."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 0,
+      "specificity": 4,
+      "risk_awareness": 0,
+      "total": 10,
+      "notes": "The submitted hunk contexts and symbols exist, and several direct EFS deletions target the expected source files, but the patch does not produce viable Terraform. In variables.tf it removes numerous required non-EFS variables while leaving variable \"cpu\" unclosed, and in ecs-services.tf it replaces load_balancer with an unmatched duplicate container_definitions expression while also deleting mcpgw subnet and security-group configuration. run-scopes-init-task.sh removes /mnt's volume even though docker/Dockerfile.scopes-init requires /mnt to be writable, while post-deployment-setup.sh still executes and describes its EFS fallback. The summary's nonexistent terraform/aws-encrypt-aws-ecs path, claim of no deviations, and omission of these destructive changes materially misrepresent the implementation."
+    }
+  },
+  "task_score": 42.0,
+  "verdict": "The design artifacts identify much of the real EFS surface, but they never establish a valid replacement lifecycle, and the implementation is syntactically broken while deleting unrelated critical configuration.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T05:58:49.816841Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 251195,
+      "cached_input_tokens": 194897,
+      "cache_write_input_tokens": 56286,
+      "output_tokens": 6514,
+      "reasoning_output_tokens": 3116
+    },
+    "duration_ms": 116261
+  },
+  "skill": "swe3"
+}

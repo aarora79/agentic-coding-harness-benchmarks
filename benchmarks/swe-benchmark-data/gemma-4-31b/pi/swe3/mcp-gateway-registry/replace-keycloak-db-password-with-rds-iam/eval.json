@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 50,
+      "notes": "The issue accurately identifies the current static-secret flow, verified in `keycloak-ecs.tf` and `keycloak-database.tf`, and provides concrete acceptance criteria and exclusions. Its largest defect is requiring removal of the password from Terraform and ECS while simultaneously requiring password fallback, without defining conditional secret retention. It also incorrectly names `rds:GenerateDBAuthToken` as the required permission and omits IAM database-user provisioning, TLS, and token-expiry behavior. No independent task statement or accessible related issue establishes the intended migration details beyond the identifier and artifacts."
+    },
+    "lld": {
+      "completeness": 8,
+      "correctness": 4,
+      "specificity": 17,
+      "risk_awareness": 6,
+      "total": 35,
+      "notes": "The LLD is concretely grounded in real files and symbols, including `aws_db_proxy.keycloak`, `aws_rds_cluster.keycloak`, and `keycloak_task_role`. Its data flow is incorrect because the repository's `keycloak_database_url` uses the cluster endpoint, not the proxy endpoint, while the proposed IAM policy uses `cluster_identifier` instead of the required RDS resource ID. It never provisions an IAM-authenticated database user, requires TLS, exposes a deployable Terraform flag, or solves token renewal when the pool opens connections after 15 minutes. The claim that startup-only token generation is sufficient is unsupported and contradicts normal connection-pool recovery behavior."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 42,
+      "notes": "The review's strongest finding is the specific warning that a startup token becomes stale when Agroal creates later connections. It nevertheless approves the design based on an unsafe assumption that the pool will not recreate connections, leaving the central correctness problem unresolved. It also calls for adding `set -e` and an exact ARN even though both already appear in the LLD, while missing the wrong ARN identifier, direct-cluster URL, absent IAM database user, TLS requirement, and container-build issues. Its security and operational observations are relevant but insufficient to support the approving verdict."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 14,
+      "risk_awareness": 8,
+      "total": 41,
+      "notes": "The plan supplies useful IAM, fallback, Terraform-plan, rollback, and database-backed functional scenarios with observable outcomes. However, an ECS service environment variable cannot be updated directly as described; changing it requires a new task-definition revision or Terraform configuration, and the proposed flag is hardcoded in the patch. The plan omits a Docker build, denied-permission and token-generation failures, TLS verification, IAM-user validation, and the decisive test of opening a new database connection after token expiry. Claims of instant rollback and successful deployment cannot be verified without an AWS environment."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 1,
+      "specificity": 10,
+      "risk_awareness": 3,
+      "total": 19,
+      "notes": "The diff targets real source contexts and adds the intended flag, wrapper, cluster setting, proxy setting, and task-role policy, but it does not implement a working migration. The repository builds Keycloak with context `docker/keycloak`, so `COPY docker/keycloak/entrypoint.sh` cannot find the new file; additionally, the wrapper receives `start --optimized` from `ENTRYPOINT` and then appends those arguments to another `kc.sh start --optimized` invocation. The IAM ARN incorrectly uses `cluster_identifier`, the JDBC URL still targets the cluster rather than the proxy, no IAM database user is provisioned, and the startup token cannot authenticate later pool connections. Static passwords remain in `master_password`, Secrets Manager, and ECS injection, so the summary's claims of eliminating them, having no deviations, and needing no follow-ups are false."
+    }
+  },
+  "task_score": 37.4,
+  "verdict": "The artifacts are repository-specific but the implementation cannot build or authenticate correctly, and the design leaves token renewal and static-password removal fundamentally unresolved.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T05:47:28.394474Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 381212,
+      "cached_input_tokens": 344648,
+      "cache_write_input_tokens": 36538,
+      "output_tokens": 8144,
+      "reasoning_output_tokens": 4762
+    },
+    "duration_ms": 253479
+  },
+  "skill": "swe3"
+}

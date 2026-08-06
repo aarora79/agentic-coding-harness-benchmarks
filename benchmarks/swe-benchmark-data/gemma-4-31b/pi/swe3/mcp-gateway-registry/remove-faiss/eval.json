@@ -1,0 +1,65 @@
+{
+  "task": "remove-faiss",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 7,
+      "total": 50,
+      "notes": "The issue provides concrete removal surfaces, explicit non-goals, and mostly testable acceptance criteria. Its largest flaw is treating FAISS as unused and DocumentDB as universal without addressing supported file storage or migration. In registry/repositories/factory.py, get_search_repository still selects FaissSearchRepository for non-MongoDB backends, and numerous live routes call faiss_service. No independent task statement was supplied, and related issue #1285 could not be verified."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 49,
+      "notes": "The LLD names many real files and symbols, including registry/search/service.py, FAISS settings, metrics fields, scripts, and route integrations. It leaves the critical file-backend decision unresolved and omits the required registry/repositories/factory.py change while proposing deletion of its imported repository. It also references docker/Dockerfile.registry although the repository uses a root Dockerfile, and telemetry tests explicitly map file storage to the faiss backend. Claimed memory and image-size benefits were not quantified or verified, while rollback and compatibility handling remain cursory."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 14,
+      "total": 50,
+      "notes": "The review identifies genuine risks around file-only deployments, stale metrics, orphaned index files, and integration tests. Its largest deficiency is approving the design while merely assuming away the unresolved file-backend contract that registry/repositories/factory.py implements. It incorrectly asks the LLD to add metrics cleanup that is already listed and cites Dockerfile.registry variants not established by the repository. Assertions about installation failures and image-size reduction were not supported by measurements."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 3,
+      "specificity": 7,
+      "risk_awareness": 8,
+      "total": 27,
+      "notes": "The plan attempts lifecycle, search, deployment, startup, compatibility, and rollback coverage. Most core API commands are incorrect: search is POST /api/search/semantic rather than GET /api/search, agent creation is /api/agents/register, and server registration uses /api/register or /api/servers/register rather than POST /api/servers. The proposed docker/Dockerfile.registry path is absent, Helm is incorrectly marked inapplicable despite charts/registry, and assertions such as \u201ccreated successfully\u201d lack concrete response or persistence oracles. The pytest command is plausible, but no execution evidence or configured DocumentDB environment was supplied."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 2,
+      "specificity": 9,
+      "risk_awareness": 3,
+      "total": 18,
+      "notes": "The patch targets real files and correctly removes the dependency declaration, FAISS service, two settings properties, one repository, one test module, and part of one metrics schema. It is fatally incomplete: register_service loses its faiss_service import but retains the call at registry/api/server_routes.py:1343, many other server and agent routes still import the deleted module, and the unchanged factory still imports the deleted file repository. Tests and clients continue importing or naming FAISS, uv.lock is not updated, and scripts, telemetry, documentation, migrations, and most metrics surfaces remain untouched. The summary admits partial imports but misleadingly calls them dead code and claims exclusive DocumentDB operation despite guaranteed runtime and test failures."
+    }
+  },
+  "task_score": 38.8,
+  "verdict": "The artifacts identify much of the FAISS surface, but the unresolved file-backend architecture and knowingly incomplete patch leave live imports, callers, and tests broken.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T05:43:14.903952Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 597283,
+      "cached_input_tokens": 521655,
+      "cache_write_input_tokens": 75610,
+      "output_tokens": 6381,
+      "reasoning_output_tokens": 3661
+    },
+    "duration_ms": 184051
+  },
+  "skill": "swe3"
+}
