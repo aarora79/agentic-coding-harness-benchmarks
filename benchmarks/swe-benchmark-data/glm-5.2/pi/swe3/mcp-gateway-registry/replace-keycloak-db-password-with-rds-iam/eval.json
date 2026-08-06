@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 79,
+      "notes": "The issue provides unusually concrete scope, non-goals, feature-flag behavior, least-privilege IAM requirements, and testable acceptance criteria tied to named Terraform and Docker files. The submitted patch context supports the central repository claims, including aws_rds_cluster.keycloak, separate ECS task roles, the existing ECR repository, and password-backed container secrets. Its largest gap is operational and security scope: it does not require TLS enforcement, a disruption-free staged cutover, or verified dependency integrity. No independent task statement was supplied, and related issue numbers and external API compatibility could not be independently verified."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 7,
+      "specificity": 23,
+      "risk_awareness": 16,
+      "total": 66,
+      "notes": "The LLD is highly specific about files, Terraform locals, IAM ARN construction, migration SQL, rollback, and the password-free container path. Its critical technical choice is wrong: AWS Advanced JDBC Wrapper 2.x loads IAM authentication through the iam entry in wrapperPlugins, while the proposed URL only sets wrapperIamPluginEnabled=true, so the submitted configuration would reach MySQL without generating an IAM token. It also proposes running curl in the minimal Keycloak 25 builder image, which does not provide curl, and claims a default no-op while always adding KC_DB_IAM_AUTH_ENABLED=false to the task definition. The rollout discussion recognizes ordering risk but still deliberately swaps the task before IAM is usable and before the database user exists; direct working-tree verification was unavailable because the read-only command sandbox failed."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The review identifies concrete concerns around the single-apply ordering window, empty password handling, dual JDBC drivers, checksum verification, residual secrets, and user-facing login testing. Its largest deficiency is approving the design without detecting the invalid IAM-plugin activation or the unavailable curl dependency, both of which prevent the proposed image and authentication path from working. It also calls the ordering finding resolved even though the revised procedure knowingly deploys a broken task before the reboot and SQL migration, and it misses the always-added environment variable that contradicts the no-change default criterion. The findings are otherwise actionable and prioritized, but repository claims could not be independently re-read due the tool sandbox failure."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 66,
+      "notes": "The plan covers Terraform plans, image contents, IAM policy scope, rollback, login behavior, logs, and both authentication modes with concrete commands and expected values. The central token-refresh test does not force a new database connection after 15 minutes; repeated HTTP requests can reuse an established pooled connection, so the test can pass even when token generation for new connections is broken. Several oracles are also invalid or misleading: rotate-secret has no --rotation-pattern option, the documented secret is keycloak/database rather than keycloak, and ECS service descriptions do not expose the asserted healthStatus field. The default-plan and Docker-build checks would usefully expose two implementation defects, but the commands could not be executed in the provided read-only sandbox."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 4,
+      "specificity": 21,
+      "risk_awareness": 10,
+      "total": 53,
+      "notes": "The patch covers the expected Terraform, IAM, ECS, image, SQL, output, build-script, and operations surfaces, and the rds-db:connect ARN is correctly shaped around cluster_resource_id and the selected database user. It is not operational: the Keycloak 25 image is minimal and lacks curl, so the added Docker RUN fails, and wrapperIamPluginEnabled=true does not load the Advanced JDBC Wrapper IAM plugin, leaving the passwordless connection unable to authenticate. The default path also always adds KC_DB_IAM_AUTH_ENABLED=false, directly contradicting the summary and acceptance claim that the false plan is unchanged, while checksum verification remains commented out. The summary therefore materially oversells the patch as exact and complete; its claimed clean application could not be independently checked because all repository commands failed in the sandbox."
+    }
+  },
+  "task_score": 66.4,
+  "verdict": "The artifacts are detailed and repository-shaped, but the implementation's image build and IAM-plugin configuration are fundamentally broken, and the review and tests do not reliably catch the resulting authentication failure.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T07:15:56.230508Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 223390,
+      "cached_input_tokens": 177184,
+      "cache_write_input_tokens": 46196,
+      "output_tokens": 9384,
+      "reasoning_output_tokens": 7957
+    },
+    "duration_ms": 183569
+  },
+  "skill": "swe3"
+}

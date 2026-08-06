@@ -1,0 +1,65 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 80,
+      "notes": "The issue precisely identifies the agent-validator and health-service fetch paths, defines testable no-request behavior, and states useful non-goals including DNS pinning and registration-time validation. The submitted source context supports the named `_check_endpoint_reachability`, `_check_server_endpoint_transport_aware`, `_is_safe_url`, and `github_extra_hosts` integration points. Its largest defect is claiming that checking `response.url` after an `httpx` request with `follow_redirects=True` blocks redirect SSRF; the redirected request has already reached the unsafe destination by then. No independent task statement exists, and the referenced external issue and authorization claims could not be verified from the submission."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 13,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The LLD is unusually concrete about files, call sites, compatibility aliases, configuration, rollout, and the explicit `mcp_endpoint`/`sse_endpoint` bypass discovered during review. Its proposed changes align with the submitted source context, including `HealthStatus`, `get_endpoint_url_from_server_info`, cached trusted domains, and the health-service request branches. The central redirect design is nevertheless unsound because post-response validation with `follow_redirects=True` detects an unsafe destination only after contacting it. It also understates operational risk from synchronous, timeout-free `socket.getaddrinfo` calls inside asynchronous health checks, while leaving Terraform, Helm, and frontend integration explicitly unverified."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 78,
+      "notes": "The review finds a real explicit-endpoint bypass and gives an actionable per-call-site fix, while also discussing DNS rebinding, cached configuration, query-string leakage, and deployment impact. That finding is consistent with the patch's separate resolution and validation of `endpoint` and `sse_endpoint`. Its largest miss is the core redirect flaw: the security and backend perspectives endorse post-response validation despite automatic redirect following having already issued the unsafe request. Several frontend and deployment questions remain unanswered, but the review appropriately labels them rather than asserting unsupported repository behavior."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 12,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 71,
+      "notes": "The plan provides strong no-call oracles for direct private URLs, explicit-endpoint coverage, allowlist behavior, compatibility suites, and an end-to-end flow-log check that could expose an actual metadata request. However, its redirect unit test is invalid against the revised design: the mocked `is_safe_url` returns true once, then false on the resolved-endpoint precheck, so execution stops before the mocked redirected response is consumed. The submitted implementation also omits that planned redirect test and includes only two health-service cases, leaving SSE, session initialization, background tools, and redirect behavior uncovered. The stated live API routes, agent payload, Terraform paths, and Helm paths were not established by the supplied source context and require repository verification."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 59,
+      "notes": "The patch substantially implements direct-target hardening: it centralizes the guard, preserves skill-service aliases, blocks unsafe agent and resolved health endpoints before requests, adds configuration and status plumbing, and supplies focused unit tests. Its largest defect is security-critical: every `response.url` check occurs after `client.get` or `client.post` with `follow_redirects=True`, so redirect-based SSRF remains exploitable even though the result is later labeled blocked. The health tests contain no redirect case, while the summary overstates that redirects are blocked; synchronous DNS resolution in async health paths also introduces an unbounded event-loop blocking risk. The summary honestly discloses omitted deployment wiring and unexecuted tests, but the claimed clean `git apply --check` could not be independently verified because repository command execution was unavailable."
+    }
+  },
+  "task_score": 72.6,
+  "verdict": "The submission is detailed and closes direct and explicit-endpoint SSRF paths, but its central redirect defense validates only after the unsafe request has already occurred.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T07:18:29.006485Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 276668,
+      "cached_input_tokens": 226572,
+      "cache_write_input_tokens": 50084,
+      "output_tokens": 5402,
+      "reasoning_output_tokens": 3994
+    },
+    "duration_ms": 152764
+  },
+  "skill": "swe3"
+}
