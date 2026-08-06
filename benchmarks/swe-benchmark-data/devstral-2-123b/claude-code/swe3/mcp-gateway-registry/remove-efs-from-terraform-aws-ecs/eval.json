@@ -1,0 +1,65 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 13,
+      "total": 72,
+      "notes": "The issue provides concrete, testable acceptance criteria covering the EFS module, variables, ECS volumes, outputs, scripts, validation, and planning. Its named paths and symbols agree with the submitted diff, including `storage.tf`, `efs_throughput_mode`, and both output layers. The largest gap is weak treatment of the destructive upgrade: existing EFS data, service restarts, output compatibility, and rollback are largely dismissed as unnecessary. With no independent task statement or application evidence, the assertion that S3 and DocumentDB have fully replaced EFS remains unverified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 71,
+      "notes": "The LLD is highly specific about modules, files, volume names, access points, outputs, and the intended `SCOPES_CONFIG_PATH`, and most of those details match the diff's baseline context. Its largest deficiency is leaving deployment-script behavior optional even though the scripts are identified as EFS-dependent integration points. It also quotes the old scopes path as `/efs/auth_config/scopes.yml`, while the actual diff context contains `/efs/auth_config/auth_config/scopes.yml`, and it inconsistently calls the removal backward-compatible before acknowledging it is breaking. The rollout recognizes destruction and service replacement, but provides no reliable data recovery or validated fallback, and the claimed DocumentDB/S3 behavior is not established by repository evidence."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 19,
+      "total": 69,
+      "notes": "The review's strongest work is identifying concrete risks around the unverified scopes path, EFS-dependent scripts, state transitions, service restarts, monitoring, and runtime testing. Its verdict is not defensible: it reports zero blockers and says all blocking issues are resolved while the critical path and script questions remain unanswered. Several recommendations are speculative or technically weak, including manual state cleanup, an invented conditional `storage_backend` precondition, and account-wide AWS checks that could include unrelated resources. Claims that IAM permissions are removed and DocumentDB provides the required storage and audit behavior are not tied to identified source or configuration."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 49,
+      "notes": "The plan spans static configuration checks, fresh and existing deployments, ECS runtime behavior, APIs, storage, and rollback, with useful grep checks for the removed Terraform symbols. However, several central tests do not execute what they claim: `test-old.tfvars` is invoked as a shell command, the mock state is never supplied to Terraform, and the existing-state test merely creates an unrelated output file and prints instructions. The hard-coded repository path, targeted plans without required deployment inputs, account-wide EFS counts, and unverified endpoint and log assertions make much of the plan non-reproducible. Its rollback recreates an empty EFS rather than recovering destroyed data, and cleanup omits destroying workspace resources before deleting the workspace."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 15,
+      "specificity": 19,
+      "risk_awareness": 11,
+      "total": 61,
+      "notes": "The patch directly removes the EFS module, child variables, task-definition mounts and volumes, and module and root outputs, while updating the auth scopes path in the relevant ECS service. The largest defect is that it knowingly leaves `run-scopes-init-task.sh` and `post-deployment-setup.sh` unchanged despite the issue requiring them to be updated or marked obsolete and the design identifying them as deployment integration points. The diff is focused and internally consistent in the Terraform files, but the new `/app/auth_server/scopes.yml` path and MCPGW behavior without `/app/data` are not validated. The summary overstates completion and functionality, reports no LLD deviations, and offers a rollback that cannot restore deleted EFS data; it also explicitly states that verification tests were not executed."
+    }
+  },
+  "task_score": 64.4,
+  "verdict": "The submission has a solid core Terraform removal, but leaves known EFS-dependent deployment scripts unresolved and relies on a largely non-executable testing plan.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T14:07:15.150628Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 147069,
+      "cached_input_tokens": 116549,
+      "cache_write_input_tokens": 30510,
+      "output_tokens": 6181,
+      "reasoning_output_tokens": 4658
+    },
+    "duration_ms": 104437
+  },
+  "skill": "swe3"
+}

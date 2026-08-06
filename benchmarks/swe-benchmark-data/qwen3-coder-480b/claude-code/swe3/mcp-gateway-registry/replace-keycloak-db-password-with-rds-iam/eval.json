@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 11,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 50,
+      "notes": "The issue clearly states the security motivation, affected AWS components, explicit non-goals, and several observable acceptance outcomes. Its largest defect is the contradiction between removing the static password and retaining password fallback and rotation, without defining when credentials may actually be deleted. The repository context shown in the patch includes an RDS proxy and a cluster master password, but the issue omits proxy authentication, database-user provisioning, and Keycloak credential-refresh behavior. No independent task statement was supplied, so requirements beyond the identifier and internally stated goals could not be verified."
+    },
+    "lld": {
+      "completeness": 9,
+      "correctness": 3,
+      "specificity": 8,
+      "risk_awareness": 10,
+      "total": 30,
+      "notes": "The LLD names concrete Terraform resources, the rotation Lambda, configuration variables, and a staged rollback sequence. Its central design is not viable because writing refreshed tokens to `/run/secrets/db-token` does not update Keycloak's JDBC password or connection pool, while the RDS proxy is explicitly left unchanged. The IAM policy uses nonexistent or incorrect actions such as `rds:Connect` and `rds:GenerateAuthenticationToken`; database login requires `rds-db:connect` against an `rds-db` database-user ARN, and the proposed database-user setup remains a stub. Availability of AWS CLI in the stock Keycloak image, the invented container paths, TLS handling, and the required Aurora IAM user configuration are not established by repository evidence."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 8,
+      "specificity": 10,
+      "risk_awareness": 12,
+      "total": 39,
+      "notes": "The review correctly identifies connection-pool refresh, fallback behavior, token-file permissions, least privilege, monitoring, and rollback as material concerns. It misses more fundamental blockers: the invalid IAM actions and ARN, unchanged RDS proxy authentication, absent token-to-JDBC integration, missing image packaging, and simulated database-user provisioning. Its resolution section claims the findings were incorporated even though the LLD still uses a wildcard permission, writes an unencrypted plaintext file, and implements notification as logging only. The STS recommendation and several reviewer approvals are unsupported by the repository or a concrete corrected design."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 4,
+      "specificity": 8,
+      "risk_awareness": 7,
+      "total": 28,
+      "notes": "The plan at least spans token generation, database access, fallback, Terraform deployment, ECS inspection, refresh, and rollback. Most tests are comments rather than executable actions with reliable oracles, and variables such as `DB_HOST` and `GENERATED_TOKEN` are never populated. The MySQL IAM command omits required TLS and cleartext-plugin handling, while `list-attached-role-policies` cannot find the inline `aws_iam_role_policy` created by the patch and the Terraform feature variable is unused. It lacks tests for the proxy authentication mode, IAM database user, new connections after token expiry, actual Keycloak consumption of the token, denied permissions, and startup command semantics; the proposed test paths and secret names are also unverified."
+    },
+    "implementation": {
+      "completeness": 3,
+      "correctness": 2,
+      "specificity": 8,
+      "risk_awareness": 3,
+      "total": 16,
+      "notes": "The patch does add the valid cluster setting `enable_iam_database_authentication = true` and supplies concrete changes rather than only prose. It does not implement working Keycloak IAM authentication: the new file is never built into the stock image, the token file is never consumed as the JDBC password, the feature variable is unused, static credentials remain, and the rotation helper explicitly simulates IAM user setup. The diff's own context says the image entrypoint is `kc.sh`, so replacing only `command` with `/bin/sh -c ...` passes shell arguments to `kc.sh` and is likely to prevent startup; its IAM actions and resource ARN are also invalid for database login. The summary materially oversells the patch and contains a meaningless same-path deviation, while independent `git apply --check` verification was unavailable because repository command execution failed."
+    }
+  },
+  "task_score": 32.6,
+  "verdict": "The submission is detailed but technically nonfunctional, with the core Keycloak credential-refresh and RDS IAM authorization path left unresolved and an implementation that likely breaks container startup.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T20:52:29.896751Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 162488,
+      "cached_input_tokens": 133676,
+      "cache_write_input_tokens": 28800,
+      "output_tokens": 7540,
+      "reasoning_output_tokens": 5929
+    },
+    "duration_ms": 140200
+  },
+  "skill": "swe3"
+}

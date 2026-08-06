@@ -1,0 +1,65 @@
+{
+  "task": "remove-faiss",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 59,
+      "notes": "The issue provides measurable acceptance criteria and names FAISS files and Settings properties represented in the supplied diff. Its central deficiency is contradictory scope: file-backend removal is out of scope, yet the criteria permit its removal and promise unchanged behavior while the proposed factory error disables it. The existing documentation excerpt still describes three supported storage backends, making the claimed absence of breaking changes untenable for file-backend users. No independent task statement was supplied, and the deployment and related-issue claims could not be verified."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 10,
+      "total": 55,
+      "notes": "The LLD gives concrete changes for get_search_repository, Settings.faiss_index_path, lifespan initialization, dependencies, tests, and documentation that correspond to the supplied source context. Its chosen design makes STORAGE_BACKEND=file fail during search-repository creation despite declaring file-backend removal a non-goal and repeatedly claiming no breaking changes. It also relies on an unsupported assertion that no production deployment uses FAISS and leaves migration, lockfile handling, reference cleanup, and rollback underdeveloped. Repository command execution failed in the provided sandbox, so endpoint, infrastructure, and global-reference claims could not be independently verified."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 11,
+      "specificity": 15,
+      "risk_awareness": 16,
+      "total": 57,
+      "notes": "The review usefully identifies the need for a factory error test, explicit migration guidance, and checks for operational references. Its largest failure is approving the design without resolving the contradiction between preserving the file backend and making application startup fail for that configuration. The resolution section claims a security section, test summary, Docker-size goal, and rollout migration instructions were added, but those changes are not present as described in the submitted LLD. Claims about CVEs, dashboards, backups, frontend flags, and complete file identification remain unverified."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 12,
+      "total": 51,
+      "notes": "The plan spans API, factory-error, dependency, Docker, integration, and end-to-end coverage and includes several concrete expected states. Several procedures are not reliable: the compatibility loop has malformed `jq ... done` syntax, curl checks omit `--fail`, and the rollback test incorrectly expects dependency installation to fail because FAISS is not already installed. Hard-coded search results lack deterministic fixture setup, image-size comparison has no baseline, and several assertions only check response shape or command execution rather than promised equivalence. The submitted patch adds no replacement automated factory test, and the documented endpoint and registration commands could not be independently verified against the repository."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 2,
+      "specificity": 14,
+      "risk_awareness": 4,
+      "total": 34,
+      "notes": "The patch removes the principal FAISS service, wrapper, tests, dependency declaration, configuration properties, and related documentation references, broadly following the proposed file list. It is not mergeable as shown: after removing the `else:` in registry/main.py, the retained agent-state comment and statements remain over-indented, producing an `IndentationError`. The factory intentionally rejects the file backend while docs/configuration.md still presents that backend as supported, and no regression test is added for this new startup failure. The summary materially misreports deletion counts, claims zero breaking changes despite requiring migration, and reports verification results as facts even though verification was not executed; patch applicability and remaining repository-wide references could not be independently checked because repository commands failed in the sandbox."
+    }
+  },
+  "task_score": 51.2,
+  "verdict": "The submission is detailed and mostly identifies the intended FAISS surface, but contradictory compatibility claims, unreliable tests, and a syntax-broken implementation make it unsafe to merge.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T14:08:59.305748Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 266240,
+      "cached_input_tokens": 211019,
+      "cache_write_input_tokens": 55211,
+      "output_tokens": 5830,
+      "reasoning_output_tokens": 4352
+    },
+    "duration_ms": 104141
+  },
+  "skill": "swe3"
+}

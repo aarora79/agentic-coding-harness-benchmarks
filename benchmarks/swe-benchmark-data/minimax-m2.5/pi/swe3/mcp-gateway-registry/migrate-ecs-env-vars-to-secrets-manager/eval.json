@@ -1,0 +1,65 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 14,
+      "risk_awareness": 13,
+      "total": 51,
+      "notes": "The issue clearly identifies the security objective, affected ECS and IAM surfaces, exclusions, and several testable outcomes. Its largest defect is the proposed same-name plaintext fallback: ECS secret resolution occurs before container startup, so plaintext cannot rescue a task whose secret retrieval fails, and the LLD itself says the two sources cannot be mixed for one name. Creating `aws_secretsmanager_secret_version` resources from Terraform variables also retains secret values in Terraform state, contradicting the stated state-exposure benefit. No independent task statement was supplied, so the exact secret inventory and cited issue `#1026` could not be verified as requirements."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 53,
+      "notes": "The design is concrete about the target files, twelve variables, Secrets Manager resources, ECS `valueFrom` entries, and IAM integration, with those paths and symbols also represented in the submitted diff. Its central migration decision is internally contradictory: it states that the same variable cannot appear in both `environment` and `secrets`, then prescribes exactly that as the fallback strategy without defining precedence or a deployable phased configuration. The proposed `secret_string = var.*` resources leave values in Terraform state, while the observability section incorrectly implies the migration removes that exposure and guarantees logs contain no secrets. Rollout, rollback, optional-value handling, and service-specific secret placement remain unresolved, and claims about existing issue numbers and MongoDB dual-write behavior could not be independently verified."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 17,
+      "total": 59,
+      "notes": "The review surfaces useful concrete risks, including optional empty secrets, startup failure from IAM errors, multiline private-key handling, lingering tfvars values, and the need for migration sequencing. It misses the design's fatal fallback contradiction and incorrectly treats `sensitive = true` as sufficient mitigation even though Terraform still stores sensitive values in state. Its resolution section claims the LLD gained migration commands, tfvars cleanup, and complete variable definitions, but those changes are absent from the submitted LLD. The patch does implement the recommended `jsonencode` private-key representation, while the broad KMS-policy claim and need for resource imports were not substantiated by the available artifacts."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 12,
+      "total": 48,
+      "notes": "The plan covers Terraform validation, deployed task definitions, IAM, application behavior, security inspection, compatibility, and rollback with concrete intended oracles. Several commands are unusable: a saved plan cannot be applied with a new `-var-file`, `terraform apply -var \"rollback=true\" ...` is invented and syntactically incomplete, and grepping the binary plan file does not count resources reliably. `aws logs filter-log-events` normally succeeds with an empty event list, so the proposed secret-leak commands report failure even when no leak exists, and the fallback test never simulates failed secret retrieval. Task-family names, role and policy names, API endpoints, backend settings, and the `rollback` variable are asserted without repository evidence."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 3,
+      "specificity": 17,
+      "risk_awareness": 7,
+      "total": 40,
+      "notes": "The patch concretely covers secret resources, ECS references, IAM ARNs, conditional Auth0 handling, and JSON extraction for the GitHub private key across the three stated Terraform files. However, the auth-service `secrets = concat(...)` edit inserts `var.auth0_enabled ? [` before the original base list is closed and replaces that closing `],` with the conditional's `] : [],`, leaving the outer list unclosed; Terraform validation should therefore fail. Even after fixing syntax, same-name plaintext entries do not provide fallback when ECS cannot retrieve a secret, Terraform still records each `secret_string`, and `ignore_changes` prevents later variable updates from rotating those values. The summary's claim of no LLD deviation and successful migration is consequently false, and a repository-side apply check could not be completed because the provided command sandbox failed before executing Git."
+    }
+  },
+  "task_score": 50.2,
+  "verdict": "The submission identifies the right Terraform integration surfaces but is undermined by an invalid patch and a migration strategy that neither removes secrets from state nor provides the claimed runtime fallback.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T18:14:59.503983Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 231467,
+      "cached_input_tokens": 197477,
+      "cache_write_input_tokens": 33974,
+      "output_tokens": 7507,
+      "reasoning_output_tokens": 5289
+    },
+    "duration_ms": 150543
+  },
+  "skill": "swe3"
+}

@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 52,
+      "notes": "The issue clearly identifies the current Secrets Manager password flow, affected Aurora, proxy, and ECS components, a feature flag, and useful non-goals. Its largest defect is technical: IAM tokens are locally signed credentials, not automatically rotated through `rds:GenerateDBAuthToken`, and their generation is not the CloudTrail audit trail claimed here. The existing `keycloak-database.tf` and `keycloak-ecs.tf` contexts confirm proxy secret authentication and injection of `KC_DB_PASSWORD`, but the criteria also contradict themselves by requiring no Keycloak configuration changes while changing its database authentication configuration. No independent task statement establishes the asserted zero-downtime fallback or audit requirements."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 4,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 42,
+      "notes": "The LLD names real Terraform resources and files and provides concrete variables, rollout phases, and container changes. Its critical authentication design is invalid: clients need `rds-db:connect` on a database-user ARN, not `rds:GenerateDBAuthToken` on `aws_rds_cluster.keycloak.arn`, and a token generated only at startup cannot authenticate new pooled connections after expiry. The source contexts confirm `aws_db_proxy.keycloak`, `aws_rds_cluster.keycloak`, the Keycloak task role, and container secret locals, but the document repeatedly changes between native proxy handling, an init container, and a custom entrypoint without resolving refresh or fallback behavior. CloudTrail token-generation observability, automatic proxy token refresh, and the proposed custom-image build path are unsupported or unverifiable, while TLS, image validation, and failure recovery remain incomplete."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 54,
+      "notes": "The review usefully identifies that Keycloak cannot generate IAM credentials natively, that proxy `REQUIRED` mode creates a lockout risk, and that rollback secrets must remain available. It nevertheless endorses the invalid `rds:GenerateDBAuthToken` cluster-ARN policy, even claiming the LLD used a wildcard although its sample already uses `aws_rds_cluster.keycloak.arn`; another reviewer then calls that ARN appropriate. It also misses the decisive 15-minute startup-token expiry problem and does not challenge the proposed Docker build or Terraform integration. The concrete recommendations are useful, but an approval-with-changes verdict is not defensible while the review itself labels the unresolved client authentication mechanism critical."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 4,
+      "specificity": 15,
+      "risk_awareness": 10,
+      "total": 43,
+      "notes": "The plan spans Terraform, image construction, compatibility, deployment inspection, end-to-end health, and rollback. Several core commands and oracles are wrong: an RDS token is a presigned URL rather than a JWT beginning with `keycloak/`, `describe-db-proxy` and `describe-db-log-file-credits` are not valid AWS CLI commands, and token generation is not observable as the claimed CloudTrail API event. The image inspection invokes `cat` through the custom Keycloak entrypoint, while the API assertion accepts every status below 500, including authentication failures and curl's `000`, so broken behavior can pass. It lacks the most important longevity test for opening new connections after token expiry, denied `rds-db:connect`, malformed JDBC URLs, and an enabled flag with no custom image."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 4,
+      "total": 27,
+      "notes": "The patch touches the real cluster, proxy, task definition, variables, examples, and image surfaces, but it does not produce a usable end-to-end implementation. In `keycloak-ecs.tf`, `keycloak_image` is placed as an unsupported `aws_ecs_task_definition` argument while the container references undefined `local.keycloak_image`, so Terraform validation fails even with the feature disabled; the IAM action and cluster ARN are also invalid for database login. The Dockerfile attempts `microdnf` in the minimal Keycloak image, uses `unzip` without installing it, and chmods a root-owned copied script after switching to `USER keycloak`; even a successful image would retain one startup token indefinitely. The summary falsely reports no deviations or follow-ups despite omitting the LLD's fallback and production guardrail, silently selecting the stock image when IAM is enabled without an IAM image URI, and providing no token-refresh mechanism."
+    }
+  },
+  "task_score": 43.6,
+  "verdict": "The artifacts identify the correct infrastructure area but rely on an invalid IAM permission model and deliver a patch that cannot validate, build, or sustain authenticated database connections.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-05T17:39:33.040217Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 217556,
+      "cached_input_tokens": 188081,
+      "cache_write_input_tokens": 29459,
+      "output_tokens": 8402,
+      "reasoning_output_tokens": 6447
+    },
+    "duration_ms": 166247
+  },
+  "skill": "swe3"
+}
