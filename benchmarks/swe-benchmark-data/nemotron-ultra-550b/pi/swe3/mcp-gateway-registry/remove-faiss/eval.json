@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "nemotron-ultra-550b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 11,
+      "total": 65,
+      "notes": "The issue identifies concrete targets including `pyproject.toml`, `Settings`, the repository factory, metrics, telemetry, documentation, and tests, with mostly testable acceptance criteria. Its largest flaw is promising no end-user behavior change while the existing factory routes file storage to `FaissSearchRepository`; removing that implementation necessarily removes file-backend search unless a replacement or migration is specified. The stated equivalence or superiority of DocumentDB search is asserted without relevance, latency, or compatibility evidence. No independent task statement was supplied, and the referenced issue #1285 was not available for verification."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 56,
+      "notes": "The LLD is well grounded in real integration points such as `get_search_repository()`, `SearchRepositoryBase`, route indexing calls, configuration properties, and telemetry files. Its largest deficiency is contradictory file-backend handling: it alternately proposes deleting the repository, always returning DocumentDB, raising an error, and providing a clear error, while the later review claims a no-op design was added when it was not. It also proposes editing the metrics schema without designing an upgrade migration and restricts telemetry to `documentdb` despite retaining file storage. The rollout is generic, lacks a concrete rollback and compatibility sequence, and does not demonstrate its claim that existing data will be re-indexed on startup."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 19,
+      "total": 67,
+      "notes": "The review surfaces several real risks: loss of file-backend search, metrics compatibility, relevance changes, circular imports, deployment coordination, and rollback. Its largest correctness problem is claiming that the LLD was revised with a no-op repository, startup validation, null metrics compatibility, and rollback instructions even though those changes are absent from the submitted LLD. It also misses the existing-database column migration problem and the conflict between emitting `search_backend=\"none\"` and accepting only `documentdb`. Claims about production hardening, TLS enforcement, and verified absence of import cycles are not substantiated in the review."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 57,
+      "notes": "The plan provides concrete lifecycle, API-contract, dependency, configuration, Docker, and negative checks, including a file-backend test that would expose the implementation's silent no-op behavior. Several oracles are ineffective or incomplete: `len(servers) >= 0` can never fail, the agent test performs no registration, and `tests/golden_queries.py` is invoked without being supplied. The metrics check only inspects a function signature and therefore cannot detect that the old field is no longer emitted or that the replacement value is always null. It omits an existing-database upgrade test and producer-versus-collector telemetry validation, while the stated greater-than-80-percent pass target permits substantial regressions."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 8,
+      "total": 45,
+      "notes": "The patch implements much of the core removal by deleting `registry/search/service.py`, replacing the file factory branch, removing the dependency and configuration properties, and moving route calls to `SearchRepositoryBase` methods. Two deterministic defects are material: `_build_heartbeat_payload()` emits `none` for file storage while the collector regex accepts only `documentdb`, and historical metrics table creation is edited without an upgrade migration while inserts immediately target `vector_search_time_ms`. Documentation removal is incomplete because the patched context still contains `class FaissService` and the statement that the registry maintains a FAISS index, and the summary admits required unit tests were not updated. The claimed metrics compatibility is inaccurate because the deprecated parameter is accepted but not emitted and `vector_search_time_ms` is always written as null; independent `git apply --check` verification was unavailable in the provided sandbox."
+    }
+  },
+  "task_score": 58.0,
+  "verdict": "The submission is concrete and identifies most relevant surfaces, but unresolved file-backend behavior and serious telemetry and metrics-migration defects make the implementation unsafe to merge.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T00:45:52.079732Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 454339,
+      "cached_input_tokens": 397254,
+      "cache_write_input_tokens": 57067,
+      "output_tokens": 8541,
+      "reasoning_output_tokens": 6810
+    },
+    "duration_ms": 184069
+  }
+}

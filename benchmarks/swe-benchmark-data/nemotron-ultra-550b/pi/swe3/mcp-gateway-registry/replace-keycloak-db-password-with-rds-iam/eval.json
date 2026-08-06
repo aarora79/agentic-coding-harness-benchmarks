@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "nemotron-ultra-550b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 56,
+      "notes": "The issue provides concrete acceptance criteria, migration scope, fallback behavior, and explicit non-goals tied to Keycloak, Aurora, RDS Proxy, ECS, and Terraform. Its central requirements conflict: IAM mode is supposed to eliminate the static password while password fallback remains immediately available. It also treats rds:GenerateDBAuthToken as an IAM permission even though token generation is local request signing and authorization is governed by rds-db:connect. Token renewal after connection loss, TLS requirements, and database-user authentication setup are omitted, and no independent task statement was supplied to resolve these ambiguities."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 4,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 44,
+      "notes": "The LLD names real integration points such as terraform/aws-ecs/keycloak-database.tf, keycloak-ecs.tf, secret-rotation.tf, and docker/keycloak/Dockerfile, with concrete proposed Terraform and entrypoint changes. Its implementation depends on Python and boto3 being present in quay.io/keycloak/keycloak:25.0, but the repository Dockerfile adds neither, and it proposes unsupported or ineffective IAM actions and condition keys. A startup-only token cannot authenticate reconnections after 15 minutes, and an ENABLED proxy does not automatically substitute the retained password for Keycloak's expired token. The document also contradicts itself over destroying versus retaining the secret, leaves token refresh as an open question, and omits required TLS and credible rollback-state handling."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 60,
+      "notes": "The review identifies consequential defects, particularly token expiry, JDBC compatibility, conditional Terraform references, secret lifecycle, rollback sequencing, and missing operational alarms. Its principal resolution is technically unsound: RDS Proxy accepting both authentication methods does not make a Keycloak process holding only an expired IAM token retry with the fallback password. It says resolutions were applied even though the submitted LLD still conditionally destroys the secret and retains the unresolved token-refresh question. It also misses the image's absent Python/boto3 tooling and TLS requirements, while claiming IAM conditions and driver behavior were verified without supporting evidence."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 56,
+      "notes": "The plan spans Terraform rendering, both feature-flag modes, rollback, realm reads and writes, token expiry, and Aurora failover, with several concrete expected values. Many commands cannot provide their claimed oracle: counted Terraform resources require indexed addresses, docker invocations use || true, and the proposed image supplies neither boto3 nor the assumed tooling. The ECS database test assumes mysql, DB_HOST, and DB_PORT exist in the running Keycloak container, while the deployment checks fall back to a fabricated URL and hard-coded cluster and service names. Most seriously, the expiry and failover tests expect automatic password or fresh-token recovery that the implementation has no mechanism to perform; proposed unit tests are only pass stubs."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 2,
+      "specificity": 12,
+      "risk_awareness": 3,
+      "total": 24,
+      "notes": "The patch targets the relevant baseline symbols, threading the flag into aws_rds_cluster.keycloak, aws_db_proxy.keycloak, the ECS environment, rotation resources, and the Keycloak image. It is not deployable as written: aws_iam_role_policy does not accept tags, conditional policy branches emit invalid empty Statement objects, and adding count to rotation resources requires every dependent reference and rotation schedule to be updated. The container adds no Python or boto3 dependency, attempts chmod in the inherited non-root Keycloak image, and configures an unverified MariaDB AWS plugin even though KC_DB=mysql uses Keycloak's MySQL driver path. Retaining and ceasing rotation of the static secret contradicts the claimed replacement, while a single startup token cannot reconnect or fall back automatically; the summary acknowledges unverified compatibility and unimplemented documentation but still overstates completeness."
+    }
+  },
+  "task_score": 48.0,
+  "verdict": "The submission is detailed and surfaces several real risks, but the design's authentication model is flawed and the implementation would fail Terraform or container deployment before providing functional RDS IAM authentication.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T00:48:38.326459Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 252724,
+      "cached_input_tokens": 211131,
+      "cache_write_input_tokens": 41579,
+      "output_tokens": 9689,
+      "reasoning_output_tokens": 8172
+    },
+    "duration_ms": 166235
+  }
+}

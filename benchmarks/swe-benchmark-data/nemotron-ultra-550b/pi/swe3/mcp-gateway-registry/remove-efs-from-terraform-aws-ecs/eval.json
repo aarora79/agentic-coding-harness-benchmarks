@@ -1,0 +1,64 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "nemotron-ultra-550b",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 11,
+      "total": 71,
+      "notes": "The issue gives concrete file-level scope and testable criteria for resources, mounts, variables, outputs, validation, and planning. Its named symbols and paths agree internally with the submitted diff, including module.efs, efs_throughput_mode, and the three root outputs. The largest deficiency is declaring no dependencies while omitting EFS data destruction, downstream output consumers, and confirmation that auth-server and mcpgw tolerate losing their mounts. The S3/DocumentDB migration claim could not be independently verified because repository shell inspection was unavailable."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 12,
+      "total": 65,
+      "notes": "The LLD precisely identifies the relevant Terraform files, module references, mount names, output contracts, and SCOPES_CONFIG_PATH change, all internally corroborated by the submitted patch. It nevertheless leaves the load-bearing runtime questions about /app/data, /app/logs, and the replacement scopes file unresolved while claiming there are no open questions or migration needs. Its rollout has no concrete pre-destruction validation or usable fallback, and its assertion that Fargate does not support EBS is outdated. The proposed non-EFS path and absence of external output consumers were not independently verifiable from the working tree."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 22,
+      "total": 77,
+      "notes": "The review's strongest contribution is identifying specific runtime and operational risks: the stale scopes path, mcpgw durability, missing log directories, irreversible data loss, and downstream output consumers. Its resolution tracking is materially inaccurate because it says the LLD added mcpgw verification, directory handling, and rollback documentation, while the submitted LLD steps and rollout do not contain those resolutions. The claimed EFS mount-target cost and statement that terraform state list can verify external remote-state consumers are also unsupported or incorrect. Despite those defects, the prioritized blocking findings are actionable and substantially stress the design."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 21,
+      "risk_awareness": 13,
+      "total": 61,
+      "notes": "The plan provides concrete static checks, Terraform validation, plan inspection, deployment health checks, and explicit expected values. Several tests cannot satisfy their own oracles: grep returns status 1 for the expected no-match cases, while tests 1.2.2 and 1.2.3 require status 0, and planned_values.root_module.outputs is not the Terraform plan JSON output location. Test 4.2.1 incorrectly searches planned_values for destroyed resources, which are absent there, and the no-created-resources expectation conflicts with replacement ECS task-definition revisions. Runtime confirmation that scopes.yml exists and /app/data is safely ephemeral remains largely manual, while the supplied variables and commands could not be checked against the working tree."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 9,
+      "total": 65,
+      "notes": "The patch consistently removes the submitted EFS module, its variables and outputs, and the auth-server and mcpgw EFS volume references while replacing the stale scopes path. Its contexts and symbols are internally consistent with the supplied baseline diff, but independent git apply and source inspection were unavailable; the summary also incorrectly says storage.tf contains seven access points when the diff contains six. The implementation does not resolve the review's blocking checks for /app/data, /app/logs, or availability of /app/auth_server/scopes.yml, despite claiming no deviations and no follow-ups. It also omits the promised destruction warning and rollback discussion, so the summary understates the principal operational and data-loss risk."
+    }
+  },
+  "task_score": 67.8,
+  "verdict": "The submission is concrete and largely implements the Terraform removal, but unresolved runtime storage assumptions, inaccurate review resolutions, and multiple invalid test oracles prevent it from being implementation-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T00:42:47.997690Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 167826,
+      "cached_input_tokens": 134315,
+      "cache_write_input_tokens": 33499,
+      "output_tokens": 5512,
+      "reasoning_output_tokens": 3885
+    },
+    "duration_ms": 113815
+  }
+}

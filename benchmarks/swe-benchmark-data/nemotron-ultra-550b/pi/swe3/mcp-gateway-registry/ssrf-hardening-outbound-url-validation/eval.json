@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "nemotron-ultra-550b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 76,
+      "notes": "The issue clearly identifies three outbound paths and gives testable criteria for private-address rejection, allowlists, and secure defaults; the named symbols also appear in the submitted source context. Its largest deficiency is calling the change backward-compatible even though previously working internal agent and server URLs become blocked unless operators add configuration. It also declares the skill path out of scope while requiring extraction and changed allowlist behavior there. Redirect handling and DNS-rebinding risk are absent, and no independent task statement was supplied to verify the asserted issue #1282 requirements."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 62,
+      "notes": "The LLD is repository-specific, naming real integration points such as `_check_endpoint_reachability`, `check_agent_health`, and `_check_server_endpoint_transport_aware`, with concrete configuration and failure behavior. Its critical flaw is treating validation of `response.url` after a `follow_redirects=True` request as SSRF prevention, although the private redirect target has already been contacted; separate DNS validation also leaves a rebinding TOCTOU gap. It inconsistently says no skill-path modification is intended while changing that path's trust policy, and its stated Helm path differs from the submitted implementation's `charts/mcpgw/values.yaml`. Rollout and logging are addressed, but the claimed sufficiency of the existing validator and deployment surfaces could not be established from an independent task statement."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 60,
+      "notes": "The review surfaces concrete concerns including redirects, DNS rebinding, IP literals, cache behavior, and operational observability rather than merely approving the design. However, its prescribed redirect fix validates the destination only after the request, and it accepts the DNS TOCTOU risk using an incorrect claim that periodic health checks make the attack window small. The proposed unbounded process-global DNS cache can retain attacker-controlled hostnames and widen stale-resolution exposure, while the IPv6 zone-ID false positive is prioritized above the actual bypass. The resolution log claims all findings were incorporated, but the supplied LLD remains unrevised and the implementation contains no Prometheus counter."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 13,
+      "total": 51,
+      "notes": "The plan spans utility, three call paths, compatibility, deployment, and rollback, and it supplies many explicit expected outcomes. Several tests are not executable as written: changing environment variables after importing the singleton `settings` does not update its fields, the DNS-cache example uses `socket` without importing it, and multiple important cases are left as `pass`. Public-host and registration examples depend on live DNS and services rather than controlled transports, while the agent health success oracle accepts either healthy or unhealthy. Most importantly, redirect tests only inspect final status and do not assert that no request reached the private target, and no tests are included in the implementation patch."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 0,
+      "specificity": 8,
+      "risk_awareness": 2,
+      "total": 15,
+      "notes": "The patch attempts concrete integration across the three named request paths, shared configuration, Docker, and Terraform. It is fatally corrupted: the `skill_service.py` hunk deletes roughly 298 unrelated lines and inserts the literal `[Showing lines 1-1450 of 1746 (50.0KB limit). Use offset=1451 to continue.]`, leaving an incomplete `if` block and invalid Python. Even apart from that, health requests use `follow_redirects=True` before checking `response.url`, so the SSRF request has already occurred, and the DNS cache is unbounded and preserves TOCTOU exposure. The summary falsely claims a Prometheus metric and complete review resolution, while the diff defines no counter, only adds a Helm value without template wiring, and includes no tests."
+    }
+  },
+  "task_score": 52.8,
+  "verdict": "The design artifacts identify the right surfaces and provide useful detail, but the security model mishandles redirects and DNS rebinding, and the submitted patch is corrupted and unusable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T00:50:42.522903Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 253260,
+      "cached_input_tokens": 208224,
+      "cache_write_input_tokens": 45024,
+      "output_tokens": 6732,
+      "reasoning_output_tokens": 5229
+    },
+    "duration_ms": 124184
+  }
+}
