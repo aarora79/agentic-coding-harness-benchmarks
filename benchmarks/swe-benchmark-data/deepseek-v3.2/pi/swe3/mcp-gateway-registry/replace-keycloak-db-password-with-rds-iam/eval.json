@@ -1,0 +1,65 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 59,
+      "notes": "The issue clearly identifies the security objective, limits the change to ECS, and provides several testable infrastructure outcomes. Its execution-role requirement is technically suspect because application AWS credentials normally come from an ECS task role, while the submitted source context names `keycloak_task_exec_role`. The largest gap is the unresolved contradiction between removing `keycloak_database_password` and retaining password fallback, with no alternate credential bootstrap or migration contract. No independent task statement was supplied, so requirements beyond the identifier and repository-backed current behavior could not be verified."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 50,
+      "notes": "The LLD names real integration points including `keycloak-database.tf`, `keycloak-ecs.tf`, the proxy, secret, container, and rotation code, and it discusses rollout and rollback. Its core architecture conflates RDS Proxy client IAM authentication with direct database IAM authentication: the existing proxy uses `auth_scheme = \"SECRETS\"`, while the design both requires client IAM and changes the same database user to `AWSAuthenticationPlugin`, undermining the proxy backend credential and password fallback. It also proposes the nonexistent `rds:GenerateDBAuthToken` permission and an impossible refresh mechanism in which a background shell updates an already-running Keycloak process's environment and connection pool. CloudTrail token-generation auditing, startup timing, and periodic reconnection behavior are asserted without a feasible implementation or repository evidence."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 18,
+      "total": 62,
+      "notes": "The review surfaces concrete concerns about token refresh, task-role use, secret migration, idempotent SQL, fallback, deployment validation, and connection pooling. Its largest deficiency is approving the revised design after the response merely claims that a background process can update `KC_DB_PASSWORD` and re-establish Keycloak connections, which does not solve credential refresh for an existing JVM datasource. It also misses the `SECRETS`-backed RDS Proxy versus `AWSAuthenticationPlugin` conflict and repeats the false premise that `GenerateDBAuthToken` is an auditable API permission. Several peripheral assertions about Fargate requirements, pricing, and CloudTrail are posed or accepted without repository or implementation evidence."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 50,
+      "notes": "The plan covers infrastructure state, fallback, rollback, health, token refresh, and an end-to-end Keycloak login with concrete expected outputs. However, `aws rds generate-db-auth-token` runs under the operator's credentials rather than the ECS task role, and the IAM simulation uses `rds:GenerateDBAuthToken` plus a cluster ARN instead of validating `rds-db:connect` against the applicable `dbuser` resource. Password fallback tests change only Secrets Manager and never restore a compatible database password/plugin, while the refresh test merely searches logs and would not prove that new database connections succeed after token expiry. Hard-coded names such as `keycloak/database`, `keycloak-proxy`, and `/keycloak/admin_password` are not established by the submitted repository evidence, and the listed unit and integration tests remain checklist placeholders."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 7,
+      "total": 29,
+      "notes": "The patch touches the expected Terraform, container, SQL, example, and documentation surfaces, but it does not deliver a functioning renewable IAM-authenticated connection path. Most critically, `generate-rds-token.sh` writes status logs and the token to stdout while `start-keycloak.sh` captures all stdout into `KC_DB_PASSWORD`, so the initial credential contains log lines and cannot authenticate. The proxy remains `auth_scheme = \"SECRETS\"` with an empty password while the SQL changes the same user to `AWSAuthenticationPlugin`; the patch also grants runtime access to the execution role, uses nonexistent `rds:GenerateDBAuthToken`, and leaves Keycloak with a startup-only token that expires for future pooled connections. The summary admits refresh and monitoring are absent but incorrectly calls periodic ECS restarts sufficient; independent `git apply --check` could not be executed because the provided read-only command sandbox failed before launching commands."
+    }
+  },
+  "task_score": 50.0,
+  "verdict": "The submission is detailed and repository-oriented, but its central RDS Proxy and token-lifecycle design is technically invalid, and the patch would fail before establishing a usable IAM-authenticated Keycloak connection.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-06T04:01:13.389888Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 196147,
+      "cached_input_tokens": 162031,
+      "cache_write_input_tokens": 34104,
+      "output_tokens": 7669,
+      "reasoning_output_tokens": 6079
+    },
+    "duration_ms": 133516
+  },
+  "skill": "swe3"
+}
