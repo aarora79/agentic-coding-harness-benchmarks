@@ -49,7 +49,7 @@ DEFAULT_OUT_DIR = _REPO_ROOT / "docs" / "images"
 
 _GEN_PATH = _SCRIPTS_DIR / "gen_agent_report.py"
 _spec = importlib.util.spec_from_file_location("gen_agent_report", _GEN_PATH)
-assert _spec is not None and _spec.loader is not None
+assert _spec is not None and _spec.loader is not None  # nosec B101 - import-by-path guard, not runtime validation
 gen = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(gen)
 
