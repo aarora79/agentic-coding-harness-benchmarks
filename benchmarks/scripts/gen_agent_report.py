@@ -224,6 +224,7 @@ def _render(
     img = (out_dir / "images").resolve()
     cq = img / f"cost-quality-{code}-{skill}.png"
     radar = img / f"quality-radar-{code}-{skill}.png"
+    bubble = img / f"cost-accuracy-bubble-{code}-{skill}.png"
 
     def _rel(p: Path) -> str:
         try:
@@ -310,6 +311,14 @@ def _render(
         "### Quality by dimension (radar)",
         "",
         f"![Quality radar, {label} harness]({_rel(radar)})",
+        "",
+        "### Cost vs. accuracy (bubble area = tokens)",
+        "",
+        "x = cost per task, y = mean score, bubble area = total tokens processed, "
+        "color = hosting basis (metered Bedrock vs hardware-derived self-hosted -- "
+        "NOT directly comparable as raw dollars; see the cost note above).",
+        "",
+        f"![Cost vs accuracy, {label} harness]({_rel(bubble)})",
     ]
     # Exactly one trailing newline (the end-of-file-fixer hook strips extras).
     return "\n".join(lines).rstrip("\n") + "\n"

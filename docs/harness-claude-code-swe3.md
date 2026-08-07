@@ -34,3 +34,9 @@ A task scoring 0 (missing/empty artifacts) is a model failure, excluded from the
 ### Quality by dimension (radar)
 
 ![Quality radar, Claude Code harness](images/quality-radar-cc-swe3.png)
+
+### Cost vs. accuracy (bubble area = tokens)
+
+x = cost per task, y = mean score, bubble area = total tokens processed, color = hosting basis (metered Bedrock vs hardware-derived self-hosted -- NOT directly comparable as raw dollars; see the cost note above).
+
+![Cost vs accuracy, Claude Code harness](images/cost-accuracy-bubble-cc-swe3.png)
