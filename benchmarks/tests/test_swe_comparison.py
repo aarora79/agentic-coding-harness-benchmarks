@@ -1,5 +1,5 @@
-"""Tests for the cross-harness /swe comparison: the Pareto frontier helper, the
-scorecard row collector, and the doc generator's table output.
+"""Tests for the cross-harness /swe comparison: the cost-vs-accuracy bubble
+chart's point collector and the doc generator's table output.
 
 Rendering (matplotlib) is not unit-tested; the data logic is what must be right
 so the chart, the tables, and the per-harness docs all agree.
@@ -26,21 +26,20 @@ def _load(name: str):
     return mod
 
 
-sc = _load("plot_model_scorecard")
+bub = _load("plot_cost_accuracy_bubble")
 swe = _load("gen_swe_comparison")
 
 
-class ScorecardRowsTest(unittest.TestCase):
-    def test_drops_uncostable_and_carries_metrics(self) -> None:
+class BubblePointsTest(unittest.TestCase):
+    def test_drops_uncostable_and_carries_cost_score_tokens(self) -> None:
         collected = [
             {
                 "model": "ok",
-                "total_tokens": 1000,
+                "total_tokens": 2000,
                 "provider": "endpoint",
                 "mean": 55.0,
                 "num_scored": 5,
                 "num_tasks": 5,
-                "latency_seconds": 600,
             },
             {
                 "model": "nocost",
@@ -49,22 +48,40 @@ class ScorecardRowsTest(unittest.TestCase):
                 "mean": 40.0,
                 "num_scored": 5,
                 "num_tasks": 5,
-                "latency_seconds": 60,
+            },
+            {
+                "model": "notokens",
+                "total_tokens": 0,
+                "provider": "endpoint",
+                "mean": 40.0,
+                "num_scored": 5,
+                "num_tasks": 5,
             },
         ]
         cost_map = {
-            "ok": ("$5.00", "hardware-derived (g6e.12xlarge)"),
+            "ok": ("$10.00", "hardware-derived (g6e.12xlarge)"),
             "nocost": ("--", "hardware-derived"),
+            "notokens": ("$5.00", "hardware-derived (g6e.12xlarge)"),
         }
-        with mock.patch.object(sc.gen, "_collect", return_value=collected):
+        with mock.patch.object(bub.gen, "_collect", return_value=collected):
             with mock.patch.object(
-                sc.gen, "_row_cost", side_effect=lambda r: cost_map[r["model"]]
+                bub.gen, "_row_cost", side_effect=lambda r: cost_map[r["model"]]
             ):
-                rows = sc._collect_rows(Path("/x"), "pi", "swe3", "repo")
-        self.assertEqual([r["model"] for r in rows], ["ok"])
-        self.assertEqual(rows[0]["cost"], 5.0)
-        self.assertEqual(rows[0]["score"], 55.0)
-        self.assertAlmostEqual(rows[0]["minutes"], 10.0)
+                pts = bub._collect_points(Path("/x"), "pi", "swe3", "repo")
+        # only "ok" survives (nocost has no cost, notokens has no tokens).
+        self.assertEqual([p["model"] for p in pts], ["ok"])
+        self.assertEqual(pts[0]["cost"], 2.0)  # $10 / 5 scored = $2/task
+        self.assertEqual(pts[0]["score"], 55.0)
+        self.assertEqual(pts[0]["tokens"], 2000)
+        self.assertFalse(pts[0]["bedrock"])
+
+    def test_areas_are_proportional_to_tokens(self) -> None:
+        # A 2x-larger token count yields a 2x-larger AREA (linear in tokens).
+        areas = bub._areas([1000, 2000, 3000])
+        self.assertLess(areas[0], areas[1])
+        self.assertLess(areas[1], areas[2])
+        # midpoint token count -> midpoint area (linear map).
+        self.assertAlmostEqual(areas[1], (areas[0] + areas[2]) / 2, places=6)
 
 
 class ComparisonDocTest(unittest.TestCase):

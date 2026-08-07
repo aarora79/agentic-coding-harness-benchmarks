@@ -9,8 +9,8 @@ plus wall-clock latency.
 
 Numbers come from gen_agent_report (_collect + _row_cost), so this doc, the
 per-harness docs, and the charts all agree. The doc embeds, for each harness,
-the four-panel per-model scorecard (tokens | cost | accuracy | latency, side by
-side) rendered by plot_model_scorecard.py.
+a cost-vs-accuracy bubble chart (x=cost/task, y=score, bubble area=tokens)
+rendered by plot_cost_accuracy_bubble.py.
 
 Usage:
     uv run scripts/gen_swe_comparison.py                 # -> docs/agentic-coding-swe-comparison.md
@@ -155,22 +155,33 @@ def _render(data_dir: Path, skill: str, repo: str, out_dir: Path) -> str:
         "`Cost/task` = run cost / scored tasks. `Cost/point` = run cost / mean score "
         "-- a value-efficiency figure (lower is more quality per dollar).",
         "",
+        "## Does the harness matter?",
+        "",
+        "For every model run under both harnesses, this compares Claude Code vs pi "
+        "on each metric. Each row is one model; the connector points to the better "
+        "harness (higher score / lower cost, tokens, latency), and each panel title "
+        "tallies how often pi wins. Comparing one model's two harnesses is fair even "
+        "for cost -- its hosting basis is identical under both.",
+        "",
+        f"![Harness comparison, {skill}]({img}/harness-delta-{skill}.png)",
+        "",
         "## Results by harness",
         "",
         "For each harness: a results table (quality, tokens, run cost + the two "
         "normalized cost lenses, wall-clock; sorted by score) followed by a "
-        "four-panel scorecard that puts tokens, cost, accuracy, and latency side by "
-        "side across all models.",
+        "cost-vs-accuracy bubble chart -- x = cost/task, y = mean score, bubble "
+        "area = tokens processed, color = hosting basis.",
         "",
     ]
     for h in HARNESSES:
         lines += _table(per[h], HARNESS_LABELS[h])
         code = HARNESS_CODES[h]
         lines += [
-            f"Per-model scorecard ({HARNESS_LABELS[h]}) -- tokens, cost, accuracy, "
-            "and latency side by side:",
+            f"Cost vs. accuracy ({HARNESS_LABELS[h]}) -- bubble area = tokens "
+            "processed, color = hosting (Bedrock vs self-hosted):",
             "",
-            f"![{HARNESS_LABELS[h]} scorecard]({img}/scorecard-{code}-{skill}.png)",
+            f"![{HARNESS_LABELS[h]} cost vs accuracy]"
+            f"({img}/cost-accuracy-bubble-{code}-{skill}.png)",
             "",
         ]
 
@@ -192,8 +203,8 @@ def _render(data_dir: Path, skill: str, repo: str, out_dir: Path) -> str:
         "compare within a hosting column, and treat cross-hosting ties as "
         "order-of-magnitude, not exact (see the methodology doc).",
         "- **The same model can sit very differently under the two harnesses** -- "
-        "compare a model's row across the two tables, and use the per-harness "
-        "scorecards to see the token/latency drivers behind a cost gap.",
+        "compare a model's row across the two tables and its bubble position (cost "
+        "and token size) in each chart.",
         "",
         "## How to reproduce",
         "",
@@ -201,8 +212,8 @@ def _render(data_dir: Path, skill: str, repo: str, out_dir: Path) -> str:
         "cd benchmarks",
         f"uv run python scripts/gen_swe_comparison.py --skill {skill}",
         "# charts:",
-        f"uv run python scripts/plot_model_scorecard.py --harness pi --skill {skill}",
-        f"uv run python scripts/plot_model_scorecard.py --harness claude-code --skill {skill}",
+        f"uv run python scripts/plot_cost_accuracy_bubble.py --harness pi --skill {skill}",
+        f"uv run python scripts/plot_cost_accuracy_bubble.py --harness claude-code --skill {skill}",
         "```",
     ]
     return "\n".join(lines).rstrip("\n") + "\n"

@@ -35,8 +35,8 @@ A task scoring 0 (missing/empty artifacts) is a model failure, excluded from the
 
 ![Quality radar, Claude Code harness](images/quality-radar-cc-swe3.png)
 
-### Tokens processed and cost per model
+### Cost vs. accuracy (bubble area = tokens)
 
-Two panels sharing the model axis: total tokens processed (left) and run cost over the 5 tasks (right), sorted by cost. The cost bar is tinted by basis -- metered (Bedrock) vs hardware-derived (self-hosted) -- which are NOT directly comparable as raw dollars (see the cost note above).
+x = cost per task, y = mean score, bubble area = total tokens processed, color = hosting basis (metered Bedrock vs hardware-derived self-hosted -- NOT directly comparable as raw dollars; see the cost note above).
 
-![Tokens processed and cost, Claude Code harness](images/tokens-cost-cc-swe3.png)
+![Cost vs accuracy, Claude Code harness](images/cost-accuracy-bubble-cc-swe3.png)

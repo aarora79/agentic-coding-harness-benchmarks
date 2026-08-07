@@ -13,9 +13,15 @@ Two non-comparable cost bases share the cost columns; each row states which:
 
 `Cost/task` = run cost / scored tasks. `Cost/point` = run cost / mean score -- a value-efficiency figure (lower is more quality per dollar).
 
+## Does the harness matter?
+
+For every model run under both harnesses, this compares Claude Code vs pi on each metric. Each row is one model; the connector points to the better harness (higher score / lower cost, tokens, latency), and each panel title tallies how often pi wins. Comparing one model's two harnesses is fair even for cost -- its hosting basis is identical under both.
+
+![Harness comparison, swe3](images/harness-delta-swe3.png)
+
 ## Results by harness
 
-For each harness: a results table (quality, tokens, run cost + the two normalized cost lenses, wall-clock; sorted by score) followed by a four-panel scorecard that puts tokens, cost, accuracy, and latency side by side across all models.
+For each harness: a results table (quality, tokens, run cost + the two normalized cost lenses, wall-clock; sorted by score) followed by a cost-vs-accuracy bubble chart -- x = cost/task, y = mean score, bubble area = tokens processed, color = hosting basis.
 
 ### Claude Code
 
@@ -34,9 +40,9 @@ For each harness: a results table (quality, tokens, run cost + the two normalize
 | qwen3-coder-480b | self-hosted | 46.32 | 5/5 | 57.5M | $30.99 | $6.20 | $0.67 | 54m |
 | claude-haiku-4-5 | Bedrock | 41.08 | 5/5 | 25.4M | $3.99 | $0.80 | $0.10 | 23m |
 
-Per-model scorecard (Claude Code) -- tokens, cost, accuracy, and latency side by side:
+Cost vs. accuracy (Claude Code) -- bubble area = tokens processed, color = hosting (Bedrock vs self-hosted):
 
-![Claude Code scorecard](images/scorecard-cc-swe3.png)
+![Claude Code cost vs accuracy](images/cost-accuracy-bubble-cc-swe3.png)
 
 ### pi
 
@@ -57,16 +63,16 @@ Per-model scorecard (Claude Code) -- tokens, cost, accuracy, and latency side by
 | gemma-4-31b | self-hosted | 42.96 | 5/5 | 32.9M | $23.93 | $4.79 | $0.56 | 58m |
 | qwen3-coder-30b | self-hosted | 26.90 | 2/5 | 19.6M | $2.85 | $1.43 | $0.11 | 18m |
 
-Per-model scorecard (pi) -- tokens, cost, accuracy, and latency side by side:
+Cost vs. accuracy (pi) -- bubble area = tokens processed, color = hosting (Bedrock vs self-hosted):
 
-![pi scorecard](images/scorecard-pi-swe3.png)
+![pi cost vs accuracy](images/cost-accuracy-bubble-pi-swe3.png)
 
 ## Takeaways
 
 - **Claude Code:** highest score is **claude-opus-5** (70.8); best value (lowest $/point) is **claude-haiku-4-5** at $0.10/point (score 41.1).
 - **pi:** highest score is **claude-opus-5** (75.7); best value (lowest $/point) is **claude-haiku-4-5** at $0.07/point (score 47.1).
 - **Cost bases are not comparable as raw dollars** -- a Bedrock metered bill and a hardware-derived self-hosted figure answer different questions; compare within a hosting column, and treat cross-hosting ties as order-of-magnitude, not exact (see the methodology doc).
-- **The same model can sit very differently under the two harnesses** -- compare a model's row across the two tables, and use the per-harness scorecards to see the token/latency drivers behind a cost gap.
+- **The same model can sit very differently under the two harnesses** -- compare a model's row across the two tables and its bubble position (cost and token size) in each chart.
 
 ## How to reproduce
 
@@ -74,6 +80,6 @@ Per-model scorecard (pi) -- tokens, cost, accuracy, and latency side by side:
 cd benchmarks
 uv run python scripts/gen_swe_comparison.py --skill swe3
 # charts:
-uv run python scripts/plot_model_scorecard.py --harness pi --skill swe3
-uv run python scripts/plot_model_scorecard.py --harness claude-code --skill swe3
+uv run python scripts/plot_cost_accuracy_bubble.py --harness pi --skill swe3
+uv run python scripts/plot_cost_accuracy_bubble.py --harness claude-code --skill swe3
 ```
