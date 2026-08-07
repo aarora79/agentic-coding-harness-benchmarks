@@ -224,6 +224,7 @@ def _render(
     img = (out_dir / "images").resolve()
     cq = img / f"cost-quality-{code}-{skill}.png"
     radar = img / f"quality-radar-{code}-{skill}.png"
+    tokens_cost = img / f"tokens-cost-{code}-{skill}.png"
 
     def _rel(p: Path) -> str:
         try:
@@ -310,6 +311,15 @@ def _render(
         "### Quality by dimension (radar)",
         "",
         f"![Quality radar, {label} harness]({_rel(radar)})",
+        "",
+        "### Tokens processed and cost per model",
+        "",
+        "Two panels sharing the model axis: total tokens processed (left) and run "
+        "cost over the 5 tasks (right), sorted by cost. The cost bar is tinted by "
+        "basis -- metered (Bedrock) vs hardware-derived (self-hosted) -- which are "
+        "NOT directly comparable as raw dollars (see the cost note above).",
+        "",
+        f"![Tokens processed and cost, {label} harness]({_rel(tokens_cost)})",
     ]
     # Exactly one trailing newline (the end-of-file-fixer hook strips extras).
     return "\n".join(lines).rstrip("\n") + "\n"
