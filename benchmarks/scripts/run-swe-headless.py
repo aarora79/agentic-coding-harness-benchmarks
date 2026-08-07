@@ -587,6 +587,64 @@ def _build_pi_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
     return env
 
 
+def _resolve_imds_credentials(env: dict[str, str]) -> bool:
+    """Resolve credentials from the EC2 Instance Metadata Service (IMDSv2).
+
+    Falls back to this when ``aws configure export-credentials`` is unavailable
+    (AWS CLI v1). Returns True if credentials were injected, False otherwise.
+
+    Args:
+        env: The subprocess environment to populate in place.
+
+    Returns:
+        True if IMDS credentials were successfully resolved.
+    """
+    import urllib.request
+
+    token_url = "http://169.254.169.254/latest/api/token"
+    try:
+        token_req = urllib.request.Request(
+            token_url,
+            method="PUT",
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"},
+        )
+        with urllib.request.urlopen(token_req, timeout=3) as resp:  # nosec B310 - hardcoded IMDS URL
+            token = resp.read().decode()
+    except Exception:
+        return False
+
+    role_url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+    try:
+        role_req = urllib.request.Request(
+            role_url,
+            headers={"X-aws-ec2-metadata-token": token},
+        )
+        with urllib.request.urlopen(role_req, timeout=3) as resp:  # nosec B310 - hardcoded IMDS URL
+            role_name = resp.read().decode().strip()
+    except Exception:
+        return False
+
+    creds_url = f"{role_url}{role_name}"
+    try:
+        creds_req = urllib.request.Request(
+            creds_url,
+            headers={"X-aws-ec2-metadata-token": token},
+        )
+        with urllib.request.urlopen(creds_req, timeout=5) as resp:  # nosec B310 - hardcoded IMDS URL
+            creds = json.loads(resp.read().decode())
+    except Exception:
+        return False
+
+    if creds.get("Code") != "Success":
+        return False
+
+    env["AWS_ACCESS_KEY_ID"] = creds["AccessKeyId"]
+    env["AWS_SECRET_ACCESS_KEY"] = creds["SecretAccessKey"]
+    if creds.get("Token"):
+        env["AWS_SESSION_TOKEN"] = creds["Token"]
+    return True
+
+
 def _ensure_aws_sigv4_env(env: dict[str, str]) -> None:
     """Populate SigV4 AWS credentials in ``env`` for pi's Bedrock provider.
 
@@ -596,12 +654,13 @@ def _ensure_aws_sigv4_env(env: dict[str, str]) -> None:
     instance-profile chain. On an EC2 box whose only credentials come from an
     attached instance role, a run would fail with "No API key found". This
     resolves the role's short-lived credentials via ``aws configure
-    export-credentials`` and injects them, so the ambient instance role Just Works.
+    export-credentials`` (CLI v2) or EC2 IMDSv2 (fallback), so the ambient
+    instance role Just Works.
 
     No-ops when credentials are already present in ``env`` (the caller's shell set
-    them, or a bearer token is configured) or when the AWS CLI cannot mint any
-    (off EC2 with no role) -- pi then reports its own clear auth error. Credentials
-    are only placed in the child env, never logged or written to disk.
+    them, or a bearer token is configured) or when neither method can resolve any
+    -- pi then reports its own clear auth error. Credentials are only placed in the
+    child env, never logged or written to disk.
 
     Args:
         env: The subprocess environment to populate in place.
@@ -621,11 +680,13 @@ def _ensure_aws_sigv4_env(env: dict[str, str]) -> None:
         subprocess.TimeoutExpired,
         FileNotFoundError,
     ):
-        # No resolvable credentials (or no AWS CLI): leave env as-is and let pi
-        # surface its own auth error rather than failing opaquely here.
+        # CLI v2 unavailable or failed; try EC2 IMDSv2 as fallback.
+        if _resolve_imds_credentials(env):
+            logger.info("resolved AWS credentials from EC2 IMDSv2 instance profile")
+            return
         logger.warning(
-            "could not resolve AWS credentials via 'aws configure export-credentials'; "
-            "pi will rely on whatever is already in the environment"
+            "could not resolve AWS credentials via 'aws configure export-credentials' "
+            "or EC2 IMDS; pi will rely on whatever is already in the environment"
         )
         return
     for line in proc.stdout.splitlines():
