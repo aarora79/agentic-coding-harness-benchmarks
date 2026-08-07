@@ -8,10 +8,9 @@ tokens, and cost -- for every model under BOTH harnesses (Claude Code and pi),
 plus wall-clock latency.
 
 Numbers come from gen_agent_report (_collect + _row_cost), so this doc, the
-per-harness docs, and the charts all agree. The doc embeds:
-  * the unified both-harness cost-vs-quality Pareto chart (headline), and
-  * the four-panel per-model scorecard for each harness,
-which are rendered by plot_cost_quality_harness.py and plot_model_scorecard.py.
+per-harness docs, and the charts all agree. The doc embeds, for each harness,
+the four-panel per-model scorecard (tokens | cost | accuracy | latency, side by
+side) rendered by plot_model_scorecard.py.
 
 Usage:
     uv run scripts/gen_swe_comparison.py                 # -> docs/agentic-coding-swe-comparison.md
@@ -156,19 +155,12 @@ def _render(data_dir: Path, skill: str, repo: str, out_dir: Path) -> str:
         "`Cost/task` = run cost / scored tasks. `Cost/point` = run cost / mean score "
         "-- a value-efficiency figure (lower is more quality per dollar).",
         "",
-        "## The one chart: cost vs. quality, both harnesses",
-        "",
-        "x = cost per task, y = mean score. Color = harness (Claude Code vs pi); "
-        "marker shape = hosting (circle self-hosted, square Bedrock); a thin line "
-        "joins the same model across harnesses; the dashed line is the Pareto "
-        "frontier over all points (nothing else both cheaper and higher-scoring).",
-        "",
-        f"![Cost vs quality, both harnesses]({img}/cost-quality-harness-{skill}.png)",
-        "",
         "## Results by harness",
         "",
-        "Each row: quality (mean score), tokens processed, run cost + the two "
-        "normalized cost lenses, and wall-clock. Sorted by score.",
+        "For each harness: a results table (quality, tokens, run cost + the two "
+        "normalized cost lenses, wall-clock; sorted by score) followed by a "
+        "four-panel scorecard that puts tokens, cost, accuracy, and latency side by "
+        "side across all models.",
         "",
     ]
     for h in HARNESSES:
@@ -200,8 +192,8 @@ def _render(data_dir: Path, skill: str, repo: str, out_dir: Path) -> str:
         "compare within a hosting column, and treat cross-hosting ties as "
         "order-of-magnitude, not exact (see the methodology doc).",
         "- **The same model can sit very differently under the two harnesses** -- "
-        "the connectors on the chart show it; use the per-harness scorecards to see "
-        "the token/latency drivers behind a cost gap.",
+        "compare a model's row across the two tables, and use the per-harness "
+        "scorecards to see the token/latency drivers behind a cost gap.",
         "",
         "## How to reproduce",
         "",
@@ -209,7 +201,6 @@ def _render(data_dir: Path, skill: str, repo: str, out_dir: Path) -> str:
         "cd benchmarks",
         f"uv run python scripts/gen_swe_comparison.py --skill {skill}",
         "# charts:",
-        f"uv run python scripts/plot_cost_quality_harness.py --skill {skill}",
         f"uv run python scripts/plot_model_scorecard.py --harness pi --skill {skill}",
         f"uv run python scripts/plot_model_scorecard.py --harness claude-code --skill {skill}",
         "```",

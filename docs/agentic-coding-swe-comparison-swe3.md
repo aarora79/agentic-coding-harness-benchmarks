@@ -13,15 +13,9 @@ Two non-comparable cost bases share the cost columns; each row states which:
 
 `Cost/task` = run cost / scored tasks. `Cost/point` = run cost / mean score -- a value-efficiency figure (lower is more quality per dollar).
 
-## The one chart: cost vs. quality, both harnesses
-
-x = cost per task, y = mean score. Color = harness (Claude Code vs pi); marker shape = hosting (circle self-hosted, square Bedrock); a thin line joins the same model across harnesses; the dashed line is the Pareto frontier over all points (nothing else both cheaper and higher-scoring).
-
-![Cost vs quality, both harnesses](images/cost-quality-harness-swe3.png)
-
 ## Results by harness
 
-Each row: quality (mean score), tokens processed, run cost + the two normalized cost lenses, and wall-clock. Sorted by score.
+For each harness: a results table (quality, tokens, run cost + the two normalized cost lenses, wall-clock; sorted by score) followed by a four-panel scorecard that puts tokens, cost, accuracy, and latency side by side across all models.
 
 ### Claude Code
 
@@ -72,7 +66,7 @@ Per-model scorecard (pi) -- tokens, cost, accuracy, and latency side by side:
 - **Claude Code:** highest score is **claude-opus-5** (70.8); best value (lowest $/point) is **claude-haiku-4-5** at $0.10/point (score 41.1).
 - **pi:** highest score is **claude-opus-5** (75.7); best value (lowest $/point) is **claude-haiku-4-5** at $0.07/point (score 47.1).
 - **Cost bases are not comparable as raw dollars** -- a Bedrock metered bill and a hardware-derived self-hosted figure answer different questions; compare within a hosting column, and treat cross-hosting ties as order-of-magnitude, not exact (see the methodology doc).
-- **The same model can sit very differently under the two harnesses** -- the connectors on the chart show it; use the per-harness scorecards to see the token/latency drivers behind a cost gap.
+- **The same model can sit very differently under the two harnesses** -- compare a model's row across the two tables, and use the per-harness scorecards to see the token/latency drivers behind a cost gap.
 
 ## How to reproduce
 
@@ -80,7 +74,6 @@ Per-model scorecard (pi) -- tokens, cost, accuracy, and latency side by side:
 cd benchmarks
 uv run python scripts/gen_swe_comparison.py --skill swe3
 # charts:
-uv run python scripts/plot_cost_quality_harness.py --skill swe3
 uv run python scripts/plot_model_scorecard.py --harness pi --skill swe3
 uv run python scripts/plot_model_scorecard.py --harness claude-code --skill swe3
 ```

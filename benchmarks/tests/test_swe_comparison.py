@@ -26,28 +26,8 @@ def _load(name: str):
     return mod
 
 
-cqh = _load("plot_cost_quality_harness")
 sc = _load("plot_model_scorecard")
 swe = _load("gen_swe_comparison")
-
-
-class FrontierTest(unittest.TestCase):
-    def test_dominated_point_dropped(self) -> None:
-        pts = [
-            {"model": "a", "cost": 1.0, "score": 40.0},
-            {"model": "b", "cost": 2.0, "score": 60.0},
-            {"model": "c", "cost": 3.0, "score": 50.0},  # dominated by b
-            {"model": "d", "cost": 5.0, "score": 75.0},
-        ]
-        self.assertEqual([p["model"] for p in cqh._frontier(pts)], ["a", "b", "d"])
-
-    def test_cheaper_higher_score_wins_tie_on_cost(self) -> None:
-        pts = [
-            {"model": "lo", "cost": 1.0, "score": 30.0},
-            {"model": "hi", "cost": 1.0, "score": 55.0},
-        ]
-        # Same cost: only the higher score is on the frontier.
-        self.assertEqual([p["model"] for p in cqh._frontier(pts)], ["hi"])
 
 
 class ScorecardRowsTest(unittest.TestCase):
