@@ -1,0 +1,151 @@
+{
+  "task": "remove-faiss",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "dependency-removal",
+    "python",
+    "fastapi",
+    "search",
+    "docker",
+    "docs"
+  ],
+  "model": "us.anthropic.claude-sonnet-5",
+  "model_slug": "claude-sonnet-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 0.5,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 907,
+    "cache_read_tokens": 300346,
+    "cache_write_tokens": 379,
+    "total_tokens": 301634,
+    "total_cost_usd": 0.0700907,
+    "latency_seconds": 1741.8,
+    "num_turns": 250,
+    "generation_tokens_per_sec": 0.5,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2,
+  "output_tokens": 907,
+  "latency_seconds": 1741.8,
+  "num_turns": 250,
+  "total_cost_usd": 0.0700907,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 300346,
+  "cache_creation_tokens": 379,
+  "run_started_at": "2026-08-07T15:47:10.193815Z",
+  "run_ended_at": "2026-08-07T16:16:12.456600Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 907,
+    "cache_read_tokens": 300346,
+    "cache_write_tokens": 379,
+    "total_tokens": 301634,
+    "total_cost_usd": 0.0700907,
+    "latency_seconds": 1741.8,
+    "num_turns": 250,
+    "generation_tokens_per_sec": 0.5,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "remove-faiss",
+    "model": "us.anthropic.claude-sonnet-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 16,
+        "correctness": 15,
+        "specificity": 21,
+        "risk_awareness": 15,
+        "total": 67,
+        "notes": "The issue precisely identifies real components including `FaissService`, `get_search_repository()`, startup indexing, telemetry, and the `AgentService.index_agent()` contract defect. Repository inspection confirms those symbols and the redundant direct FAISS calls exist at the cited integration points. Its largest deficiency is declaring broken tests, most documentation, and `uv.lock` out of scope while promising FAISS removal and unchanged search behavior; it also omits migration of existing file-backed entities into the initially empty DocumentDB index. No independent task statement was supplied, so the intended tolerance for that scope reduction cannot be verified beyond the `remove-faiss` identifier."
+      },
+      "lld": {
+        "completeness": 16,
+        "correctness": 10,
+        "specificity": 22,
+        "risk_awareness": 15,
+        "total": 63,
+        "notes": "The LLD is unusually concrete about real files, repository interfaces, call sites, and the intentional MongoDB requirement for file-backed deployments. Its central startup decision is unsafe for upgrades: the current file backend stores search data only in FAISS, yet the design switches to DocumentDB and removes the startup backfill, leaving existing servers and agents absent from search. It also names the nonexistent `/api/servers/search/semantic` endpoint, mischaracterizes several remaining test patches as collection-time failures, and accepts an out-of-sync lockfile despite the repository's `uv lock --check` workflow. The claimed clean application against a separate clone could not be independently rerun because no standalone `patch.diff` file exists in the repository, although sampled hunk contexts match ref `1.24.4`."
+      },
+      "review": {
+        "completeness": 15,
+        "correctness": 10,
+        "specificity": 18,
+        "risk_awareness": 16,
+        "total": 59,
+        "notes": "The review raises concrete concerns about the new MongoDB dependency, hardcoded verification script settings, shell injection, and tests that still patch the deleted module. It nevertheless approves a design that knowingly leaves CI tests broken and misses both the absent file-to-DocumentDB index migration and the stale `uv.lock`. Its claimed 503 resolution is not supported: `DocumentDBSearchRepository.search()` catches ordinary backend failures and returns empty result groups, while startup connection failure prevents serving the endpoint at all. The role-based findings are specific, but the final non-blocking verdict is not defensible given these repository-verified failures."
+      },
+      "testing": {
+        "completeness": 14,
+        "correctness": 4,
+        "specificity": 16,
+        "risk_awareness": 12,
+        "total": 46,
+        "notes": "The plan attempts functional, lifecycle, deployment, rollback, negative, and factory-routing coverage with explicit expected states. Most critical HTTP checks cannot exercise the feature: server search is actually `/api/search/semantic`, agent discovery expects query parameters rather than the submitted JSON body, agent toggle is `/api/agents/{path}/toggle`, and refresh is `/api/refresh/{path}`. The Mongo-unreachable procedure is also invalid because `docker compose up registry` starts its `mongodb-init` dependency, which in turn starts MongoDB, and the proposed regression tests are not included in the patch. It lacks the essential upgrade test proving existing file-backed entities are backfilled, while explicitly allowing numerous known test failures before merge."
+      },
+      "implementation": {
+        "completeness": 10,
+        "correctness": 6,
+        "specificity": 17,
+        "risk_awareness": 11,
+        "total": 44,
+        "notes": "The patch targets real symbols and correctly rewires the factory, fixes `AgentService.index_agent()`, removes production FAISS imports, and replaces non-redundant toggle indexing calls with repository methods. It is not end-to-end complete: existing file-backed data receives no DocumentDB backfill after the startup sweep is removed, so upgraded deployments can return empty search results until every entity is mutated. Leaving `uv.lock` unchanged means the default frozen Docker build still installs `faiss-cpu`, the locked CPU build and lock-check CI can fail, and dozens of tests still resolve the deleted `registry.search.service` module. The summary discloses several deferred items but incorrectly claims no substantive LLD deviation and misses the migration failure; the brittle all-dimensions Mongo query can also report stale records."
+      }
+    },
+    "task_score": 55.8,
+    "verdict": "The submission is highly specific but not mergeable because it omits index migration, leaves dependency locking and tests broken, and supplies largely invalid verification commands.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-07T17:20:35.318757Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1609039,
+        "cached_input_tokens": 1468080,
+        "cache_write_input_tokens": 140931,
+        "output_tokens": 10577,
+        "reasoning_output_tokens": 5029
+      },
+      "duration_ms": 253372
+    }
+  }
+}

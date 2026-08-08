@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "us.anthropic.claude-sonnet-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 72,
+      "notes": "The issue clearly defines both authentication modes, explicit exclusions, documentation work, and testable Terraform and ECS acceptance criteria. Repository checks confirm the named RDS cluster, Secrets Manager rotation, ECS valueFrom wiring, and DocumentDB IAM precedent. Its largest correctness defect is overstating exposure and auditability: ecs:DescribeTaskDefinition reveals the secret ARN rather than its value, and RDS IAM connections are not discrete per-connection CloudTrail events. No independent task statement was supplied, while the claimed AWS JDBC plugin and upstream issue references could not be verified from the repository."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 57,
+      "notes": "The LLD is unusually concrete about existing files, the direct cluster endpoint, dbuser ARN construction, separate task-definition shapes, TLS, rollback, and token lifetime. Those repository integration points largely exist, including aws_rds_cluster.keycloak, the ECS locals, the generic CodeBuild pipeline, and cluster_resource_id support. Its central dependency remains an unverified JDBC plugin, class, and artifact, and the submitted implementation confirms that the promised pinned download was only a placeholder. It also leaves no secure source for the required master password and proposes running mysql locally even though keycloak_db ingress permits only the Keycloak ECS and rotation-Lambda security groups."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 75,
+      "notes": "The review's strongest work is identifying three concrete blockers: the invented KC_DB_URL_PROPERTIES surface, nullable ECS fields, and TLS without identity verification. Each finding states a consequence and an actionable resolution that appears in the revised LLD. However, it endorses the plugin and local bootstrap architecture without verifying the artifact, notices neither the missing usable master credential nor the database security-group barrier, and therefore misses failures more fundamental than its listed blockers. The frontend section adds little, but the backend, SRE, and security findings are specific and materially useful."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 54,
+      "notes": "The plan covers both flag values, Terraform validation, IAM scoping, task-definition shape, init-container status, rollback, negative startup behavior, and an OIDC flow with concrete expected results. Several commands cannot work as written: the repository exports keycloak_url rather than keycloak_domain, tfvars edits target the repository root despite -chdir, the second bootstrap run loses its required environment, and a local mysql client cannot reach the private cluster through the checked security groups. The public /health/ready check also targets port 8080 while the real task health check uses Keycloak's management port 9000, and test -n accepts jq's literal null as a token. Most importantly, no test forces a new physical connection after token expiry or proves the IAM path never stores KC_DB_PASSWORD, so it misses the feature's defining regression risks."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 3,
+      "specificity": 16,
+      "risk_awareness": 6,
+      "total": 34,
+      "notes": "The diff contexts and symbols match the exact 1.24.4 baseline, and the patch attempts all major surfaces: cluster configuration, task role, ECS wiring, image build, documentation, and bootstrap SQL. It is not deployable from source because the Dockerfile downloads the essential plugin from example-artifact-repo.invalid, while the default public init image and claimed plugin class are unsupported by repository evidence. Worse, an omitted password produces a publicly derivable md5 master password but stores an empty password in Secrets Manager, so the documented bootstrap command cannot authenticate; its local network path is blocked by keycloak-security-groups.tf as well. Supplying a password still writes it to the always-created secret in IAM mode, violating acceptance criteria, and the summary acknowledges placeholders and credential drift while inaccurately claiming the default IAM path now works."
+    }
+  },
+  "task_score": 58.4,
+  "verdict": "The submission provides detailed, repository-aware design material, but its unverified JDBC dependency and unusable master-password/bootstrap path make the actual implementation nonfunctional and insecure.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-07T17:24:17.317513Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 782405,
+      "cached_input_tokens": 673999,
+      "cache_write_input_tokens": 108386,
+      "output_tokens": 12710,
+      "reasoning_output_tokens": 8267
+    },
+    "duration_ms": 221982
+  }
+}

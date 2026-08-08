@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "us.anthropic.claude-sonnet-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 14,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 67,
+      "notes": "The issue clearly identifies the existing skill guard, two vulnerable paths, compatibility constraints, and testable defaults. The cited symbols exist in `skill_service.py`, `agent_validator.py`, and `health/service.py`. Its largest gap is omitting the unguarded `POST /agents/{path}/health` requests and the user-controlled `mcp_endpoint` and `sse_endpoint` URLs that health checks prefer over `proxy_pass_url`. No independent task statement establishes the intended breadth, and the proposed exclusion of followed redirects leaves a known SSRF route."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 10,
+      "specificity": 22,
+      "risk_awareness": 13,
+      "total": 58,
+      "notes": "The LLD is unusually concrete about settings, modes, call flow, compatibility, and file-level changes. However, `get_endpoint_url_from_server_info()` gives explicit `mcp_endpoint` and `sse_endpoint` values priority, so validating only `proxy_pass_url` is not the claimed choke point. Its supposedly unconditional metadata block is also bypassed by `extra_trusted_hosts`, while permissive mode does not reject unspecified addresses such as `0.0.0.0`. The claim that existing skill tests remain unchanged is contradicted by tests patching `registry.services.skill_service.socket.getaddrinfo` while the design removes that module import."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 53,
+      "notes": "The review identifies a concrete precedence risk and converts it into a named wildcard-CIDR regression test. It misses the more consequential custom-endpoint bypass, the separate agent health-check route, the trusted-host metadata bypass, and the broken legacy patch target. Its frontend uncertainty was directly checkable: `registry/templates/index.html` already uses `status.startsWith('unhealthy')`. The positive verdict therefore does not adequately stress the security design, and the claimed follow-up tickets cannot be verified."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 53,
+      "notes": "The unit cases have concrete policy oracles and explicitly assert that blocked requests never reach the HTTP client. The permissive health tests incorrectly assert `client.get` is called, although the supplied `streamable-http` configuration follows `_initialize_mcp_session()` through `client.post`, so those tests would fail. The manual plan invents `POST /api/agents/validate` and `POST /api/servers`; the repository exposes `/api/agents/register` and form-based `/api/servers/register`, while `/api/servers/health` returns nested status objects. Coverage also omits explicit endpoint overrides, the existing agent health route, trusted-host metadata bypass, redirects, and `0.0.0.0`, and no tests were executed."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 45,
+      "notes": "The repository is at the claimed `b0fcb2db` baseline, and the embedded diff's target files, symbols, and contexts match the source. The implementation validates `proxy_pass_url` but then may request user-controlled `mcp_endpoint` or `sse_endpoint`, and it leaves `POST /agents/{path}/health` wholly unguarded. `is_safe_url()` also returns early for trusted hosts before checking metadata, and removing `skill_service.socket` breaks three existing test patches. New configuration is absent from documentation and deployment wiring, the new health tests contain the wrong request oracle, and the summary overstates end-to-end protection despite reporting no executed tests."
+    }
+  },
+  "task_score": 55.2,
+  "verdict": "The submission is detailed and repository-aware, but critical unvalidated outbound URL paths and non-runnable tests leave the SSRF hardening materially incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-07T17:27:42.650784Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1118480,
+      "cached_input_tokens": 986663,
+      "cache_write_input_tokens": 131795,
+      "output_tokens": 9999,
+      "reasoning_output_tokens": 4995
+    },
+    "duration_ms": 205297
+  }
+}

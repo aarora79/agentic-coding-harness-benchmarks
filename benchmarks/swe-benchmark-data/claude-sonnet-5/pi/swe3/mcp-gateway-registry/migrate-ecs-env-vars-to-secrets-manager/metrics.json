@@ -1,0 +1,151 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "high",
+  "tags": [
+    "security",
+    "aws",
+    "secrets-manager",
+    "terraform",
+    "ecs",
+    "iam"
+  ],
+  "model": "us.anthropic.claude-sonnet-5",
+  "model_slug": "claude-sonnet-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 1.4,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 1076,
+    "cache_read_tokens": 160860,
+    "cache_write_tokens": 373,
+    "total_tokens": 162311,
+    "total_cost_usd": 0.04386850000000001,
+    "latency_seconds": 764.8,
+    "num_turns": 55,
+    "generation_tokens_per_sec": 1.4,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2,
+  "output_tokens": 1076,
+  "latency_seconds": 764.8,
+  "num_turns": 55,
+  "total_cost_usd": 0.04386850000000001,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 160860,
+  "cache_creation_tokens": 373,
+  "run_started_at": "2026-08-07T16:40:11.667815Z",
+  "run_ended_at": "2026-08-07T16:52:56.669329Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2,
+    "output_tokens": 1076,
+    "cache_read_tokens": 160860,
+    "cache_write_tokens": 373,
+    "total_tokens": 162311,
+    "total_cost_usd": 0.04386850000000001,
+    "latency_seconds": 764.8,
+    "num_turns": 55,
+    "generation_tokens_per_sec": 1.4,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "migrate-ecs-env-vars-to-secrets-manager",
+    "model": "us.anthropic.claude-sonnet-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 20,
+        "correctness": 15,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 75,
+        "notes": "The issue gives a concrete twelve-variable inventory, service split, file list, precedence rules, and testable acceptance criteria that largely match terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf. Its claim that empty values are currently omitted is false: the baseline task definitions emit fixed environment entries even when their variables default to empty strings. Cross-account support is incomplete because iam.tf grants KMS decryption only on aws_kms_key.secrets, and the claim that the repository lacks a relevant Helm surface is contradicted by charts/registry and charts/auth-server. No independent task statement was supplied, so broader requirement coverage beyond the ECS-focused task identifier cannot be verified."
+      },
+      "lld": {
+        "completeness": 18,
+        "correctness": 12,
+        "specificity": 22,
+        "risk_awareness": 14,
+        "total": 66,
+        "notes": "The LLD is unusually concrete about real files, locals, container wiring, IAM resources, precedence, and rollout mechanics, and those integration points exist at the pinned repository revision. Its backward-compatibility model is wrong because the baseline uses unconditional environment entries, while the proposed filtered locals omit empty values and reorder nonempty entries at the end of each list. The advertised cross-account design also lacks caller-side kms:Decrypt permission for an externally owned customer-managed key, which is required alongside the external key policy. Several review resolutions are not actually present in the submitted LLD, including the warning design, rotation restart guidance, and detailed cross-account KMS treatment."
+      },
+      "review": {
+        "completeness": 16,
+        "correctness": 11,
+        "specificity": 20,
+        "risk_awareness": 15,
+        "total": 62,
+        "notes": "The review raises specific concerns about JSON and PEM secret formats, map-key typos, delayed ARN validation, rotation, and cross-account KMS rather than merely approving the design. It misses the baseline empty-entry contradiction and endorses a warning whose count depends on sensitive variables, a Terraform-invalid construction. Its resolution section claims changes were incorporated into the LLD even though the submitted LLD still defers the warning and lacks the stated rotation and KMS additions. Real AWS behavior and the claimed CloudTrail configuration details were not verified in the submission."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 10,
+        "specificity": 18,
+        "risk_awareness": 15,
+        "total": 61,
+        "notes": "The plan covers ARN precedence, plaintext fallback, registry-only scoping, IAM resources, rollback, steady state, formatting, validation, and runtime secret resolution. However, the byte-for-byte baseline expectation cannot hold because the patch moves entries into map-derived lists, and the both-unset expectation contradicts the current unconditional environment entries. Section 2.3 places -var before -var-file and provides a Python command that performs no assertion, while the deployment command references a nonexistent registry_task_definition_arn output before falling back to a placeholder. No Terraform or AWS checks were executed, so the critical sensitive-count failure would remain undetected."
+      },
+      "implementation": {
+        "completeness": 18,
+        "correctness": 8,
+        "specificity": 22,
+        "risk_awareness": 10,
+        "total": 58,
+        "notes": "The patch targets the correct eight files, all preimage blob hashes match the repository, and it wires all twelve ARN variables through declarations, module forwarding, ECS secrets, IAM resources, and examples. The added null_resource uses count derived from sensitive plaintext variables, which Terraform rejects because sensitive values cannot determine resource count; its local-exec output would also be suppressed as sensitive, so the claimed warning does not work. The patch also changes empty-value behavior and list ordering despite claiming zero behavior change, and it cannot consume cross-account secrets encrypted with an external customer-managed KMS key because the execution-role policy grants decryption only on aws_kms_key.secrets. The summary honestly reports that validation and planning were not executed, but it consequently oversells an implementation that is not plan-ready and deviates materially from its compatibility and cross-account claims."
+      }
+    },
+    "task_score": 64.4,
+    "verdict": "The submission is highly specific and mostly grounded, but the implementation is not deployable because its migration warning derives resource count from sensitive values, with additional compatibility and cross-account KMS gaps.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-07T17:11:52.446636Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 359800,
+        "cached_input_tokens": 283884,
+        "cache_write_input_tokens": 75904,
+        "output_tokens": 8345,
+        "reasoning_output_tokens": 5023
+      },
+      "duration_ms": 145948
+    }
+  }
+}
