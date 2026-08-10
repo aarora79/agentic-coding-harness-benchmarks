@@ -55,6 +55,13 @@ RUN_SUMMARY_FILENAME = "run-summary.json"
 # quality-radar-cc-swe2.png, quality-radar-pi-swe3.png). An unknown harness falls
 # back to its own slug.
 HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
+# Human-readable harness names for the chart title (the code is for filenames).
+HARNESS_LABELS = {
+    "claude-code": "Claude Code",
+    "pi": "pi",
+    "opencode": "opencode",
+    "kiro-cli": "kiro-cli",
+}
 
 
 def _harness_code(harness: str) -> str:
@@ -236,6 +243,8 @@ def _plot(
     _plot_one(ax_a, ARTIFACT_LABELS, art_series, theme, "By artifact (score 0-100)")
 
     # One shared legend below both panels -- identity is never color-alone.
+    # The repo (dataset provenance) lives in the legend title to keep it out
+    # of the chart title, which leads with the harness + skill.
     handles, labels = ax_c.get_legend_handles_labels()
     legend = fig.legend(
         handles,
@@ -245,12 +254,17 @@ def _plot(
         frameon=False,
         fontsize=10,
         bbox_to_anchor=(0.5, -0.02),
+        title=repo,
     )
     for text in legend.get_texts():
         text.set_color(theme["ink"])
+    if legend.get_title():
+        legend.get_title().set_color(theme["muted"])
+        legend.get_title().set_fontsize(9)
 
+    harness_label = HARNESS_LABELS.get(harness, harness)
     fig.suptitle(
-        f"Quality by dimension -- {repo}",
+        f"Quality by dimension -- {harness_label} harness, /{skill}",
         fontsize=14,
         color=theme["ink"],
         y=1.02,
