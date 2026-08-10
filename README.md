@@ -1,8 +1,19 @@
-# Agentic Coding Harness and Benchmarks
+<h1 align="center">Agentic Coding Harness and Benchmarks</h1>
 
-[![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](LICENSE)
-[![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-blue)](https://docs.aws.amazon.com/bedrock/latest/userguide/models-endpoint-availability.html)
-[![Models: 45](https://img.shields.io/badge/Models-45%20from%2011%20providers-orange)](./)
+<p align="center">
+<a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT--0-yellow.svg" alt="License: MIT-0"></a>
+<a href="https://docs.aws.amazon.com/bedrock/latest/userguide/models-endpoint-availability.html"><img src="https://img.shields.io/badge/Amazon-Bedrock-blue" alt="Bedrock"></a>
+<a href="./"><img src="https://img.shields.io/badge/Models-45%20from%2011%20providers-orange" alt="Models: 45"></a>
+</p>
+
+<p align="center">
+<a href="#get-started">Get Started</a> |
+<a href="docs/results-swe3.md">Results (/swe3)</a> |
+<a href="docs/agentic-coding-swe-comparison-swe3.md">Harness Comparison</a> |
+<a href="docs/slides/agentic-coding-benchmarks-presentation.pdf">Slide Deck</a> |
+<a href="docs/slides/agentic-coding-benchmarks-exec.pdf">Executive Brief</a> |
+<a href="docs/cost-per-task-methodology.md">Cost Methodology</a>
+</p>
 
 > **This is sample code intended for demonstration and learning purposes only.**
 > It is not meant for production use. Review and harden all scripts, configurations,
