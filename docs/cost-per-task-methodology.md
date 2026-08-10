@@ -86,17 +86,19 @@ The $91.65 in the leaderboard is the **c=5** figure. Note it is *lower* than the
 
 ## What agentic coding does to all of this
 
-Agentic coding has an extreme request shape: **very large, read-heavy prompts and small outputs.** Measured on the single-agent `/swe3` harness (5 real runs each on `mcp-gateway-registry`), the input:output ratio is extremely lopsided, because a single agent replays the whole growing transcript on every turn:
+Agentic coding has an extreme request shape: **very large, read-heavy prompts and small outputs.** Measured on the **pi** agent driving the single-agent `/swe3` skill (5 real runs each on `mcp-gateway-registry`; token counts from each run's `metrics.json`), the input:output ratio is extremely lopsided, because a single agent replays the whole growing transcript on every turn. (These are pi numbers, not Claude Code: only pi splits prompt tokens into `input + cache_read`, so its prompt-side count is directly comparable across models — see the [appendix](#appendix-prompt-caching-and-why-self-hosted-vs-api-costs-are-not-measured-the-same-way).)
 
-| Model (`/swe3`) | Per-task prompt tokens (input+cache) | Per-task output | Ratio |
-|---|--:|--:|--:|
-| qwen3.6-35b | ~7.54M | ~41.9K | **180:1** |
-| glm-5.2 | ~16.44M | ~107.1K | **153:1** |
-| deepseek-v3.2 | ~8.87M | ~33.1K | **268:1** |
-| kimi-k2.7-code | ~20.36M | ~50.4K | **404:1** |
-| nemotron-ultra-550b | ~27.43M | ~41.4K | **663:1** |
+| Model (pi `/swe3`) | Turns/task | Prompt tokens/task (input+cache) | Output/task | Ratio |
+|---|--:|--:|--:|--:|
+| glm-5.2 | 75 | ~16.44M | ~107.1K | **153:1** |
+| qwen3.6-35b | 41 | ~7.54M | ~41.9K | **180:1** |
+| deepseek-v3.2 | 84 | ~8.87M | ~33.1K | **268:1** |
+| kimi-k2.7-code | 117 | ~20.36M | ~50.4K | **404:1** |
+| nemotron-ultra-550b | 112 | ~27.43M | ~41.4K | **663:1** |
 
-The model reads the repo, tool-calls, reasons over big files, and emits a comparatively tiny design/patch — so the ratio sits in the **~150:1 to ~660:1** band across models. This is the extreme prefill-heavy end of the workload spectrum, and it is the reason the server is prefill/KV-bound (see [References](#references) for external corroboration at 180-220:1).
+The model reads the repo, tool-calls, reasons over big files, and emits a comparatively tiny design/patch — so the ratio sits in the **~150:1 to ~660:1** band. This is the extreme prefill-heavy end of the workload spectrum, and it is why the server is prefill/KV-bound (see [References](#references) for external corroboration at 180-220:1).
+
+**What drives the spread is turn count, not reasoning-token output.** The ratio's numerator grows with **turns**: every turn re-feeds the entire growing transcript as fresh prompt, so a model that takes 112 turns (nemotron) accumulates ~27M prompt tokens while a model that finishes in 41 (qwen3.6-35b) accumulates ~7.5M. It is *not* that reasoning models emit more output — the opposite: the highest-ratio models (nemotron, kimi) emit the *fewest* output tokens per turn (~370-430), while glm-5.2 and qwen3.6-35b emit the *most* (~1,000-1,400/turn) and have the *lowest* ratios. There is no separate reasoning/thinking token field in the metrics — whatever a model streams as thinking is already inside `output_tokens` — so a verbose reasoner would *lower* the ratio (bigger denominator), not raise it. The lever to cut these models' cost is therefore **fewer turns** (better tool use, less thrashing), not suppressing reasoning.
 
 That shape has three consequences:
 
