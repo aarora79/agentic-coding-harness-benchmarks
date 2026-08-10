@@ -1,6 +1,6 @@
 # Results: Claude Code harness (swe2)
 
-Benchmark results for every model run under the **Claude Code** coding agent with the **swe2** skill on `mcp-gateway-registry`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness claude-code --skill swe2`. Companion to the cross-agent [harness comparison](harness-comparison.md).
+Benchmark results for every model run under the **Claude Code** coding agent with the **swe2** skill on `mcp-gateway-registry`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness claude-code --skill swe2`. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe2.md](agentic-coding-swe-comparison-swe2.md).
 
 ## Results by model
 

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,8 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPTS_DIR.parent.parent
 DEFAULT_DATA_DIR = _SCRIPTS_DIR.parent / "swe-benchmark-data"
 DEFAULT_OUT_DIR = _REPO_ROOT / "docs" / "images"
+# Machine-readable chart data lives apart from the rendered images.
+DEFAULT_METRICS_DIR = _REPO_ROOT / "docs" / "metrics"
 
 _GEN_PATH = _SCRIPTS_DIR / "gen_agent_report.py"
 _spec = importlib.util.spec_from_file_location("gen_agent_report", _GEN_PATH)
@@ -166,6 +169,62 @@ def _winner(cc: float, pi: float, higher_is_better: bool) -> str:
         return "tie"  # within 2% -> effectively a wash
     better_pi = pi > cc if higher_is_better else pi < cc
     return "pi" if better_pi else "claude-code"
+
+
+def _write_data_json(
+    per: dict[str, dict[str, Any]], *, skill: str, repo: str, out_dir: Path
+) -> Path:
+    """Emit the machine-readable data behind the harness-delta chart.
+
+    One JSON file with, for every model run under BOTH harnesses, the four
+    metrics per harness (score, cost/task, tokens, minutes), the per-metric
+    winner (same 2%-tie rule as the chart), and per-model / per-metric win
+    tallies. This is the single source the author reads when writing the
+    hand-authored "Reading the chart" commentary -- so the prose is grounded
+    in the same numbers the chart draws, without hardcoding them in prose.
+    """
+    metric_dirs = {"score": True, "cost": False, "tokens": False, "minutes": False}
+    models: dict[str, Any] = {}
+    tally = {k: {"pi": 0, "claude-code": 0, "tie": 0} for k in metric_dirs}
+    for model in sorted(per):
+        cc, pi = per[model]["claude-code"], per[model]["pi"]
+        metrics: dict[str, Any] = {}
+        for key, higher_is_better in metric_dirs.items():
+            win = _winner(cc[key], pi[key], higher_is_better)
+            tally[key][win] += 1
+            metrics[key] = {
+                "claude_code": cc[key],
+                "pi": pi[key],
+                "winner": win,
+                "higher_is_better": higher_is_better,
+            }
+        models[model] = metrics
+
+    payload = {
+        "note": (
+            "Data behind docs/images/harness-delta-<skill>.png. Emitted by "
+            "plot_harness_delta.py into docs/metrics/. The author-maintained "
+            "'Reading the chart' block in the swe comparison doc is written from "
+            "THIS file; regenerate the chart, then update that prose to match."
+        ),
+        "skill": skill,
+        "repo": repo,
+        "tie_rule": "within 2% counts as a tie",
+        "metrics": {
+            "score": "mean task score 0-100 (higher is better)",
+            "cost": "USD per task (lower is better; cost bases differ by hosting)",
+            "tokens": "total tokens processed over the run (lower is better)",
+            "minutes": "wall-clock minutes for the 5-task run (lower is better)",
+        },
+        "n_models": len(models),
+        "win_tally": tally,
+        "models": models,
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"harness-delta-{skill}.json"
+    out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    logger.info("wrote %s (%d models)", out_path, len(models))
+    return out_path
 
 
 def _panel(
@@ -345,6 +404,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument(
+        "--metrics-dir",
+        type=Path,
+        default=DEFAULT_METRICS_DIR,
+        help="Where to write the machine-readable chart data JSON.",
+    )
+    parser.add_argument(
         "--dark", action="store_true", help="Render the dark-theme variant."
     )
     return parser.parse_args()
@@ -357,6 +422,15 @@ def main() -> None:
     per = _collect(data_dir, args.skill, args.repo)
     if not per:
         raise SystemExit(f"no models run under BOTH harnesses for skill={args.skill}")
+    # Emit the machine-readable data first (light theme run only, to avoid a
+    # duplicate write on the --dark pass -- the numbers are theme-independent).
+    if not args.dark:
+        _write_data_json(
+            per,
+            skill=args.skill,
+            repo=args.repo,
+            out_dir=args.metrics_dir.expanduser().resolve(),
+        )
     _plot(
         per,
         skill=args.skill,
