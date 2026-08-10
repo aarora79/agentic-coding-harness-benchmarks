@@ -239,7 +239,8 @@ def _render(
         f"with the **{skill}** skill on `{repo}`, generated from the committed "
         "`run-summary.json` files. Regenerate with `uv run "
         f"scripts/gen_agent_report.py --harness {harness} --skill {skill}`. "
-        "Companion to the cross-agent [harness comparison](harness-comparison.md).",
+        "Companion to the cross-harness comparison "
+        f"[agentic-coding-swe-comparison-{skill}.md](agentic-coding-swe-comparison-{skill}.md).",
         "",
         "## Results by model",
         "",

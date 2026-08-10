@@ -19,6 +19,16 @@ For every model run under both harnesses, this compares Claude Code vs pi on eac
 
 ![Harness comparison, swe2](images/harness-delta-swe2.png)
 
+### Reading the chart (author-maintained)
+
+> The win-tallies above are mechanical. The prose below is **hand-written reasoning** about what the chart means for a model choice -- the kind of cross-metric judgement code cannot produce. It is written from the machine-readable data behind the charts: [`metrics/harness-delta-swe2.json`](metrics/harness-delta-swe2.json) (every model x harness x metric, per-metric winner, win tallies) and [`metrics/pareto-frontier-pi-swe2.json`](metrics/pareto-frontier-pi-swe2.json) (the score-vs-cost frontier, split by hosting). It is preserved across regens. **When you regenerate the charts, re-read those JSONs and update this text to match.**
+
+<!-- MANUAL:harness-reading BEGIN -- author-maintained; preserved across regens. Update when the chart changes. -->
+Read the chart across metrics, not one panel at a time. Claude Code winning the **cost** panel for a model rarely settles the choice: on the models where it is cheaper, either the absolute gap is a few cents, or the model's accuracy is too low to pick regardless of price. What decides a model is **quality first, then cost among the models that clear your quality bar.**
+
+The one metric where the harness choice is lopsided is **wall-clock**: pi's single-agent loop finishes faster on nearly every model (no sub-agent fan-out), so unless a model scores clearly higher under Claude Code and the task is worth the extra time and tokens, pi is the default at the terminal.
+<!-- MANUAL:harness-reading END -->
+
 ## Results by harness
 
 For each harness: a results table (quality, tokens, run cost + the two normalized cost lenses, wall-clock; sorted by score) followed by a cost-vs-accuracy bubble chart -- x = cost/task, y = mean score, bubble area = tokens processed, color = hosting basis.
@@ -60,12 +70,25 @@ Cost vs. accuracy (pi) -- bubble area = tokens processed, color = hosting (Bedro
 
 ![pi cost vs accuracy](images/cost-accuracy-bubble-pi-swe2.png)
 
-## Takeaways
+## Guidance: which model for which task, and what it costs
 
-- **Claude Code:** highest score is **claude-opus-4-8** (79.1); best value (lowest $/point) is **minimax-m2.5** at $0.02/point (score 51.4).
-- **pi:** highest score is **claude-opus-5** (77.0); best value (lowest $/point) is **qwen3.6-35b** at $0.13/point (score 47.1).
-- **Cost bases are not comparable as raw dollars** -- a Bedrock metered bill and a hardware-derived self-hosted figure answer different questions; compare within a hosting column, and treat cross-hosting ties as order-of-magnitude, not exact (see the methodology doc).
-- **The same model can sit very differently under the two harnesses** -- compare a model's row across the two tables and its bubble position (cost and token size) in each chart.
+A practical way to read the tables: pick the cheapest model whose quality clears the bar your task needs. Costs below are **per task** (one real `/swe2` problem; a run is 5 tasks). Numbers are from the **pi** column -- the single-agent shape a developer drives at the terminal. Remember the two cost bases are not comparable as raw dollars (Bedrock is a metered bill; self-hosted is hardware-derived) -- see the methodology doc.
+
+- **Top-quality tier (hard / high-stakes changes): `claude-opus-5`** -- highest score (77/100) at $9.31/task. Reach for it on security-sensitive, cross-cutting, or get-it-right-the-first-time work where a wrong design is expensive. You pay the most, but accuracy is the most.
+- **Open-weight workhorse (bulk of day-to-day coding): `qwen3.6-35b`** -- best self-hosted quality (47/100) at $1.53/task. Strong on real refactors and features; the model to standardize on if you self-host and route most tickets to one engine.
+- **Budget tier (routine / high-volume edits): `gemma-4-31b`** -- cheapest full 5/5 run at $2.86/task (score 44/100). Good for boilerplate, small fixes, and throwaway scaffolding where you will review the output anyway.
+- **Reliability flag:** `qwen3.6-35b` (4/5), `qwen3-coder-30b` (0/5) did **not** finish every task under pi -- cheap per task, but a non-completion is a failure, not a discount. Do not route unattended work to a model that does not reliably finish.
+
+## Does the harness change the answer? (pi vs Claude Code)
+
+For the models run under both harnesses, tallying each metric with the chart's 2%-tie rule (a model's hosting basis is identical under both, so even cost is a fair within-model comparison):
+
+- **Quality (mean score):** pi wins 0/3, Claude Code wins 2/3, 1 tie.
+- **Cost per task:** pi wins 2/3, Claude Code wins 1/3.
+- **Total tokens processed:** pi wins 3/4, Claude Code wins 1/4.
+- **Wall-clock latency:** pi wins 4/4, Claude Code wins 0/4.
+
+- **Practical read:** pi's single-agent loop is consistently **faster in wall-clock** (no sub-agent fan-out to coordinate) and often cheaper, while Claude Code's multi-agent orchestration can lift quality on some models at the price of more tokens, dollars, and time. For a developer at the terminal, pi is the better default on latency and cost; switch to Claude Code when a specific model scores meaningfully higher there and the task justifies the extra spend. Pick the harness per model, not globally -- the same model can sit very differently under the two (compare its row across the tables and its bubble in each chart).
 
 ## How to reproduce
 

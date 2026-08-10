@@ -54,6 +54,8 @@ _BENCHMARKS_DIR = _SCRIPTS_DIR.parent
 _REPO_ROOT = _BENCHMARKS_DIR.parent
 DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
 DEFAULT_IMAGES_DIR = _REPO_ROOT / "docs" / "images"
+# Machine-readable frontier data lives apart from the rendered images.
+DEFAULT_METRICS_DIR = _REPO_ROOT / "docs" / "metrics"
 METRICS_FILENAME = "metrics.json"
 
 # Short per-harness code used (with the skill) to suffix chart filenames so each
@@ -61,6 +63,13 @@ METRICS_FILENAME = "metrics.json"
 # (cost-quality-cc-swe2.png, cost-quality-pi-swe3.png). An unknown harness falls
 # back to its own slug.
 HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
+# Human-readable harness names for the chart title (the code is for filenames).
+HARNESS_LABELS = {
+    "claude-code": "Claude Code",
+    "pi": "pi",
+    "opencode": "opencode",
+    "kiro-cli": "kiro-cli",
+}
 
 
 def _default_output(harness: str, skill: str, dark: bool) -> Path:
@@ -155,6 +164,9 @@ class ModelPoint:
     n_tasks: int
     n_scored: int
     excluded: list[str]
+    hosting: str = (
+        "self-hosted"  # "Bedrock" (metered) or "self-hosted" (hardware-derived)
+    )
 
 
 def _read_json(path: Path) -> dict | None:
@@ -207,6 +219,7 @@ def _point_from_summary(model_repo_dir: Path, model: str) -> ModelPoint | None:
         est = summary.get("mean_cost_usd_excl_failed")
         cost = float(est) if isinstance(est, (int, float)) else 0.0
 
+    hosting = "Bedrock" if summary.get("provider") == "bedrock" else "self-hosted"
     return ModelPoint(
         model=model,
         mean_cost=cost,
@@ -214,6 +227,7 @@ def _point_from_summary(model_repo_dir: Path, model: str) -> ModelPoint | None:
         n_tasks=int(summary.get("num_tasks") or 0),
         n_scored=int(summary.get("num_scored") or 0),
         excluded=list(excluded),
+        hosting=hosting,
     )
 
 
@@ -380,6 +394,66 @@ def _pareto_frontier(points: list[ModelPoint]) -> list[ModelPoint]:
     return sorted(frontier, key=lambda p: p.mean_cost)
 
 
+def _point_dict(p: ModelPoint) -> dict:
+    """Serialize one model point for the frontier JSON."""
+    return {
+        "model": p.model,
+        "mean_score": round(p.mean_score, 2),
+        "mean_cost_per_task": round(p.mean_cost, 4),
+        "hosting": p.hosting,
+        "n_scored": p.n_scored,
+        "n_tasks": p.n_tasks,
+        "completed": f"{p.n_scored}/{p.n_tasks}",
+        "excluded_tasks": p.excluded,
+    }
+
+
+def _write_frontier_json(
+    points: list[ModelPoint], *, harness: str, skill: str, repo: str, out_dir: Path
+) -> Path:
+    """Emit the Pareto frontier (score vs cost/task) as machine-readable JSON.
+
+    Reuses the SAME ``_pareto_frontier`` that draws the cost-quality chart, so
+    the file and the chart never diverge. Emits three frontiers: the combined
+    set (labelled as a cross-hosting view, non-authoritative on raw dollars) and
+    one per hosting basis (Bedrock-only, self-hosted-only) -- the honest
+    like-for-like comparisons, since a metered API bill and a hardware-derived
+    figure are not comparable as raw dollars (see cost-per-task-methodology.md).
+    """
+    bedrock = [p for p in points if p.hosting == "Bedrock"]
+    selfh = [p for p in points if p.hosting != "Bedrock"]
+    payload = {
+        "note": (
+            "Pareto frontier (mean score vs mean cost/task) behind "
+            f"docs/images/cost-quality-*-{skill}.png. Emitted by plot_cost_quality.py. "
+            "A model is on a frontier when nothing scores at least as high for at "
+            "most the cost. Use the per-hosting frontiers for cost claims; the "
+            "combined frontier mixes a metered Bedrock bill with a hardware-derived "
+            "self-hosted figure and is directional only (see "
+            "cost-per-task-methodology.md)."
+        ),
+        "harness": harness,
+        "skill": skill,
+        "repo": repo,
+        "frontier_rule": "non-dominated on (max score, min cost/task)",
+        "combined_frontier_cross_hosting_directional": [
+            _point_dict(p) for p in _pareto_frontier(points)
+        ],
+        "bedrock_frontier": [_point_dict(p) for p in _pareto_frontier(bedrock)],
+        "self_hosted_frontier": [_point_dict(p) for p in _pareto_frontier(selfh)],
+        "all_models": [
+            _point_dict(p) for p in sorted(points, key=lambda p: -p.mean_score)
+        ],
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = (
+        out_dir / f"pareto-frontier-{HARNESS_CODES.get(harness, harness)}-{skill}.json"
+    )
+    out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    logger.info("wrote %s", out_path)
+    return out_path
+
+
 def _label(point: ModelPoint) -> str:
     """Build a point label; mark models whose mean excludes a failed task."""
     if point.excluded:
@@ -473,6 +547,7 @@ def _plot(
     title: str,
     cost_label: str,
     output: Path,
+    frontier_label: str = "Cost/quality frontier",
 ) -> None:
     """Render the scatter with its frontier and save to ``output``.
 
@@ -502,7 +577,7 @@ def _plot(
             marker="o",
             markersize=9,
             zorder=2,
-            label="Cost/quality frontier",
+            label=frontier_label,
         )
         ax.fill_between(
             fx,
@@ -662,6 +737,12 @@ def _parse_args() -> argparse.Namespace:
         "--dark", action="store_true", help="Render the dark-mode theme"
     )
     parser.add_argument(
+        "--metrics-dir",
+        type=Path,
+        default=DEFAULT_METRICS_DIR,
+        help="Where to write the Pareto-frontier JSON (default: docs/metrics/).",
+    )
+    parser.add_argument(
         "--title",
         default=None,
         help="Override the chart title",
@@ -688,7 +769,11 @@ def main() -> None:
 
     mode = "dark" if args.dark else "light"
     output = args.out or _default_output(args.harness, args.skill, args.dark)
-    title = args.title or f"Cost vs. quality -- {args.repo}"
+    # Title leads with the harness and skill (what the chart is OF); the repo and
+    # its dataset provenance move into the frontier legend to declutter the title.
+    harness_label = HARNESS_LABELS.get(args.harness, args.harness)
+    title = args.title or f"Cost vs. quality -- {harness_label} harness, /{args.skill}"
+    frontier_label = f"Cost/quality frontier ({args.repo})"
 
     points = _collect_points(data_dir, args.repo, args.harness, args.skill)
     for point in points:
@@ -701,6 +786,15 @@ def main() -> None:
             point.n_tasks,
         )
     frontier = _pareto_frontier(points)
+    # Emit the machine-readable frontier once (light run), theme-independent.
+    if not args.dark:
+        _write_frontier_json(
+            points,
+            harness=args.harness,
+            skill=args.skill,
+            repo=args.repo,
+            out_dir=args.metrics_dir.expanduser().resolve(),
+        )
     _plot(
         points,
         frontier,
@@ -708,6 +802,7 @@ def main() -> None:
         title=title,
         cost_label=args.cost_label,
         output=output,
+        frontier_label=frontier_label,
     )
 
 

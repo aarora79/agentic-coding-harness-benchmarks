@@ -19,6 +19,32 @@ For every model run under both harnesses, this compares Claude Code vs pi on eac
 
 ![Harness comparison, swe3](images/harness-delta-swe3.png)
 
+### Reading the chart (author-maintained)
+
+> The win-tallies above are mechanical. The prose below is **hand-written reasoning** about what the chart means for a model choice -- the kind of cross-metric judgement code cannot produce. It is written from the machine-readable data behind the charts: [`metrics/harness-delta-swe3.json`](metrics/harness-delta-swe3.json) (every model x harness x metric, per-metric winner, win tallies) and [`metrics/pareto-frontier-pi-swe3.json`](metrics/pareto-frontier-pi-swe3.json) (the score-vs-cost frontier, split by hosting). It is preserved across regens. **When you regenerate the charts, re-read those JSONs and update this text to match.**
+
+<!-- MANUAL:harness-reading BEGIN -- author-maintained; preserved across regens. Update when the chart changes. -->
+**How the model tiers are chosen (the criterion).** A model is only worth naming if it sits on the **Pareto frontier** of score vs cost/task -- i.e. no other model scores at least as high for the same or less money. Everything off the frontier is dominated (something is both cheaper and better) and is not worth picking. Because a metered Bedrock bill and a hardware-derived self-hosted cost are **not comparable as raw dollars** (see [cost-per-task-methodology.md](cost-per-task-methodology.md)), we take the frontier **within each hosting basis** and name tiers accordingly. All numbers below are the **pi** column (the single-agent shape a developer drives at the terminal); the frontiers are in the JSON linked above.
+
+For the **harness**, the rule is simpler: pick it per model, but pi is the default -- across the 12 models run under both, pi wins wall-clock 10/12 and ties or wins cost and quality, because its single-agent loop skips the sub-agent fan-out that inflates Claude Code's tokens, dollars, and time.
+
+Tiers, by what the task needs:
+
+- **Frontier / business-critical -- `claude-opus-5` (Bedrock), on pi.** Top of the Bedrock frontier at **75.7/100, $8.28/task**. Reach for it when a wrong design is expensive (security, cross-cutting, get-it-right-first-time). pi is not close here: it beats Claude Code on *every* axis -- quality (75.7 vs 70.8), cost ($8.28 vs $24.05), wall-clock (94m vs 199m), tokens (50M vs 175M). Fan-out buys opus-5 nothing and costs 3x.
+
+- **Frontier open-weight -- `glm-5.2` (self-hosted), on pi.** Top of the self-hosted frontier at **70.8/100, $18.33/task**; the model to standardize on if you self-host your quality tier. pi wins quality (70.8 vs 65.6) *and* cost ($18.33 vs $19.23), for ~9 extra minutes (105m vs 96m) -- a trivial trade for +5 points.
+
+- **Value open-weight -- `deepseek-v3.2` (self-hosted), on pi.** A mid-frontier self-hosted point at **54.4/100, $5.23/task** -- roughly three-quarters of glm-5.2's quality for under a third of its cost, and it completes 5/5. This is the workhorse for the bulk of day-to-day self-hosted coding where you do not need the top of the frontier. (Below it on the self-hosted frontier sit `minimax-m2.5` at 45.1/$1.44 and `qwen3.6-35b` at 52.3/$2.07 -- both cheaper and genuinely non-dominated, but **note reliability**: qwen3.6-35b completed only **4/5** tasks under pi, so it is a frontier point with an asterisk, not a set-and-forget workhorse. Do not route unattended work to a model that does not reliably finish.)
+
+- **Most cost-effective, just-get-it-done -- `claude-haiku-4-5` (Bedrock), on pi.** Bottom of the Bedrock frontier at **47.1/100, $0.64/task**, for boilerplate, small fixes, and scaffolding you will review anyway. The easy case: pi is both higher quality (47.1 vs 41.1) *and* cheaper ($0.64 vs $0.80) than Claude Code, at equal 5/5 reliability.
+
+**If you insist on ONE combined frontier (both cost bases together).** Some readers will want a single ranking regardless of hosting. Doing that is *directional only* -- it puts a metered Bedrock bill (prompt-cache-discounted) next to a hardware-derived self-hosted cost (full on-demand GPU rate), which are not comparable as raw dollars -- but it is revealing. On the combined pi swe3 frontier ([`metrics/pareto-frontier-pi-swe3.json`](metrics/pareto-frontier-pi-swe3.json), `combined_frontier_cross_hosting_directional`), Bedrock's Anthropic ladder takes almost every slot -- **haiku ($0.64) -> sonnet-5 ($3.81) -> opus-5 ($8.28)** -- and it dominates the open-weight tier outright: **`glm-5.2` (70.8/$18.33) is beaten by `claude-opus-5`, which scores higher (75.7) for less than half the cost.** deepseek, kimi, nemotron, and minimax are all dominated by sonnet-5 or haiku.
+
+**The one open-weight model that survives the combined frontier is `qwen3.6-35b`** (52.3/100, $2.00/task). It holds the narrow gap between haiku (47.1) and sonnet-5 (66.5) -- ~5 points more than haiku for ~$1.36 more, and nothing Bedrock offers fills that slot. So if you force a single cross-hosting ranking, **qwen3.6-35b is the lone self-hosted model that is not dominated by an Anthropic model** -- the one open-weight point worth keeping in a Bedrock-first shop. Two caveats keep this honest: it completed only **4/5** under pi (reliability asterisk), and the collapse of the other open-weight models is partly a pricing artifact -- these self-hosted costs are **on-demand**; on reserved/committed GPU pricing or at high utilization they drop, and models like deepseek-v3.2 and minimax-m2.5 climb back toward the frontier (see [cost-per-task-methodology.md](cost-per-task-methodology.md)). That is exactly why the default view keeps the frontiers split by hosting.
+
+**The through-line:** choose the model by where your task lands on the quality/cost frontier for your hosting basis; run it on pi, which wins or ties on the axes that matter and is fastest on wall-clock almost every time. A model that is merely cheap but *dominated* (off the frontier) -- or that does not reliably finish -- is not a bargain.
+<!-- MANUAL:harness-reading END -->
+
 ## Results by harness
 
 For each harness: a results table (quality, tokens, run cost + the two normalized cost lenses, wall-clock; sorted by score) followed by a cost-vs-accuracy bubble chart -- x = cost/task, y = mean score, bubble area = tokens processed, color = hosting basis.
@@ -67,12 +93,26 @@ Cost vs. accuracy (pi) -- bubble area = tokens processed, color = hosting (Bedro
 
 ![pi cost vs accuracy](images/cost-accuracy-bubble-pi-swe3.png)
 
-## Takeaways
+## Guidance: which model for which task, and what it costs
 
-- **Claude Code:** highest score is **claude-opus-5** (70.8); best value (lowest $/point) is **claude-haiku-4-5** at $0.10/point (score 41.1).
-- **pi:** highest score is **claude-opus-5** (75.7); best value (lowest $/point) is **claude-haiku-4-5** at $0.07/point (score 47.1).
-- **Cost bases are not comparable as raw dollars** -- a Bedrock metered bill and a hardware-derived self-hosted figure answer different questions; compare within a hosting column, and treat cross-hosting ties as order-of-magnitude, not exact (see the methodology doc).
-- **The same model can sit very differently under the two harnesses** -- compare a model's row across the two tables and its bubble position (cost and token size) in each chart.
+A practical way to read the tables: pick the cheapest model whose quality clears the bar your task needs. Costs below are **per task** (one real `/swe3` problem; a run is 5 tasks). Numbers are from the **pi** column -- the single-agent shape a developer drives at the terminal. Remember the two cost bases are not comparable as raw dollars (Bedrock is a metered bill; self-hosted is hardware-derived) -- see the methodology doc.
+
+- **Top-quality tier (hard / high-stakes changes): `claude-opus-5`** -- highest score (76/100) at $8.28/task. Reach for it on security-sensitive, cross-cutting, or get-it-right-the-first-time work where a wrong design is expensive. You pay the most, but accuracy is the most.
+- **Open-weight workhorse (bulk of day-to-day coding): `glm-5.2`** -- best self-hosted quality (71/100) at $18.33/task. Strong on real refactors and features; the model to standardize on if you self-host and route most tickets to one engine.
+- **Best value (most quality per dollar): `claude-sonnet-5`** -- clears ~61/100 (80% of the top score) at just $3.81/task. The sweet spot for well-scoped tasks: most of the quality, a fraction of the cost.
+- **Budget tier (routine / high-volume edits): `claude-haiku-4-5`** -- cheapest full 5/5 run at $0.64/task (score 47/100). Good for boilerplate, small fixes, and throwaway scaffolding where you will review the output anyway. Cheapest self-hosted equivalent: `minimax-m2.5` at $1.44/task.
+- **Reliability flag:** `qwen3.6-35b` (4/5), `qwen3-coder-30b` (2/5) did **not** finish every task under pi -- cheap per task, but a non-completion is a failure, not a discount. Do not route unattended work to a model that does not reliably finish.
+
+## Does the harness change the answer? (pi vs Claude Code)
+
+For the models run under both harnesses, tallying each metric with the chart's 2%-tie rule (a model's hosting basis is identical under both, so even cost is a fair within-model comparison):
+
+- **Quality (mean score):** pi wins 6/12, Claude Code wins 5/12, 1 tie.
+- **Cost per task:** pi wins 6/12, Claude Code wins 6/12.
+- **Total tokens processed:** pi wins 6/12, Claude Code wins 5/12, 1 tie.
+- **Wall-clock latency:** pi wins 10/12, Claude Code wins 2/12.
+
+- **Practical read:** pi's single-agent loop is consistently **faster in wall-clock** (no sub-agent fan-out to coordinate) and often cheaper, while Claude Code's multi-agent orchestration can lift quality on some models at the price of more tokens, dollars, and time. For a developer at the terminal, pi is the better default on latency and cost; switch to Claude Code when a specific model scores meaningfully higher there and the task justifies the extra spend. Pick the harness per model, not globally -- the same model can sit very differently under the two (compare its row across the tables and its bubble in each chart).
 
 ## How to reproduce
 

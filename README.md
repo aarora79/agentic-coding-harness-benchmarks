@@ -22,7 +22,7 @@
 
 Enterprises are adopting coding agents and models at scale, and the bill grows with every developer and every task. The two big levers on that bill -- **which harness** drives the work and **which model** it drives -- are usually chosen on gut feel or on public leaderboards that may already be **saturated**: models can be tuned toward well-known public test sets, so a high headline number does not reliably predict performance on a team's actual, messy, long-horizon coding work.
 
-This repo measures the thing that actually matters instead: **harness x model, on real agentic software-engineering tasks against real repositories**, reporting all three axes a buyer trades off -- **cost, latency, and accuracy**. Crossing harnesses with models gives real **optionality**: the same model can be a few points more accurate under one agent yet several times cheaper and faster under another (see the [harness comparison](docs/harness-comparison.md)). With those numbers in hand, an organization can make an **informed, defensible decision** about the cost/latency/accuracy trade-off for its own workload -- and, very often, **lower its coding bill substantially** by picking a cheaper harness-and-model pairing that is more than good enough, rather than defaulting to the most expensive option. That is the deliverable: an evidence base for smart, budget-aware choices on work that looks like yours, not like a leaderboard.
+This repo measures the thing that actually matters instead: **harness x model, on real agentic software-engineering tasks against real repositories**, reporting all three axes a buyer trades off -- **cost, latency, and accuracy**. Crossing harnesses with models gives real **optionality**: the same model can be a few points more accurate under one agent yet several times cheaper and faster under another (see the [cross-harness comparison](docs/agentic-coding-swe-comparison-swe3.md)). With those numbers in hand, an organization can make an **informed, defensible decision** about the cost/latency/accuracy trade-off for its own workload -- and, very often, **lower its coding bill substantially** by picking a cheaper harness-and-model pairing that is more than good enough, rather than defaulting to the most expensive option. That is the deliverable: an evidence base for smart, budget-aware choices on work that looks like yours, not like a leaderboard.
 
 ## Overview
 
@@ -35,6 +35,8 @@ It runs **two complementary benchmarks**, and combining them is the whole point:
 
 Quality alone tells you which model is best; cost alone tells you which is cheapest. Plotting one against the other yields the **cost/quality Pareto frontier** (the chart below) -- the set of models where nothing else is both better *and* cheaper. That frontier is the deliverable: it is what lets you choose a model for a real budget, and it exists only because this repo measures both halves.
 
+**Crucially, the two benchmarks must be combined over the *real agentic coding tasks*, not over a synthetic input:output token ratio.** Agentic coding is a **prefill-heavy, long-horizon** workload: each task replays a large, growing transcript as fresh input on every turn and emits a comparatively tiny edit, so the real input:output ratio runs ~150:1 up to ~660:1 -- far more lopsided than the ~3:1 or ~4:1 assumed by generic pricing. A model's cost per task therefore depends on *how* it drives the task (how many turns, how much context it re-reads, whether prefix caching hits), which a lab-style token-count estimate cannot capture. This repo measures throughput on that same prefill-heavy shape and multiplies it by the tokens each real run actually processed, so the cost on the frontier is the cost of the *work as it happens* -- see [cost-per-task-methodology.md](docs/cost-per-task-methodology.md).
+
 **Where this is headed:** the frontier is the lookup table for a coding harness that, given a task, **automatically routes to the right model** -- plan with a frontier model, execute with a cheaper workhorse or budget model, and switch back up when a run needs it -- so a developer gets frontier-quality results at a fraction of the cost without ever managing model selection. See [the vision](docs/vision.md).
 
 **This is not a static, single-shot benchmark.** Most model evaluations measure one prompt and one response. Here the unit of work is a **long-horizon, multi-turn agentic task**: the model drives Claude Code through an open-ended tool-use loop -- reading files, editing code, running commands, and reacting to results over **tens to hundreds of LLM turns** (typically ~50-250, up to 300+) that run **anywhere from ~10 minutes to over an hour** per task. What we measure is whether a model can *sustain* coherent engineering work across that horizon -- staying on task, using tools correctly, and landing a working change -- not whether it can answer a single question well. That is a fundamentally different (and harder) thing to be good at, and it is where models that look similar on conventional benchmarks pull apart.
@@ -43,117 +45,30 @@ Each task points the agent at a real GitHub repository and a real problem. The a
 
 ## Results: a worked example
 
-To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 tasks**, each scored by the judge. Below is what we have measured so far: **14 models** across **Path 1** (Anthropic on Amazon Bedrock) and **Path 3** (self-hosted on vLLM, across an 8x H200 `p5en.48xlarge` and a single `g6e.12xlarge`); the cost/quality chart leads, the full task-by-task table and per-model leaderboard follow, and the exact models + hardware are listed under the table. Path 2 (open-weight on Bedrock via the LiteLLM proxy) is **fully implemented** ([setup](benchmarks/docs/path-open-weight-on-bedrock-litellm.md)) but **has no published benchmark results yet** -- we publish only what we have measured here. (The `mcp-gateway-registry` dataset ships in [benchmarks/dataset/](benchmarks/dataset/mcp-gateway-registry.yaml) so you can reproduce the run; the generated artifacts themselves are not committed, so a customer's own runs never risk landing in version control. The only committed worked example under [benchmarks/swe-benchmark-data/](benchmarks/swe-benchmark-data/) is the trivial `Hello-World` sanity run.)
+To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 real tasks**, each scored 0-100 by an independent LLM judge, across **14 models** and both harnesses (Claude Code and pi). The flagship view below is the **cost/quality Pareto frontier** for the single-agent `/swe3` skill under the pi harness: mean cost per task (x) against mean task score (y), one point per model, with the non-dominated frontier highlighted.
 
-| # | Problem | Difficulty | Source |
-|---|---------|-----------|--------|
-| 1 | `remove-faiss` | Medium | Upstream [#1285](https://github.com/agentic-community/mcp-gateway-registry/issues/1285) / [#452](https://github.com/agentic-community/mcp-gateway-registry/issues/452) |
-| 2 | `remove-efs-from-terraform-aws-ecs` | Medium | Upstream [#1286](https://github.com/agentic-community/mcp-gateway-registry/issues/1286) |
-| 3 | `ssrf-hardening-outbound-url-validation` | Medium | Upstream [#1282](https://github.com/agentic-community/mcp-gateway-registry/issues/1282) |
-| 4 | `migrate-ecs-env-vars-to-secrets-manager` | High | Upstream [#1134](https://github.com/agentic-community/mcp-gateway-registry/issues/1134) |
-| 5 | `replace-keycloak-db-password-with-rds-iam` | High | Upstream [#1303](https://github.com/agentic-community/mcp-gateway-registry/issues/1303) |
+![Cost vs. quality Pareto frontier, pi harness on /swe3](docs/images/cost-quality-pi-swe3.png)
 
-**Models benchmarked so far:** **Path 1 (Bedrock):** Claude-Opus-5, Claude-Opus-4.8, Claude-Sonnet-5, Claude-Haiku-4.5. **Path 3 (self-hosted on vLLM):** Kimi-K2.7-Code, GLM-5.2, DeepSeek-V3.2, MiniMax-M2.5, Nemotron-Ultra-550B, Qwen3-Coder-480B-A35B-Instruct, and Devstral-2-123B-Instruct (all on 8x H200 / `p5en.48xlarge`), plus Qwen3.6-35B-A3B, Qwen3-Coder-30B-A3B-Instruct, Qwen3-Coder-Next, and Gemma-4-31B-it (on `g6e.12xlarge` / 4x L40S). **No results yet (path is built):** Path 2 (open-weight on Bedrock via the LiteLLM proxy -- Mistral, …) is [fully implemented](benchmarks/docs/path-open-weight-on-bedrock-litellm.md); we just have not published a run through it yet.
+**claude-opus-5** tops quality (75.7/100) and, under pi, leads its tier on cost and latency too. **glm-5.2** is the best open-weight model (70.8). Costs come in two non-comparable bases -- a **metered Bedrock bill** for the Anthropic models and a **hardware-derived** figure for self-hosted models -- so the honest frontier is taken within each hosting basis; force them onto one axis and Bedrock's Anthropic ladder (haiku -> sonnet-5 -> opus-5) dominates, with **qwen3.6-35b** the lone open-weight survivor. The full story -- task-by-task tables, per-model leaderboard, hardware, footnotes, the cost methodology, and the model-tier buying guidance -- is split by skill:
 
-### Cost vs. quality
+- **[Results -- /swe3 (single-agent)](docs/results-swe3.md)** -- the primary results view (pi harness), 14 models.
+- **[Results -- /swe2 (multi-agent)](docs/results-swe2.md)** -- the multi-agent skill (Claude Code harness), 14 models.
+- **[Cross-harness comparison (/swe3)](docs/agentic-coding-swe-comparison-swe3.md)** -- Claude Code vs pi on the same models: per-metric win tallies and the model-tier buying guidance (which model for which job, and which harness).
 
-![Cost vs. quality scatter: mean estimated cost per task against mean task score, for the self-hosted models, with the cost/quality frontier highlighted](docs/images/cost-quality-cc-swe2.png)
+Path 1 (Anthropic on Bedrock) and Path 3 (self-hosted on vLLM) are measured; Path 2 (open-weight on Bedrock via LiteLLM) is [fully implemented](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) but has no published run yet. The `mcp-gateway-registry` dataset ships in [benchmarks/dataset/](benchmarks/dataset/mcp-gateway-registry.yaml) so you can reproduce the run; generated artifacts are not committed.
 
-Mean cost per task (x) against mean task score (y), one point per model. For **self-hosted** models with a throughput sweep, cost is **hardware-derived**: the model's blended cost per token (instance $/hr / measured tokens/sec, see [cost-per-task-methodology.md](docs/cost-per-task-methodology.md)) times its *actual* input+output tokens per task, averaged over non-failed tasks. The four **Anthropic** points (Opus-4.8, Sonnet-5, Opus-5, Haiku-4.5) are **real token-metered Bedrock bills**; every self-hosted model now has a throughput sweep, so all of their costs are hardware-derived (no token-priced estimates remain) -- comparable as spend, different in kind. The cost/quality frontier runs **Qwen3-Coder-30B ($0.98 / 30.20) -> Qwen3.6-35B ($1.03 / 50.32) -> MiniMax-M2.5 ($1.16 / 51.56) -> Gemma-4-31B ($3.27 / 51.60) -> DeepSeek-V3.2 ($4.81 / 52.20) -> Kimi-K2.7-Code ($7.93 / 58.68) -> GLM-5.2 ($11.09 / 61.96) -> Claude-Opus-4.8 ($27.14 / 79.12)**. Opus-4.8 is both the **top-quality point and the top of the frontier**: it beats every other model on score at $27.14/task. Everything else is **dominated**: notably **Claude-Opus-5 ($36.15 / 76.00) and Claude-Sonnet-5 ($36.26 / 76.96) are both beaten by Opus-4.8 on score AND cost** -- Opus-4.8 scores higher and costs less than either. Claude-Haiku-4.5 (45.64 at $1.23) is beaten by MiniMax-M2.5 on both axes; Devstral-2-123B ($1.74 / 43.12), Nemotron-Ultra-550B ($1.75 / 50.20), and Qwen3-Coder-480B ($7.43) are dominated too. Qwen3-Coder-Next is omitted (not viable on this node). A model's mean excludes any 0-score failed task (footnote ⁵). Regenerate with `uv run scripts/plot_cost_quality.py` (add `--dark`) from `benchmarks/`.
+> **The example repo is the example, not the contract.** `/swe3` works against any GitHub URL -- clone the target you actually care about, write the task description, and run.
 
-### Results -- 5 tasks x models
+### Results by harness and skill
 
-All cells are task scores (0-100), the mean of the artifact totals per (task x model). These are **`/swe2` runs -- design *and* implementation** (six artifacts: the four design docs plus `patch.diff` + `implementation.md`), scored by the same judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). **Claude-Opus-5, Claude-Opus-4.8, Claude-Sonnet-5, and Claude-Haiku-4.5** are **Path 1** results (Anthropic on Amazon Bedrock); every other column is **Path 3, self-hosted via vLLM** (hardware differs by model size -- see the row under the table). Columns are ordered by mean score. Bold = top score in row. Path 2 (open-weight on Bedrock via LiteLLM) is **built but not yet benchmarked**.
+The same models can be driven by different coding agents (harnesses), and each harness can run more than one SWE skill (`swe2`, the multi-agent skill, vs `swe3`, the single-agent skill) -- token consumption and accuracy differ enough that results are kept per (harness, skill). Each combination has its own generated results document (a running table plus cost-quality and quality-radar charts); the two cross-harness comparison docs put Claude Code and pi head to head per skill.
 
-| Task | Diff. | Opus-4.8⁹ | Sonnet-5⁹ | Opus-5⁹ | GLM-5.2⁶ | Kimi-K2.7 | DeepSeek-V3.2 | MiniMax-M2.5 | Qwen3.6-35B | Nemotron-550B | Gemma-4-31B | Haiku-4.5⁹ | Qwen3-Coder-480B⁷ | Devstral-2-123B | Qwen3-Coder-30B |
-|------|-------|----------:|----------:|--------:|---------:|----------:|--------------:|-------------:|------------:|--------------:|------------:|-----------:|------------------:|----------------:|----------------:|
-| `remove-faiss` | Med | **76.0** | 72.2 | 69.8 | 58.2 | 55.2 | 48.2 | 44.2 | 53.2 | 0.0 ⁵ | n/a¹⁰ | 39.4 | 45.6 | 43.6 | 32.0 |
-| `remove-efs-from-terraform-aws-ecs` | Med | **83.8** | 83.6 | 77.0 | 65.2 | 63.4 | 59.0 | 62.0 | 65.2 | 55.4 | 63.4 | 55.4 | 55.4 | 47.4 | 28.2 |
-| `ssrf-hardening-outbound-url-validation` | Med | 78.6 | **83.0** | 81.2 | 65.2 | 56.4 | 56.4 | 58.2 | 41.6 | 52.4 | 52.6 | 43.4 | 0.0 ⁵ | 51.8 | 0.0 ⁵ |
-| `migrate-ecs-env-vars-to-secrets-manager` | High | **84.4** | 70.4 | 78.6 | 63.2 | 67.6 | 51.2 | 53.6 | 46.4 | 50.0 | 48.0 | 41.4 | 41.0 | 42.8 | 30.8 |
-| `replace-keycloak-db-password-with-rds-iam` | High | 72.8 | **75.6** | 73.4 | 58.0 | 50.8 | 46.2 | 39.8 | 45.2 | 43.0 | 42.4 | 48.6 | 37.8 | 30.0 | 29.8 |
-| **Mean (excl. failed⁵)** | | **79.12** | 76.96 | 76.00 | 61.96 | 58.68 | 52.20 | 51.56 | 50.32 | 50.20 | 51.60 | 45.64 | 44.95 | 43.12 | 30.20 |
+| Skill | Results write-up | Cross-harness comparison | Per-harness generated docs |
+|---|---|---|---|
+| `/swe3` (single-agent) | [results-swe3.md](docs/results-swe3.md) | [comparison](docs/agentic-coding-swe-comparison-swe3.md) | [Claude Code](docs/harness-claude-code-swe3.md) · [pi](docs/harness-pi-swe3.md) |
+| `/swe2` (multi-agent) | [results-swe2.md](docs/results-swe2.md) | [comparison](docs/agentic-coding-swe-comparison-swe2.md) | [Claude Code](docs/harness-claude-code-swe2.md) · [pi](docs/harness-pi-swe2.md) |
 
-The **Mean** row excludes any task that scored 0 -- a genuine model failure (missing artifacts), an unresolved anomaly rather than a quality measurement, so it is left out of the average **pending further investigation** and flagged with `⁵`. Per-task 0.0 cells are still shown so the failure is visible. No-failure (5/5): Opus-4.8, Sonnet-5, Opus-5, Haiku-4.5, GLM-5.2, Kimi-K2.7-Code, DeepSeek-V3.2, MiniMax-M2.5, Qwen3.6-35B, Devstral-2-123B. 4/5 (one failed): Nemotron-550B (`remove-faiss`), Qwen3-Coder-480B (`ssrf`), Qwen3-Coder-30B (`ssrf`). Gemma-4-31B ran 4/4 (`remove-faiss` was not run this pass -- see `¹⁰`).
-
-**Hardware:** Claude-Haiku-4.5 is a **Path 1** (Amazon Bedrock) result like the other Claude models -- no self-hosting. Kimi-K2.7-Code (1.06T-param MoE, ~1 TB weights) ran on **8x H200** (`p5en.48xlarge`) at its full **131,072-token (128K) native context window**; GLM-5.2 (744B MoE / 40B active, ~750 GB FP8 weights, 200K window), MiniMax-M2.5, Qwen3-Coder-480B (480B MoE / 35B active, FP8, TP=4), DeepSeek-V3.2, Nemotron-Ultra-550B, and Devstral-2-123B (123B dense, FP8, ~128 GB, served at **TP=4** -- half the box -- at a 256K window) also ran on **8x H200** (`p5en.48xlarge`); the three smaller Qwen models (3B-active MoE) and Gemma-4-31B (dense, ~63 GB) ran on a single **`g6e.12xlarge`** (4x L40S) at a 200K window. All via vLLM. Gemma-4-31B is dense and slow, so it used a raised per-task timeout (`--timeout-seconds 3600`); the default 1800s was not enough for it to return. Note Kimi's 128K window is below the harness's 200K agentic-coding guideline, yet it completed all 5 tasks with no failures -- two tasks (`ssrf`, `remove-faiss`) hit the max-turns cap (251) at that window but still produced scoreable artifacts, so neither is a context-overflow failure.
-
-⁴ Qwen3-Coder-Next (79.6B, ~160 GB weights) **could not be benchmarked on the `g6e.12xlarge`.** There the weights leave room for only a ~16K context window, but agentic coding tasks need 100K-250K input tokens per request, so every task overflows the window on the first prompt. It needs a larger-VRAM node (e.g. `g6e.48xlarge`) to serve a >=200K window. The `/benchmark` skill enforces a 200K-minimum gate by default as a conservative guideline -- Kimi's 128K run shows a window somewhat below 200K can still work when the tasks fit, but 16K cannot. See [self-hosted/vllm/models/qwen3-coder-next.md](self-hosted/vllm/models/qwen3-coder-next.md).
-
-⁵ **Genuine model failures, scored 0.** On these `/swe2` runs the failures are: Nemotron-Ultra-550B on `remove-faiss`, Qwen3-Coder-480B on `ssrf`, and Qwen3-Coder-30B on `ssrf`. Each failed to produce a scorable artifact set (typically the model exhausted its turn budget on the implementation step without landing edits, so no `patch.diff`). The judge records a missing/empty-artifact folder as a 0 with a `MODEL FAILURE` verdict rather than dropping it. The **Mean** row is over the tasks each model completed, excluding those failures: 5/5 for Opus-4.8, Sonnet-5, Opus-5, Haiku-4.5, GLM-5.2, Kimi-K2.7-Code, DeepSeek-V3.2, MiniMax-M2.5, Qwen3.6-35B, Devstral-2-123B; 4/5 for Nemotron-Ultra-550B, Qwen3-Coder-480B, and Qwen3-Coder-30B; Gemma-4-31B ran 4/4 (`remove-faiss` not run -- see `¹⁰`).
-
-⁶ **GLM-5.2 re-run at the standard 200K window.** GLM-5.2 (`zai-org/GLM-5.2-FP8`, 744B MoE / 40B active, ~750 GB FP8 weights) was served on **8x H200** at a **200K context window** (~$11.09/task, see the cost section) -- the same window the other H200 models use, so it is now apples-to-apples on context (an earlier run used a 300K window and scored 59.20). At 200K it scores **61.96 over 5/5**, ahead of Kimi (58.68) on the same box and the top open-weight model overall.
-
-⁷ **Qwen3-Coder-480B intermittently fails to produce artifacts -- the failure is nondeterministic, not task-specific.** Qwen3-Coder-480B (`Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8`, 480B MoE / 35B active) was served on the **8x H200** node at **TP=4** (a block-FP8 MoE sharding constraint forces TP=4, not 8 -- see [its model guide](self-hosted/vllm/models/qwen3-coder-480b.md)), 200K window. Like the smaller Qwen3-Coder-30B, it periodically explores/edits the repo instead of completing the artifact chain (or exhausts the turn cap), scoring 0 on some tasks. It is a harness-conformance instability of a coder-tuned model, not a serving or context problem.
-
-⁸ *(retired)* Earlier runs of Claude-Opus-5 covered only 4 of the 5 tasks; it has since been re-run over all 5 (mean 76.00), so this caveat no longer applies. All four Anthropic models now carry footnote `⁹`.
-
-⁹ **Claude-Opus-4.8, Claude-Sonnet-5, Claude-Opus-5, and Claude-Haiku-4.5 are Path 1 (Bedrock) results -- their cost is a real metered API bill, not hardware-derived.** All were run through Amazon Bedrock (no self-hosting), so their `$/task` ($27.14, $36.26, $36.15, and $1.23) is the actual token-metered charge (read from each run's `total_cost_usd`), whereas a self-hosted model's `$/task` is `instance $/hr / measured tokens/sec` x tokens (see the cost section). Comparable as "what you would pay," but different in provenance. **Opus-4.8 tops the frontier at $27.14/task -- it out-scores every model AND costs less than both Opus-5 ($36.15) and Sonnet-5 ($36.26), which it dominates on both axes.** The best open-weight model is GLM-5.2 (61.96) at $11.09/task, ahead of Kimi-K2.7-Code (58.68) at ~$8/task. Haiku-4.5 is the cheapest Claude at $1.23/task but scores 45.64 (mid-pack), so it is dominated on cost by MiniMax-M2.5 ($1.16 / 51.56) and sits just off the frontier. (Opus-5's per-task cost equals Opus-4.8's rate but its longer implementations run up more output tokens, so it costs more per task while scoring lower here.)
-
-### Per-model leaderboard (so far)
-
-Mean score is over the tasks each model completed (any 0-score failed task is excluded pending investigation; see the note above). **$/task** is the hardware-derived blended cost (instance $/hr / measured tokens/sec x this run's actual per-task tokens); lower is better.
-
-| Rank | Model | Params (active) | Hardware | Mean score | $/task | Tasks scored |
-|-----:|-------|----------------|----------|-----------:|-------:|-------------:|
-| 1 | Claude-Opus-4.8⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **79.12** | $27.14† | 5/5 |
-| 2 | Claude-Sonnet-5⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **76.96** | $36.26† | 5/5 |
-| 3 | Claude-Opus-5⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **76.00** | $36.15† | 5/5 |
-| 4 | GLM-5.2⁶ | 744B (40B) | 8x H200 | **61.96** | $11.09 | 5/5 |
-| 5 | Kimi-K2.7-Code | 1,058.6B (MoE) | 8x H200 | **58.68** | $7.93 | 5/5 |
-| 6 | DeepSeek-V3.2 | 671B (37B) | 8x H200 | **52.20** | $4.81 | 5/5 |
-| 7 | Gemma-4-31B-it | 31B (dense) | g6e.12xlarge | **51.60** | $3.27 | 4/4¹⁰ |
-| 8 | MiniMax-M2.5 | 230B (10B) | 8x H200 (TP=4) | **51.56** | $1.16 | 5/5 |
-| 9 | Qwen3.6-35B-A3B | 35.9B (3B) | g6e.12xlarge | **50.32** | $1.03 | 5/5 |
-| 10 | Nemotron-Ultra-550B | 550B (dense) | 8x H200 | **50.20** | $1.75 | 4/5 |
-| 11 | Claude-Haiku-4.5⁹ | -- (Bedrock) | Amazon Bedrock (Path 1) | **45.64** | $1.23† | 5/5 |
-| 12 | Qwen3-Coder-480B-A35B-Instruct⁷ | 480B (35B) | 8x H200 (TP=4) | **44.95** | $7.43 | 4/5 |
-| 13 | Devstral-2-123B-Instruct | 123B (dense) | 8x H200 (TP=4) | **43.12** | $1.74 | 5/5 |
-| 14 | Qwen3-Coder-30B-A3B-Instruct | 30.5B (3B) | g6e.12xlarge | **30.20** | **$0.98** | 4/5 |
-| - | Qwen3-Coder-Next | 79.6B (3B) | (needs bigger node) | not viable on g6e.12xlarge | -- | 0 |
-
-† Claude-Opus-5 / Claude-Opus-4.8 / Claude-Sonnet-5 / Claude-Haiku-4.5 `$/task` is a real Bedrock **API bill** (token-metered), not a hardware-derived figure; see footnotes `⁸` and `⁹`. Every self-hosted row is now hardware-derived from a throughput sweep (`instance $/hr / measured tokens-sec` x the run's tokens) -- no token-priced estimates remain.
-
-¹⁰ **Gemma-4-31B ran 4 of the 5 tasks** (`remove-faiss` was not run in this pass), so its 51.60 mean is over those 4 -- not strictly comparable to the 5-task means until it is completed, though it moves Gemma onto the cost/quality frontier at $3.27/task. It is a Path 3 (self-hosted, `g6e.12xlarge`) result; its `$/task` is hardware-derived like the other self-hosted rows.
-
-**Built, not yet benchmarked:** the open-weight Bedrock models via the LiteLLM proxy (Path 2 -- Mistral, …) -- the [proxy path is implemented](benchmarks/docs/path-open-weight-on-bedrock-litellm.md), no run published yet.
-
-### What the data says (so far)
-
-These are early self-hosted numbers on differing hardware; treat them as a starting point, not a final ranking. Cross-path comparisons wait until the Bedrock paths are run.
-
-- **The frontier Anthropic models top the table:** Claude-Opus-4.8 (79.12 over 5/5), Claude-Sonnet-5 (76.96 over 5/5), and Claude-Opus-5 (76.00 over 5/5) lead every self-hosted model by a clear margin -- the best open-weight is GLM-5.2 at 61.96 ($11.09/task, 5/5, re-run at the standard 200K window), just ahead of Kimi-K2.7-Code at 58.68 (~$8/task, 5/5). **Opus-4.8 is the standout: it is the single highest-scoring model AND the top of the cost/quality frontier at $27.14/task -- it dominates both Opus-5 ($36.15) and Sonnet-5 ($36.26), out-scoring them while costing less per task** (its implementations are less verbose, so it emits fewer of the expensive output tokens). The cheapest Claude, Haiku-4.5, lands mid-pack (45.64 over 5/5) at just $1.23/task -- but MiniMax-M2.5 beats it on both score and cost, so it sits just off the frontier.
-- **Qwen3.6-35B is the value story:** on one mid-range GPU node (a single g6e.12xlarge) it scores 50.32 over all 5 tasks with no failures at a **hardware-derived $1.03 per task** -- roughly a median score at a small fraction of the frontier models' cost, and on the cost/quality frontier.
-- **MiniMax-M2.5 is the best quality-per-dollar in the upper-middle:** 51.56 over 5/5 at **$1.16/task** -- it beats the pricier Qwen3-Coder-480B ($7.43) while costing a fraction, anchoring the frontier just above Qwen3.6-35B. Just above it on the frontier sit **Gemma-4-31B** ($3.27/task, 51.60 over 4/4 -- see ¹⁰) and **DeepSeek-V3.2** ($4.81/task, 52.20, hardware-derived after its throughput sweep -- down from the earlier $50.10 token-priced estimate).
-- **The judge is strict, and implementation is harder than design.** These `/swe2` runs score design *and* code; scores in the 30-75 range reflect serviceable artifacts that are often light on specificity, risk-analysis, and a complete implementation. Coder-tuned models (Qwen3-Coder-30B/480B) are the least reliable -- they burn the turn budget implementing instead of completing the artifact set, producing the 0-score failures.
-
-Why MoE economics make self-hosting competitive, how the hardware-derived cost is computed, and the full serving-vs-quality breakdown live in the docs: [cost-per-task methodology](docs/cost-per-task-methodology.md) and the [agentic-coding throughput comparison](docs/agentic-coding-throughput-comparison.md).
-
-> **The example repo is the example, not the contract.** `/swe2` works against any GitHub URL -- clone the target you actually care about, write the task description, and run.
-
-### How the scores are produced (LLM-as-judge rubric)
-
-Each artifact is scored 0-100 by an independent judge session (`codex exec`, `gpt-5.6-sol`, high reasoning effort) against a fixed 4-criterion rubric -- **completeness, correctness, specificity, risk-awareness**, 25 points each. Artifact total = sum of the four; task score = mean of the artifact totals. The judge is calibrated strict (a median artifact scores ~60-70, not 85) and runs read-only against a fresh clone of the target repo so it can check claims against real code. Per-criterion breakdowns and judge notes land at `{model}/{repo}/{task}/eval.json`. Full rubric, calibration, and judge internals: [harness reference](benchmarks/docs/harness-reference.md#the-rubric).
-
-### Quality by dimension (where models are strong or weak)
-
-The single task score hides *how* a model earns it. The radar below breaks the judge's scores out by **rubric criterion** (left -- is the model complete? correct? specific? risk-aware?) and by **artifact** (right -- which deliverable is it best at?). It reads the per-artifact `eval_scores` embedded in each run's `run-summary.json`.
-
-![Radar charts of quality by rubric criterion and by artifact, for the models with per-artifact eval data](docs/images/quality-radar-cc-swe2.png)
-
-The shape is as informative as the size: qwen3.6-35b leads on specificity and its review/testing artifacts; gemma-4-31b is strongest on risk-awareness; the coder-tuned qwen3-coder-30b trails on every axis and collapses on implementation. Every model dips hardest on **implementation** and **correctness** -- landing working code is the hard part. This view currently covers the models whose runs carry the per-artifact breakdown; the rest are being backfilled. Regenerate with `uv run scripts/plot_quality_radar.py` (add `--dark`) from `benchmarks/`.
-
-### Results by harness
-
-The same models can be driven by different coding agents (harnesses), and each harness can run more than one SWE skill (`swe2`, the multi-agent skill, vs `swe3`, the single-agent skill) -- token consumption and accuracy differ enough between skills that results are kept per (harness, skill). Each such combination has its own results document -- one running table of every model benchmarked under that agent and skill, plus its cost-quality and quality-radar charts -- generated from the committed run-summaries by `gen_agent_report.py`. The published numbers below are the `swe2` runs; the cross-agent write-up compares harnesses head to head.
-
-| Harness | Results doc (swe2) | Status |
-|---|---|---|
-| Claude Code | [docs/harness-claude-code-swe2.md](docs/harness-claude-code-swe2.md) | 15 models |
-| pi | [docs/harness-pi-swe2.md](docs/harness-pi-swe2.md) | 4 models |
-| opencode | _coming_ ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) | not yet wired |
-| kiro-cli | _coming_ ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) | not yet wired |
-| _cross-agent comparison_ | [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi |
+opencode ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) and kiro-cli ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) are coming.
 
 ## The three hosting paths
 
@@ -223,7 +138,7 @@ sequenceDiagram
     J-->>H: eval.json (quality scores) merged into metrics.json
 ```
 
-The skill **stops at design**. It does not modify production code, run tests, or open PRs -- whether the design is any good is the downstream evaluation step the judge (or a human) performs on the artifacts. Full mechanics are in the [harness reference](benchmarks/docs/harness-reference.md).
+The `/swe2` and `/swe3` skills land **six artifacts** -- four design docs plus the implemented change (`patch.diff`, `implementation.md`) -- but they do **not** run tests or open PRs; whether the design and code are any good is the downstream evaluation the judge (or a human) performs on the artifacts. Full mechanics are in the [harness reference](benchmarks/docs/harness-reference.md).
 
 > **"SWE" here means software engineering in general -- not [SWE-bench](https://www.swebench.com/), the specific benchmark dataset.** The `/swe` skill lets you run any model against any task in any repo of your choosing. It is a *harness*, not a fixed benchmark set: compare results across models on the same task, or a single model across tasks of varying difficulty.
 
@@ -315,10 +230,11 @@ Where to read more, by topic:
 
 | Document | What it covers |
 |----------|----------------|
+| [docs/results-swe3.md](docs/results-swe3.md) / [docs/results-swe2.md](docs/results-swe2.md) | Full benchmark results per skill: task-by-task tables, per-model leaderboard, cost/quality frontier, hardware, and what the data says. |
 | [docs/vision.md](docs/vision.md) | The north star: a cost-aware harness that routes each task (and each phase) to the right model on the frontier -- frontier / workhorse / budget -- switching automatically. |
 | [benchmarks/README.md](benchmarks/README.md) | The benchmark harness landing page: the three hosting paths, how a run works, and how to reproduce the results above. |
 | [benchmarks/docs/harness-reference.md](benchmarks/docs/harness-reference.md) | Full harness reference: config, the `/swe2` flow, context-window/auto-compaction, and the LLM-as-judge scoring. |
-| [docs/harness-comparison.md](docs/harness-comparison.md) | Claude Code vs pi on the same models and tasks: Claude Code is a few points more accurate, pi is far more token-efficient (and thus faster and, when self-hosting, much cheaper). Living doc, updated as more results land. See the [per-harness results docs](#results-by-harness) for each agent's full table and charts. |
+| [docs/agentic-coding-swe-comparison-swe3.md](docs/agentic-coding-swe-comparison-swe3.md) | Claude Code vs pi on the same models and tasks (per skill): per-metric win tallies, the cost/quality frontier, and hand-authored model-tier buying guidance. Claude Code is a few points more accurate on some models; pi is far more token-efficient (and thus faster and, when self-hosting, cheaper). See the [per-skill results docs](#results-by-harness-and-skill) for each agent's full table and charts. |
 | [benchmarks/docs/path-anthropic-on-bedrock.md](benchmarks/docs/path-anthropic-on-bedrock.md) | Path 1 setup: benchmarking the Anthropic family (Claude Opus/Sonnet/Haiku) directly on Amazon Bedrock. |
 | [benchmarks/docs/path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) | Path 2 setup: open-weight models on Amazon Bedrock through the LiteLLM proxy. |
 | [benchmarks/docs/path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) | Path 3 setup: self-hosting a model on vLLM and pointing the harness at it. |
