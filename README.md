@@ -127,7 +127,7 @@ These are early self-hosted numbers on differing hardware; treat them as a start
 - **MiniMax-M2.5 is the best quality-per-dollar in the upper-middle:** 51.56 over 5/5 at **$1.16/task** -- it beats the pricier Qwen3-Coder-480B ($7.43) while costing a fraction, anchoring the frontier just above Qwen3.6-35B. Just above it on the frontier sit **Gemma-4-31B** ($3.27/task, 51.60 over 4/4 -- see ¹⁰) and **DeepSeek-V3.2** ($4.81/task, 52.20, hardware-derived after its throughput sweep -- down from the earlier $50.10 token-priced estimate).
 - **The judge is strict, and implementation is harder than design.** These `/swe2` runs score design *and* code; scores in the 30-75 range reflect serviceable artifacts that are often light on specificity, risk-analysis, and a complete implementation. Coder-tuned models (Qwen3-Coder-30B/480B) are the least reliable -- they burn the turn budget implementing instead of completing the artifact set, producing the 0-score failures.
 
-Why MoE economics make self-hosting competitive, how the hardware-derived cost is computed, and the full serving-vs-quality breakdown live in the docs: [cost-per-task methodology](docs/cost-per-task-methodology.md) and the [agentic-coding model comparison](docs/agentic-coding-model-comparison.md).
+Why MoE economics make self-hosting competitive, how the hardware-derived cost is computed, and the full serving-vs-quality breakdown live in the docs: [cost-per-task methodology](docs/cost-per-task-methodology.md) and the [agentic-coding throughput comparison](docs/agentic-coding-throughput-comparison.md).
 
 > **The example repo is the example, not the contract.** `/swe2` works against any GitHub URL -- clone the target you actually care about, write the task description, and run.
 
@@ -325,7 +325,7 @@ Where to read more, by topic:
 | [benchmarks/docs/end-to-end-self-hosted-run.md](benchmarks/docs/end-to-end-self-hosted-run.md) | The full manual run-book for an end-to-end self-hosted benchmark. |
 | [self-hosted/vllm/README.md](self-hosted/vllm/README.md) | Standing up a vLLM server: install, tensor parallelism, tool-call parsers, and the serving-config reference. |
 | [self-hosted/vllm/models/](self-hosted/vllm/models/) | Per-model serving guides (HF repo, context window, TP size, tool parser, hardware fit) for every benchmarked model. |
-| [docs/agentic-coding-model-comparison.md](docs/agentic-coding-model-comparison.md) | Serving-economics comparison across models: throughput, saturation, and hardware-derived cost per token / per task. |
+| [docs/agentic-coding-throughput-comparison.md](docs/agentic-coding-throughput-comparison.md) | Serving-economics comparison across models: throughput, saturation, and hardware-derived cost per token / per task. |
 | [docs/cost-per-task-methodology.md](docs/cost-per-task-methodology.md) | How the cost numbers are derived: the two cost lenses, prompt-caching accounting (API vs self-hosted), and why agentic coding is prefill-bound. |
 | [docs/serving-optimization-notes.md](docs/serving-optimization-notes.md) | Portable vLLM serving defaults and why we do not tune the prefill knobs per model. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) / [SECURITY.md](SECURITY.md) / [SUPPORT.md](SUPPORT.md) | How to contribute, report a vulnerability, and get help. |

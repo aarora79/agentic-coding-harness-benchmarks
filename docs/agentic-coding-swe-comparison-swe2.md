@@ -1,6 +1,6 @@
 # Agentic coding: model comparison on /swe2 (quality, tokens, cost)
 
-How every benchmarked model compares as an **agentic coding** engine on real `/swe2` tasks against `mcp-gateway-registry`, under **both harnesses** (Claude Code and pi). Unlike the serving-economics view in [agentic-coding-model-comparison.md](agentic-coding-model-comparison.md) (synthetic throughput sweep), this doc is built from the actual benchmark runs and combines the three axes a buyer trades off -- **quality, tokens, and cost** -- plus wall-clock latency.
+How every benchmarked model compares as an **agentic coding** engine on real `/swe2` tasks against `mcp-gateway-registry`, under **both harnesses** (Claude Code and pi). Unlike the serving-economics view in [agentic-coding-throughput-comparison.md](agentic-coding-throughput-comparison.md) (synthetic throughput sweep), this doc is built from the actual benchmark runs and combines the three axes a buyer trades off -- **quality, tokens, and cost** -- plus wall-clock latency.
 
 Generated from the committed `run-summary.json` files; regenerate with `uv run scripts/gen_swe_comparison.py --skill swe2`. Numbers match the per-harness docs ([Claude Code](harness-claude-code-swe2.md), [pi](harness-pi-swe2.md)) and the charts below exactly.
 

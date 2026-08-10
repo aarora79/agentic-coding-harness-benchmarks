@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the cross-model, cross-harness /swe3 comparison doc.
 
-The swe counterpart to agentic-coding-model-comparison.md (which is throughput/
+The swe counterpart to agentic-coding-throughput-comparison.md (which is throughput/
 serving-economics from the synthetic sweep). This one is built from the REAL
 /swe3 benchmark runs and combines the three axes a buyer trades off -- quality,
 tokens, and cost -- for every model under BOTH harnesses (Claude Code and pi),
@@ -129,7 +129,7 @@ def _render(data_dir: Path, skill: str, repo: str, out_dir: Path) -> str:
         "How every benchmarked model compares as an **agentic coding** engine on "
         f"real `/{skill}` tasks against `{repo}`, under **both harnesses** (Claude "
         "Code and pi). Unlike the serving-economics view in "
-        "[agentic-coding-model-comparison.md](agentic-coding-model-comparison.md) "
+        "[agentic-coding-throughput-comparison.md](agentic-coding-throughput-comparison.md) "
         "(synthetic throughput sweep), this doc is built from the actual benchmark "
         "runs and combines the three axes a buyer trades off -- **quality, tokens, "
         "and cost** -- plus wall-clock latency.",
