@@ -4,7 +4,7 @@ How the throughput skill turns a fixed instance price into a **cost per token** 
 
 ## The starting point: a fixed-cost machine, not a per-token bill
 
-A self-hosted model has **no per-token price**. You rent a GPU instance by the hour (e.g. `g6e.12xlarge` at $6.61/hr on a 1-year Reserved Instance) and it processes whatever tokens it can. So the only honest cost is derived, not quoted:
+A self-hosted model has **no per-token price**. You rent a GPU instance by the hour (e.g. `g6e.12xlarge` at $4.533/hr on a 3-year Reserved Instance) and it processes whatever tokens it can. So the only honest cost is derived, not quoted:
 
 ```
 dollars_per_second = dollars_per_hour / 3600
@@ -67,17 +67,17 @@ The blended lens is just **"how many GPU-seconds did this work occupy, times the
 
 **Why not just pro-rate wall-clock?** Because a single agentic session leaves the GPU idle most of the time. Wall-clock pricing charges you full box price for that idle time and, worse, assumes one user owns the whole box. See the GLM-5.2 worked example below.
 
-#### Worked example: GLM-5.2, 5 SWE tasks on p5en.48xlarge (8xH200, $54.92/hr Capacity Reservation)
+#### Worked example: GLM-5.2, 5 SWE tasks on p5en.48xlarge (8xH200, effective $22.15/hr = on-demand $63.296 x 0.35 discount multiplier)
 
 From the throughput sweep ([throughput/glm-5.2/performance-summary.json](../self-hosted/vllm/benchmark-output/throughput/glm-5.2/performance-summary.json)) and the SWE run ([glm-5.2/pi/swe3/.../run-summary.json](../benchmarks/swe-benchmark-data/glm-5.2/pi/swe3/mcp-gateway-registry/run-summary.json)). The sweep's cheapest sustainable point is **concurrency 5**, where the server sustains **15,679 prompt + 189 decode = 15,867 combined tok/s** and the KV cache is already 100% full. The 5 tasks processed **82,715,292 tokens** (input+output+cache-read+cache-write) over **6,288 wall-clock seconds**.
 
 | Costing method | Calculation | Result | What it assumes |
 |---|---|--:|---|
-| **Blended / GPU-seconds (what we use)** | `82,715,292 / 15,867 = 5,213 s = 1.448 hr; x $54.92` | **$79.53** | box kept busy at c=5 (shared across ~11 concurrent requests) |
-| Wall-clock pro-rate (rejected) | `6,288 s = 1.747 hr; x $54.92` | $95.93 | one user owns the box; idle time billed |
-| GPU-seconds at concurrency 1 (rejected) | `82,715,292 / 7,019 = 3.27 hr; x $54.92` | $179.78 | dedicated box, serial single user |
+| **Blended / GPU-seconds (what we use)** | `82,715,292 / 15,867 = 5,213 s = 1.448 hr; x $22.15` | **$32.08** | box kept busy at c=5 (shared across ~11 concurrent requests) |
+| Wall-clock pro-rate (rejected) | `6,288 s = 1.747 hr; x $22.15` | $38.69 | one user owns the box; idle time billed |
+| GPU-seconds at concurrency 1 (rejected) | `82,715,292 / 7,019 = 3.27 hr; x $22.15` | $72.52 | dedicated box, serial single user |
 
-The $79.53 in the leaderboard is the **c=5** figure. Note it is *lower* than the naive wall-clock estimate ($95.93) — because dividing by measured throughput removes the ~0.3 hr of idle wall-clock (6,288 s elapsed vs 5,213 s of actual token-crunching) the agent spent thinking and tool-calling. And it is far below the c=1 figure ($179.78) — the gap between those two is exactly the amortization concurrency buys. If you cannot actually run the box at c=5 (e.g. you dedicate it to one serial developer), your true cost is nearer $180, not $79.53. Always state the operating point.
+The $32.08 in the leaderboard is the **c=5** figure. Note it is *lower* than the naive wall-clock estimate ($38.69) — because dividing by measured throughput removes the ~0.3 hr of idle wall-clock (6,288 s elapsed vs 5,213 s of actual token-crunching) the agent spent thinking and tool-calling. And it is far below the c=1 figure ($72.52) — the gap between those two is exactly the amortization concurrency buys. If you cannot actually run the box at c=5 (e.g. you dedicate it to one serial developer), your true cost is nearer $73, not $32. Always state the operating point.
 
 ### The trade-off between the lenses
 
@@ -110,17 +110,17 @@ That shape has three consequences:
 
    | c | gen t/s | prompt t/s | TTFT p50 | TTFT p90 | queue p50 | prefill mean | blended $/1M | task $ |
    |--:|--:|--:|--:|--:|--:|--:|--:|--:|
-   | 1 | 145 | 12202 | 2s | 20s | 0s | 4s | 0.15 | 0.23 |
-   | 2 | 114 | 13252 | 1s | 20s | 0s | 3s | 0.14 | 0.21 |
-   | 5 | 87 | 9441 | 2s | 20s | 0s | 3s | 0.20 | 0.30 |
-   | 7 | 111 | 10168 | 5s | 20s | 0s | 3s | 0.18 | 0.28 |
-   | 10 | 103 | 10326 | 5s | 40s | 1s | 3s | 0.18 | 0.27 |
-   | 15 | 109 | 10667 | 8s | 80s | 2s | 3s | 0.17 | 0.26 |
-   | 20 | 134 | 11705 | 5s | 40s | 2s | 2s | 0.16 | 0.24 |
+   | 1 | 145 | 12202 | 2s | 20s | 0s | 4s | 0.10 | 0.16 |
+   | 2 | 114 | 13252 | 1s | 20s | 0s | 3s | 0.10 | 0.14 |
+   | 5 | 87 | 9441 | 2s | 20s | 0s | 3s | 0.14 | 0.21 |
+   | 7 | 111 | 10168 | 5s | 20s | 0s | 3s | 0.12 | 0.19 |
+   | 10 | 103 | 10326 | 5s | 40s | 1s | 3s | 0.12 | 0.19 |
+   | 15 | 109 | 10667 | 8s | 80s | 2s | 3s | 0.12 | 0.18 |
+   | 20 | 134 | 11705 | 5s | 40s | 2s | 2s | 0.11 | 0.16 |
 
    > **Watch the server state when you measure.** An earlier run of this same sweep reported TTFT p50 pegged at the histogram ceiling (>640s) with queue-wait means of ~135-240s. That was **not** the model's true behavior — the server was in a backed-up state (a stale scheduler backlog from prior experimentation): it completed ~7x fewer requests per window (23 vs 171 at c=10) because they sat queued. A clean re-run gave the healthy 1-8s numbers above. The lesson: the c=1 baseline and the queue-vs-prefill split exist precisely to catch this — if the c=1 TTFT is not a small number, or queue-wait dominates prefill at low concurrency, the server is not in a clean state and the run should be discarded.
 
-3. **Report cost on the blended (per processed token) lens.** Generation tok/s alone is a poor headline for an input-heavy workload; blended cost counts prompt + generation, i.e. the work the machine actually does. Blended cost stayed in a tight **$0.14-0.20/1M** band across the whole sweep, cheapest at low concurrency, which is the stable, comparable figure.
+3. **Report cost on the blended (per processed token) lens.** Generation tok/s alone is a poor headline for an input-heavy workload; blended cost counts prompt + generation, i.e. the work the machine actually does. Blended cost stayed in a tight **$0.10-0.14/1M** band across the whole sweep, cheapest at low concurrency, which is the stable, comparable figure.
 
 ## The only lever that lowers self-hosted cost: KV-cache headroom (which trades against context window)
 
@@ -148,7 +148,7 @@ Beyond that per-instance limit, scale **horizontally**: the workload is embarras
 
 ## Summary
 
-- Cost is derived from `instance $/hr / measured tokens/sec` — real, not a quoted price. The formula collapses to **`GPU-seconds x $/second`**: price the tokens by dividing them by *measured throughput*, never by wall-clock (which over-charges idle agent-thinking time and assumes one user owns the box). Worked example: GLM-5.2's 5 SWE tasks cost **$79.53 at c=5**, vs $96 naive wall-clock and $180 at c=1 — the operating point *is* the number, so always state it.
+- Cost is derived from `instance $/hr / measured tokens/sec` — real, not a quoted price. The formula collapses to **`GPU-seconds x $/second`**: price the tokens by dividing them by *measured throughput*, never by wall-clock (which over-charges idle agent-thinking time and assumes one user owns the box). Worked example: GLM-5.2's 5 SWE tasks cost **$32.08 at c=5**, vs $39 naive wall-clock and $73 at c=1 — the operating point *is* the number, so always state it.
 - **Blended** (per processed token, input == output) is the honest primary lens; **split** (`w`-weighted, API-shaped) is a familiar-but-misleading secondary lens for input-heavy work. Caching is already baked into the blended rate (it raises throughput) — do not also discount cache-read tokens per-token, that double-counts.
 - Agentic coding is input-heavy (~50:1 early, ~150-220:1 deep in a session), so the server is prefill-heavy — but on a healthy instance TTFT is a few seconds and degrades gracefully; **report TTFT as p50/p90 (not mean) and decompose queue vs prefill**, and always include a c=1 baseline to catch a backed-up server.
 - **The only lever that lowers self-hosted cost is raising sustained throughput, which on a KV-bound model means more KV headroom — bought by shrinking the context window, at a possible accuracy cost. No free lunch.** Check `kv_cache_usage.peak`: if it pegs at 1.00 at low concurrency (Regime A, e.g. GLM-5.2 on p5en) there is no vertical headroom — right-size the model/window or scale horizontally; if it stays low (Regime B, e.g. qwen3.6-35b on g6e) push concurrency up to your latency budget first.

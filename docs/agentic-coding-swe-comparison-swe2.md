@@ -40,17 +40,17 @@ For each harness: a results table (quality, tokens, run cost + the two normalize
 | claude-opus-4-8 | Bedrock | 79.12 | 5/5 | 150.0M | $135.69 | $27.14 | $1.71 | 178m |
 | claude-sonnet-5 | Bedrock | 76.96 | 5/5 | 370.3M | $181.30 | $36.26 | $2.36 | 277m |
 | claude-opus-5 | Bedrock | 76.00 | 5/5 | 84.9M | $180.73 | $36.15 | $2.38 | 241m |
-| kimi-k2.7-code | self-hosted | 73.69 | 4/5 | 9.0M | $6.51 | $1.63 | $0.09 | 51m |
-| glm-5.2 | self-hosted | 72.75 | 5/5 | 11.6M | $11.11 | $2.22 | $0.15 | 73m |
-| deepseek-v3.2 | self-hosted | 52.20 | 5/5 | 40.9M | $20.87 | $4.17 | $0.40 | 80m |
-| minimax-m2.5 | self-hosted | 51.35 | 5/5 | 6.3M | $0.92 | $0.18 | $0.02 | 10m |
-| qwen3.6-35b | self-hosted | 50.32 | 5/5 | 23.5M | $3.23 | $0.65 | $0.06 | 88m |
-| nemotron-ultra-550b | self-hosted | 50.20 | 4/5 | 32.8M | $12.45 | $3.11 | $0.25 | 70m |
-| gemma-4-31b | self-hosted | 48.40 | 5/5 | 24.8M | $11.40 | $2.28 | $0.24 | 213m |
+| kimi-k2.7-code | self-hosted | 73.69 | 4/5 | 9.0M | $2.63 | $0.66 | $0.04 | 51m |
+| glm-5.2 | self-hosted | 72.75 | 5/5 | 11.6M | $4.48 | $0.90 | $0.06 | 73m |
+| deepseek-v3.2 | self-hosted | 52.20 | 5/5 | 40.9M | $8.42 | $1.68 | $0.16 | 80m |
+| minimax-m2.5 | self-hosted | 51.35 | 5/5 | 6.3M | $0.37 | $0.07 | $0.01 | 10m |
+| qwen3.6-35b | self-hosted | 50.32 | 5/5 | 23.5M | $2.22 | $0.44 | $0.04 | 88m |
+| nemotron-ultra-550b | self-hosted | 50.20 | 4/5 | 32.8M | $5.02 | $1.25 | $0.10 | 70m |
+| gemma-4-31b | self-hosted | 48.40 | 5/5 | 24.8M | $7.81 | $1.56 | $0.16 | 213m |
 | claude-haiku-4-5 | Bedrock | 45.64 | 5/5 | 20.5M | $6.15 | $1.23 | $0.13 | 22m |
-| qwen3-coder-480b | self-hosted | 44.95 | 4/5 | 66.2M | $30.96 | $7.74 | $0.69 | 68m |
-| devstral-2-123b | self-hosted | 43.12 | 5/5 | 28.1M | $7.55 | $1.51 | $0.18 | 51m |
-| qwen3-coder-30b | self-hosted | 30.20 | 4/5 | 50.7M | $4.65 | $1.16 | $0.15 | 84m |
+| qwen3-coder-480b | self-hosted | 44.95 | 4/5 | 66.2M | $12.49 | $3.12 | $0.28 | 68m |
+| devstral-2-123b | self-hosted | 43.12 | 5/5 | 28.1M | $3.05 | $0.61 | $0.07 | 51m |
+| qwen3-coder-30b | self-hosted | 30.20 | 4/5 | 50.7M | $3.19 | $0.80 | $0.11 | 84m |
 | qwen3-coder-next | self-hosted | -- (0 scored) | 0/1 | 0 | -- | -- | -- | 3m |
 
 Cost vs. accuracy (Claude Code) -- bubble area = tokens processed, color = hosting (Bedrock vs self-hosted):
@@ -62,9 +62,9 @@ Cost vs. accuracy (Claude Code) -- bubble area = tokens processed, color = hosti
 | Model | Hosting | Mean score | Completed | Tokens processed | Run cost | Cost/task | Cost/point | Wall-clock |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | claude-opus-5 | Bedrock | 77.00 | 5/5 | 58.6M | $46.56 | $9.31 | $0.60 | 98m |
-| qwen3.6-35b | self-hosted | 47.15 | 4/5 | 28.0M | $3.85 | $0.96 | $0.08 | 29m |
-| gemma-4-31b | self-hosted | 43.52 | 5/5 | 19.6M | $9.00 | $1.80 | $0.21 | 61m |
-| qwen3-coder-30b | self-hosted | -- (0 scored) | 0/5 | 13.2M | $1.21 | -- | -- | 17m |
+| qwen3.6-35b | self-hosted | 47.15 | 4/5 | 28.0M | $2.64 | $0.66 | $0.06 | 29m |
+| gemma-4-31b | self-hosted | 43.52 | 5/5 | 19.6M | $6.17 | $1.23 | $0.14 | 61m |
+| qwen3-coder-30b | self-hosted | -- (0 scored) | 0/5 | 13.2M | $0.83 | -- | -- | 17m |
 
 Cost vs. accuracy (pi) -- bubble area = tokens processed, color = hosting (Bedrock vs self-hosted):
 
@@ -75,8 +75,8 @@ Cost vs. accuracy (pi) -- bubble area = tokens processed, color = hosting (Bedro
 A practical way to read the tables: pick the cheapest model whose quality clears the bar your task needs. Costs below are **per task** (one real `/swe2` problem; a run is 5 tasks). Numbers are from the **pi** column -- the single-agent shape a developer drives at the terminal. Remember the two cost bases are not comparable as raw dollars (Bedrock is a metered bill; self-hosted is hardware-derived) -- see the methodology doc.
 
 - **Top-quality tier (hard / high-stakes changes): `claude-opus-5`** -- highest score (77/100) at $9.31/task. Reach for it on security-sensitive, cross-cutting, or get-it-right-the-first-time work where a wrong design is expensive. You pay the most, but accuracy is the most.
-- **Open-weight workhorse (bulk of day-to-day coding): `qwen3.6-35b`** -- best self-hosted quality (47/100) at $0.96/task. Strong on real refactors and features; the model to standardize on if you self-host and route most tickets to one engine.
-- **Budget tier (routine / high-volume edits): `gemma-4-31b`** -- cheapest full 5/5 run at $1.80/task (score 44/100). Good for boilerplate, small fixes, and throwaway scaffolding where you will review the output anyway.
+- **Open-weight workhorse (bulk of day-to-day coding): `qwen3.6-35b`** -- best self-hosted quality (47/100) at $0.66/task. Strong on real refactors and features; the model to standardize on if you self-host and route most tickets to one engine.
+- **Budget tier (routine / high-volume edits): `gemma-4-31b`** -- cheapest full 5/5 run at $1.23/task (score 44/100). Good for boilerplate, small fixes, and throwaway scaffolding where you will review the output anyway.
 - **Reliability flag:** `qwen3.6-35b` (4/5), `qwen3-coder-30b` (0/5) did **not** finish every task under pi -- cheap per task, but a non-completion is a failure, not a discount. Do not route unattended work to a model that does not reliably finish.
 
 ## Does the harness change the answer? (pi vs Claude Code)
