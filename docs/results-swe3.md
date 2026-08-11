@@ -11,9 +11,12 @@ The headline numbers below are the **pi** harness (the single-agent shape a deve
 Two **non-comparable** cost bases share the cost column:
 
 - **metered (Bedrock)** -- a hosted API's real per-token bill, summed over the run. Benefits from Bedrock prompt caching.
-- **hardware-derived (self-hosted)** -- a rented GPU has no per-token bill, so cost is the model's blended `$/token` (instance `$/hr / measured tokens/sec` from the throughput sweep) times the tokens the run processed. On-demand pricing.
+- **hardware-derived (self-hosted)** -- a rented GPU has no per-token bill, so cost is the model's blended `$/token` (instance `$/hr / measured tokens/sec` from the throughput sweep) times the tokens the run processed. Configurable pricing: p5en on-demand with a 0.35 placeholder discount (pay 65%), g6e 3-year Reserved Instance.
 
 Compare **within** a hosting basis; treat cross-hosting dollars as order-of-magnitude, not exact. Full treatment: [cost-per-task-methodology.md](cost-per-task-methodology.md).
+
+> [!IMPORTANT]
+> **The p5en 35% discount is a PLACEHOLDER.** Self-hosted rates are configurable in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json): g6e uses its **3-year RI rate**; p5en uses **on-demand with a 0.35 placeholder `discount`** (35% off = pay 65% -> $41.14/hr). Set your own committed/negotiated discount there and every self-hosted cost rescales linearly.
 
 ## The tasks
 
@@ -29,7 +32,7 @@ Compare **within** a hosting basis; treat cross-hosting dollars as order-of-magn
 
 ![Cost vs. quality scatter for the pi harness on /swe3, with the cost/quality frontier highlighted](images/cost-quality-pi-swe3.png)
 
-Mean cost per task (x) against mean task score (y), one point per model, pi harness. Anthropic points are **real token-metered Bedrock bills**; self-hosted points are **hardware-derived** (see the cost basis above). Because the two bases are not comparable as raw dollars, the honest frontier is taken **within each hosting basis** -- but if you force a single cross-hosting frontier it runs **claude-haiku-4-5 ($0.64 / 47.1) -> qwen3.6-35b ($2.00 / 52.3) -> claude-sonnet-5 ($3.81 / 66.5) -> claude-opus-5 ($8.28 / 75.7)**. Bedrock's Anthropic ladder dominates almost every slot; **`qwen3.6-35b` is the lone open-weight model on the combined frontier** (with a 4/5 reliability asterisk). Machine-readable frontier: [metrics/pareto-frontier-pi-swe3.json](metrics/pareto-frontier-pi-swe3.json). Regenerate with `uv run scripts/plot_cost_quality.py --harness pi --skill swe3` (add `--dark`) from `benchmarks/`.
+Mean cost per task (x) against mean task score (y), one point per model, pi harness. Anthropic points are **real token-metered Bedrock bills**; self-hosted points are **hardware-derived** (see the cost basis above). Because the two bases are not comparable as raw dollars, the honest frontier is taken **within each hosting basis** -- but if you force a single cross-hosting frontier it runs **qwen3-coder-30b ($0.31 / 26.9, 2/5) -> claude-haiku-4-5 ($0.64 / 47.1) -> qwen3.6-35b ($0.87 / 52.3) -> deepseek-v3.2 ($3.40 / 54.4) -> claude-sonnet-5 ($3.81 / 66.5) -> claude-opus-5 ($8.28 / 75.7)**. The cheap open-weight models plus deepseek-v3.2 hold the low-to-mid frontier; the Anthropic ladder holds the top. Machine-readable frontier: [metrics/pareto-frontier-pi-swe3.json](metrics/pareto-frontier-pi-swe3.json). Regenerate with `uv run scripts/plot_cost_quality.py --harness pi --skill swe3` (add `--dark`) from `benchmarks/`.
 
 ## Results -- 5 tasks x models (pi harness)
 
@@ -61,28 +64,28 @@ All cells are task scores (0-100), the mean of the artifact totals per (task x m
 | Rank | Model | Hosting | Mean score | $/task | Completed |
 |-----:|-------|---------|-----------:|-------:|----------:|
 | 1 | claude-opus-5 | Bedrock | **75.72** | $8.28† | 5/5 |
-| 2 | glm-5.2 | self-hosted | **70.76** | $18.33 | 5/5 |
+| 2 | glm-5.2 | self-hosted | **70.76** | $11.92 | 5/5 |
 | 3 | claude-sonnet-5 | Bedrock | **66.52** | $3.81† | 5/5 |
 | 4 | claude-opus-4-8 | Bedrock | **60.68** | $4.60† | 5/5 |
-| 5 | kimi-k2.7-code | self-hosted | **60.68** | $16.98 | 5/5 |
-| 6 | nemotron-ultra-550b | self-hosted | **55.20** | $12.01 | 5/5 |
-| 7 | deepseek-v3.2 | self-hosted | **54.44** | $5.23 | 5/5 |
-| 8 | qwen3.6-35b | self-hosted | **52.30** | $2.00 | 4/5 |
-| 9 | devstral-2-123b | self-hosted | **47.64** | $2.32 | 5/5 |
+| 5 | kimi-k2.7-code | self-hosted | **60.68** | $11.04 | 5/5 |
+| 6 | nemotron-ultra-550b | self-hosted | **55.20** | $7.81 | 5/5 |
+| 7 | deepseek-v3.2 | self-hosted | **54.44** | $3.40 | 5/5 |
+| 8 | qwen3.6-35b | self-hosted | **52.30** | $0.87 | 4/5 |
+| 9 | devstral-2-123b | self-hosted | **47.64** | $1.51 | 5/5 |
 | 10 | claude-haiku-4-5 | Bedrock | **47.12** | $0.64† | 5/5 |
-| 11 | minimax-m2.5 | self-hosted | **45.08** | $1.44 | 5/5 |
-| 12 | qwen3-coder-480b | self-hosted | **43.96** | $9.56 | 5/5 |
-| 13 | gemma-4-31b | self-hosted | **42.96** | $4.79 | 5/5 |
-| 14 | qwen3-coder-30b | self-hosted | **26.90** | $0.73 | 2/5 |
+| 11 | minimax-m2.5 | self-hosted | **45.08** | $0.94 | 5/5 |
+| 12 | qwen3-coder-480b | self-hosted | **43.96** | $6.21 | 5/5 |
+| 13 | gemma-4-31b | self-hosted | **42.96** | $2.07 | 5/5 |
+| 14 | qwen3-coder-30b | self-hosted | **26.90** | $0.31 | 2/5 |
 
 † Bedrock `$/task` is a real token-metered API bill, not hardware-derived. Machine-readable: [metrics/pareto-frontier-pi-swe3.json](metrics/pareto-frontier-pi-swe3.json) and [metrics/harness-delta-swe3.json](metrics/harness-delta-swe3.json).
 
 ## What the data says
 
 - **claude-opus-5 tops quality (75.7), and under pi it is also the cost/latency leader for its tier** -- it beats its own Claude Code run on every axis (higher score, one-third the cost, half the wall-clock). See the harness comparison for why.
-- **glm-5.2 is the best open-weight model (70.8)** and the self-hosted quality anchor -- but at $18.33/task on a full 8x H200 box it is expensive per task; on the *combined* cross-hosting frontier it is actually **dominated by claude-opus-5**, which scores higher for less than half the cost.
+- **glm-5.2 is the best open-weight model (70.8)** and the self-hosted quality anchor -- at $11.92/task on a full 8x H200 box it is dominated on the combined frontier by claude-opus-5 (higher score, lower cost); its standing swings with the configurable GPU discount (see cost basis note).
 - **qwen3.6-35b is the value story and the lone open-weight survivor of the combined frontier:** 52.3 at ~$2/task on a single mid-range g6e node, holding the gap between Bedrock's haiku and sonnet-5. Reliability asterisk: it completed 4/5 (failed `remove-faiss`), so it is a frontier point to watch, not a set-and-forget workhorse.
-- **deepseek-v3.2 is the reliable self-hosted workhorse:** 54.4 at $5.23/task, 5/5, roughly three-quarters of glm-5.2's quality for under a third of the cost.
+- **deepseek-v3.2 is the reliable self-hosted workhorse:** 54.4 at $3.40/task, 5/5, roughly three-quarters of glm-5.2's quality for under a third of the cost -- and non-dominated on the combined frontier.
 - **Implementation is the hard part.** These `/swe3` runs score design *and* code; coder-tuned models (qwen3-coder-30b/480b) are the least reliable, burning the turn budget implementing instead of completing the artifact set -- qwen3-coder-30b failed 3 of 5.
 
 For the full model-tier guidance (premium / open-weight / value / most-cost-effective, and which harness to use), see the **[cross-harness comparison](agentic-coding-swe-comparison-swe3.md)**.
@@ -101,7 +104,7 @@ Every model dips hardest on **implementation** and **correctness** -- landing wo
 - **8x H200 (`p5en.48xlarge`):** glm-5.2, kimi-k2.7-code, nemotron-ultra-550b, deepseek-v3.2, qwen3-coder-480b (TP=4), devstral-2-123b (TP=4).
 - **`g6e.12xlarge` (4x L40S):** qwen3.6-35b, minimax-m2.5, gemma-4-31b, qwen3-coder-30b.
 
-All self-hosted via vLLM. Per-model serving guides: [self-hosted/vllm/models/](../self-hosted/vllm/models/). Instance rates: [self-hosted/vllm/pricing.json](../self-hosted/vllm/pricing.json) (us-east-1 on-demand).
+All self-hosted via vLLM. Per-model serving guides: [self-hosted/vllm/models/](../self-hosted/vllm/models/). Instance rates: [self-hosted/vllm/pricing.json](../self-hosted/vllm/pricing.json) (us-east-1; p5en on-demand with a 0.35 placeholder `discount` = pay 65% -> $41.14/hr, g6e 3-year RI $4.533/hr; both configurable).
 
 ## Reproduce
 

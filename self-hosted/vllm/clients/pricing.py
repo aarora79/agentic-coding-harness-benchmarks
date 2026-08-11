@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 """Single-source EC2 pricing lookup for cost-per-token / cost-per-task math.
 
-Reads ``self-hosted/vllm/pricing.json`` (verified AWS Price List API rates) so no
-script hardcodes a dollar figure. A model served with tensor parallelism below
-the instance's GPU count uses only part of the box, so its effective hourly rate
-is ``dollars_per_hour * tp / gpus_per_instance`` -- e.g. a TP=4 model on an
-8-GPU p5en.48xlarge is charged half the instance.
+Reads ``self-hosted/vllm/pricing.json`` so no script hardcodes a dollar figure.
+The effective hourly rate a run is charged is
+``dollars_per_hour * (1 - discount)``, then further prorated by
+``tp / gpus_per_instance`` when a model is served with tensor parallelism below
+the instance's GPU count (it uses only part of the box) -- e.g. a TP=4 model on
+an 8-GPU p5en.48xlarge is charged half the (discounted) instance rate.
+
+``discount`` is the FRACTIONAL DISCOUNT off the base rate: 0.35 means
+a 35% discount (pay 65% of ``dollars_per_hour``), 0.0 means no discount. It lets
+us keep an on-demand base on record while pricing runs at a committed/negotiated
+discount (e.g. p5en on-demand with a 0.35 placeholder discount); where the base
+already reflects the target (e.g. g6e at its 3-year RI rate) it is 0.0.
 
 Usage:
     from pricing import resolve, instance_hourly
-    rate = resolve("p5en.48xlarge", tp=4)   # half-box effective $/hr
-    full = instance_hourly("g6e.12xlarge")  # whole-instance $/hr
+    rate = resolve("p5en.48xlarge", tp=4)   # half-box effective $/hr (discounted)
+    full = instance_hourly("g6e.12xlarge")  # whole-instance effective $/hr
 """
 
 from __future__ import annotations
@@ -35,18 +42,8 @@ def _load() -> dict:
     return json.loads(_PRICING_PATH.read_text(encoding="utf-8"))
 
 
-def instance_hourly(instance_type: str) -> float:
-    """Return the whole-instance on-demand $/hr for ``instance_type``.
-
-    Args:
-        instance_type: e.g. ``g6e.12xlarge`` or ``p5en.48xlarge``.
-
-    Returns:
-        Dollars per hour for the full instance.
-
-    Raises:
-        PricingError: If the instance type is not in pricing.json.
-    """
+def _entry(instance_type: str) -> dict:
+    """Return the pricing.json entry for ``instance_type`` or raise."""
     instances = _load().get("instances", {})
     entry = instances.get(instance_type)
     if entry is None:
@@ -54,7 +51,37 @@ def instance_hourly(instance_type: str) -> float:
             f"instance '{instance_type}' not in pricing.json "
             f"(have: {sorted(instances)}). Add it there, do not hardcode a rate."
         )
-    return float(entry["dollars_per_hour"])
+    return entry
+
+
+def _effective_full(entry: dict) -> float:
+    """Whole-instance effective $/hr = base dollars_per_hour x (1 - discount).
+
+    ``discount`` is the fractional discount off the base rate: 0.35
+    means a 35% discount, i.e. you pay 65% of ``dollars_per_hour``. 0.0 means no
+    discount (pay the full base rate).
+    """
+    base = float(entry["dollars_per_hour"])
+    discount = float(entry.get("discount", 0.0))
+    return base * (1.0 - discount)
+
+
+def instance_hourly(instance_type: str) -> float:
+    """Return the whole-instance effective $/hr for ``instance_type``.
+
+    Effective = ``dollars_per_hour * (1 - discount)`` (the discount lets us
+    keep an on-demand base on record while charging a committed-capacity rate).
+
+    Args:
+        instance_type: e.g. ``g6e.12xlarge`` or ``p5en.48xlarge``.
+
+    Returns:
+        Effective dollars per hour for the full instance.
+
+    Raises:
+        PricingError: If the instance type is not in pricing.json.
+    """
+    return _effective_full(_entry(instance_type))
 
 
 def resolve(instance_type: str, tp: int | None = None) -> float:
@@ -75,14 +102,8 @@ def resolve(instance_type: str, tp: int | None = None) -> float:
     Raises:
         PricingError: If the instance type is not in pricing.json.
     """
-    instances = _load().get("instances", {})
-    entry = instances.get(instance_type)
-    if entry is None:
-        raise PricingError(
-            f"instance '{instance_type}' not in pricing.json "
-            f"(have: {sorted(instances)}). Add it there, do not hardcode a rate."
-        )
-    full = float(entry["dollars_per_hour"])
+    entry = _entry(instance_type)
+    full = _effective_full(entry)
     gpus = int(entry.get("gpus_per_instance") or 0)
     if tp is None or gpus <= 0 or tp >= gpus:
         return full
