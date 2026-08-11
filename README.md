@@ -60,7 +60,9 @@ To show what the harness produces, we ran it against [agentic-community/mcp-gate
 
 ![Cost vs. quality Pareto frontier, pi harness on /swe3](docs/images/cost-quality-pi-swe3.png)
 
-**claude-opus-5** tops quality (75.7/100) and, under pi, leads its tier on cost and latency too. **glm-5.2** is the best open-weight model (70.8). Costs come in two non-comparable bases -- a **metered Bedrock bill** for the Anthropic models and a **hardware-derived** figure for self-hosted models -- so the honest frontier is taken within each hosting basis; force them onto one axis and Bedrock's Anthropic ladder (haiku -> sonnet-5 -> opus-5) dominates, with **qwen3.6-35b** the lone open-weight survivor. The full story -- task-by-task tables, per-model leaderboard, hardware, footnotes, the cost methodology, and the model-tier buying guidance -- is split by skill:
+> **What is a Pareto frontier, and what does it mean here?** The frontier is the set of models where **no other model is both higher-scoring _and_ cheaper**. Those are the only models worth considering; everything else is *dominated* -- some frontier model beats it on both axes, so there is never a reason to pick it. Concrete example from this chart: **`glm-5.2` (71/100, $11.92/task) is dominated by `claude-opus-5` (76/100, $8.28/task)** -- opus-5 scores *higher* and costs *less*, so glm-5.2 is off the frontier. Reading it is a two-step decision: pick the quality level your task needs on the y-axis, then take the **leftmost (cheapest) model on the frontier at that level**. (Costs come in two non-comparable bases -- metered Bedrock bills vs hardware-derived self-hosted figures -- so we also draw the honest frontier *within* each hosting basis; see the results docs.)
+
+**claude-opus-5** tops quality (75.7/100); **glm-5.2** is the best open-weight model (70.8). The full story -- task-by-task tables, per-model leaderboard, hardware, footnotes, the cost methodology, and the model-tier buying guidance -- is split by skill:
 
 - **[Results -- /swe3 (single-agent)](docs/results-swe3.md)** -- the primary results view (pi harness), 14 models.
 - **[Results -- /swe2 (multi-agent)](docs/results-swe2.md)** -- the multi-agent skill (Claude Code harness), 14 models.
@@ -161,6 +163,45 @@ A dataset is a single YAML file: a metadata header plus a list of tasks, each po
 - [mcp-gateway-registry.yaml](benchmarks/dataset/mcp-gateway-registry.yaml) -- the reference dataset, whose tasks are drawn from real upstream issues in [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry).
 
 **Nothing in the harness is specific to a particular repository.** Adding your own benchmark dataset is just writing another YAML file in the same format -- point tasks at any public repo and pinned ref. The dataset format is documented in the [harness reference](benchmarks/docs/harness-reference.md#the-dataset).
+
+### Benchmark your own code repositories
+
+The whole point is to measure models on **work that looks like yours**, not our example repo. To do that, write a dataset YAML pointing at your repos and run it -- the models, harnesses, judge, and cost math are identical.
+
+1. **Create a dataset file** under [benchmarks/dataset/](benchmarks/dataset/), e.g. `my-team.yaml`. Copy [mcp-gateway-registry.yaml](benchmarks/dataset/mcp-gateway-registry.yaml) as a template. Minimal shape:
+
+   ```yaml
+   schema_version: "1.0"
+   name: my-team
+   title: My team's benchmark
+   description: Real tasks from our own repositories.
+   default_ref: main                      # pin a tag/commit per task for reproducibility
+   metrics: [input_tokens, output_tokens, num_turns]
+   complexity_levels: [low, medium, high]
+   tasks:
+     - id: add-rate-limiting-to-gateway
+       repo: https://github.com/your-org/your-repo
+       ref: v2.3.0                         # pin so every run clones the same code
+       complexity: medium
+       tags: [python, api, feature]
+       problem_statement: |
+         Describe the task in enough detail for an agent to act on it without
+         you present -- what to change, constraints, and what "done" means.
+   ```
+
+   Each task points at a repo + pinned ref + a problem statement (from a real ticket or issue). Full field reference: [harness reference -> The dataset](benchmarks/docs/harness-reference.md#the-dataset). Any repo the runner can `git clone` works (public, or private with credentials available to your shell).
+
+2. **Run it** against whichever model/harness/path you want -- same commands as the example, just swap the dataset:
+
+   ```
+   /benchmark provider=bedrock model=claude-opus-5 dataset=dataset/my-team.yaml
+   ```
+
+   or headless: `benchmarks/scripts/run-e2e-benchmark.sh --provider bedrock --model ... --dataset dataset/my-team.yaml`. Pick the harness with `--agent claude|pi` and the skill with `--skill swe2|swe3`.
+
+3. **Read your results.** Artifacts and scores land under `benchmarks/swe-benchmark-data/<model>/<harness>/<skill>/<your-dataset-repo>/<task>/`, and the same generators build your own cost/quality frontier (`gen_swe_comparison.py`, `plot_cost_quality.py`). Your runs are gitignored, so a customer's private code never lands in version control.
+
+> **Tips for good tasks:** pin a `ref` so reruns are comparable; write the `problem_statement` like a well-scoped ticket; use `tags` to slice results by language/domain/change-type; and add optional `ground_truth` (reviewer-only, never shown to the agent) if you want the judge to check against a known-good approach.
 
 ## Prerequisites
 
