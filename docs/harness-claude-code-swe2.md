@@ -9,16 +9,16 @@ Benchmark results for every model run under the **Claude Code** coding agent wit
 | claude-opus-4-8 | 79.12 | 5/5 | 29,721 | 743,666 | 147,727,073 | 1,463,549 | 149,964,009 | 178.1m | $135.69 | metered (Bedrock) |
 | claude-sonnet-5 | 76.96 | 5/5 | 27,739 | 1,062,850 | 366,969,078 | 2,191,148 | 370,250,815 | 276.7m | $181.30 | metered (Bedrock) |
 | claude-opus-5 | 76.00 | 5/5 | 47,618 | 653,865 | 82,266,236 | 1,978,386 | 84,946,105 | 241.1m | $180.73 | metered (Bedrock) |
-| kimi-k2.7-code | 73.69 | 4/5 | 8,896,632 | 122,386 | 0 | 0 | 9,019,018 | 51.2m | $2.63 | hardware-derived (p5en.48xlarge) |
-| glm-5.2 | 72.75 | 5/5 | 11,352,314 | 205,272 | 0 | 0 | 11,557,586 | 73.2m | $4.48 | hardware-derived (p5en.48xlarge) |
-| deepseek-v3.2 | 52.20 | 5/5 | 40,665,827 | 250,576 | 0 | 0 | 40,916,403 | 80.3m | $8.42 | hardware-derived (p5en.48xlarge) |
-| minimax-m2.5 | 51.35 | 5/5 | 6,194,113 | 61,230 | 0 | 0 | 6,255,343 | 10.1m | $0.37 | hardware-derived (p5en.48xlarge) |
+| kimi-k2.7-code | 73.69 | 4/5 | 8,896,632 | 122,386 | 0 | 0 | 9,019,018 | 51.2m | $4.88 | hardware-derived (p5en.48xlarge) |
+| glm-5.2 | 72.75 | 5/5 | 11,352,314 | 205,272 | 0 | 0 | 11,557,586 | 73.2m | $8.32 | hardware-derived (p5en.48xlarge) |
+| deepseek-v3.2 | 52.20 | 5/5 | 40,665,827 | 250,576 | 0 | 0 | 40,916,403 | 80.3m | $15.63 | hardware-derived (p5en.48xlarge) |
+| minimax-m2.5 | 51.35 | 5/5 | 6,194,113 | 61,230 | 0 | 0 | 6,255,343 | 10.1m | $0.69 | hardware-derived (p5en.48xlarge) |
 | qwen3.6-35b | 50.32 | 5/5 | 23,331,803 | 209,391 | 0 | 0 | 23,541,194 | 88.4m | $2.22 | hardware-derived (g6e.12xlarge) |
-| nemotron-ultra-550b | 50.20 | 4/5 | 32,598,732 | 204,053 | 0 | 0 | 32,802,785 | 70.2m | $5.02 | hardware-derived (p5en.48xlarge) |
+| nemotron-ultra-550b | 50.20 | 4/5 | 32,598,732 | 204,053 | 0 | 0 | 32,802,785 | 70.2m | $9.32 | hardware-derived (p5en.48xlarge) |
 | gemma-4-31b | 48.40 | 5/5 | 24,682,418 | 160,182 | 0 | 0 | 24,842,600 | 213.0m | $7.81 | hardware-derived (g6e.12xlarge) |
 | claude-haiku-4-5 | 45.64 | 5/5 | 293 | 137,405 | 19,785,473 | 580,026 | 20,503,197 | 21.6m | $6.15 | metered (Bedrock) |
-| qwen3-coder-480b | 44.95 | 4/5 | 66,047,338 | 186,498 | 0 | 0 | 66,233,836 | 68.2m | $12.49 | hardware-derived (p5en.48xlarge) |
-| devstral-2-123b | 43.12 | 5/5 | 27,990,077 | 128,406 | 0 | 0 | 28,118,483 | 50.6m | $3.05 | hardware-derived (p5en.48xlarge) |
+| qwen3-coder-480b | 44.95 | 4/5 | 66,047,338 | 186,498 | 0 | 0 | 66,233,836 | 68.2m | $23.20 | hardware-derived (p5en.48xlarge) |
+| devstral-2-123b | 43.12 | 5/5 | 27,990,077 | 128,406 | 0 | 0 | 28,118,483 | 50.6m | $5.66 | hardware-derived (p5en.48xlarge) |
 | qwen3-coder-30b | 30.20 | 4/5 | 50,532,008 | 193,911 | 0 | 0 | 50,725,919 | 84.2m | $3.19 | hardware-derived (g6e.12xlarge) |
 | qwen3-coder-next | -- (0 scored) | 0/1 | 0 | 0 | 0 | 0 | 0 | 3.1m | -- | hardware-derived |
 

@@ -40,16 +40,16 @@ For each harness: a results table (quality, tokens, run cost + the two normalize
 | claude-opus-4-8 | Bedrock | 79.12 | 5/5 | 150.0M | $135.69 | $27.14 | $1.71 | 178m |
 | claude-sonnet-5 | Bedrock | 76.96 | 5/5 | 370.3M | $181.30 | $36.26 | $2.36 | 277m |
 | claude-opus-5 | Bedrock | 76.00 | 5/5 | 84.9M | $180.73 | $36.15 | $2.38 | 241m |
-| kimi-k2.7-code | self-hosted | 73.69 | 4/5 | 9.0M | $2.63 | $0.66 | $0.04 | 51m |
-| glm-5.2 | self-hosted | 72.75 | 5/5 | 11.6M | $4.48 | $0.90 | $0.06 | 73m |
-| deepseek-v3.2 | self-hosted | 52.20 | 5/5 | 40.9M | $8.42 | $1.68 | $0.16 | 80m |
-| minimax-m2.5 | self-hosted | 51.35 | 5/5 | 6.3M | $0.37 | $0.07 | $0.01 | 10m |
+| kimi-k2.7-code | self-hosted | 73.69 | 4/5 | 9.0M | $4.88 | $1.22 | $0.07 | 51m |
+| glm-5.2 | self-hosted | 72.75 | 5/5 | 11.6M | $8.32 | $1.66 | $0.11 | 73m |
+| deepseek-v3.2 | self-hosted | 52.20 | 5/5 | 40.9M | $15.63 | $3.13 | $0.30 | 80m |
+| minimax-m2.5 | self-hosted | 51.35 | 5/5 | 6.3M | $0.69 | $0.14 | $0.01 | 10m |
 | qwen3.6-35b | self-hosted | 50.32 | 5/5 | 23.5M | $2.22 | $0.44 | $0.04 | 88m |
-| nemotron-ultra-550b | self-hosted | 50.20 | 4/5 | 32.8M | $5.02 | $1.25 | $0.10 | 70m |
+| nemotron-ultra-550b | self-hosted | 50.20 | 4/5 | 32.8M | $9.32 | $2.33 | $0.19 | 70m |
 | gemma-4-31b | self-hosted | 48.40 | 5/5 | 24.8M | $7.81 | $1.56 | $0.16 | 213m |
 | claude-haiku-4-5 | Bedrock | 45.64 | 5/5 | 20.5M | $6.15 | $1.23 | $0.13 | 22m |
-| qwen3-coder-480b | self-hosted | 44.95 | 4/5 | 66.2M | $12.49 | $3.12 | $0.28 | 68m |
-| devstral-2-123b | self-hosted | 43.12 | 5/5 | 28.1M | $3.05 | $0.61 | $0.07 | 51m |
+| qwen3-coder-480b | self-hosted | 44.95 | 4/5 | 66.2M | $23.20 | $5.80 | $0.52 | 68m |
+| devstral-2-123b | self-hosted | 43.12 | 5/5 | 28.1M | $5.66 | $1.13 | $0.13 | 51m |
 | qwen3-coder-30b | self-hosted | 30.20 | 4/5 | 50.7M | $3.19 | $0.80 | $0.11 | 84m |
 | qwen3-coder-next | self-hosted | -- (0 scored) | 0/1 | 0 | -- | -- | -- | 3m |
 

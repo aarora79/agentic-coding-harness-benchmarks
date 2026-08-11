@@ -3,15 +3,16 @@
 
 Reads ``self-hosted/vllm/pricing.json`` so no script hardcodes a dollar figure.
 The effective hourly rate a run is charged is
-``dollars_per_hour * discount_multiplier``, then further prorated by
+``dollars_per_hour * (1 - discount)``, then further prorated by
 ``tp / gpus_per_instance`` when a model is served with tensor parallelism below
 the instance's GPU count (it uses only part of the box) -- e.g. a TP=4 model on
 an 8-GPU p5en.48xlarge is charged half the (discounted) instance rate.
 
-``discount_multiplier`` lets us keep an on-demand base rate on record while
-pricing runs at a committed-capacity equivalent (e.g. p5en at 0.35x on-demand);
-where the base rate already reflects the target (e.g. g6e at its 3-year RI
-rate), the multiplier is 1.0.
+``discount`` is the FRACTIONAL DISCOUNT off the base rate: 0.35 means
+a 35% discount (pay 65% of ``dollars_per_hour``), 0.0 means no discount. It lets
+us keep an on-demand base on record while pricing runs at a committed/negotiated
+discount (e.g. p5en on-demand with a 0.35 placeholder discount); where the base
+already reflects the target (e.g. g6e at its 3-year RI rate) it is 0.0.
 
 Usage:
     from pricing import resolve, instance_hourly
@@ -54,16 +55,21 @@ def _entry(instance_type: str) -> dict:
 
 
 def _effective_full(entry: dict) -> float:
-    """Whole-instance effective $/hr = base dollars_per_hour x discount_multiplier."""
+    """Whole-instance effective $/hr = base dollars_per_hour x (1 - discount).
+
+    ``discount`` is the fractional discount off the base rate: 0.35
+    means a 35% discount, i.e. you pay 65% of ``dollars_per_hour``. 0.0 means no
+    discount (pay the full base rate).
+    """
     base = float(entry["dollars_per_hour"])
-    mult = float(entry.get("discount_multiplier", 1.0))
-    return base * mult
+    discount = float(entry.get("discount", 0.0))
+    return base * (1.0 - discount)
 
 
 def instance_hourly(instance_type: str) -> float:
     """Return the whole-instance effective $/hr for ``instance_type``.
 
-    Effective = ``dollars_per_hour * discount_multiplier`` (the discount lets us
+    Effective = ``dollars_per_hour * (1 - discount)`` (the discount lets us
     keep an on-demand base on record while charging a committed-capacity rate).
 
     Args:

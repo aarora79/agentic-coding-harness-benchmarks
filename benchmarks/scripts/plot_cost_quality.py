@@ -664,6 +664,23 @@ def _plot(
         for text in legend.get_texts():
             text.set_color(theme["muted"])
 
+    # Pricing-basis note, shown prominently so no one misreads the self-hosted
+    # dollars: g6e uses its 3-year RI rate; p5en uses on-demand with a 35%
+    # PLACEHOLDER discount -- swap in your own committed-discount in pricing.json.
+    fig.text(
+        0.5,
+        -0.02,
+        "SELF-HOSTED COST BASIS: g6e = 3-year Reserved Instance rate; p5en = "
+        "on-demand x 35% PLACEHOLDER discount (pay 65%). Set your own committed "
+        "discount in self-hosted/vllm/pricing.json (discount).",
+        ha="center",
+        va="top",
+        fontsize=8.5,
+        color=theme["accent"],
+        fontweight="bold",
+        wrap=True,
+    )
+
     # Note any excluded failed tasks so the chart is self-explaining: a 0-score
     # (missing-artifact) task is a model failure, not a quality reading, so it is
     # left out of the means, pending investigation.
@@ -675,7 +692,7 @@ def _plot(
         )
         fig.text(
             0.5,
-            -0.02,
+            -0.055,
             note,
             ha="center",
             va="top",

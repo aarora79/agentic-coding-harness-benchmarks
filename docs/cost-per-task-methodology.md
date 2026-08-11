@@ -2,6 +2,13 @@
 
 How the throughput skill turns a fixed instance price into a **cost per token** and **cost per task** for a self-hosted (vLLM) model, why there are two ways to express it, and what the agentic-coding workload shape means for user experience and for scaling. The core model is **`run_cost = GPU-seconds x $/second`** — price tokens by dividing them by measured throughput at a stated concurrency, never by wall-clock; and the only lever that lowers that cost on a KV-bound model is KV-cache headroom, which trades against context window. A worked GLM-5.2 example runs through both. Companion to [serving-optimization-notes.md](serving-optimization-notes.md); produced by [clients/build_performance_summary.py](../self-hosted/vllm/clients/build_performance_summary.py) and surfaced by [clients/build_performance_dashboard.py](../self-hosted/vllm/clients/build_performance_dashboard.py) and [clients/cost_for_task.py](../self-hosted/vllm/clients/cost_for_task.py).
 
+> [!IMPORTANT]
+> **Self-hosted GPU pricing basis (read before quoting any self-hosted dollar figure).** Every self-hosted cost on this page and in the charts is derived from a **configurable** hourly rate in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json), not a fixed market price:
+> - **g6e.12xlarge** is priced at its **3-year Reserved Instance rate ($4.533/hr)** (`discount: 0.0` -- the base already reflects the RI, no further discount).
+> - **p5en.48xlarge** is priced at **on-demand ($63.296/hr) with a 35% PLACEHOLDER discount** (`discount: 0.35`, i.e. pay 65% -> effective $41.14/hr). **0.35 is a stand-in** for whatever committed-use / negotiated discount your organization actually has.
+>
+> The effective rate is `dollars_per_hour * (1 - discount)` (then prorated by `tp / gpus_per_instance` for a partial-box run). **Change `discount` (or `dollars_per_hour`) in `pricing.json` to your real rate and regenerate -- every cost number, chart, and frontier scales linearly.** Do not read the self-hosted dollars as market-fixed; they are only as good as the rate you configure.
+
 ## The starting point: a fixed-cost machine, not a per-token bill
 
 A self-hosted model has **no per-token price**. You rent a GPU instance by the hour (e.g. `g6e.12xlarge` at $4.533/hr on a 3-year Reserved Instance) and it processes whatever tokens it can. So the only honest cost is derived, not quoted:
@@ -67,17 +74,17 @@ The blended lens is just **"how many GPU-seconds did this work occupy, times the
 
 **Why not just pro-rate wall-clock?** Because a single agentic session leaves the GPU idle most of the time. Wall-clock pricing charges you full box price for that idle time and, worse, assumes one user owns the whole box. See the GLM-5.2 worked example below.
 
-#### Worked example: GLM-5.2, 5 SWE tasks on p5en.48xlarge (8xH200, effective $22.15/hr = on-demand $63.296 x 0.35 discount multiplier)
+#### Worked example: GLM-5.2, 5 SWE tasks on p5en.48xlarge (8xH200, effective $41.14/hr = on-demand $63.296 x (1 - 0.35 placeholder discount))
 
 From the throughput sweep ([throughput/glm-5.2/performance-summary.json](../self-hosted/vllm/benchmark-output/throughput/glm-5.2/performance-summary.json)) and the SWE run ([glm-5.2/pi/swe3/.../run-summary.json](../benchmarks/swe-benchmark-data/glm-5.2/pi/swe3/mcp-gateway-registry/run-summary.json)). The sweep's cheapest sustainable point is **concurrency 5**, where the server sustains **15,679 prompt + 189 decode = 15,867 combined tok/s** and the KV cache is already 100% full. The 5 tasks processed **82,715,292 tokens** (input+output+cache-read+cache-write) over **6,288 wall-clock seconds**.
 
 | Costing method | Calculation | Result | What it assumes |
 |---|---|--:|---|
-| **Blended / GPU-seconds (what we use)** | `82,715,292 / 15,867 = 5,213 s = 1.448 hr; x $22.15` | **$32.08** | box kept busy at c=5 (shared across ~11 concurrent requests) |
-| Wall-clock pro-rate (rejected) | `6,288 s = 1.747 hr; x $22.15` | $38.69 | one user owns the box; idle time billed |
-| GPU-seconds at concurrency 1 (rejected) | `82,715,292 / 7,019 = 3.27 hr; x $22.15` | $72.52 | dedicated box, serial single user |
+| **Blended / GPU-seconds (what we use)** | `82,715,292 / 15,867 = 5,213 s = 1.448 hr; x $41.14` | **$59.58** | box kept busy at c=5 (shared across ~11 concurrent requests) |
+| Wall-clock pro-rate (rejected) | `6,288 s = 1.747 hr; x $41.14` | $71.86 | one user owns the box; idle time billed |
+| GPU-seconds at concurrency 1 (rejected) | `82,715,292 / 7,019 = 3.27 hr; x $41.14` | $134.68 | dedicated box, serial single user |
 
-The $32.08 in the leaderboard is the **c=5** figure. Note it is *lower* than the naive wall-clock estimate ($38.69) — because dividing by measured throughput removes the ~0.3 hr of idle wall-clock (6,288 s elapsed vs 5,213 s of actual token-crunching) the agent spent thinking and tool-calling. And it is far below the c=1 figure ($72.52) — the gap between those two is exactly the amortization concurrency buys. If you cannot actually run the box at c=5 (e.g. you dedicate it to one serial developer), your true cost is nearer $73, not $32. Always state the operating point.
+The $59.58 in the leaderboard is the **c=5** figure. Note it is *lower* than the naive wall-clock estimate ($71.86) — because dividing by measured throughput removes the ~0.3 hr of idle wall-clock (6,288 s elapsed vs 5,213 s of actual token-crunching) the agent spent thinking and tool-calling. And it is far below the c=1 figure ($134.68) — the gap between those two is exactly the amortization concurrency buys. If you cannot actually run the box at c=5 (e.g. you dedicate it to one serial developer), your true cost is nearer $135, not $60. Always state the operating point.
 
 ### The trade-off between the lenses
 
@@ -148,7 +155,7 @@ Beyond that per-instance limit, scale **horizontally**: the workload is embarras
 
 ## Summary
 
-- Cost is derived from `instance $/hr / measured tokens/sec` — real, not a quoted price. The formula collapses to **`GPU-seconds x $/second`**: price the tokens by dividing them by *measured throughput*, never by wall-clock (which over-charges idle agent-thinking time and assumes one user owns the box). Worked example: GLM-5.2's 5 SWE tasks cost **$32.08 at c=5**, vs $39 naive wall-clock and $73 at c=1 — the operating point *is* the number, so always state it.
+- Cost is derived from `instance $/hr / measured tokens/sec` — real, not a quoted price. The formula collapses to **`GPU-seconds x $/second`**: price the tokens by dividing them by *measured throughput*, never by wall-clock (which over-charges idle agent-thinking time and assumes one user owns the box). Worked example: GLM-5.2's 5 SWE tasks cost **$59.58 at c=5**, vs $72 naive wall-clock and $135 at c=1 — the operating point *is* the number, so always state it.
 - **Blended** (per processed token, input == output) is the honest primary lens; **split** (`w`-weighted, API-shaped) is a familiar-but-misleading secondary lens for input-heavy work. Caching is already baked into the blended rate (it raises throughput) — do not also discount cache-read tokens per-token, that double-counts.
 - Agentic coding is input-heavy (~50:1 early, ~150-220:1 deep in a session), so the server is prefill-heavy — but on a healthy instance TTFT is a few seconds and degrades gracefully; **report TTFT as p50/p90 (not mean) and decompose queue vs prefill**, and always include a c=1 baseline to catch a backed-up server.
 - **The only lever that lowers self-hosted cost is raising sustained throughput, which on a KV-bound model means more KV headroom — bought by shrinking the context window, at a possible accuracy cost. No free lunch.** Check `kv_cache_usage.peak`: if it pegs at 1.00 at low concurrency (Regime A, e.g. GLM-5.2 on p5en) there is no vertical headroom — right-size the model/window or scale horizontally; if it stays low (Regime B, e.g. qwen3.6-35b on g6e) push concurrency up to your latency budget first.
