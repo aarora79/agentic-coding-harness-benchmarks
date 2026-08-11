@@ -166,7 +166,12 @@ A dataset is a single YAML file: a metadata header plus a list of tasks, each po
 
 ### Benchmark your own code repositories
 
-The whole point is to measure models on **work that looks like yours**, not our example repo. To do that, write a dataset YAML pointing at your repos and run it -- the models, harnesses, judge, and cost math are identical.
+Benchmarking is itself an expensive, time-consuming exercise, so you have two options:
+
+1. **Use these results as a baseline.** Take the models on the cost/quality frontier here as a strong starting point and pick from them -- no runs of your own required.
+2. **Benchmark on your own code and build your own frontier.** When you want numbers on **work that looks like yours** rather than our example repo, write a dataset YAML pointing at your repos and run it -- the models, harnesses, judge, and cost math are identical.
+
+The rest of this section covers option 2.
 
 1. **Create a dataset file** under [benchmarks/dataset/](benchmarks/dataset/), e.g. `my-team.yaml`. Copy [mcp-gateway-registry.yaml](benchmarks/dataset/mcp-gateway-registry.yaml) as a template. Minimal shape:
 
