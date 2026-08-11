@@ -670,14 +670,13 @@ def _plot(
     fig.text(
         0.5,
         -0.02,
-        "SELF-HOSTED COST BASIS: g6e = 3-year Reserved Instance rate; p5en = "
-        "on-demand x 35% PLACEHOLDER discount (pay 65%). Set your own committed "
-        "discount in self-hosted/vllm/pricing.json (discount).",
+        "Self-hosted cost basis: g6e = 3-year RI rate; p5en = on-demand x 35% "
+        "placeholder discount (pay 65%) -- configurable in "
+        "self-hosted/vllm/pricing.json.",
         ha="center",
         va="top",
-        fontsize=8.5,
-        color=theme["accent"],
-        fontweight="bold",
+        fontsize=8,
+        color=theme["muted"],
         wrap=True,
     )
 
