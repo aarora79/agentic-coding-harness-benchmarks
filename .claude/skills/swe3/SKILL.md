@@ -1,19 +1,17 @@
 ---
 name: swe3
-description: "Single-agent variant of /swe2: produces the identical six artifacts (GitHub issue spec, low-level design, expert review, testing plan, patch.diff, implementation.md under benchmarks/swe-benchmark-data/{model-name}/{harness}/{repo-name}/{problem-name}/) and implements the change, but does ALL work in the main agent loop with NO subagent fan-out. Use this to measure single-agent harness cost for an apples-to-apples comparison against harnesses that cannot spawn subagents (e.g. pi). Same task, same rigor, same deliverables - only the orchestration differs (inline instead of parallel Task subagents)."
+description: "Single-agent, end-to-end SWE benchmark: takes a coding problem from idea to a working code change, producing six artifacts (GitHub issue spec, low-level design, expert review, testing plan, patch.diff, implementation.md under benchmarks/swe-benchmark-data/{model-name}/{harness}/{repo-name}/{problem-name}/). Does ALL work in the main agent loop with NO subagent fan-out, so it measures single-agent harness cost for an apples-to-apples comparison against harnesses that cannot spawn subagents (e.g. pi). Design, implement, and capture the change as a reviewable patch - the orchestration is single-agent (inline, not parallel Task subagents)."
 license: Apache-2.0
 metadata:
   author: Amit Arora
   version: "1.0"
 ---
 
-# Software Engineering with Implementation (SWE2) Skill
+# Software Engineering with Implementation (SWE3) Skill
 
 Use this skill when the user wants to evaluate how a particular LLM performs on a software-engineering problem **end to end, including writing the code**. Every run is treated as a benchmark: the problem is the input, the model is the contestant, and the artifacts (`github-issue.md`, `lld.md`, `review.md`, `testing.md`, `patch.diff`, `implementation.md`) are the output that can be compared across models.
 
-**This skill goes all the way to a code change.** It is a superset of `/swe`: it produces the same four design artifacts AND then implements the design by editing the cloned repository in place, capturing every edit as a `git diff` (`patch.diff`) plus an `implementation.md` summary. It still does NOT run the target repo's tests, commit, push, or open a PR - the deliverable is the six artifact files described below, with the actual code changes captured as a reviewable, comparable patch.
-
-**Relationship to `/swe`:** `/swe` stops at design (four artifacts). `/swe2` does everything `/swe` does and then adds Step 8.5 (Implement the Change). If the user only wants a design package, they should use `/swe`; if they want the model to produce working code as well, they use `/swe2`.
+**This skill goes all the way to a code change.** It produces four design artifacts AND then implements the design by editing the cloned repository in place, capturing every edit as a `git diff` (`patch.diff`) plus an `implementation.md` summary. It still does NOT run the target repo's tests, commit, push, or open a PR - the deliverable is the six artifact files described below, with the actual code changes captured as a reviewable, comparable patch.
 
 ## Non-Interactive Mode (Headless)
 
@@ -22,12 +20,12 @@ When ALL required parameters are provided upfront in a single message, skip all 
 **Required parameters for non-interactive mode:**
 
 ```
-/swe2 repo: <local-path-to-repo> problem: <problem-slug> model: <model-name> tag: <git-tag> [artifacts_dir: <absolute-artifact-dir>] answers: "<answers-block>"
+/swe3 repo: <local-path-to-repo> problem: <problem-slug> model: <model-name> tag: <git-tag> [artifacts_dir: <absolute-artifact-dir>] answers: "<answers-block>"
 ```
 
 Example:
 ```
-/swe2 repo: benchmarks/swe-benchmark-data/mcp-gateway-registry/repo problem: ssrf-hardening-outbound-url-validation model: kimi-k2.7-code tag: 1.24.4 answers: "1. Security audit finding — the registry fetches user-supplied URLs with no SSRF guard. 2. Operators and downstream teams. 3. Python/FastAPI, ECS, no deadline, backwards-compatible. 4. Medium."
+/swe3 repo: benchmarks/swe-benchmark-data/mcp-gateway-registry/repo problem: ssrf-hardening-outbound-url-validation model: kimi-k2.7-code tag: 1.24.4 answers: "1. Security audit finding — the registry fetches user-supplied URLs with no SSRF guard. 2. Operators and downstream teams. 3. Python/FastAPI, ECS, no deadline, backwards-compatible. 4. Medium."
 ```
 
 The `repo:` path may be a checkout the caller already cloned (including a temporary directory such as one under `/tmp`) or a path that does not exist yet. If it does not exist, clone it at `tag:` per Step 1.4 without asking. Either way, `{repo-name}` is the basename of the `repo:` path. **If the caller passed `repo:` as an existing checkout, it is ALREADY cloned — do NOT run `git clone`, and do NOT `cd` into any other repository; treat that path as the sole code source.**
@@ -65,7 +63,7 @@ The `repo:` path may be a checkout the caller already cloned (including a tempor
 
 ## Single-agent execution: do NOT use subagents
 
-**This is the single-agent variant. Do ALL work yourself, in the main agent loop. Do NOT use the `Task` tool or spawn subagents of any kind, for any step.** Where `/swe2` fans out to parallel `Task` subagents (codebase analysis in Step 5, the five expert reviews in Step 7, edit drafting in Step 8), you instead do that same work **inline** with your own Read/Grep/Glob/Bash/Edit calls, one facet after another.
+**This is the single-agent variant. Do ALL work yourself, in the main agent loop. Do NOT use the `Task` tool or spawn subagents of any kind, for any step.** A multi-agent run would fan out to parallel `Task` subagents (codebase analysis in Step 5, the five expert reviews in Step 7, edit drafting in Step 8); here you instead do that same work **inline** with your own Read/Grep/Glob/Bash/Edit calls, one facet after another.
 
 Why this variant exists: subagent fan-out re-pays the full agent context (system prompt, tool catalog, skill text, task context) for every subagent and re-reads it each turn, which multiplies token usage several-fold. This variant removes that so the run measures **single-agent harness cost** -- an apples-to-apples comparison against harnesses that have no subagent mechanism (e.g. pi). The deliverables and the depth of work are unchanged; only the orchestration differs.
 
@@ -74,7 +72,7 @@ Rules of thumb:
 - **Never call the `Task` tool.** No `subagent_type=Explore`, no parallel fan-out, no delegated edits. If you catch yourself about to launch a subagent, do that work directly instead.
 - **Investigate sequentially in the main loop.** Cover the same facets a fan-out would (data structures, config, call sites, tests, deployment) with your own Read/Grep/Glob calls, one after another. The ~50-file-read cap and "finish the artifacts over exhaustive research" discipline below still apply -- they matter more here since there is no parallelism to hide latency.
 - **You author everything.** You read, you decide, you write every artifact, you apply and reconcile every edit. There is no gather-and-synthesize hand-off because there are no subagents.
-- **Expect this to be slower in wall-clock** than `/swe2` (no parallelism) but to consume far fewer tokens. That token reduction is the point of the measurement; do not reintroduce subagents to speed it up.
+- **Expect this to be slower in wall-clock** (no parallelism) but to consume far fewer tokens. That token reduction is the point of the measurement; do not reintroduce subagents to speed it up.
 
 ### Pace and budget (finish all six artifacts)
 
@@ -168,10 +166,10 @@ BENCH_DIR="$REPO_ROOT/benchmarks/swe-benchmark-data"
 
    If the local checkout is at the wrong ref, tell the user and ask whether to re-clone at `{ref}` or keep the existing checkout.
 
-2. **If no checkout exists, clone the repo yourself at `{ref}`.** In `/swe2` the clone is a **writable workspace** (Step 8.5 edits it and diffs against the pinned ref), so clone it wherever is convenient - you do NOT need to place it inside the benchmark tree, and a temporary directory such as `/tmp` is ideal. A shallow clone at the exact ref is sufficient and still lets `git diff` work:
+2. **If no checkout exists, clone the repo yourself at `{ref}`.** The clone is a **writable workspace** (Step 8.5 edits it and diffs against the pinned ref), so clone it wherever is convenient - you do NOT need to place it inside the benchmark tree, and a temporary directory such as `/tmp` is ideal. A shallow clone at the exact ref is sufficient and still lets `git diff` work:
 
    ```bash
-   CLONE_DIR="$(mktemp -d /tmp/swe2-{repo-name}-XXXXXX)"
+   CLONE_DIR="$(mktemp -d /tmp/swe3-{repo-name}-XXXXXX)"
    git clone --branch {ref} --depth 1 {url} "$CLONE_DIR"
    ```
 
@@ -273,7 +271,7 @@ Concretely:
    > - `review.md` (4.1 KB, modified 2026-06-04)
    >
    > How would you like to proceed?
-   > 1. **Delete all six files first**, then run a clean `/swe2` pass (recommended for a fresh benchmark).
+   > 1. **Delete all six files first**, then run a clean `/swe3` pass (recommended for a fresh benchmark).
    > 2. **Overwrite in place** as each artifact is regenerated (existing files get replaced one by one).
    > 3. **Append a suffix** to the model folder (e.g. `claude-opus-4-7-run2/`) and write the new run there, leaving the prior run intact.
    > 4. **Abort** - keep everything as-is and exit the skill.
@@ -723,9 +721,9 @@ export ACCESS_TOKEN=$(jq -r '.access_token' .oauth-tokens/ingress.json)
 5. Align with backwards-compat rules. Pre-change shapes must still be tested.
 6. Do not invent endpoints or flags. Every URL, flag, and Terraform variable must exist in the LLD or codebase.
 
-## Step 8.5: Implement the Change (the swe2 addition)
+## Step 8.5: Implement the Change
 
-This is the one step that distinguishes `/swe2` from `/swe`. Having designed the change (LLD) and planned its tests (testing.md), now **actually make the code change in the cloned repo**, then capture it as a reviewable, comparable patch. This is the benchmark's implementation phase - it measures whether the model can turn its own design into working code.
+This is the implementation step. Having designed the change (LLD) and planned its tests (testing.md), now **actually make the code change in the cloned repo**, then capture it as a reviewable, comparable patch. This is the benchmark's implementation phase - it measures whether the model can turn its own design into working code.
 
 **Why edit the clone and capture a diff (rather than edit in place only, or copy files):** the clone at `{repo-path}` is a disposable temp checkout, so edits made there would be lost and would not be comparable across models. Editing in place lets the model work against real, resolvable code (imports resolve, it can re-read its own edits, patterns are visible), and capturing a `git diff` against the pinned baseline produces a durable, minimal, reviewable artifact - exactly the SWE-bench shape (the model's output IS a patch). The patch, not the mutated clone, is the artifact.
 
@@ -750,7 +748,7 @@ Edit the files in `{repo-path}` to realize the design in `lld.md`. Treat the LLD
 - **Match the repo's conventions**, not this repository's `CLAUDE.md` - you are writing code in the *target* repo (its language, style, formatting, import order, test layout). `CLAUDE.md` guides the *design*; the *implementation* must look native to the repo being changed.
 - **Keep the diff minimal and on-topic.** Change only what the task requires. Do not reformat unrelated files, bump unrelated dependencies, or leave debug prints. A tight diff is what makes cross-model comparison meaningful.
 - **Make all edits yourself in the main loop.** Do NOT dispatch subagents to draft edits. Apply each file change directly and reconcile as you go so the final tree stays coherent.
-- **Do NOT run the target repo's tests, linters, builds, or any command against it.** Consistent with `/swe`, this skill reads and edits code but does not execute the target project (no `pytest`, `ruff`, `mypy`, `npm`, `cargo`, `go build`, `terraform`, `docker`, ...). The `testing.md` plan describes how a human would verify; running it is out of scope and keeps every model on an equal, execution-free footing. (You MAY run `git` on the clone - `status`, `diff`, `add` - since that inspects your own edits, not the project.)
+- **Do NOT run the target repo's tests, linters, builds, or any command against it.** This skill reads and edits code but does not execute the target project (no `pytest`, `ruff`, `mypy`, `npm`, `cargo`, `go build`, `terraform`, `docker`, ...). The `testing.md` plan describes how a human would verify; running it is out of scope and keeps every model on an equal, execution-free footing. (You MAY run `git` on the clone - `status`, `diff`, `add` - since that inspects your own edits, not the project.)
 - **Know the tool sandbox, and do not fight it.** This run executes with a fixed allowlist; only these tools work without a prompt: `Read`, `Glob`, `Grep`, `Write`, `Edit`, `Task`, and Bash **only** in the forms `git*`, `cd*`, `ls*`, `cat*`, `find*`, `head*`, `tail*`, `wc*`, `mktemp*`. Every other Bash command - `sed`, `awk`, `echo >`, `python`/`python -m py_compile`, `bash -n`, `uv`, `pip`, `pytest`, package managers - is **denied by design**, not by accident. Work within it:
   - **Make all file changes with the `Edit` and `Write` tools, never with shell.** Do not reach for `sed -i`, `echo >`, or a heredoc to edit or create files - those are `Bash` and will be denied. `Edit` (use `replace_all: true` when a string occurs more than once) and `Write` are always available and are the intended way to change code.
   - **Do not try to compile, syntax-check, or lint your edits.** `python -m py_compile`, `bash -n`, `ruff`, `mypy` are execution and are out of scope. Verify by re-reading your own edit and by `git -C "{repo-path}" diff`; that is the only check this benchmark expects.
@@ -955,8 +953,8 @@ When the same problem is later run with a different model (e.g. `claude-sonnet-5
 This skill is a benchmark. Each model run must be completely independent so artifacts are directly comparable. Read the cloned source repo only; do not read sibling model artifacts or communicate with other sessions. Specifically:
 
 - **Do NOT read any files under `benchmarks/swe-benchmark-data/`** other than the model's own target folder (`{model-name}/{repo-name}/{problem-name}/`). Sibling model folders (e.g. `claude-opus-4-8/`, `kimi-k2-thinking/`, etc.) contain artifacts from other benchmark runs — reading them contaminates the benchmark.
-- **Do NOT read `benchmarks/swe-benchmark-data/README.md`** during analysis. The task description in this `/swe2` invocation is the only allowed input from the benchmark directory.
-- **Do NOT use the `claude-peers` MCP tool** (`mcp__claude-peers__*`) to message, list, or coordinate with other Claude Code sessions during a `/swe2` run. Each session must produce its design and implementation independently.
+- **Do NOT read `benchmarks/swe-benchmark-data/README.md`** during analysis. The task description in this `/swe3` invocation is the only allowed input from the benchmark directory.
+- **Do NOT use the `claude-peers` MCP tool** (`mcp__claude-peers__*`) to message, list, or coordinate with other Claude Code sessions during a `/swe3` run. Each session must produce its design and implementation independently.
 - **The only allowed code source** is the cloned target repo at `{repo-path}` (a temp clone such as one under `/tmp`, as resolved in Step 1.4). Read that thoroughly; ignore everything else under `benchmarks/`.
 
 If the user explicitly asks you to compare with prior runs after artifacts are written, that is a separate request — done after the six artifacts are saved, not during their production.
