@@ -164,14 +164,18 @@ A dataset is a single YAML file: a metadata header plus a list of tasks, each po
 
 **Nothing in the harness is specific to a particular repository.** Adding your own benchmark dataset is just writing another YAML file in the same format -- point tasks at any public repo and pinned ref. The dataset format is documented in the [harness reference](benchmarks/docs/harness-reference.md#the-dataset).
 
+### What do I do with this?
+
+The point of this repo is to help you **pick the right coding agent and model for your tasks** -- the pairing that lands the quality you need at the cost and latency you can live with, instead of defaulting to the most expensive option. There are two ways to get there:
+
+1. **Use the frontier we already published.** The cost/quality results here (across harnesses, models, and hosting paths) are a strong, ready-made baseline -- read the [harness comparison](docs/harness-comparison.md) and per-harness docs and pick from the models on the frontier. No runs of your own required.
+2. **Build your own frontier on your own code.** When you want numbers on **work that looks like yours** rather than our example repo, use the benchmarking harness in this repo: write a dataset YAML pointing at your repositories and run it -- the models, harnesses, judge, and cost math are identical to what produced the results above. This is the rest of this section.
+
+**We are also working on making this automatic.** [`/swe-auto` (#123)](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/123) is a planned router skill that will triage a task, consult the cost/quality frontier, and **select and run the right model for the job for you** -- so you get frontier-quality results at a fraction of the cost without managing model selection by hand.
+
 ### Benchmark your own code repositories
 
-Benchmarking is itself an expensive, time-consuming exercise, so you have two options:
-
-1. **Use these results as a baseline.** Take the models on the cost/quality frontier here as a strong starting point and pick from them -- no runs of your own required.
-2. **Benchmark on your own code and build your own frontier.** When you want numbers on **work that looks like yours** rather than our example repo, write a dataset YAML pointing at your repos and run it -- the models, harnesses, judge, and cost math are identical.
-
-The rest of this section covers option 2.
+This is option 2 above -- building your own frontier on your own code. It is a few steps:
 
 1. **Create a dataset file** under [benchmarks/dataset/](benchmarks/dataset/), e.g. `my-team.yaml`. Copy [mcp-gateway-registry.yaml](benchmarks/dataset/mcp-gateway-registry.yaml) as a template. Minimal shape:
 
