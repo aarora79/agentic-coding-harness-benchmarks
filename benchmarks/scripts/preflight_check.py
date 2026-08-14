@@ -41,6 +41,7 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from dataset_loader import DatasetError, load_dataset  # noqa: E402
 from runner_config import (  # noqa: E402
+    AGENT_KIRO,
     DEFAULT_AGENT,
     DEFAULT_SKILL,
     HARNESS_SLUGS,
@@ -117,7 +118,9 @@ def _target_dirs(
             )
         tasks = [t for t in tasks if t.id in wanted]
     repo_name = _repo_name_from_harness()
-    slug = model_to_slug(model)
+    # kiro's managed model names carry dots; dash them so the preflight clears the
+    # same dash-style folder the harness will write to (see model_to_slug).
+    slug = model_to_slug(model, normalize_dots=(agent == AGENT_KIRO))
     # Layout: <model>/<harness>/<skill>/<repo>/<task> -- skill is its own level, so
     # check the exact tree the harness will write to.
     harness = HARNESS_SLUGS[agent]

@@ -98,6 +98,16 @@ def _skill_path(config: RunnerConfig) -> Path:
 PI_PROVIDER_VLLM = "vllm"
 PI_PROVIDER_BEDROCK = "amazon-bedrock"
 
+# kiro-cli binary and the parsers for the one-line summary it prints on stderr at
+# the end of a non-interactive run, e.g. "▸ Credits: 0.21 • Time: 17s". kiro-cli
+# reports no token counts, so credits (its billing unit) are the cost signal; the
+# harness turns them into dollars with a configurable per-credit rate. Output is
+# ANSI-colored, so strip escape codes before matching. See docs/kiro-cli-setup.md.
+KIRO_CLI_BIN = "kiro-cli"
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
+_KIRO_CREDITS_RE = re.compile(r"Credits:\s*([0-9]*\.?[0-9]+)")
+_KIRO_TIME_RE = re.compile(r"Time:\s*([0-9]+)\s*s")
+
 # The harness scrapes vLLM's entire Prometheus /metrics surface (every family
 # under this prefix) rather than a curated subset, so nothing is omitted and new
 # vLLM metrics appear automatically. These series are SERVER-WIDE and CUMULATIVE:
@@ -285,8 +295,10 @@ def _build_prompt(
         f"repo: {clone_path} problem: {task.id} model: {model} "
         f'tag: {ref} artifacts_dir: {artifacts_dir} answers: "{answers.strip()}"'
     )
-    if agent == "pi":
-        # pi has no slash commands; name the loaded skill and hand it the payload.
+    if agent in ("pi", "kiro"):
+        # Neither pi nor kiro has slash commands; name the skill in prose and hand
+        # it the payload. (pi loads SKILL.md via --skill; kiro has no --skill flag,
+        # so _build_kiro_cmd inlines the SKILL.md content ahead of this prompt.)
         invocation = f"Use the {skill} skill to complete this task. {payload}"
     else:
         invocation = f"/{skill} {payload}"
@@ -697,6 +709,67 @@ def _build_pi_cmd(config: RunnerConfig, prompt: str) -> list[str]:
     ]
 
 
+def _build_kiro_env(config: RunnerConfig) -> dict[str, str]:
+    """Environment for a kiro-cli run.
+
+    kiro-cli authenticates through its own global sign-in under ``~/.kiro`` (AWS
+    Builder ID / IAM Identity Center / Google), so -- unlike pi -- the harness
+    does NOT redirect ``KIRO_HOME`` to a per-run dir: that would hide the login
+    and force an interactive re-auth mid-benchmark. The model is passed on the
+    command line, so there is no per-run config to write; the developer's global
+    kiro config is read but never mutated.
+
+    Args:
+        config: The runner config (unused today; kept for signature parity with
+            ``_build_pi_env``).
+
+    Returns:
+        A copy of the current process environment.
+    """
+    return os.environ.copy()
+
+
+def _build_kiro_cmd(config: RunnerConfig, prompt: str) -> list[str]:
+    """Assemble the ``kiro-cli chat --no-interactive`` argument vector.
+
+    kiro-cli is the ``claude -p`` / ``codex exec`` analogue: it takes a prompt
+    argument, runs to completion, and exits. It has NO ``--skill`` flag, so the
+    same ``SKILL.md`` the other agents load is inlined ahead of the task payload
+    in the prompt. ``--trust-all-tools`` pre-approves tool use (no operator is
+    present in a benchmark); ``--model`` selects one of Kiro's managed models.
+    kiro-cli cannot target a self-hosted endpoint, so there is no provider or
+    endpoint to pass. See docs/kiro-cli-setup.md.
+
+    Args:
+        config: The runner config (model).
+        prompt: The hydrated prompt (see ``_build_prompt`` agent="kiro").
+
+    Returns:
+        The command as a list of arguments (never a shell string).
+    """
+    skill_md = _skill_path(config).read_text(encoding="utf-8")
+    full_prompt = (
+        f"{skill_md}\n\n"
+        "===TASK===\n"
+        "Follow the skill instructions above to complete the following task.\n\n"
+        f"{prompt}"
+    )
+    # A trailing "--" ends option parsing so the prompt is always treated as the
+    # positional INPUT -- essential here because the inlined SKILL.md begins with
+    # "---" (YAML frontmatter), which kiro-cli would otherwise reject as an
+    # unknown flag.
+    return [
+        KIRO_CLI_BIN,
+        "chat",
+        "--no-interactive",
+        "--trust-all-tools",
+        "--model",
+        config.model,
+        "--",
+        full_prompt,
+    ]
+
+
 def _utc_now_iso() -> str:
     """Return the current UTC time as an ISO 8601 string with a trailing Z.
 
@@ -853,6 +926,11 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
     thinking = result.get("_thinking_tokens_estimate")
     if thinking:
         metrics["thinking_tokens_estimate"] = thinking
+    # agent=kiro only: kiro-cli reports credits (not tokens); record the raw
+    # credits alongside the derived total_cost_usd (credits x $/credit) so the
+    # cost is auditable back to what the CLI actually charged.
+    if result.get("kiro_credits") is not None:
+        metrics["kiro_credits"] = result["kiro_credits"]
     # Capture the error message so failures are diagnosable from metrics.json
     # without re-running the task by hand.
     if is_error:
@@ -1420,6 +1498,113 @@ def _run_pi(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any]
     return result
 
 
+def _kiro_result_from_output(
+    output: str,
+    returncode: int,
+    elapsed: float,
+    dollars_per_credit: float,
+) -> dict[str, Any]:
+    """Normalize a kiro-cli run to the claude-shaped result dict.
+
+    kiro-cli emits ANSI-colored narration and a one-line summary, e.g.
+    ``▸ Credits: 0.21 • Time: 17s``. It reports no token counts, so input/output
+    tokens are 0 and ``num_turns`` is 0; the cost signal is credits, turned into
+    dollars via the configured per-credit rate. Success is gated on the process
+    exit code (kiro-cli returns non-zero on failure).
+
+    Args:
+        output: The captured combined stdout+stderr (carries the Credits/Time
+            summary line).
+        returncode: The process exit code.
+        elapsed: Wall-clock seconds measured by the harness.
+        dollars_per_credit: USD per credit for the cost estimate.
+
+    Returns:
+        The claude-shaped result dict, with ``kiro_credits`` added for provenance.
+    """
+    clean = _ANSI_ESCAPE_RE.sub("", output)
+    credits_match = _KIRO_CREDITS_RE.search(clean)
+    time_match = _KIRO_TIME_RE.search(clean)
+    credits = float(credits_match.group(1)) if credits_match else None
+    reported_s = float(time_match.group(1)) if time_match else None
+    cost = round(credits * dollars_per_credit, 6) if credits is not None else None
+    is_error = returncode != 0
+    return {
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+        "num_turns": 0,
+        "total_cost_usd": cost,
+        "is_error": is_error,
+        "subtype": "success" if not is_error else f"exit_{returncode}",
+        "duration_ms": round(
+            (reported_s if reported_s is not None else elapsed) * 1000
+        ),
+        "result": "" if is_error else "stop",
+        "kiro_credits": credits,
+    }
+
+
+def _run_kiro(
+    cmd: list[str],
+    env: dict[str, str],
+    timeout: int,
+    dollars_per_credit: float,
+) -> dict[str, Any]:
+    """Run ``kiro-cli chat --no-interactive``, streaming its trace, and normalize output.
+
+    kiro-cli streams ANSI narration on stdout and prints its ``Credits/Time``
+    summary on stderr. We merge the two (``stderr=STDOUT``) and echo each line to
+    this process's stderr as it arrives -- a live trace, the kiro analogue of
+    Claude Code's ``--stream`` mode -- while accumulating the combined text for
+    metrics parsing. The per-line timeout check mirrors ``_run_claude_streaming``.
+
+    Args:
+        cmd: The kiro-cli command argument vector.
+        env: Environment for the subprocess.
+        timeout: Wall-clock timeout in seconds.
+        dollars_per_credit: USD per credit for the cost estimate.
+
+    Returns:
+        The claude-shaped result dict (see ``_kiro_result_from_output``).
+
+    Raises:
+        RuntimeError: If kiro-cli times out or produces no output.
+    """
+    start = time.time()
+    proc = subprocess.Popen(  # nosec B603 - hardcoded 'kiro-cli', list args, no shell
+        cmd,
+        env=env,
+        # Run from the repo root so the skill's artifact paths resolve, exactly as
+        # for the claude and pi paths.
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if proc.stdout is None:  # pragma: no cover - stdout is always a pipe here
+        raise RuntimeError("kiro-cli produced no stdout stream")
+    captured: list[str] = []
+    for line in proc.stdout:
+        if time.time() - start > timeout:
+            proc.kill()
+            raise RuntimeError(f"kiro-cli timed out after {timeout}s")
+        # Echo the model's live trace so it shows up in the harness log/terminal.
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        captured.append(line)
+    proc.wait()
+    elapsed = time.time() - start
+
+    combined = "".join(captured)
+    if not combined.strip():
+        raise RuntimeError(f"kiro-cli produced no output (exit {proc.returncode}).")
+    result = _kiro_result_from_output(
+        combined, proc.returncode, elapsed, dollars_per_credit
+    )
+    result["_elapsed_seconds"] = round(elapsed, 1)
+    return result
+
+
 TOOL_RESULT_PREVIEW_CHARS = 500
 
 
@@ -1948,6 +2133,17 @@ def _run_task(
             logger.info(
                 "  %s Running pi -p %s (agent=pi, no turn cap)...", label, run_kind
             )
+        elif config.is_kiro:
+            # kiro-cli uses its own global sign-in (~/.kiro); there is no per-run
+            # config dir to write and no endpoint to route. The SKILL.md is inlined
+            # into the prompt by _build_kiro_cmd (kiro has no --skill flag).
+            cmd = _build_kiro_cmd(config, prompt)
+            env = _build_kiro_env(config)
+            logger.info(
+                "  %s Running kiro-cli chat %s (agent=kiro, no turn cap)...",
+                label,
+                run_kind,
+            )
         else:
             cmd = _build_claude_cmd(
                 config, prompt, stream=stream, clone_path=clone_path
@@ -1983,6 +2179,12 @@ def _run_task(
                 # pi emits a JSON-lines event stream; _run_pi normalizes it to the
                 # same result shape. It has no separate streaming trace mode.
                 result = _run_pi(cmd, env, config.timeout_seconds)
+            elif config.is_kiro:
+                # kiro-cli streams ANSI text and prints a Credits/Time summary on
+                # stderr; _run_kiro normalizes that to the same result shape.
+                result = _run_kiro(
+                    cmd, env, config.timeout_seconds, config.kiro_dollars_per_credit
+                )
             elif stream:
                 result = _run_claude_streaming(
                     cmd, env, config.timeout_seconds, verbose=verbose
@@ -2111,6 +2313,8 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
         )
         if config.is_pi:
             cmd = _build_pi_cmd(config, prompt)
+        elif config.is_kiro:
+            cmd = _build_kiro_cmd(config, prompt)
         else:
             cmd = _build_claude_cmd(config, prompt, clone_path=placeholder)
         print(f"\n=== {task.id} [{task.complexity}] ref={ref} ===")
@@ -2664,6 +2868,13 @@ def _parse_args() -> argparse.Namespace:
         "Values above 1 invalidate the single-tenant vLLM metrics.",
     )
     parser.add_argument(
+        "--kiro-dollars-per-credit",
+        type=float,
+        help="Override (agent=kiro only): USD per kiro-cli credit, used to turn "
+        "the credits kiro-cli reports into a dollar cost per task. Default 0.04 "
+        "(Kiro add-on/overage rate); use 0.02 for the blended included rate.",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="Print prompts/commands without running"
     )
     parser.add_argument(
@@ -2701,6 +2912,7 @@ def main() -> None:
         "context_window": args.context_window,
         "timeout_seconds": args.timeout_seconds,
         "concurrency": args.concurrency,
+        "kiro_dollars_per_credit": args.kiro_dollars_per_credit,
     }
     if args.tasks:
         overrides["tasks"] = [t.strip() for t in args.tasks.split(",") if t.strip()]

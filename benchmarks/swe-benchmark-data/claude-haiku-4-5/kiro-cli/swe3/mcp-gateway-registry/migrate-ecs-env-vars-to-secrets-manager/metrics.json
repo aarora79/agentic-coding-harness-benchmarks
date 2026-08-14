@@ -1,0 +1,174 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "high",
+  "tags": [
+    "security",
+    "aws",
+    "secrets-manager",
+    "terraform",
+    "ecs",
+    "iam"
+  ],
+  "model": "claude-haiku-4.5",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "kiro",
+  "skill": "swe3",
+  "provider": "kiro",
+  "endpoint": "http://127.0.0.1:8000",
+  "aws_region": null,
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 0.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 0.1376,
+    "latency_seconds": 160.7,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "latency_seconds": 160.7,
+  "num_turns": 0,
+  "total_cost_usd": 0.1376,
+  "is_error": false,
+  "result_subtype": "success",
+  "kiro_credits": 3.44,
+  "run_started_at": "2026-08-14T22:49:12.664583Z",
+  "run_ended_at": "2026-08-14T22:51:53.327308Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 0.1376,
+    "latency_seconds": 160.7,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "vllm_prometheus": {
+    "available": false,
+    "source": "vllm_prometheus_window",
+    "note": "vLLM metrics were not reachable; run against a vLLM endpoint exposing /metrics to populate this block.",
+    "derived": {
+      "prefix_cache_hit_rate": null,
+      "prompt_tokens_cached_rate": null
+    },
+    "counters": {},
+    "histograms": {},
+    "gauges": {},
+    "gauges_sampled": {
+      "available": false,
+      "source": "vllm_prometheus_poll",
+      "note": "No vLLM gauges were sampled during the run; endpoint unreachable or not a vLLM server.",
+      "interval_seconds": 1.0,
+      "gauges": {}
+    }
+  },
+  "evaluation": {
+    "task": "migrate-ecs-env-vars-to-secrets-manager",
+    "model": "claude-haiku-4.5",
+    "scores": {
+      "github_issue": {
+        "completeness": 17,
+        "correctness": 12,
+        "specificity": 12,
+        "risk_awareness": 14,
+        "total": 55,
+        "notes": "The issue clearly states the security motivation, affected ECS services, dependencies, and useful non-goals. Its largest gap is the absence of a verified variable inventory: `ecs-services.tf` already injects `KEYCLOAK_ADMIN_PASSWORD` from Secrets Manager while plaintext sensitive values such as `REGISTRY_API_TOKEN`, `REGISTRY_API_KEYS`, and `FEDERATION_STATIC_TOKEN` are not enumerated. The claimed Secrets Manager-versus-environment precedence is not defined because ECS `valueFrom` produces an environment variable, and Terraform-managed secret values still remain in Terraform state. No independent task statement was supplied, so the checked acceptance boxes and linked issue completion could not be verified."
+      },
+      "lld": {
+        "completeness": 13,
+        "correctness": 7,
+        "specificity": 10,
+        "risk_awareness": 9,
+        "total": 39,
+        "notes": "The LLD names real Terraform files and correctly identifies ECS `secrets`, execution-role permissions, and staged deployment as relevant integration points. Its proposed variables largely do not match the repository: existing configuration uses `SECRET_KEY`, DocumentDB credential JSON, MongoDB connection-string inputs, and registry token variables rather than `MONGODB_PASSWORD`, `AUTH_SECRET`, or `ADMIN_API_KEY`. It also duplicates the existing `aws_secretsmanager_secret.keycloak_admin_password` and incorrectly describes ECS-injected scalar values as direct Secrets Manager reads with JSON parsing and source-aware fallback logging. State exposure, exact cutover mechanics, and the many actual plaintext credentials in `ecs-services.tf` remain unresolved."
+      },
+      "review": {
+        "completeness": 14,
+        "correctness": 8,
+        "specificity": 12,
+        "risk_awareness": 14,
+        "total": 48,
+        "notes": "The review provides concrete rollout, monitoring, fallback-expiration, KMS, and startup-failure considerations. It misses the design's central repository mismatches and falsely states that values never enter Terraform state, despite `aws_secretsmanager_secret_version.secret_string` being populated from Terraform variables in `secrets.tf`. Its proposed `{arn}:{{VERSION_STAGE:AWSCURRENT}}` syntax is not an ECS Secrets Manager ARN selector and AWSCURRENT would not pin an immutable version. The final verdict is also internally inconsistent, listing blocking versioning and rotation findings before declaring there are no blockers and the design is implementation-ready."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 5,
+        "specificity": 11,
+        "risk_awareness": 5,
+        "total": 38,
+        "notes": "The plan spans Terraform validation, IAM, task startup, negative permissions, service health, and rollback with several explicit expected states. Many commands do not match the repository: generated secret names have `name_prefix` suffixes, ECS services use `${local.name_prefix}-registry`, the secrets policy is attached and managed rather than the named inline policy queried, and Terraform deployment does not create the referenced CloudFormation stack. The health test attempts to curl a target-group name instead of an endpoint, while the fallback task lacks the setup needed for ECS Exec and the precedence acceptance criterion is marked not applicable. Echoing secret values and recommending `terraform destroy` as cleanup introduce credential-exposure and full-environment-destruction risks."
+      },
+      "implementation": {
+        "completeness": 4,
+        "correctness": 2,
+        "specificity": 9,
+        "risk_awareness": 3,
+        "total": 18,
+        "notes": "The diff's target files and surrounding contexts exist, and its secret resources generally follow the repository's KMS and tagging style. It does not modify `ecs-services.tf`, so none of the six new resources migrate an ECS environment variable, and it redundantly creates `auth_keycloak_admin_password` beside the existing `keycloak_admin_password`. The patch also redeclares module variable `keycloak_admin_password` and adds required `registry_mongodb_password` and `registry_auth_secret` inputs without wiring them through the root module, making the Terraform configuration invalid. The summary admits task-definition work is deferred while claiming no LLD deviation and complete migration, overlooks continued state exposure, and proposes a destructive whole-stack rollback."
+      }
+    },
+    "task_score": 39.6,
+    "verdict": "The submission recognizes the correct AWS mechanisms but is poorly grounded in the repository, and the implementation neither validates nor performs the requested ECS migration.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-14T22:58:35.177270Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 587066,
+        "cached_input_tokens": 534512,
+        "cache_write_input_tokens": 52526,
+        "output_tokens": 8559,
+        "reasoning_output_tokens": 3562
+      },
+      "duration_ms": 110829
+    }
+  }
+}

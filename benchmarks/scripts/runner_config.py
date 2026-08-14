@@ -106,7 +106,12 @@ DEFAULT_AUTO_COMPACT_FRACTION = 0.9
 # and names a Bedrock model id, so no base URL or api_key is used.
 PROVIDER_ENDPOINT = "endpoint"
 PROVIDER_BEDROCK = "bedrock"
-VALID_PROVIDERS = {PROVIDER_ENDPOINT, PROVIDER_BEDROCK}
+# "kiro" routes through the kiro-cli agent's own managed (Bedrock-backed) models
+# via its AWS/Builder-ID/Google sign-in. There is no user-supplied base URL or
+# region to configure -- kiro-cli cannot target a self-hosted vLLM endpoint -- so
+# this provider is only valid with agent=kiro. See docs/kiro-cli-setup.md.
+PROVIDER_KIRO = "kiro"
+VALID_PROVIDERS = {PROVIDER_ENDPOINT, PROVIDER_BEDROCK, PROVIDER_KIRO}
 DEFAULT_PROVIDER = PROVIDER_ENDPOINT
 
 # Which coding agent drives the task. "claude" is Claude Code (`claude -p`);
@@ -117,7 +122,13 @@ DEFAULT_PROVIDER = PROVIDER_ENDPOINT
 # bedrock-runtime client, invoked as `pi --provider amazon-bedrock`).
 AGENT_CLAUDE = "claude"
 AGENT_PI = "pi"
-VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI}
+# "kiro" is the kiro-cli agent (`kiro-cli chat --no-interactive`). Unlike claude
+# and pi it cannot target a self-hosted endpoint: it drives Kiro's own managed
+# models and requires provider=kiro. It reports credits + wall-clock time (not
+# tokens) on stderr, which the harness maps to a dollar cost. See
+# docs/kiro-cli-setup.md.
+AGENT_KIRO = "kiro"
+VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI, AGENT_KIRO}
 DEFAULT_AGENT = AGENT_CLAUDE
 
 # Artifacts are grouped by the coding agent (the "harness") that produced them,
@@ -125,7 +136,14 @@ DEFAULT_AGENT = AGENT_CLAUDE
 # ``<model-slug>/<harness-slug>/<repo>/<task>/``. The harness slug is the folder
 # name for each agent; "claude" -> "claude-code" (the historical Claude Code
 # results, migrated under this name), "pi" -> "pi".
-HARNESS_SLUGS = {AGENT_CLAUDE: "claude-code", AGENT_PI: "pi"}
+HARNESS_SLUGS = {AGENT_CLAUDE: "claude-code", AGENT_PI: "pi", AGENT_KIRO: "kiro-cli"}
+
+# kiro-cli bills in credits, not tokens; the harness translates credits (parsed
+# from kiro-cli's stderr summary line) to a dollar cost with a configurable
+# per-credit rate. Kiro's add-on/overage rate is $0.04/credit; the blended
+# included-allotment rate across paid tiers is $0.02/credit. See
+# docs/kiro-cli-setup.md and docs/cost-per-task-methodology.md.
+DEFAULT_KIRO_DOLLARS_PER_CREDIT = 0.04
 
 # Which SWE skill drives the run. "swe3" is the DEFAULT single-agent skill: all
 # work is done inline in the main loop with NO subagent fan-out, so its token/cost
@@ -160,16 +178,25 @@ _MODEL_SUFFIX_RE = re.compile(r"\[[^\]]*\]$")
 _MODEL_DATE_VERSION_RE = re.compile(r"-\d{8}-v\d+:\d+$")
 
 
-def model_to_slug(model: str) -> str:
+def model_to_slug(model: str, *, normalize_dots: bool = False) -> str:
     """Normalize a model id to the folder slug the /swe skill uses.
 
     Mirrors the skill's rule (SKILL.md): strip a Bedrock inference-profile
     prefix like ``us.anthropic.`` and a bracketed context-window suffix like
-    ``[1m]``. Nothing else is altered -- dots inside a version (e.g. ``glm-5.2``)
-    and existing kebab-case are preserved, matching the on-disk folder names.
+    ``[1m]``. By default nothing else is altered -- dots inside a version (e.g.
+    ``glm-5.2``) and existing kebab-case are preserved, matching the on-disk
+    folder names of the claude/pi/self-hosted runs.
+
+    ``normalize_dots`` additionally replaces ``.`` with ``-`` (e.g.
+    ``claude-haiku-4.5`` -> ``claude-haiku-4-5``). This is used only for the
+    kiro agent, whose managed model names carry dots (``claude-haiku-4.5``,
+    ``deepseek-3.2``), so kiro artifacts land in the same dash-style folder the
+    Bedrock/self-hosted runs already use. It is NOT applied to the other agents,
+    whose committed folders and charts intentionally keep the dotted names.
 
     Args:
         model: The raw model id (e.g. ``us.anthropic.claude-opus-4-8[1m]``).
+        normalize_dots: When True, also convert ``.`` to ``-`` (kiro only).
 
     Returns:
         The artifact-folder slug (e.g. ``claude-opus-4-8``).
@@ -177,6 +204,8 @@ def model_to_slug(model: str) -> str:
     slug = _MODEL_SUFFIX_RE.sub("", model)
     slug = _BEDROCK_PREFIX_RE.sub("", slug)
     slug = _MODEL_DATE_VERSION_RE.sub("", slug)
+    if normalize_dots:
+        slug = slug.replace(".", "-")
     return slug
 
 
@@ -366,6 +395,14 @@ class RunnerConfig(BaseModel):
         default=None,
         description="Optional claude --settings JSON file (e.g. the vLLM config).",
     )
+    kiro_dollars_per_credit: float = Field(
+        default=DEFAULT_KIRO_DOLLARS_PER_CREDIT,
+        ge=0.0,
+        description="USD per kiro-cli credit, used only for agent=kiro to turn the "
+        "credits it reports into a dollar cost per task. Default 0.04 (Kiro's "
+        "add-on/overage rate); use 0.02 for the blended included-allotment rate. "
+        "Set to your real plan's effective rate. See docs/kiro-cli-setup.md.",
+    )
 
     @property
     def is_bedrock(self) -> bool:
@@ -376,6 +413,11 @@ class RunnerConfig(BaseModel):
     def is_pi(self) -> bool:
         """True when the pi coding agent drives the task (instead of Claude Code)."""
         return self.agent == AGENT_PI
+
+    @property
+    def is_kiro(self) -> bool:
+        """True when the kiro-cli agent drives the task."""
+        return self.agent == AGENT_KIRO
 
     @property
     def harness_slug(self) -> str:
@@ -424,7 +466,11 @@ class RunnerConfig(BaseModel):
         Returns:
             The normalized folder slug (e.g. ``claude-opus-4-8``).
         """
-        return model_to_slug(self.model) if self.model else ""
+        # kiro's managed model names carry dots (claude-haiku-4.5); dash them so
+        # kiro artifacts share the folder the Bedrock/self-hosted runs use.
+        return (
+            model_to_slug(self.model, normalize_dots=self.is_kiro) if self.model else ""
+        )
 
     def resolved_region(self) -> str | None:
         """Return the AWS region for Bedrock, falling back to the environment.
@@ -481,6 +527,16 @@ class RunnerConfig(BaseModel):
         # bedrock-runtime client + credential chain, invoked as
         # `pi --provider amazon-bedrock`). No routing combination is rejected
         # here; _validate_routing checks the fields each provider needs.
+        #
+        # kiro-cli is the exception: it only drives its own managed models, so
+        # agent=kiro and provider=kiro must go together (neither pairs with
+        # anything else).
+        if (self.agent == AGENT_KIRO) != (self.provider == PROVIDER_KIRO):
+            raise RunnerConfigError(
+                "agent=kiro and provider=kiro must be used together: kiro-cli only "
+                "drives Kiro's managed models (no endpoint/bedrock routing), and no "
+                "other agent uses provider=kiro. See docs/kiro-cli-setup.md."
+            )
         if not self.model:
             raise RunnerConfigError(
                 "model is required. Set it in the config file or pass --model "
@@ -505,6 +561,10 @@ class RunnerConfig(BaseModel):
         Raises:
             RunnerConfigError: If routing fields are missing or malformed.
         """
+        # kiro-cli manages its own routing and sign-in; there is no endpoint or
+        # region for the harness to supply or validate.
+        if self.provider == PROVIDER_KIRO:
+            return
         if self.is_bedrock:
             if not self.resolved_region():
                 raise RunnerConfigError(

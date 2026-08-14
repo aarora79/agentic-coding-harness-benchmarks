@@ -174,6 +174,78 @@ class SkillPathTest(unittest.TestCase):
         self.assertTrue(skill_arg.endswith("swe3/SKILL.md"))
 
 
+class KiroHarnessTest(unittest.TestCase):
+    """kiro-cli command assembly and stderr-based metrics normalization."""
+
+    def test_kiro_cmd_shape_and_terminator(self) -> None:
+        cmd = harness._build_kiro_cmd(
+            _config(agent="kiro", provider="kiro", model="claude-sonnet-5"),
+            "PROMPT-BODY",
+        )
+        self.assertEqual(
+            cmd[:6],
+            [
+                "kiro-cli",
+                "chat",
+                "--no-interactive",
+                "--trust-all-tools",
+                "--model",
+                "claude-sonnet-5",
+            ],
+        )
+        # A "--" terminator sits immediately before the single prompt positional,
+        # so the inlined SKILL.md (which starts with "---") is never parsed as a
+        # flag by kiro-cli.
+        self.assertEqual(cmd[6], "--")
+        self.assertEqual(len(cmd), 8)
+        prompt_arg = cmd[7]
+        self.assertIn("PROMPT-BODY", prompt_arg)  # task prompt inlined
+        self.assertIn("swe3", prompt_arg)  # SKILL.md content inlined
+
+    def test_kiro_result_parses_credits_and_time(self) -> None:
+        # ANSI-colored stderr with the "Credits: N • Time: Ns" summary line.
+        stderr = "\x1b[38;5;8m\n ▸ Credits: 0.21 • Time: 17s\n\x1b[0m"
+        result = harness._kiro_result_from_output(stderr, 0, 20.0, 0.04)
+        self.assertFalse(result["is_error"])
+        self.assertEqual(result["subtype"], "success")
+        self.assertEqual(result["kiro_credits"], 0.21)
+        self.assertAlmostEqual(result["total_cost_usd"], 0.0084, places=6)
+        # duration comes from the reported Time (17s), not the harness elapsed.
+        self.assertEqual(result["duration_ms"], 17000)
+        self.assertEqual(result["usage"], {"input_tokens": 0, "output_tokens": 0})
+
+    def test_kiro_result_nonzero_exit_is_error(self) -> None:
+        result = harness._kiro_result_from_output("boom", 1, 5.0, 0.04)
+        self.assertTrue(result["is_error"])
+        self.assertEqual(result["subtype"], "exit_1")
+
+    def test_kiro_result_missing_credits_is_graceful(self) -> None:
+        result = harness._kiro_result_from_output("no summary here", 0, 12.0, 0.04)
+        self.assertIsNone(result["kiro_credits"])
+        self.assertIsNone(result["total_cost_usd"])
+        self.assertEqual(result["duration_ms"], 12000)  # falls back to elapsed
+
+    def test_kiro_credits_flow_into_metrics(self) -> None:
+        result = harness._kiro_result_from_output(
+            " ▸ Credits: 4.7 • Time: 183s", 0, 183.0, 0.04
+        )
+        metrics = harness._metrics_from_result(result, 183.0)
+        self.assertEqual(metrics["kiro_credits"], 4.7)
+        self.assertAlmostEqual(metrics["total_cost_usd"], 0.188, places=3)
+
+    def test_kiro_prompt_names_the_skill(self) -> None:
+        prompt = harness._build_prompt(
+            _task(),
+            Path("/tmp/x/repo"),
+            "master",
+            "m",
+            Path("/tmp/art"),
+            agent="kiro",
+            skill="swe3",
+        )
+        self.assertIn("Use the swe3 skill", prompt)
+
+
 class AnnotateMetricsTopupTest(unittest.TestCase):
     """The summed top-up totals must land in BOTH top-level and metrics_that_matter,
     and MUST include total_cost_usd and cache tokens (not just turns/tokens)."""
