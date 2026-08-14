@@ -61,6 +61,16 @@ _spec.loader.exec_module(gen)
 HARNESSES = ("claude-code", "pi")
 HARNESS_LABELS = {"claude-code": "Claude Code", "pi": "pi"}
 
+# Chart font sizes (points). Sized up for legibility when the chart is embedded in
+# slides and social posts. The two bottom notes (task shape, method) stay at
+# FOOTNOTE_FONTSIZE so they read as fine print, not body text.
+SUPTITLE_FONTSIZE = 16
+PANEL_TITLE_FONTSIZE = 13
+ROW_LABEL_FONTSIZE = 11
+TICK_FONTSIZE = 11
+LEGEND_FONTSIZE = 11
+FOOTNOTE_FONTSIZE = 6.8
+
 # Palette. Two validated categorical hues identify the two harness DOTS; the
 # connecting line is colored by the winner so "who's better" reads at a glance.
 _THEME = {
@@ -279,15 +289,20 @@ def _panel(
             zorder=3,
         )
     ax.set_yticks(y)
-    ax.set_yticklabels(models, fontsize=8, color=t["ink"])
+    ax.set_yticklabels(models, fontsize=ROW_LABEL_FONTSIZE, color=t["ink"])
     ax.invert_yaxis()
     tally = f"pi better on {pi_wins} of {counted}" if counted else "all ties"
-    ax.set_title(f"{label}   ({tally})", fontsize=10, color=t["ink"], loc="left")
+    ax.set_title(
+        f"{label}   ({tally})",
+        fontsize=PANEL_TITLE_FONTSIZE,
+        color=t["ink"],
+        loc="left",
+    )
     ax.xaxis.set_major_formatter(FuncFormatter(xfmt))
     for spine in ("top", "right", "left"):
         ax.spines[spine].set_visible(False)
     ax.spines["bottom"].set_color(t["grid"])
-    ax.tick_params(colors=t["muted"], labelsize=8, length=0)
+    ax.tick_params(colors=t["muted"], labelsize=TICK_FONTSIZE, length=0)
     ax.xaxis.grid(True, color=t["grid"], linewidth=0.6)
     ax.set_axisbelow(True)
     lo = min(min(per[m]["claude-code"][key], per[m]["pi"][key]) for m in models)
@@ -350,7 +365,7 @@ def _plot(
     fig.suptitle(
         f"Does the harness matter? Claude Code vs pi on {skill}, per model "
         f"({len(models)} run under both)",
-        fontsize=13,
+        fontsize=SUPTITLE_FONTSIZE,
         color=t["ink"],
         x=0.02,
         y=0.985,
@@ -361,7 +376,7 @@ def _plot(
         [h.get_label() for h in handles],
         loc="upper center",
         ncol=3,
-        fontsize=8.5,
+        fontsize=LEGEND_FONTSIZE,
         frameon=False,
         labelcolor=t["muted"],
         bbox_to_anchor=(0.5, 0.945),
@@ -378,8 +393,8 @@ def _plot(
         "<2% gap counts as a tie). Comparing one model's two harnesses is fair even "
         "for cost -- its hosting basis is identical under both."
     )
-    fig.text(0.01, 0.028, task_line, fontsize=6.8, color=t["muted"])
-    fig.text(0.01, 0.006, method_line, fontsize=6.8, color=t["muted"])
+    fig.text(0.01, 0.028, task_line, fontsize=FOOTNOTE_FONTSIZE, color=t["muted"])
+    fig.text(0.01, 0.006, method_line, fontsize=FOOTNOTE_FONTSIZE, color=t["muted"])
     fig.tight_layout(rect=(0, 0.05, 1, 0.91))
 
     suffix = "-dark" if mode == "dark" else ""
