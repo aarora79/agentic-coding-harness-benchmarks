@@ -71,6 +71,16 @@ HARNESS_LABELS = {
     "kiro-cli": "kiro-cli",
 }
 
+# Chart font sizes (points). Sized up for legibility when the chart is embedded
+# in slides and social posts. The two footnotes stay at FOOTNOTE_FONTSIZE so the
+# pricing-basis and excluded-task notes read as fine print, not body text.
+TITLE_FONTSIZE = 17
+AXIS_LABEL_FONTSIZE = 15
+TICK_FONTSIZE = 13
+POINT_LABEL_FONTSIZE = 13
+LEGEND_FONTSIZE = 13
+FOOTNOTE_FONTSIZE = 8
+
 
 def _default_output(harness: str, skill: str, dark: bool) -> Path:
     """Committed docs/images path for a (harness, skill) cost-quality chart.
@@ -496,12 +506,12 @@ def _label_offsets(ax, fig, points: list[ModelPoint]) -> dict[int, float]:
         ``{id(point): dy_in_points}`` -- 0.0 for labels that did not move.
     """
     to_px = ax.transData.transform
-    line_px = 9 * 1.35 * fig.dpi / 72.0  # one label's height in pixels
+    line_px = POINT_LABEL_FONTSIZE * 1.35 * fig.dpi / 72.0  # one label's height in px
     # Two labels collide when they share a horizontal band (near in x) AND sit
     # within ~1.6 line-heights in y. The x band is generous (a label is wide), so
     # a whole diagonal run of nearby dots merges into one cluster rather than
     # fragmenting into pairs that would still overlap each other.
-    x_band_px = 12 + 9 * 0.6 * 16  # 12px gap + ~16 chars at ~0.6em, fontsize 9
+    x_band_px = 12 + POINT_LABEL_FONTSIZE * 0.6 * 16  # 12px gap + ~16 chars at ~0.6em
     y_touch_px = line_px * 1.6
     px = {id(p): to_px((p.mean_cost, p.mean_score)) for p in points}
 
@@ -604,11 +614,16 @@ def _plot(
             zorder=3,
         )
 
-    ax.set_xlabel(cost_label, fontsize=11, color=theme["ink"], labelpad=10)
-    ax.set_ylabel(
-        "Mean task score (0-100)", fontsize=11, color=theme["ink"], labelpad=10
+    ax.set_xlabel(
+        cost_label, fontsize=AXIS_LABEL_FONTSIZE, color=theme["ink"], labelpad=10
     )
-    ax.set_title(title, fontsize=13, color=theme["ink"], pad=16, loc="left")
+    ax.set_ylabel(
+        "Mean task score (0-100)",
+        fontsize=AXIS_LABEL_FONTSIZE,
+        color=theme["ink"],
+        labelpad=10,
+    )
+    ax.set_title(title, fontsize=TITLE_FONTSIZE, color=theme["ink"], pad=16, loc="left")
 
     ax.grid(True, color=theme["grid"], linewidth=0.8, zorder=0)
     ax.set_axisbelow(True)
@@ -616,7 +631,7 @@ def _plot(
         ax.spines[spine].set_visible(False)
     for spine in ("left", "bottom"):
         ax.spines[spine].set_color(theme["grid"])
-    ax.tick_params(colors=theme["muted"], labelsize=9)
+    ax.tick_params(colors=theme["muted"], labelsize=TICK_FONTSIZE)
 
     # Headroom so labels near the axis edges do not clip.
     xs = [p.mean_cost for p in points]
@@ -641,7 +656,7 @@ def _plot(
             (point.mean_cost, point.mean_score),
             textcoords="offset points",
             xytext=(12, dy_pts),
-            fontsize=9,
+            fontsize=POINT_LABEL_FONTSIZE,
             color=theme["ink"],
             ha="left",
             va="center",
@@ -660,7 +675,7 @@ def _plot(
         )
 
     if len(frontier) >= 2:
-        legend = ax.legend(loc="lower right", frameon=False, fontsize=9)
+        legend = ax.legend(loc="lower right", frameon=False, fontsize=LEGEND_FONTSIZE)
         for text in legend.get_texts():
             text.set_color(theme["muted"])
 
@@ -675,7 +690,7 @@ def _plot(
         "self-hosted/vllm/pricing.json.",
         ha="center",
         va="top",
-        fontsize=8,
+        fontsize=FOOTNOTE_FONTSIZE,
         color=theme["muted"],
         wrap=True,
     )
@@ -695,7 +710,7 @@ def _plot(
             note,
             ha="center",
             va="top",
-            fontsize=8,
+            fontsize=FOOTNOTE_FONTSIZE,
             color=theme["muted"],
             wrap=True,
         )
