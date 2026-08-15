@@ -1,0 +1,174 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "high",
+  "tags": [
+    "security",
+    "aws",
+    "rds",
+    "iam",
+    "keycloak",
+    "terraform"
+  ],
+  "model": "deepseek-3.2",
+  "model_slug": "deepseek-3-2",
+  "agent": "kiro",
+  "skill": "swe3",
+  "provider": "kiro",
+  "endpoint": "http://127.0.0.1:8000",
+  "aws_region": null,
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 0.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 0.9284,
+    "latency_seconds": 1056.1,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "latency_seconds": 1056.1,
+  "num_turns": 0,
+  "total_cost_usd": 0.9284,
+  "is_error": false,
+  "result_subtype": "success",
+  "kiro_credits": 23.21,
+  "run_started_at": "2026-08-15T07:53:13.266265Z",
+  "run_ended_at": "2026-08-15T08:10:49.337449Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 0.9284,
+    "latency_seconds": 1056.1,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "vllm_prometheus": {
+    "available": false,
+    "source": "vllm_prometheus_window",
+    "note": "vLLM metrics were not reachable; run against a vLLM endpoint exposing /metrics to populate this block.",
+    "derived": {
+      "prefix_cache_hit_rate": null,
+      "prompt_tokens_cached_rate": null
+    },
+    "counters": {},
+    "histograms": {},
+    "gauges": {},
+    "gauges_sampled": {
+      "available": false,
+      "source": "vllm_prometheus_poll",
+      "note": "No vLLM gauges were sampled during the run; endpoint unreachable or not a vLLM server.",
+      "interval_seconds": 1.0,
+      "gauges": {}
+    }
+  },
+  "evaluation": {
+    "task": "replace-keycloak-db-password-with-rds-iam",
+    "model": "deepseek-3.2",
+    "scores": {
+      "github_issue": {
+        "completeness": 17,
+        "correctness": 9,
+        "specificity": 16,
+        "risk_awareness": 13,
+        "total": 55,
+        "notes": "The issue clearly states the motivation, scope, non-goals, dependencies, and mostly testable acceptance criteria. Repository inspection confirms the named Terraform files, password variable, Secrets Manager integration, disabled proxy IAM authentication, and Aurora MySQL deployment exist. Its largest defect is prescribing unsupported mechanics: rds:GenerateDBAuthToken is not the permission used for token generation, and the stock Keycloak MySQL driver is not shown to support the proposed JDBC parameter. No independent task statement was supplied, so requirements such as retaining a feature-flagged fallback cannot be verified beyond the artifacts themselves."
+      },
+      "lld": {
+        "completeness": 12,
+        "correctness": 4,
+        "specificity": 13,
+        "risk_awareness": 13,
+        "total": 42,
+        "notes": "The LLD is grounded in real files such as terraform/aws-ecs/keycloak-database.tf, keycloak-ecs.tf, variables.tf, secret-rotation.tf, and docker/keycloak/Dockerfile. Its load-bearing design is incorrect: useAwsIam is not established as a Connector/J capability, the application permission is placed on the ECS execution role rather than the task role, and rds-db:connect requires a dbuser ARN rather than the cluster ARN shown. The proposed feature flag has no committed switching mechanism, while proxy IAM remains REQUIRED and the JDBC URL remains IAM-specific, so the claimed password fallback is not designed. Token refresh, custom metrics, no new dependencies, and automatic driver behavior are asserted without repository support or an implementation mechanism."
+      },
+      "review": {
+        "completeness": 16,
+        "correctness": 7,
+        "specificity": 15,
+        "risk_awareness": 17,
+        "total": 55,
+        "notes": "The review usefully identifies driver compatibility, token expiry, IAM scope, TLS, rollback, monitoring, and fallback as material risks. Its largest deficiency is declaring every blocker resolved using unsupported claims, especially that Connector/J recognizes useAwsIam and automatically refreshes IAM tokens. It also misses repository-visible failures such as attaching application permissions to aws_iam_role.keycloak_task_exec_role even though the task definition separately uses aws_iam_role.keycloak_task_role. The claimed CloudTrail authentication visibility and compatibility research are not substantiated by repository evidence."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 5,
+        "specificity": 12,
+        "risk_awareness": 13,
+        "total": 47,
+        "notes": "The plan spans Terraform, deployment state, Keycloak APIs, rollback, token lifetime, failure modes, security, and performance. Many tests cannot establish their stated oracle: no keycloak_jdbc_url output exists, the mysql client is given a JDBC URL as its host and no IAM token, and an empty password has no Terraform validation that would make the negative plan fail. Repository configuration names the role keycloak-task-exec-role-${var.aws_region} and uses an ecs log-stream prefix, contradicting the hardcoded role and dated stream commands; several curl and stress steps also never assert results. AWS-backed behavior could not be executed in the supplied read-only environment, but the command and configuration mismatches are independently visible."
+      },
+      "implementation": {
+        "completeness": 6,
+        "correctness": 2,
+        "specificity": 12,
+        "risk_awareness": 4,
+        "total": 24,
+        "notes": "The diff context and referenced resources match the real Terraform files, and the patch narrowly updates the advertised infrastructure surfaces. It does not implement working IAM authentication: the stock Keycloak image has no token-generating integration, rds:GenerateDBAuthToken is invalid, rds-db:connect is scoped to the wrong ARN, and the policy is attached to the execution role rather than the application's task role. keycloak_use_iam_auth only sets an unused environment variable while the proxy is always IAM-required and the URL is always IAM-specific, so the documented false setting and emergency fallback cannot work. The summary materially oversells replacement and backward compatibility, and its claim that the cluster resource ID cannot be used during Terraform planning does not justify the unusable policy scope."
+      }
+    },
+    "task_score": 44.6,
+    "verdict": "The submission identifies the right infrastructure surfaces and risks, but its central JDBC, IAM-role, policy, and fallback assumptions are wrong, leaving the implementation nonfunctional.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-15T08:17:23.651357Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 211978,
+        "cached_input_tokens": 171892,
+        "cache_write_input_tokens": 40074,
+        "output_tokens": 7609,
+        "reasoning_output_tokens": 5130
+      },
+      "duration_ms": 74492
+    }
+  }
+}

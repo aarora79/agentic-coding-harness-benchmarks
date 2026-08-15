@@ -174,6 +174,8 @@ Kiro's published pricing gives two defensible per-credit rates:
 
 `DOLLARS_PER_CREDIT` is a **configurable rate**, the same stance this page takes on the self-hosted GPU discount (a documented placeholder you set to your real plan). The default is the **$0.04 marginal** rate -- the honest "what does one more task cost" figure -- with $0.02 available for an all-you-can-use blended view. Example: a run reporting `Credits: 0.21` costs `0.21 x $0.04 = $0.0084` (or `$0.0042` blended); a real swe task at 50-300 turns consumes far more.
 
+**How the harness records it.** `run-swe-headless.py` captures kiro-cli's output, strips the ANSI color codes, and regex-parses the `Credits:` value from the summary line. It multiplies that by `kiro_dollars_per_credit` -- a config knob (default 0.04) settable in `runner.yaml` or with `--kiro-dollars-per-credit` -- to get the run's `total_cost_usd`. Each task's `metrics.json` stores **both** the raw `kiro_credits` (provenance) and the derived `total_cost_usd`, and `summarize_run.py` averages `total_cost_usd` across the run's tasks into the reported `$/task` (the `mean_cost_usd_excl_failed` field). So the dollar figure is always traceable back to the exact credits kiro-cli charged.
+
 **Do not compare raw dollars across the three bases.** Metered Bedrock dollars, hardware-derived self-hosted GPU-seconds, and Kiro credits are measured on different footings (and the credit-to-dollar conversion depends on your Kiro plan). As with the metered-vs-self-hosted comparison, treat any cross-basis dollar tie as an order-of-magnitude result and state the provenance; compare within a basis.
 
 ## Summary

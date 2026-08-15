@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 16,
+      "risk_awareness": 10,
+      "total": 53,
+      "notes": "The issue provides concrete removal targets, explicit non-goals, and mostly testable acceptance criteria. Its largest flaw is claiming backward compatibility and that DocumentDB is already required, while registry/core/config.py defaults storage_backend to file and the factory selects FaissSearchRepository for that supported mode. The named dependency, service, configuration properties, and DocumentDB repository all exist. No independent task statement establishes that FAISS is obsolete or that issue #1285 is related, so those claims remain unverifiable."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 7,
+      "total": 39,
+      "notes": "The LLD names several real files and gives a concrete deletion sequence. Its load-bearing backend decision remains an open question even though the design simultaneously mandates DocumentDB-only search; this would break the repository's default file backend. registry/api/search_routes.py already obtains SearchRepositoryBase through get_search_repo rather than importing faiss_service, contradicting the analysis, while registry/repositories/factory.py confirms the omitted backend compatibility problem. Error handling, migration, rollback, and operator configuration are generic, and claims that DocumentDB provides equivalent tested behavior are not demonstrated."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 7,
+      "specificity": 7,
+      "risk_awareness": 8,
+      "total": 30,
+      "notes": "The review at least raises migration, unavailable-search, health-check, and residual-index concerns. Its largest deficiency is approving without changes despite the unresolved file-backend question and the LLD's unsupported no-breaking-change claim. registry/core/config.py shows file is the historical default, and registry/main.py has distinct FAISS startup and rebuild behavior that the reviewers never examine. Assertions that DocumentDB is production-ready, fully tested, and covers every search use case are not substantiated."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 7,
+      "total": 38,
+      "notes": "The plan supplies concrete dependency, API workflow, and container commands with some useful state-based expectations. The workflow is internally broken because registration uses paths suffixed with $$ while toggle and removal operate on unsuffixed paths, so those steps do not test the registered entity. Its import grep only matches direct import faiss/from faiss statements and misses repository imports such as from ..search.service import faiss_service; numerous surviving tests and documentation references would also escape it. Search success often has no deterministic fixture or result oracle, and there is no coverage for DocumentDB failure, the default file backend, or the replacement repository method contracts."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 10,
+      "risk_awareness": 2,
+      "total": 21,
+      "notes": "The patch targets real source context and removes the primary dependency, FaissService, configuration properties, and many lifecycle calls. It is not functional: DocumentDBSearchRepository exposes remove_entity rather than remove_server/remove_agent, and index_agent expects an AgentCard while the patch passes model_dump dictionaries. Deleting registry/search/service.py and tests/fixtures/mocks/mock_faiss.py leaves imports in tests/conftest.py, tests/integration/test_search_integration.py, and many unit tests, while extensive documentation, telemetry, schema, and lockfile references remain. The factory routes the supported default file backend to DocumentDB without changing configuration or startup logic, and the summary incorrectly reports no LLD deviations or follow-ups."
+    }
+  },
+  "task_score": 36.2,
+  "verdict": "The submission identifies the broad dependency-removal surface, but the implementation is unusable because it violates repository interfaces, breaks the default backend, and leaves substantial references and tests behind.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-15T05:22:19.058107Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1041003,
+      "cached_input_tokens": 952410,
+      "cache_write_input_tokens": 88565,
+      "output_tokens": 7899,
+      "reasoning_output_tokens": 2941
+    },
+    "duration_ms": 87960
+  }
+}

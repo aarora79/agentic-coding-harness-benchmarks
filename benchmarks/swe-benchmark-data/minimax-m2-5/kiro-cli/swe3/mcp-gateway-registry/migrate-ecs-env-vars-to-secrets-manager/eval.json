@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 7,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 54,
+      "notes": "The strongest aspect is the explicit variable list, acceptance criteria, dependencies, and exclusions. Its largest flaw is the incorrect migration model: ECS secret injection does not provide runtime fallback when retrieval fails, injected secrets require task replacement to refresh, and retaining Terraform-managed plaintext does not remove it from state. The patch also adds `auth0_management_api_token`, contradicting the issue's assertion that all required secrets already exist in `secrets.tf`. No independent task statement was supplied, and repository shell access failed during sandbox initialization, so claims beyond the submitted source context could not be independently verified."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 8,
+      "total": 40,
+      "notes": "The design names relevant files, conditional resources, environment names, IAM needs, and rollout phases, with several symbols corroborated by the patch context. Its central design is unsound because six distinct credentials are mapped to `secret_key`, while duplicate plaintext entries cannot rescue a task whose execution role fails to fetch a secret. The proposed standalone `aws_iam_policy.secrets_manager_read` is not attached to a role and unconditionally indexes optional `[0]` resources, whereas the patch shows an existing `aws_iam_policy.ecs_secrets_access` integration point. Important claims about state removal, log exposure, and rotation are incorrect, and repository access failure prevented independent validation of remaining symbols."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 16,
+      "total": 55,
+      "notes": "The review usefully identifies secret reuse, excessive IAM scope, plaintext retention, task restarts after rotation, rollback documentation, and missing integration verification. Its largest deficiency is declaring zero blockers despite recognizing credential reuse that would inject unrelated values and break enabled integrations, while entirely missing that the proposed fallback cannot handle secret retrieval failure. It also states that `aws_secretsmanager_secret.auth0_management_api_token` already exists near line 310, but the implementation patch creates that resource at line 329. Application mappings and throughput assumptions remained unverifiable because repository shell access was unavailable."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 4,
+      "specificity": 16,
+      "risk_awareness": 11,
+      "total": 49,
+      "notes": "The plan covers task definitions, conditional configuration, deployment, rollback, APIs, logs, and IAM with concrete commands. The IAM test derives the wrong value from the task-definition ARN, queries `taskRoleArn` instead of `executionRoleArn`, executes `get-secret-value` as the operator, and uses `get-role-policy` even though the patch shows a managed `aws_iam_policy.ecs_secrets_access`. The fallback test never induces retrieval failure and treats `healthCheckGracePeriodSeconds` as a health oracle, while `ecs execute-command` prints the supposedly masked secrets and CloudWatch application logs will not contain Secrets Manager API events. Service names, endpoints, Terraform variables, and commands could not be checked against the repository because shell access failed."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 6,
+      "specificity": 16,
+      "risk_awareness": 6,
+      "total": 38,
+      "notes": "The patch is narrowly targeted and consistently adds the dedicated Auth0 management token resource, IAM ARN, and ECS references across the shown task definitions. It does not correctly implement the migration because `REGISTRY_API_TOKEN`, `REGISTRY_API_KEYS`, both federation values, and both ANS credentials all reference `aws_secretsmanager_secret.secret_key`, so distinct configured credentials would be replaced by an unrelated shared value. Retaining the plaintext entries neither protects against startup-time secret retrieval failure nor achieves the stated removal from task definitions or Terraform state, although the summary candidly records the reuse and unexecuted verification. `git apply --check` and surrounding-source validation could not be completed because every shell command failed before execution with the sandbox `bwrap` loopback error."
+    }
+  },
+  "task_score": 47.2,
+  "verdict": "The submission is detailed and identifies relevant infrastructure, but its shared-secret mapping and nonexistent ECS fallback semantics make the proposed implementation operationally unsafe.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-15T05:19:06.435410Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 178519,
+      "cached_input_tokens": 151961,
+      "cache_write_input_tokens": 26544,
+      "output_tokens": 8091,
+      "reasoning_output_tokens": 6762
+    },
+    "duration_ms": 99884
+  }
+}
