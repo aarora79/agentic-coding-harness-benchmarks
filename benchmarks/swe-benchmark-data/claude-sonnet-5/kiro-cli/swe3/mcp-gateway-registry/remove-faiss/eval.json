@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "claude-sonnet-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The issue precisely identifies the file-backend repository, direct route calls, toggle-indexing gap, dependency manifests, documentation, tests, and measurable acceptance criteria. Its largest factual defect is claiming there is no persisted FAISS index to migrate: registry/search/service.py loads and saves settings.faiss_index_path and settings.faiss_metadata_path. The proposed service-layer ownership matches ServerService.update_server/remove_server and AgentService update/delete patterns verified in the repository. No independent task statement was supplied, so the broader requirement to preserve file-backend lexical search is established only by the candidate's own artifacts."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 72,
+      "notes": "The LLD is unusually well grounded in real integration points including get_search_repository, SearchRepositoryBase, the startup indexing loop, and the server and agent toggle methods. It incorrectly describes the old FAISS state as non-persistent and the same flat metadata shape, while FaissService actually persists nested full_server_info/full_agent_card records. It also leaves load-bearing choices to the implementer, notably tool-result parity, redundant indexing, and how to expose lexical-only mode even though SemanticSearchResponse defaults to hybrid. Ranking degradation, lockfile regeneration, toggle failure handling, and frontend impact are considered, but concurrency and mixed-version telemetry compatibility are not."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 20,
+      "risk_awareness": 20,
+      "total": 75,
+      "notes": "The review surfaces concrete design risks around lost tool hits, insertion-order ranking, toggle indexing, lockfile regeneration, and possible metadata exposure. Its declared blocking removal-path ambiguity is not actually resolved in the review text, which says confirmation will occur during implementation even though ServerService.remove_server could already be inspected and does call remove_entity. It also misses the LLD's unresolved search_mode integration and the tool-only entity filter problem in the proposed repository logic. The query length bound it cites is verified at SemanticSearchRequest.query max_length=512, while its frontend deployment assumptions are appropriately presented as unverified questions."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 16,
+      "total": 65,
+      "notes": "The plan covers repository behavior, HTTP lifecycle checks, both storage families, dependency removal, deployment surfaces, and concrete negative cases. It omits focused unit tests proving ServerService.toggle_service and AgentService enable/disable perform non-fatal re-indexing, which is the highest-risk behavioral change. Several oracles are unreliable or contradicted by the implementation: get_all_tags does not deduplicate case variants, the FAISS grep cannot be empty while legacy mock_faiss_service fixtures remain, and manual searches lack deterministic seeded data. Mongo ranking identity cannot be verified without a captured baseline, and the authenticated lifecycle examples contain placeholders rather than an executable setup."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 59,
+      "notes": "The visible patch implements the central architectural change against verified symbols: it replaces FaissSearchRepository, removes route side channels, and adds service-layer toggle indexing. It nevertheless leaves faiss-cpu in uv.lock, never passes search_repo.search_mode into SemanticSearchResponse, and skips MCP servers when entity_types is tool-only, so explicit acceptance and planned tests are not met. The new shell verification greps the entire response for the query string, which is always echoed in the query field, and numerous integration-test patches make the synchronous get_search_repository an AsyncMock, yielding a coroutine instead of a repository. The submitted diff is truncated and no local patch.diff exists, so clean applicability and the unshown test/documentation tail could not be independently verified."
+    }
+  },
+  "task_score": 69.4,
+  "verdict": "The artifacts are detailed and repository-aware, but the implementation has several concrete correctness failures and does not fully remove FAISS from the locked dependency set.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-15T01:16:10.815568Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 2138782,
+      "cached_input_tokens": 2030301,
+      "cache_write_input_tokens": 108439,
+      "output_tokens": 9772,
+      "reasoning_output_tokens": 5547
+    },
+    "duration_ms": 153310
+  }
+}
