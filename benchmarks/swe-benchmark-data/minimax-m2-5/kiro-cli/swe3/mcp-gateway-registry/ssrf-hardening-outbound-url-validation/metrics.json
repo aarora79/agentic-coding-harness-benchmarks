@@ -1,0 +1,173 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "security",
+    "ssrf",
+    "python",
+    "fastapi",
+    "input-validation"
+  ],
+  "model": "minimax-m2.5",
+  "model_slug": "minimax-m2-5",
+  "agent": "kiro",
+  "skill": "swe3",
+  "provider": "kiro",
+  "endpoint": "http://127.0.0.1:8000",
+  "aws_region": null,
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 0.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 0.9968,
+    "latency_seconds": 520.9,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "latency_seconds": 520.9,
+  "num_turns": 0,
+  "total_cost_usd": 0.9968,
+  "is_error": false,
+  "result_subtype": "success",
+  "kiro_credits": 24.92,
+  "run_started_at": "2026-08-15T04:43:06.415053Z",
+  "run_ended_at": "2026-08-15T04:51:47.336431Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 0.9968,
+    "latency_seconds": 520.9,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "vllm_prometheus": {
+    "available": false,
+    "source": "vllm_prometheus_window",
+    "note": "vLLM metrics were not reachable; run against a vLLM endpoint exposing /metrics to populate this block.",
+    "derived": {
+      "prefix_cache_hit_rate": null,
+      "prompt_tokens_cached_rate": null
+    },
+    "counters": {},
+    "histograms": {},
+    "gauges": {},
+    "gauges_sampled": {
+      "available": false,
+      "source": "vllm_prometheus_poll",
+      "note": "No vLLM gauges were sampled during the run; endpoint unreachable or not a vLLM server.",
+      "interval_seconds": 1.0,
+      "gauges": {}
+    }
+  },
+  "evaluation": {
+    "task": "ssrf-hardening-outbound-url-validation",
+    "model": "minimax-m2.5",
+    "scores": {
+      "github_issue": {
+        "completeness": 17,
+        "correctness": 15,
+        "specificity": 17,
+        "risk_awareness": 14,
+        "total": 63,
+        "notes": "The issue identifies three real outbound request locations and gives testable direct-IP examples and scoped acceptance criteria. Repository evidence confirms `_is_safe_url` in `registry/services/skill_service.py`, `_check_endpoint_reachability` in `registry/utils/agent_validator.py`, and health requests in the named modules. Its largest gap is claiming backward compatibility while default-denying private endpoints that existing deployments may rely on, without migration semantics or redirect and DNS-rebinding requirements. No independent task statement establishes that an allowlist or issue #1282 was required, so those claims cannot be externally verified."
+      },
+      "lld": {
+        "completeness": 14,
+        "correctness": 9,
+        "specificity": 18,
+        "risk_awareness": 9,
+        "total": 50,
+        "notes": "The LLD is concrete about real files, configuration, call sites, status behavior, and deployment documentation. However, it validates only `proxy_pass_url`, while `registry/health/service.py` can request distinct `mcp_endpoint` or `sse_endpoint` values and has a separate user-triggered health path outside `_check_single_service`; its requests also use `follow_redirects=True`. The proposed guard changes existing behavior by omitting reserved-address rejection, performs blocking DNS in async flows, remains vulnerable to DNS rebinding, and contradicts its no-IP-disclosure rule by logging resolved IPs and complete URLs. Its compatibility and full-coverage claims therefore are not supported despite the strong repository-level specificity."
+      },
+      "review": {
+        "completeness": 8,
+        "correctness": 6,
+        "specificity": 13,
+        "risk_awareness": 7,
+        "total": 34,
+        "notes": "The review concretely identifies synchronous DNS cost and missing operational metrics. Its principal DNS recommendation is unsafe and internally inconsistent: the LLD already catches `socket.gaierror`, while allowing transient resolution failures would create fail-open behavior. It declares all three flows protected without detecting unvalidated redirects, alternate MCP/SSE endpoint URLs, the separate manual server-health path, DNS rebinding, or the backward-compatibility impact. The role-based approvals and claim that existing behavior is preserved are contradicted by the repository's private and localhost server URL use."
+      },
+      "testing": {
+        "completeness": 11,
+        "correctness": 8,
+        "specificity": 14,
+        "risk_awareness": 9,
+        "total": 42,
+        "notes": "The guard tests provide useful concrete oracles for schemes, private ranges, metadata addresses, and trusted hosts, with plausible `uv run pytest` commands. Several proposed tests would not work against the repository: the health class is `HealthMonitoringService`, not `HealthCheckService`, environment mutation does not refresh the already-instantiated `settings`, and the public agent test mocks HTTP but not SSRF DNS resolution. Agent-route coverage is an unfinished comment, the E2E cases contain placeholders, and backward compatibility is incorrectly declared inapplicable. The plan also omits redirects, multiple DNS answers, DNS rebinding, IPv6 edge cases, explicit MCP/SSE endpoints, the manual health path, and regression coverage for existing skill-service tests."
+      },
+      "implementation": {
+        "completeness": 9,
+        "correctness": 7,
+        "specificity": 17,
+        "risk_awareness": 5,
+        "total": 38,
+        "notes": "The patch targets repository-backed contexts and adds direct validation to agent reachability, agent health GET/HEAD requests, and background server checks. It does not actually promote the skill guard: `skill_service.py` imports `is_safe_url` and then defines a same-named local function, leaving duplication, causing a redefinition lint issue, and removing `_is_safe_url` that existing tests import; the summary's claimed 62-line removal is false. Server checks validate only `proxy_pass_url`, leaving explicit `mcp_endpoint` or `sse_endpoint`, redirects followed inside httpx, and the separate user-triggered health method unprotected, while independent DNS resolution still permits rebinding. No tests are included, reserved-address handling is weakened, full URLs and resolved internal IPs are logged, and the acknowledged omission of metrics does not address these larger security defects."
+      }
+    },
+    "task_score": 45.4,
+    "verdict": "The submission is repository-specific and partially implements direct URL blocking, but critical SSRF bypasses, a broken shared-utility refactor, and largely non-executable tests keep it well below merge-ready quality.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-15T05:24:56.771977Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 328464,
+        "cached_input_tokens": 273644,
+        "cache_write_input_tokens": 54806,
+        "output_tokens": 7254,
+        "reasoning_output_tokens": 4470
+      },
+      "duration_ms": 78054
+    }
+  }
+}

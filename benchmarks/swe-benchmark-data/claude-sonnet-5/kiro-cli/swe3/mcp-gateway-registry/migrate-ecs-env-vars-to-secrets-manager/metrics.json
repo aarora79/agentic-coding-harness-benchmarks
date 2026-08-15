@@ -1,0 +1,174 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "high",
+  "tags": [
+    "security",
+    "aws",
+    "secrets-manager",
+    "terraform",
+    "ecs",
+    "iam"
+  ],
+  "model": "claude-sonnet-5",
+  "model_slug": "claude-sonnet-5",
+  "agent": "kiro",
+  "skill": "swe3",
+  "provider": "kiro",
+  "endpoint": "http://127.0.0.1:8000",
+  "aws_region": null,
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 0.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 2.4368,
+    "latency_seconds": 1073.3,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "latency_seconds": 1073.3,
+  "num_turns": 0,
+  "total_cost_usd": 2.4368,
+  "is_error": false,
+  "result_subtype": "success",
+  "kiro_credits": 60.92,
+  "run_started_at": "2026-08-15T00:34:08.108366Z",
+  "run_ended_at": "2026-08-15T00:52:01.439626Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 2.4368,
+    "latency_seconds": 1073.3,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "vllm_prometheus": {
+    "available": false,
+    "source": "vllm_prometheus_window",
+    "note": "vLLM metrics were not reachable; run against a vLLM endpoint exposing /metrics to populate this block.",
+    "derived": {
+      "prefix_cache_hit_rate": null,
+      "prompt_tokens_cached_rate": null
+    },
+    "counters": {},
+    "histograms": {},
+    "gauges": {},
+    "gauges_sampled": {
+      "available": false,
+      "source": "vllm_prometheus_poll",
+      "note": "No vLLM gauges were sampled during the run; endpoint unreachable or not a vLLM server.",
+      "interval_seconds": 1.0,
+      "gauges": {}
+    }
+  },
+  "evaluation": {
+    "task": "migrate-ecs-env-vars-to-secrets-manager",
+    "model": "claude-sonnet-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 19,
+        "correctness": 13,
+        "specificity": 22,
+        "risk_awareness": 15,
+        "total": 69,
+        "notes": "The issue identifies all twelve actual plaintext entries in `ecs-services.tf`, names the relevant Terraform files, and provides unusually concrete acceptance criteria and exclusions. Repository inspection confirms the variables and existing `ecs_secrets_access` policy, KMS key, and Secrets Manager patterns exist. Its largest defect is an internal contradiction: plaintext-only input is said both to create a managed secret and to remain a plaintext fallback with no plan diff, which cannot both occur. The absent independent task statement leaves the asserted Helm scope and referenced issue requirements unverifiable, while Terraform-state and external-key risks are omitted."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 12,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 72,
+        "notes": "The LLD is grounded in real integration points such as `locals.tf`, `secrets.tf`, `iam.tf`, and both ECS container definitions, and it explicitly addresses precedence and Terraform-state exposure. The repository confirms its basic three-way ARN resolution and count-gated resource design are feasible and consistent with existing conditional-list patterns. Its central compatibility claim is false: non-empty plaintext values necessarily create resources and move entries from `environment` to `secrets`, so an unmigrated stack cannot have the promised zero diff or remain on plaintext. It also alternates between eleven and twelve secrets, incorrectly says nine are shared when seven are, and does not design KMS permissions for the advertised cross-account external-secret path."
+      },
+      "review": {
+        "completeness": 17,
+        "correctness": 13,
+        "specificity": 20,
+        "risk_awareness": 19,
+        "total": 69,
+        "notes": "The review raises concrete issues involving Terraform-state exposure, precedence, secret destruction, rollout, cost, and rollback, then records actionable resolutions. Its state-file finding is technically sound because the proposed `aws_secretsmanager_secret_version.secret_string` receives each plaintext variable. The largest miss is the design's defining contradiction: the review claims non-adopters remain indefinitely on plaintext even though the LLD automatically creates a secret for every non-empty plaintext value. Consequently its migration-status remedy has an unreachable `plaintext_fallback` state, and it also misses cross-account KMS authorization and the need to expose the child-module output from the root module."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 8,
+        "specificity": 20,
+        "risk_awareness": 16,
+        "total": 61,
+        "notes": "The plan provides concrete resource, IAM-policy, task-definition, mutual-exclusivity, and rollback oracles across four input scenarios. However, after `cd \"$TF_DIR\"`, `-var-file=\"$TFVARS\"` resolves to a duplicated `terraform/aws-ecs/terraform/aws-ecs/terraform.tfvars` path, so the principal plan commands do not work as written. The plaintext-only no-diff oracle contradicts the implementation's mandatory secret creation, while `terraform output secrets_manager_migration_status` has no root output and root-level `terraform console` cannot access the child module's local value. No Terraform validation or plan was executed, and the plan lacks coverage for external-secret KMS permissions and unmanaged secret-version drift."
+      },
+      "implementation": {
+        "completeness": 19,
+        "correctness": 13,
+        "specificity": 21,
+        "risk_awareness": 13,
+        "total": 66,
+        "notes": "The diff comprehensively wires all twelve verified variables through root and module inputs, managed secret resources, IAM ARN grants, and the correct auth-server or registry `secrets` blocks; its target files and surrounding symbols match the repository. Its largest behavioral defect is that plaintext-only configurations are automatically migrated and therefore cannot preserve the claimed plaintext fallback or no-diff upgrade behavior, while the reported `plaintext_fallback` output state is unreachable for a non-empty value. The output is added only to the child module, so the documented root `terraform output` command cannot see it, and external cross-account secrets may fail because KMS decrypt remains restricted to `aws_kms_key.secrets`. The new secret versions also omit the promised `ignore_changes` lifecycle, and the summary explicitly confirms that formatting, validation, and planning were not executed."
+      }
+    },
+    "task_score": 67.4,
+    "verdict": "The submission is detailed and repository-aware, but its implementation and tests preserve a fundamental contradiction between automatic plaintext migration and the promised fallback and no-diff compatibility.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-15T01:09:52.142319Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 497963,
+        "cached_input_tokens": 426225,
+        "cache_write_input_tokens": 71722,
+        "output_tokens": 8869,
+        "reasoning_output_tokens": 6034
+      },
+      "duration_ms": 116466
+    }
+  }
+}

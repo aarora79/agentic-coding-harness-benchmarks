@@ -26,7 +26,7 @@ set -uo pipefail
 # Options (with defaults):
 #   --dataset PATH        dataset YAML relative to benchmarks/ (mcp-gateway-registry)
 #   --dollars-per-hour N  instance $/hr, recorded in the summary (0 = unset)
-#   --agent NAME          coding agent that runs each task: claude (default) or pi
+#   --agent NAME          coding agent that runs each task: claude (default), pi, or kiro
 #   --skill NAME          SWE skill: swe3 (default, single-agent) or swe2 (multi-agent)
 #   --no-detach           run in the foreground (do not self-detach)
 #   --skip-judge          run the harness only; score later
@@ -126,8 +126,8 @@ done
 
 # --- Validate the agent + skill ---------------------------------------------
 case "$AGENT" in
-  claude|pi) ;;
-  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi." ;;
+  claude|pi|kiro) ;;
+  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi, kiro." ;;
 esac
 case "$SKILL" in
   swe2|swe3) ;;

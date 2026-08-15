@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "claude-opus-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 89,
+      "notes": "The issue provides unusually concrete scope, acceptance criteria, compatibility constraints, and exclusions. The cited unguarded paths exist in registry/api/agent_routes.py, registry/utils/agent_validator.py, and registry/health/service.py, although the health service has eight relevant request sites rather than the claimed seven. Its strongest aspect is the deployment-specific threat and staged rollout; its main deficiency is minor factual overstatement around bundled servers and call-site counts. No independent task statement was supplied, so the proposed defaults cannot be verified against an external requirement."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 82,
+      "notes": "The LLD is deeply grounded in real symbols, configuration patterns, health lifecycle behavior, and existing tests. Its central algorithm is internally inconsistent: check_outbound_url accepts an allowlisted hostname before IP classification, allowing an exact 169.254.170.2 host entry to bypass the promised always-block rule, while allow_private_networks=true suppresses the warn log required for migration. It also incorrectly states that get_endpoint_url_from_server_info only changes paths, although explicit mcp_endpoint and sse_endpoint values can change the host; the guarded transport still protects the resulting request. Residual risks such as rebinding, synchronous DNS, credential forwarding, rollback, and nginx removal are otherwise handled with exceptional specificity."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 23,
+      "total": 84,
+      "notes": "The review surfaces concrete concerns including DNS rebinding, alternate IP notation, event-loop blocking, auth-header forwarding, and nginx removal. It nevertheless declares all blocking findings resolved without catching the LLD's exact-host metadata bypass or broken default warn signal. Its frontend resolution is contradicted by frontend/src/components/AgentCard.tsx, where blocked normalizes to unknown and response detail is discarded after a successful refresh. Claims that follow-up tickets were filed cannot be verified from the repository evidence."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 83,
+      "notes": "The plan has strong, behavior-specific oracles for policy modes, redirect hops, alternate address forms, redaction, strict skill behavior, and private-network compatibility. Several executable claims are wrong: the server refresh route is /refresh/{service_path:path}, not /servers/{path}/refresh, and the blocked-agent implementation leaves health_check_url on the registered URL rather than the asserted well-known URL. The Web UI is also not truly inapplicable because AgentCard maps blocked to unknown and does not display detail. The artifact openly states that none of the tests were executed, leaving these command and fixture assumptions unverified."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 12,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 68,
+      "notes": "The patch targets real files and symbols and implements shared sync and async transports across the agent, validator, skill, and MCP health paths. Its largest security defect is that check_outbound_url returns early for active.allowed_hosts, so OUTBOUND_URL_ALLOWED_HOSTS=169.254.170.2 defeats the documented always-block guarantee; the submitted test checks only the CIDR form and misses this bypass. The default warn rollout is also broken because allow_private_networks=true skips _decide and emits no would-block warning, causing the included test_warn_mode_logs_would_block test to fail. Additionally, agent and health call sites log raw blocked URLs after the utility redacts them, potentially exposing embedded credentials, and these deviations are not disclosed in implementation.md."
+    }
+  },
+  "task_score": 81.2,
+  "verdict": "The artifacts are highly detailed and repository-aware, but the implementation and LLD contain a metadata-allowlist bypass and a broken warn-mode migration signal that materially weaken the security change.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-15T04:09:07.774098Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 2027639,
+      "cached_input_tokens": 1914901,
+      "cache_write_input_tokens": 112698,
+      "output_tokens": 11723,
+      "reasoning_output_tokens": 7131
+    },
+    "duration_ms": 141084
+  }
+}

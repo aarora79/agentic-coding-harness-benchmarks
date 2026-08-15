@@ -1,0 +1,173 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "medium",
+  "tags": [
+    "terraform",
+    "aws",
+    "ecs",
+    "storage",
+    "infrastructure"
+  ],
+  "model": "deepseek-3.2",
+  "model_slug": "deepseek-3-2",
+  "agent": "kiro",
+  "skill": "swe3",
+  "provider": "kiro",
+  "endpoint": "http://127.0.0.1:8000",
+  "aws_region": null,
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 0.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 1.3996,
+    "latency_seconds": 1562.1,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "latency_seconds": 1562.1,
+  "num_turns": 0,
+  "total_cost_usd": 1.3996,
+  "is_error": false,
+  "result_subtype": "success",
+  "kiro_credits": 34.99,
+  "run_started_at": "2026-08-15T06:22:05.843304Z",
+  "run_ended_at": "2026-08-15T06:48:07.964831Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 1.3996,
+    "latency_seconds": 1562.1,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "vllm_prometheus": {
+    "available": false,
+    "source": "vllm_prometheus_window",
+    "note": "vLLM metrics were not reachable; run against a vLLM endpoint exposing /metrics to populate this block.",
+    "derived": {
+      "prefix_cache_hit_rate": null,
+      "prompt_tokens_cached_rate": null
+    },
+    "counters": {},
+    "histograms": {},
+    "gauges": {},
+    "gauges_sampled": {
+      "available": false,
+      "source": "vllm_prometheus_poll",
+      "note": "No vLLM gauges were sampled during the run; endpoint unreachable or not a vLLM server.",
+      "interval_seconds": 1.0,
+      "gauges": {}
+    }
+  },
+  "evaluation": {
+    "task": "remove-efs-from-terraform-aws-ecs",
+    "model": "deepseek-3.2",
+    "scores": {
+      "github_issue": {
+        "completeness": 15,
+        "correctness": 13,
+        "specificity": 18,
+        "risk_awareness": 14,
+        "total": 60,
+        "notes": "The issue names verified resources, variables, outputs, mount paths, and validation outcomes in the actual Terraform tree. Its largest deficiency is the contradiction between requiring unchanged service functionality and placing application fallback work out of scope despite active auth and mcpgw EFS mounts in `ecs-services.tf`. It also misses `scripts/post-deployment-setup.sh` and `scripts/run-scopes-init-task.sh`, which directly consume the outputs proposed for deletion. No independent task statement establishes the claim that S3 and DocumentDB satisfy every persistence requirement, and the repository's active mounts do not support that assertion."
+      },
+      "lld": {
+        "completeness": 14,
+        "correctness": 11,
+        "specificity": 15,
+        "risk_awareness": 17,
+        "total": 57,
+        "notes": "The LLD is grounded in real files and accurately identifies `module.efs`, its access points, task volumes, variables, and propagated outputs. It omits the deployment scripts that require `mcp_gateway_efs_id` and `mcp_gateway_efs_access_points`, so its file-change inventory would leave the documented deployment workflow broken. The fallback remains an undecided choice between S3 and ephemeral storage, while `aws efs create-backup` is not a valid AWS EFS CLI operation, weakening both implementation readiness and recovery guidance. Data-loss, staging, monitoring, and phased-rollout risks are recognized, but claims that all persistence has moved elsewhere cannot be verified from the supplied task context."
+      },
+      "review": {
+        "completeness": 16,
+        "correctness": 13,
+        "specificity": 14,
+        "risk_awareness": 18,
+        "total": 61,
+        "notes": "The review correctly elevates the active auth configuration mount, mcpgw data mount, destructive apply, rollback, and IAM implications as blocking concerns. Its largest defect is the final assertion that all blockers were addressed even though the revised LLD still leaves storage selection, Secrets Manager configuration, IAM changes, and fallback implementation unresolved. It also misses the concrete breakage in `post-deployment-setup.sh`, and its demand for new CloudWatch logging configuration conflicts with `enable_cloudwatch_logging = true` already present for the auth task. The security and operational concerns are useful, but several recommendations, including a dedicated KMS key and cross-AZ replacement, are presented without repository or task evidence that they are required."
+      },
+      "testing": {
+        "completeness": 15,
+        "correctness": 8,
+        "specificity": 14,
+        "risk_awareness": 14,
+        "total": 51,
+        "notes": "The strongest tests use concrete `terraform init`, `validate`, `plan`, and JSON plan-action oracles that would detect the submitted patch's malformed HCL. Several end-to-end tests use unsupported repository APIs: no `/api/config/scopes` or mcpgw `/api/data` routes were found, while mcpgw exposes `/health`. The rollback section relies on nonexistent `aws efs describe-backups` behavior and incorrectly treats Terraform state restoration as EFS data recovery; its hard-coded clone path also does not match the provided workspace. The plan explicitly dismisses backward compatibility and never exercises `post-deployment-setup.sh`, so it would miss the removed-output regression in the normal deployment workflow."
+      },
+      "implementation": {
+        "completeness": 11,
+        "correctness": 2,
+        "specificity": 15,
+        "risk_awareness": 13,
+        "total": 41,
+        "notes": "The patch targets real files and matching source contexts, and it removes the EFS module, task volumes, variables, and public outputs described in its summary. Critically, both output hunks delete the closing brace of the preceding `service_urls` and `mcp_gateway_monitoring_enabled` output blocks, so `terraform validate` must fail. It also leaves `post-deployment-setup.sh` requiring the deleted `mcp_gateway_efs_id` output and changes `SCOPES_CONFIG_PATH` to `/app/config/scopes.yml`, although `docker/Dockerfile.auth` copies `auth_server/scopes.yml` to `/app/scopes.yml` and implements no Secrets Manager fallback. The summary honestly acknowledges missing fallbacks and unexecuted verification, but comments claiming Secrets Manager or S3 usage overstate what the code implements."
+      }
+    },
+    "task_score": 54.0,
+    "verdict": "The submission identifies the central EFS dependencies and risks, but unresolved fallback design, invented tests, missed deployment-script consumers, and a syntactically invalid patch make it unmergeable.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-15T08:14:23.593941Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1052684,
+        "cached_input_tokens": 982420,
+        "cache_write_input_tokens": 70228,
+        "output_tokens": 8522,
+        "reasoning_output_tokens": 3892
+      },
+      "duration_ms": 108457
+    }
+  }
+}

@@ -198,6 +198,11 @@ def _row_cost(row: dict[str, Any]) -> tuple[str, str]:
     if row.get("provider") == "bedrock":
         cost = row.get("metered_cost")
         return (f"${cost:.2f}" if cost else "--", "metered (Bedrock)")
+    if row.get("provider") == "kiro":
+        # kiro-cli reports no tokens; its cost is credits x $/credit, already
+        # summed into total_cost_usd. A third basis -- not GPU-derived.
+        cost = row.get("metered_cost")
+        return (f"${cost:.2f}" if cost else "--", "Kiro credits ($0.04/credit)")
     # Self-hosted: price the tokens processed at the throughput-derived blended rate.
     rate = _blended_rate(row.get("model", ""))
     total_tokens = row.get("total_tokens") or 0
@@ -249,6 +254,7 @@ def _render(
     ]
     any_hardware = False
     any_metered = False
+    any_kiro = False
     for r in rows:
         mean = "-- (0 scored)" if r["mean"] is None else f"{r['mean']:.2f}"
         completed = f"{r['num_scored']}/{r['num_tasks']}"
@@ -262,6 +268,7 @@ def _render(
         cost, basis = _row_cost(r)
         any_hardware = any_hardware or basis.startswith("hardware-derived")
         any_metered = any_metered or basis.startswith("metered")
+        any_kiro = any_kiro or basis.startswith("Kiro credits")
         lines.append(
             f"| {r['model']} | {mean} | {completed} | {tin} | {tout} | {tcr} | {tcw} "
             f"| {tok} | {wall} | {cost} | {basis} |"
@@ -286,6 +293,18 @@ def _render(
             " _metered (Bedrock)_: a hosted API's real per-token bill, summed over "
             "the run. It is a metered invoice, not a hardware estimate, and (unlike "
             "the self-hosted rows) it benefits from Bedrock prompt caching."
+        )
+    if any_kiro:
+        note.append(
+            " _Kiro credits_ (kiro-cli): kiro-cli reports no tokens, only credits "
+            "consumed; cost is credits x $0.04/credit (configurable), summed over the "
+            "run. Credits already embed the model's rate multiplier. This is a third "
+            "basis -- neither a metered token bill nor a GPU estimate. NOTE: Kiro is a "
+            "per-developer monthly subscription (kiro.dev/pricing) with credits "
+            "included in the seat; $0.04/credit is the OVERAGE rate, so this treats "
+            "every credit as add-on overage (worst case). pi/Claude Code on Bedrock "
+            "are pure usage-based per-token billing with no seat -- a fair comparison "
+            "models kiro's seat cost + volume, not just this per-task figure."
         )
     note.append(" See [cost-per-task-methodology.md](cost-per-task-methodology.md).")
     lines += [
@@ -312,15 +331,22 @@ def _render(
         "### Quality by dimension (radar)",
         "",
         f"![Quality radar, {label} harness]({_rel(radar)})",
-        "",
-        "### Cost vs. accuracy (bubble area = tokens)",
-        "",
-        "x = cost per task, y = mean score, bubble area = total tokens processed, "
-        "color = hosting basis (metered Bedrock vs hardware-derived self-hosted -- "
-        "NOT directly comparable as raw dollars; see the cost note above).",
-        "",
-        f"![Cost vs accuracy, {label} harness]({_rel(bubble)})",
     ]
+    # The cost/accuracy bubble sizes each bubble by tokens processed; a harness
+    # that reports no token counts (e.g. kiro-cli, which bills in credits) has no
+    # meaningful bubble area, so omit that chart for it.
+    has_tokens = any((r.get("total_tokens") or 0) > 0 for r in rows)
+    if has_tokens:
+        lines += [
+            "",
+            "### Cost vs. accuracy (bubble area = tokens)",
+            "",
+            "x = cost per task, y = mean score, bubble area = total tokens processed, "
+            "color = hosting basis (metered Bedrock vs hardware-derived self-hosted -- "
+            "NOT directly comparable as raw dollars; see the cost note above).",
+            "",
+            f"![Cost vs accuracy, {label} harness]({_rel(bubble)})",
+        ]
     # Exactly one trailing newline (the end-of-file-fixer hook strips extras).
     return "\n".join(lines).rstrip("\n") + "\n"
 

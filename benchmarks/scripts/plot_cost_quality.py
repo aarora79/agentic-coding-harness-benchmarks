@@ -549,6 +549,12 @@ def _label_offsets(ax, fig, points: list[ModelPoint]) -> dict[int, float]:
     return offsets
 
 
+_DEFAULT_COST_BASIS_NOTE = (
+    "Self-hosted cost basis: g6e = 3-year RI rate; p5en = on-demand x 35% "
+    "placeholder discount (pay 65%) -- configurable in self-hosted/vllm/pricing.json."
+)
+
+
 def _plot(
     points: list[ModelPoint],
     frontier: list[ModelPoint],
@@ -558,6 +564,7 @@ def _plot(
     cost_label: str,
     output: Path,
     frontier_label: str = "Cost/quality frontier",
+    cost_basis_note: str = _DEFAULT_COST_BASIS_NOTE,
 ) -> None:
     """Render the scatter with its frontier and save to ``output``.
 
@@ -679,15 +686,14 @@ def _plot(
         for text in legend.get_texts():
             text.set_color(theme["muted"])
 
-    # Pricing-basis note, shown prominently so no one misreads the self-hosted
-    # dollars: g6e uses its 3-year RI rate; p5en uses on-demand with a 35%
-    # PLACEHOLDER discount -- swap in your own committed-discount in pricing.json.
+    # Pricing-basis note, shown prominently so no one misreads the dollars. For
+    # self-hosted/mixed charts this states the g6e/p5en GPU rate basis; for a
+    # kiro-cli chart (all points priced in Kiro credits) the caller passes the
+    # credit-basis note instead. See _cost_basis_note / cost-per-task-methodology.md.
     fig.text(
         0.5,
         -0.02,
-        "Self-hosted cost basis: g6e = 3-year RI rate; p5en = on-demand x 35% "
-        "placeholder discount (pay 65%) -- configurable in "
-        "self-hosted/vllm/pricing.json.",
+        cost_basis_note,
         ha="center",
         va="top",
         fontsize=FOOTNOTE_FONTSIZE,
@@ -785,8 +791,9 @@ def _parse_args() -> argparse.Namespace:
         # (Anthropic models). Naming one basis in the axis label misrepresents
         # the other, so the axis states only the quantity; provenance lives in
         # the caption/footnotes (see the README leaderboard notes).
-        default="Mean cost per task ($) -- self-hosted hardware-derived; Anthropic metered (see notes)",
-        help="X-axis label; make cost provenance explicit",
+        default=None,
+        help="X-axis label; make cost provenance explicit. Defaults to a "
+        "basis-appropriate label per harness (kiro-cli => Kiro credits).",
     )
     return parser.parse_args()
 
@@ -805,6 +812,26 @@ def main() -> None:
     harness_label = HARNESS_LABELS.get(args.harness, args.harness)
     title = args.title or f"Cost vs. quality -- {harness_label} harness, /{args.skill}"
     frontier_label = f"Cost/quality frontier ({args.repo})"
+
+    # kiro-cli prices every point in Kiro credits (not GPU-seconds or a metered
+    # Bedrock bill), so give it a credit-basis axis label and footnote instead of
+    # the default self-hosted/Anthropic wording. See cost-per-task-methodology.md.
+    is_kiro = args.harness == "kiro-cli"
+    # Avoid two "$" in the kiro label: matplotlib treats a paired $...$ as a
+    # MathText region (would italicize the text and drop the dollar signs), so
+    # spell the credit rate as "USD" instead.
+    cost_label = args.cost_label or (
+        "Mean cost per task (USD) -- kiro-cli, Kiro credits at 0.04 USD/credit (see notes)"
+        if is_kiro
+        else "Mean cost per task ($) -- self-hosted hardware-derived; "
+        "Anthropic metered (see notes)"
+    )
+    cost_basis_note = (
+        "Cost basis: kiro-cli is priced in Kiro credits at $0.04/credit "
+        "(configurable) -- see docs/cost-per-task-methodology.md."
+        if is_kiro
+        else _DEFAULT_COST_BASIS_NOTE
+    )
 
     points = _collect_points(data_dir, args.repo, args.harness, args.skill)
     for point in points:
@@ -831,9 +858,10 @@ def main() -> None:
         frontier,
         mode=mode,
         title=title,
-        cost_label=args.cost_label,
+        cost_label=cost_label,
         output=output,
         frontier_label=frontier_label,
+        cost_basis_note=cost_basis_note,
     )
 
 

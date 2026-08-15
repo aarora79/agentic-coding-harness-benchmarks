@@ -153,6 +153,35 @@ Since `run_cost = GPU-seconds x $/sec` and `$/sec` is fixed by the instance, the
 
 Beyond that per-instance limit, scale **horizontally**: the workload is embarrassingly parallel (N developers on N repos are N independent sessions, nothing to synchronize), so add replicas behind a load balancer. The **blended cost per token is roughly flat across replicas** — each instance has the same $/hr and the same throughput profile — so cost scales linearly with load and the per-task cost measured on one instance is the per-task cost at fleet scale: **measure once, multiply by replicas for capacity.**
 
+## A third cost basis: managed-model credits (kiro-cli)
+
+The two lenses above turn a GPU's hourly price into a cost per task for **self-hosted** models. A hosted API (Anthropic on Bedrock) uses its **metered per-token bill**. The **kiro-cli** harness introduces a third basis again: kiro-cli drives Kiro's managed, Bedrock-backed models and bills in **credits**, not tokens or GPU-seconds. See [kiro-cli-setup.md](kiro-cli-setup.md) for install and the harness constraints.
+
+**What kiro-cli reports.** A non-interactive kiro-cli run emits no token counts. It prints a one-line summary to stderr on completion -- `▸ Credits: <n> • Time: <s>s` -- so the per-run cost signal is **credits consumed** (and wall-clock time). The credits figure already includes the model's `rate_multiplier` (from `kiro-cli chat --list-models`: claude-opus-5 at 2.2 burns credits faster than qwen3-coder-next at 0.05), so it is not multiplied by the rate again.
+
+**Credits to dollars.**
+
+```
+cost_per_task_usd = credits_consumed_for_the_run x DOLLARS_PER_CREDIT
+```
+
+Kiro's published pricing gives two defensible per-credit rates:
+
+| Basis | $/credit | Derivation |
+|---|--:|---|
+| Blended (included monthly allotment) | **$0.02** | Every paid tier is the same rate: Pro $20/1,000, Pro+ $40/2,000, Pro Max $100/5,000, Power $200/10,000 |
+| Marginal (add-on / overage) | **$0.04** | "Add-on credits $0.04/credit" once the monthly allotment is spent |
+
+`DOLLARS_PER_CREDIT` is a **configurable rate**, the same stance this page takes on the self-hosted GPU discount (a documented placeholder you set to your real plan). The default is the **$0.04 marginal** rate -- the honest "what does one more task cost" figure -- with $0.02 available for an all-you-can-use blended view. Example: a run reporting `Credits: 0.21` costs `0.21 x $0.04 = $0.0084` (or `$0.0042` blended); a real swe task at 50-300 turns consumes far more.
+
+**How the harness records it.** `run-swe-headless.py` captures kiro-cli's output, strips the ANSI color codes, and regex-parses the `Credits:` value from the summary line. It multiplies that by `kiro_dollars_per_credit` -- a config knob (default 0.04) settable in `runner.yaml` or with `--kiro-dollars-per-credit` -- to get the run's `total_cost_usd`. Each task's `metrics.json` stores **both** the raw `kiro_credits` (provenance) and the derived `total_cost_usd`, and `summarize_run.py` averages `total_cost_usd` across the run's tasks into the reported `$/task` (the `mean_cost_usd_excl_failed` field). So the dollar figure is always traceable back to the exact credits kiro-cli charged.
+
+**Important: Kiro is a per-developer monthly subscription, not pure usage-based pricing -- and this figure ignores that.** Kiro sells seats (see [kiro.dev/pricing](https://kiro.dev/pricing/)): Free ($0/mo, 50 credits), Pro ($20/mo, 1,000), Pro+ ($40/mo, 2,000), Pro Max ($100/mo, 5,000), Power ($200/mo, 10,000). Those credits are **included in the seat**, and the $0.04/credit rate applies **only to add-on/overage credits once the monthly allotment is spent**. The `credits x $0.04` cost this repo reports therefore treats **every credit as marginal overage** -- as if the monthly allotment were already exhausted -- which is the conservative worst case. For a developer working **within** their allotment, the marginal dollar cost of one more task is effectively already paid by the seat (up to the cap); the amortized rate is closer to the blended **$0.02/credit** (seat price / included credits). Set `kiro_dollars_per_credit` to reflect your plan and expected volume.
+
+**This makes the cross-harness dollar comparison structurally uneven, not just a different unit.** pi and Claude Code on Bedrock are **pure usage-based, per-token** billing -- no seat, no monthly commitment; you pay only for the tokens you consume. Kiro bundles a **fixed monthly seat plus an included credit allotment**. So comparing kiro's per-task credit cost against Bedrock metered dollars compares a *subscription-plus-credits* model against a *usage-based* one. For a real total-cost comparison, model kiro's **monthly seat cost + expected task volume** against the others' metered (Bedrock) or hardware-derived (self-hosted) spend -- do not read the single per-task dollar figure as directly equivalent.
+
+**Do not compare raw dollars across the three bases.** Metered Bedrock dollars, hardware-derived self-hosted GPU-seconds, and Kiro credits are measured on different footings (and, per the note above, the credit-to-dollar conversion depends on your Kiro plan and whether you are within your monthly allotment). As with the metered-vs-self-hosted comparison, treat any cross-basis dollar tie as an order-of-magnitude result and state the provenance; compare within a basis.
+
 ## Summary
 
 - Cost is derived from `instance $/hr / measured tokens/sec` — real, not a quoted price. The formula collapses to **`GPU-seconds x $/second`**: price the tokens by dividing them by *measured throughput*, never by wall-clock (which over-charges idle agent-thinking time and assumes one user owns the box). Worked example: GLM-5.2's 5 SWE tasks cost **$59.58 at c=5**, vs $72 naive wall-clock and $135 at c=1 — the operating point *is* the number, so always state it.

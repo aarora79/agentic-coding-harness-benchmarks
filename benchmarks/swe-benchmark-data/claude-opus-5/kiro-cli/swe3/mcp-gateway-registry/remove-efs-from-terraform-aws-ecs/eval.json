@@ -1,0 +1,64 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "claude-opus-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 81,
+      "notes": "The issue precisely identifies real resources in `storage.tf`, the remaining `efs_volume_configuration` blocks in `ecs-services.tf`, affected outputs, scripts, and documentation, with testable acceptance criteria and explicit exclusions. Its largest defect is claiming the file backend remains functional by setting `/app/scopes.yml`: `FileScopeRepository` still loads only `/app/auth_server/scopes.yml` or `/app/auth_server/auth_config/scopes.yml`, and auth group mapping queries do not fall back when that repository is merely empty. The asserted per-mount-target charges and routine cross-AZ startup latency are also inaccurate or unsupported for the shown one-mount-target-per-private-subnet design. No independent task statement was supplied, and the cited issue history such as #987 and #1286 could not be verified from repository evidence."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 77,
+      "notes": "The LLD is unusually concrete about verified integration points, including the exact task-definition blocks, retained `data.aws_vpc.vpc` references, output contracts, destructive rollout, and rollback asymmetry. Its central correctness gap is that it traces `SCOPES_CONFIG_PATH` but misses `registry/repositories/file/scope_repository.py`, whose hard-coded paths make the promised file-backend authorization behavior fail despite `/app/scopes.yml` existing. It also describes all non-DocumentDB cases as the file backend even though `terraform/aws-ecs/variables.tf` supports `mongodb-ce`, `mongodb`, and `mongodb-atlas`, while `post-deployment-setup.sh` branches solely on `documentdb_cluster_endpoint`. The rollout and data-loss treatment are strong, but the claimed functional preservation and related issue history remain unverified."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 79,
+      "notes": "The review surfaces concrete, consequential concerns about the auth-image path, destructive apply, asymmetric rollback, removed Terraform outputs, dangling IAM documentation, and the orphaned scopes-init image. Its largest miss is the same load-bearing repository-path defect: no reviewer follows `reload_scopes_config()` into `FileScopeRepository`, so the review incorrectly declares the file-backend outage risk resolved. The backend review correctly verifies `COPY auth_server/ /app/`, while the SRE review gives actionable preflight and plan gates grounded in the EFS resources actually present. Some resolutions refer to unexecuted testing or unsupported issue history, and the claimed encryption resolution is not substantively present in the revised LLD."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 72,
+      "notes": "The plan covers static references, Terraform validation and planning, image contents, live task definitions, destructive rollout, rollback, both storage modes, and explicit negative cases. Several primary oracles are not executable as written: repository tests use `path` and `new_state` for `/api/servers/toggle`, the documented tools route is `/api/tools/{service_path}`, but the E2E commands send `service_path`/`enabled` and call bare `/api/tools`; the token request also supplies no client credentials. The unexpected-destroy filter permits only `module.efs`, even though the expected manual `aws_vpc_security_group_egress_rule.efs_all_outbound` is outside that child module, so it would flag a correct plan. The plan is risk-conscious, but these malformed checks, state-dependent output assertions before apply, and the admitted lack of execution materially reduce confidence."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 71,
+      "notes": "The patch matches the real source context and comprehensively removes `storage.tf`, EFS variables and outputs, all three remaining task mounts, the EFS initialization script, its caller, and the documented IAM grant. The largest defect is functional: changing only `SCOPES_CONFIG_PATH` does not update `FileScopeRepository`'s hard-coded `/app/auth_server/...` paths, so `map_groups_to_scopes()` reads an empty repository and grants no scopes on the file backend. The Terraform deletion itself is coherent and the summary honestly records destructive rollout, removed external contracts, unexecuted verification, and deferred scopes-init cleanup. No automated regression test accompanies the high-risk path change, and the summary overstates end-to-end preservation of file-backend authorization."
+    }
+  },
+  "task_score": 76.0,
+  "verdict": "The submission is highly specific and removes the EFS infrastructure coherently, but it misses a repository-level scopes path dependency that leaves the promised file-backend authorization flow broken and undermines several proposed tests.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-15T04:03:24.029241Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1465050,
+      "cached_input_tokens": 1377209,
+      "cache_write_input_tokens": 87801,
+      "output_tokens": 9520,
+      "reasoning_output_tokens": 4313
+    },
+    "duration_ms": 122603
+  }
+}

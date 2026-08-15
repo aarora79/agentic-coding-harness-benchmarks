@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "deepseek-3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 14,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 55,
+      "notes": "The strongest aspect is the explicit dependency, import, Docker, documentation, and API-contract checklist with clear non-goals. Its largest deficiency is avoiding the required file-backend behavior while simultaneously promising unchanged search behavior and DocumentDB replacement. The repository's get_search_repository() selects FaissSearchRepository for the file backend, so this is a central compatibility decision rather than a peripheral detail. No independent task statement supports the claims that FAISS is obsolete, DocumentDB meets every need, or issue #1285 exists."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 10,
+      "total": 42,
+      "notes": "The design correctly identifies the real factory, FAISS service, file repository, and DocumentDB repository integration points. Its largest deficiency is an internally inconsistent strategy: it removes the dependency now, retains and deprecates FAISS code until a later release, and calls non-semantic in-memory text search backward compatible. SearchRepositoryBase has no search_semantic method, while the existing FaissSearchRepository returns flat result fields and supports persisted index initialization that the proposed basic repository design does not address. Assertions such as no performance degradation, production readiness, and automatic DocumentDB fallback are unsupported or contradicted by the stated file-backend behavior."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 15,
+      "risk_awareness": 16,
+      "total": 58,
+      "notes": "The review's strongest contribution is identifying file-backend compatibility and migration as blockers rather than approving dependency removal mechanically. Its largest deficiency is declaring those blockers resolved even though degraded text search changes semantics and the revised LLD still combines immediate dependency removal with retained FAISS code. The repository confirms that file search currently depends on FaissService through FaissSearchRepository, but the review does not examine persistence, result schemas, startup initialization, or remaining direct callers. The security and frontend sections mostly pose generic verification questions, although the operational migration and deployment risks are relevant."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 9,
+      "risk_awareness": 10,
+      "total": 37,
+      "notes": "The plan covers dependency inspection, both backends, Docker builds, installation, API workflows, and configuration failures. Its largest deficiency is the absence of deterministic fixtures and oracles: several expectations allow empty results, an unspecified similar schema, or either degraded success or an error. The clean-install command checks out the unchanged 1.24.4 baseline, and the no-import grep would fail against the implementation's retained commented '# import faiss' line. Proposed test files are conditional or unspecified, and the repository's SearchRepositoryBase exposes search rather than the plan's assumed search_semantic contract."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 2,
+      "specificity": 9,
+      "risk_awareness": 6,
+      "total": 21,
+      "notes": "The patch does change the real file-backend factory branch and honestly lists several unimplemented follow-ups. It does not implement FAISS removal end to end: uv.lock, documentation, tests, server-route callers, FaissSearchRepository, and most FaissService operations remain, while the faiss and numpy imports they require are removed. Real source shows FaissService methods use faiss and numpy, and the existing file repository returns flat fields such as relevance_score, whereas BasicSearchRepository keeps only transient process memory and returns wrapped entity objects with score. The summary acknowledges partial scope but still overstates removal, and no tests address restart data loss, result-contract changes, or the admitted unmigrated callers."
+    }
+  },
+  "task_score": 42.6,
+  "verdict": "The artifacts identify the main dependency and backend split, but the implementation is incomplete and internally broken because it removes imports while retaining live FAISS callers and replaces persistent file search with an incompatible in-memory repository.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-15T08:16:09.147596Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1017423,
+      "cached_input_tokens": 969966,
+      "cache_write_input_tokens": 47407,
+      "output_tokens": 9656,
+      "reasoning_output_tokens": 5351
+    },
+    "duration_ms": 105541
+  }
+}

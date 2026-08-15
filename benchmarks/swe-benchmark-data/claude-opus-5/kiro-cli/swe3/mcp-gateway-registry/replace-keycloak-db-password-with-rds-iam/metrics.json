@@ -1,0 +1,174 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.4",
+  "complexity": "high",
+  "tags": [
+    "security",
+    "aws",
+    "rds",
+    "iam",
+    "keycloak",
+    "terraform"
+  ],
+  "model": "claude-opus-5",
+  "model_slug": "claude-opus-5",
+  "agent": "kiro",
+  "skill": "swe3",
+  "provider": "kiro",
+  "endpoint": "http://127.0.0.1:8000",
+  "aws_region": null,
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 0.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 3.6016,
+    "latency_seconds": 1631.5,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "latency_seconds": 1631.5,
+  "num_turns": 0,
+  "total_cost_usd": 3.6016,
+  "is_error": false,
+  "result_subtype": "success",
+  "kiro_credits": 90.04,
+  "run_started_at": "2026-08-15T03:32:06.872616Z",
+  "run_ended_at": "2026-08-15T03:59:18.385134Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics resolved to the best available source for each; see 'sources'. Values drawn from vllm_prometheus carry its single-tenant, server-wide caveat.",
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "total_tokens": 0,
+    "total_cost_usd": 3.6016,
+    "latency_seconds": 1631.5,
+    "num_turns": 0,
+    "generation_tokens_per_sec": 0.0,
+    "prefix_cache_hit_rate": null,
+    "sources": {
+      "input_tokens": "kiro_api.usage.input",
+      "output_tokens": "kiro_api.usage.output",
+      "cache_read_tokens": "vllm_prometheus.counters.vllm:prompt_tokens_cached_total",
+      "cache_write_tokens": "unavailable (backend reports no cache-write signal)",
+      "total_tokens": "sum(input + output + cache_read + cache_write)",
+      "total_cost_usd": "kiro_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or kiro_api.duration_ms)",
+      "num_turns": "kiro_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+      "prefix_cache_hit_rate": "vllm_prometheus.derived.prefix_cache_hit_rate"
+    }
+  },
+  "vllm_prometheus": {
+    "available": false,
+    "source": "vllm_prometheus_window",
+    "note": "vLLM metrics were not reachable; run against a vLLM endpoint exposing /metrics to populate this block.",
+    "derived": {
+      "prefix_cache_hit_rate": null,
+      "prompt_tokens_cached_rate": null
+    },
+    "counters": {},
+    "histograms": {},
+    "gauges": {},
+    "gauges_sampled": {
+      "available": false,
+      "source": "vllm_prometheus_poll",
+      "note": "No vLLM gauges were sampled during the run; endpoint unreachable or not a vLLM server.",
+      "interval_seconds": 1.0,
+      "gauges": {}
+    }
+  },
+  "evaluation": {
+    "task": "replace-keycloak-db-password-with-rds-iam",
+    "model": "claude-opus-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 16,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 82,
+        "notes": "The issue provides unusually concrete scope, exclusions, migration behavior, and testable acceptance criteria. Repository checks confirm the cited `keycloak-database.tf`, `keycloak-ecs.tf`, password variable, Checkov suppression, RDS proxy, and stock Keycloak image configuration exist. Its largest correctness defect is the invalid MySQL plugin name `AWS_AUTHENTICATION_PLUGIN`; Aurora uses `AWSAuthenticationPlugin`, and it also contradicts itself by claiming no durable credential remains while explicitly retaining the master secret and Terraform-state password. No independent task statement was supplied, so broader requirement coverage and the asserted issue history cannot be fully verified."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 12,
+        "specificity": 24,
+        "risk_awareness": 18,
+        "total": 77,
+        "notes": "The design is highly repository-specific, accurately mapping the existing ECS locals, rotation Lambda, Docker entrypoint, security groups, Terraform version, and RDS proxy dependencies. Its bootstrap uses the nonexistent `AWS_AUTHENTICATION_PLUGIN` name, making the central user-creation path fail despite the otherwise sound architecture. It also claims IAM authentication is applied immediately but never designs `apply_immediately` for `aws_rds_cluster.keycloak`, risking an IAM-mode task rollout before the cluster setting becomes effective. Boot-time estimates, Aurora SAN claims, and live driver behavior remain unverified, while the design incorrectly presents CloudTrail as a per-connection `rds-db:connect` audit source."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 83,
+        "notes": "The review identifies concrete repository-relevant problems such as wildcard KMS access, bootstrap ordering, Data API exposure, rollback credential recovery, and the custom image entrypoint. Those findings align with the real wildcard execution-role policy, `start --optimized` Docker entrypoint, and existing rotation resources. Its largest deficiency is approving the revised design without detecting the fatal authentication-plugin spelling or the missing immediate-application decision for the cluster modification. It also accepts unsupported VERIFY_CA and auditability claims rather than requiring evidence or safer defaults."
+      },
+      "testing": {
+        "completeness": 22,
+        "correctness": 11,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 72,
+        "notes": "The plan covers default-mode compatibility, IAM policy scope, task-definition contents, rollback, negative authorization, image contents, and post-expiry behavior with concrete expected values. However, `terraform validate -var ...` is not a valid Terraform command, and the proposed static test asserting `FLUSH PRIVILEGES` is absent would fail because that exact text appears in the Lambda comment. The mandatory soak neither checks the concurrent curl status codes nor reliably forces and measures new physical connections, so it can report PASS without proving token refresh. Destructive IAM-policy deletion lacks guaranteed cleanup, and none of the live AWS, Docker, Terraform, or pytest claims were executed."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 8,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 66,
+        "notes": "The embedded diff targets real files and symbols with matching context and implements variables, IAM policies, image dependencies, bootstrap resources, documentation, and tests across the expected repository surfaces. The core bootstrap is nonfunctional because its SQL names `AWS_AUTHENTICATION_PLUGIN` instead of Aurora MySQL's `AWSAuthenticationPlugin`, causing the apply-time Lambda invocation to fail. The cluster change also omits `apply_immediately`, while password mode changes the execution policy's KMS `Resource` from the existing string `\"*\"` to `[\"*\"]`, contradicting the claimed no-diff default. Documentation falsely says no password remains in Terraform or Secrets Manager even though `random_password` state and `keycloak_db_secret` remain, and the added test suite contains an assertion defeated by its own source comment."
+      }
+    },
+    "task_score": 76.0,
+    "verdict": "The submission is detailed and strongly grounded in the repository, but the implementation's invalid Aurora authentication-plugin SQL and unsafe rollout timing prevent the IAM path from working as submitted.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-15T04:06:46.672383Z",
+      "repo_ref": "1.24.4",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 483605,
+        "cached_input_tokens": 388342,
+        "cache_write_input_tokens": 95251,
+        "output_tokens": 9635,
+        "reasoning_output_tokens": 6462
+      },
+      "duration_ms": 110138
+    }
+  }
+}

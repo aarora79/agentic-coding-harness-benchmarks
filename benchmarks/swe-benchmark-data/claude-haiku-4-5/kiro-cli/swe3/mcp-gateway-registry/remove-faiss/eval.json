@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "claude-haiku-4.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 69,
+      "notes": "The issue provides broad, testable acceptance criteria covering source, dependencies, tests, documentation, builds, and API compatibility. Its largest gap is migration behavior for file-backend users, and it contradicts itself by requiring sentence-transformers removal while declaring embeddings configuration unchanged. Repository evidence confirms sentence-transformers remains used by the embeddings client and that the factory supports both MongoDB and file search backends. With no independent task statement, the claimed requirement to make DocumentDB mandatory and related issue #1285 cannot be independently verified."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 6,
+      "specificity": 13,
+      "risk_awareness": 9,
+      "total": 40,
+      "notes": "The LLD names many real files and correctly identifies the repository factory, DocumentDB implementation, startup initialization, and sentence-transformers dependency question. Its central integration design is incorrect: registry/repositories/__init__.py is empty, and DocumentDBSearchRepository exposes index_server, index_agent, and remove_entity rather than the proposed add_or_update_service, add_or_update_entity, and remove_service methods. It also deletes the file search repository without changing registry/repositories/factory.py or registry/main.py, leaving the non-MongoDB path broken and the migration decision unresolved. Claims of equivalent behavior, no required data migration, and unchanged error handling are unsupported by tests or a field-level contract comparison."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 11,
+      "total": 48,
+      "notes": "The strongest review finding is the explicit blocker to verify DocumentDBSearchRepository method signatures, alongside the correct warning to retain sentence-transformers if the embeddings provider uses it. The review does not perform that verification and still approves an invalid design; the repository shows the proposed add_or_update methods do not exist. It also misses the unchanged factory fallback, empty package __init__, startup behavior, deleted fixture imports, and file-backend migration risk. Assertions that DocumentDB is necessarily AWS-managed, already deployed at scale, and requires no permission changes are not established by this repository, which also supports MongoDB backends."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 12,
+      "risk_awareness": 11,
+      "total": 43,
+      "notes": "The plan spans dependency checks, lifecycle behavior, compatibility, failure cases, Docker builds, and end-to-end workflows, which is proportionate in breadth. Its primary functional tests target POST /search with top_k_tools and a results array, while the repository defines POST /semantic using SemanticSearchRequest.max_results and grouped response collections. The grep checks omit uv.lock and most tests/docs, and the plan would miss the stale faiss-cpu references at uv.lock entries 1608 and 1710; the agent lifecycle test also never verifies search indexing. No execution evidence supports the asserted endpoint payloads, one-second latency target, 50 MB image reduction, or named test selectors."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 1,
+      "specificity": 7,
+      "risk_awareness": 1,
+      "total": 13,
+      "notes": "The diff targets real FAISS files and correctly removes the pyproject dependency while retaining sentence-transformers. The replacement is unusable: registry/repositories/__init__.py exports nothing, and DocumentDBSearchRepository lacks the add_or_update_service, add_or_update_entity, and remove_service methods invoked throughout the patch. The factory still imports the deleted file repository, uv.lock retains two faiss-cpu dependency references, tests/conftest.py still imports the deleted mock, and build_and_run.sh loses MCPGATEWAY_SERVERS_DIR while continuing to use it extensively. The summary falsely claims complete implementation and no deviations while explicitly omitting documentation and required test updates; tests were not run, so its API-compatibility claim is unverified."
+    }
+  },
+  "task_score": 42.6,
+  "verdict": "The issue is reasonably scoped, but the design was not validated against repository interfaces and the implementation introduces immediate import, method, lockfile, build-script, and test-collection failures.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-14T23:04:09.679908Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 2556664,
+      "cached_input_tokens": 2460181,
+      "cache_write_input_tokens": 96423,
+      "output_tokens": 10653,
+      "reasoning_output_tokens": 4982
+    },
+    "duration_ms": 180706
+  }
+}

@@ -38,7 +38,7 @@ This repo measures the thing that actually matters instead: **harness x model, o
 
 ## Overview
 
-This repository is a **benchmark and harness for measuring how well different LLMs perform real-world software-engineering tasks** when driven by a coding agent. It supports **two coding agents (harnesses)** today -- [Claude Code](https://docs.anthropic.com/en/docs/claude-code), Anthropic's command-line coding agent, and [pi](https://github.com/earendil-works/pi-coding-agent), a lightweight open-source agent -- with [opencode](https://opencode.ai) being added soon. Each is wired to run with a model hosted in any of **three different places**, so you can put many models through the *same* tasks with the *same* harness and compare them directly on both quality and cost. Pick the harness per run with `--agent claude` (default) or `--agent pi`, and the skill with `--skill swe2`/`--skill swe3`; results are kept separate on disk (`<model>/<harness>/<skill>/<repo>/<task>`) so neither the two agents nor the two skills ever overwrite each other.
+This repository is a **benchmark and harness for measuring how well different LLMs perform real-world software-engineering tasks** when driven by a coding agent. It supports **three coding agents (harnesses)** today -- [Claude Code](https://docs.anthropic.com/en/docs/claude-code), Anthropic's command-line coding agent; [pi](https://github.com/earendil-works/pi-coding-agent), a lightweight open-source agent; and [kiro-cli](https://kiro.dev) (the successor to the Amazon Q Developer CLI), which drives Kiro's own managed, Amazon Bedrock-backed models -- with [opencode](https://opencode.ai) being added soon. Claude Code and pi are each wired to run with a model hosted in any of **three different places**, so you can put many models through the *same* tasks with the *same* harness and compare them directly on both quality and cost; kiro-cli instead runs Kiro's managed models directly (it cannot target a self-hosted endpoint -- see [kiro-cli setup](docs/kiro-cli-setup.md)). Pick the harness per run with `--agent claude` (default), `--agent pi`, or `--agent kiro`, and the skill with `--skill swe2`/`--skill swe3`; results are kept separate on disk (`<model>/<harness>/<skill>/<repo>/<task>`) so neither the agents nor the two skills ever overwrite each other.
 
 It runs **two complementary benchmarks**, and combining them is the whole point:
 
@@ -57,7 +57,7 @@ Each task points the agent at a real GitHub repository and a real problem. The a
 
 ## Results: a worked example
 
-To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 real tasks**, each scored 0-100 by an independent LLM judge, across **14 models** and both harnesses (Claude Code and pi). The flagship view below is the **cost/quality Pareto frontier** for the single-agent `/swe3` skill under the pi harness: mean cost per task (x) against mean task score (y), one point per model, with the non-dominated frontier highlighted.
+To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 real tasks**, each scored 0-100 by an independent LLM judge, across **14 models** on the Claude Code and pi harnesses (plus **5 models** on the newer [kiro-cli](docs/harness-kiro-cli-swe3.md) harness). The flagship view below is the **cost/quality Pareto frontier** for the single-agent `/swe3` skill under the pi harness: mean cost per task (x) against mean task score (y), one point per model, with the non-dominated frontier highlighted.
 
 ![Cost vs. quality Pareto frontier, pi harness on /swe3](docs/images/cost-quality-pi-swe3.png)
 
@@ -79,10 +79,10 @@ The same models can be driven by different coding agents (harnesses), and each h
 
 | Skill | Results write-up | Cross-harness comparison | Per-harness generated docs |
 |---|---|---|---|
-| `/swe3` (single-agent) | [results-swe3.md](docs/results-swe3.md) | [comparison](docs/agentic-coding-swe-comparison-swe3.md) | [Claude Code](docs/harness-claude-code-swe3.md) · [pi](docs/harness-pi-swe3.md) |
+| `/swe3` (single-agent) | [results-swe3.md](docs/results-swe3.md) | [comparison](docs/agentic-coding-swe-comparison-swe3.md) | [Claude Code](docs/harness-claude-code-swe3.md) · [pi](docs/harness-pi-swe3.md) · [kiro-cli](docs/harness-kiro-cli-swe3.md) |
 | `/swe2` (multi-agent) | [results-swe2.md](docs/results-swe2.md) | [comparison](docs/agentic-coding-swe-comparison-swe2.md) | [Claude Code](docs/harness-claude-code-swe2.md) · [pi](docs/harness-pi-swe2.md) |
 
-opencode ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) and kiro-cli ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) are coming.
+**kiro-cli** ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) has landed as a third harness (`/swe3`, 5 models -- see [its results](docs/harness-kiro-cli-swe3.md) and [setup/cost notes](docs/kiro-cli-setup.md)); it drives Kiro's managed Bedrock-backed models and is priced on a distinct **Kiro-credit** basis (see the [cost methodology](docs/cost-per-task-methodology.md)). [opencode](https://opencode.ai) ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) is coming.
 
 ## The three hosting paths
 
@@ -207,7 +207,7 @@ This is option 2 above -- building your own frontier on your own code. It is a f
    /benchmark provider=bedrock model=claude-opus-5 dataset=dataset/my-team.yaml
    ```
 
-   or headless: `benchmarks/scripts/run-e2e-benchmark.sh --provider bedrock --model ... --dataset dataset/my-team.yaml`. Pick the harness with `--agent claude|pi` and the skill with `--skill swe2|swe3`.
+   or headless: `benchmarks/scripts/run-e2e-benchmark.sh --provider bedrock --model ... --dataset dataset/my-team.yaml`. Pick the harness with `--agent claude|pi|kiro` and the skill with `--skill swe2|swe3` (`--agent kiro` drives Kiro's managed models and sets `--provider kiro` automatically).
 
 3. **Read your results.** Artifacts and scores land under `benchmarks/swe-benchmark-data/<model>/<harness>/<skill>/<your-dataset-repo>/<task>/`, and the same generators build your own cost/quality frontier (`gen_swe_comparison.py`, `plot_cost_quality.py`). Your runs are gitignored, so a customer's private code never lands in version control.
 
@@ -300,6 +300,7 @@ Where to read more, by topic:
 | [benchmarks/docs/path-anthropic-on-bedrock.md](benchmarks/docs/path-anthropic-on-bedrock.md) | Path 1 setup: benchmarking the Anthropic family (Claude Opus/Sonnet/Haiku) directly on Amazon Bedrock. |
 | [benchmarks/docs/path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) | Path 2 setup: open-weight models on Amazon Bedrock through the LiteLLM proxy. |
 | [benchmarks/docs/path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) | Path 3 setup: self-hosting a model on vLLM and pointing the harness at it. |
+| [docs/kiro-cli-setup.md](docs/kiro-cli-setup.md) | The kiro-cli harness: install, sign-in, headless use, the Bedrock-managed-only constraint, and how its Kiro-credit spend is calculated. Results: [harness-kiro-cli-swe3.md](docs/harness-kiro-cli-swe3.md). |
 | [benchmarks/docs/end-to-end-self-hosted-run.md](benchmarks/docs/end-to-end-self-hosted-run.md) | The full manual run-book for an end-to-end self-hosted benchmark. |
 | [self-hosted/vllm/README.md](self-hosted/vllm/README.md) | Standing up a vLLM server: install, tensor parallelism, tool-call parsers, and the serving-config reference. |
 | [self-hosted/vllm/models/](self-hosted/vllm/models/) | Per-model serving guides (HF repo, context window, TP size, tool parser, hardware fit) for every benchmarked model. |

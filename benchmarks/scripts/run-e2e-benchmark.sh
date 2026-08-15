@@ -142,19 +142,24 @@ done
 [[ -z "$MODEL"    && ${#POSITIONAL[@]} -ge 2 ]] && MODEL="${POSITIONAL[1]}"
 [[ -z "$DATASET"  && ${#POSITIONAL[@]} -ge 3 ]] && DATASET="${POSITIONAL[2]}"
 
+# kiro-cli only drives Kiro's own managed models (no vllm/litellm/bedrock
+# routing), so agent=kiro forces provider=kiro -- the sole valid pairing. Do this
+# BEFORE the provider checks so `--agent kiro` works with or without --provider.
+[[ "$AGENT" == "kiro" ]] && PROVIDER="kiro"
+
 # --- validate the three inputs ----------------------------------------------
-[[ -n "$PROVIDER" ]] || die "provider is required (bedrock | litellm | vllm). See --help."
+[[ -n "$PROVIDER" ]] || die "provider is required (bedrock | litellm | vllm | kiro). See --help."
 [[ -n "$MODEL"    ]] || die "model is required. See --help."
 [[ -n "$DATASET"  ]] || die "dataset is required (e.g. dataset/mcp-gateway-registry.yaml). See --help."
 
 case "$PROVIDER" in
-    bedrock|litellm|vllm) ;;
-    *) die "invalid provider '$PROVIDER'. Must be one of: bedrock, litellm, vllm." ;;
+    bedrock|litellm|vllm|kiro) ;;
+    *) die "invalid provider '$PROVIDER'. Must be one of: bedrock, litellm, vllm, kiro." ;;
 esac
 
 case "$AGENT" in
-    claude|pi) ;;
-    *) die "invalid agent '$AGENT'. Must be one of: claude, pi." ;;
+    claude|pi|kiro) ;;
+    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, kiro." ;;
 esac
 case "$SKILL" in
     swe2|swe3) ;;
@@ -174,6 +179,8 @@ case "$PROVIDER" in
     bedrock)  HARNESS_PROVIDER="bedrock";  DEFAULT_ENDPOINT="" ;;
     litellm)  HARNESS_PROVIDER="endpoint"; DEFAULT_ENDPOINT="$LITELLM_ENDPOINT" ;;
     vllm)     HARNESS_PROVIDER="endpoint"; DEFAULT_ENDPOINT="$VLLM_ENDPOINT" ;;
+    kiro)     HARNESS_PROVIDER="kiro";     DEFAULT_ENDPOINT="" ;;
+    *) die "invalid provider '$PROVIDER'. Must be one of: bedrock, litellm, vllm, kiro." ;;
 esac
 [[ -n "$ENDPOINT" ]] || ENDPOINT="$DEFAULT_ENDPOINT"
 
@@ -207,6 +214,9 @@ ok "runner config: $CONFIG"
 if [[ "$AGENT" == "pi" ]]; then
     command -v pi >/dev/null 2>&1 || die "pi CLI not found on PATH (--agent pi runs 'pi -p'). Install the pi coding agent (needs Node >=22)."
     ok "pi CLI found: $(command -v pi)"
+elif [[ "$AGENT" == "kiro" ]]; then
+    command -v kiro-cli >/dev/null 2>&1 || die "kiro-cli not found on PATH (--agent kiro runs 'kiro-cli chat'). Install it: curl -fsSL https://cli.kiro.dev/install | bash (see docs/kiro-cli-setup.md), then sign in with 'kiro-cli login'."
+    ok "kiro-cli found: $(command -v kiro-cli)"
 else
     command -v claude >/dev/null 2>&1 || die "claude CLI not found on PATH (the harness runs 'claude -p'). Install Claude Code."
     ok "claude CLI found: $(command -v claude)"
@@ -354,8 +364,9 @@ step "Step 1 - Run the SWE benchmark"
 # =============================================================================
 BENCH_ARGS=(--config "$CONFIG" --agent "$AGENT" --skill "$SKILL" --provider "$HARNESS_PROVIDER" --model "$MODEL" --dataset "$DATASET")
 # --stream/--verbose is the Claude Code live-trace mode; pi emits its own JSON
-# event stream and has no equivalent, so only add it for the claude agent.
-[[ "$AGENT" != "pi" ]] && BENCH_ARGS+=(--stream --verbose)
+# event stream and kiro-cli streams plain text -- neither has an equivalent, so
+# only add it for the claude agent.
+[[ "$AGENT" == "claude" ]] && BENCH_ARGS+=(--stream --verbose)
 [[ "$COUNT" != "0" ]] && BENCH_ARGS+=(--count "$COUNT")
 [[ -n "$TASKS" ]] && BENCH_ARGS+=(--tasks "$TASKS")
 [[ "$HARNESS_PROVIDER" == "endpoint" ]] && BENCH_ARGS+=(--endpoint "$ENDPOINT")
@@ -368,7 +379,7 @@ BENCH_ARGS=(--config "$CONFIG" --agent "$AGENT" --skill "$SKILL" --provider "$HA
 [[ -n "$TENSOR_PARALLEL_SIZE" ]] && BENCH_ARGS+=(--tensor-parallel-size "$TENSOR_PARALLEL_SIZE")
 [[ -n "$PRECISION" ]] && BENCH_ARGS+=(--precision "$PRECISION")
 
-SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import model_to_slug; print(model_to_slug('$MODEL'))")"
+SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import model_to_slug; print(model_to_slug('$MODEL', normalize_dots='$AGENT'=='kiro'))")"
 # Harness folder level (claude -> claude-code, pi -> pi), from the single source of
 # truth. Skill (swe2/swe3) is its OWN path level, so artifacts live under
 # <model>/<harness>/<skill>/<repo>/<task> and the judge/summary target that tree.

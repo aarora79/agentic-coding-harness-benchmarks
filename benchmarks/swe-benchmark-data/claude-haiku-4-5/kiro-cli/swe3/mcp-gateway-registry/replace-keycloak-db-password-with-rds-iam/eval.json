@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "claude-haiku-4.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The issue provides clear scope, non-goals, rollout intent, and mostly testable acceptance criteria, including token refresh and password fallback. Its largest defect is assigning runtime token generation to the ECS execution role and assuming Keycloak configuration alone can consume and refresh IAM tokens. In `keycloak-ecs.tf`, the container receives the task role, while the repository uses the stock `quay.io/keycloak/keycloak:25.0` image with no IAM-aware extension. No independent task statement confirms the proposed feature-flag and fallback requirements, so that scope is supported only by the candidate artifacts."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 3,
+      "specificity": 9,
+      "risk_awareness": 10,
+      "total": 34,
+      "notes": "The LLD names real files and resources such as `aws_rds_cluster.keycloak`, `aws_db_proxy.keycloak`, and both ECS IAM roles. The load-bearing runtime design is absent: `KC_DB_USE_IAM_AUTH` is not a stock Keycloak setting, no component generates or refreshes a token, and the proposed IAM username incorrectly includes the region. Repository evidence also shows `aws_ssm_parameter.keycloak_database_url` points directly to the Aurora endpoint rather than the proxy, while the proposed proxy block retains `auth_scheme = \"SECRETS\"` with a null secret and uses an invalid conditional `depends_on`. Claims that Keycloak 25 handles IAM tokens transparently and that the proxy refreshes client tokens are unsupported by the repository, and the design leaves JDBC configuration as an open question despite it being essential."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 16,
+      "total": 49,
+      "notes": "The review identifies concrete concerns around database-user provisioning, JDBC configuration, rollback, token expiry, logging, and observability. Its largest failure is approving and then falsely resolving the central feasibility question by asserting that stock Keycloak natively handles IAM token generation through the proposed environment variable. It also says the RDS Proxy role has `rds:ModifyDBCluster`, but the real `aws_iam_role_policy.rds_proxy_policy` only grants `secretsmanager:GetSecretValue`; that RDS permission belongs to the separate rotation Lambda role. The resolution claims automated Lambda provisioning was implemented even though the implementation explicitly leaves user creation manual, and no evidence verifies the claimed driver behavior."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 3,
+      "specificity": 13,
+      "risk_awareness": 9,
+      "total": 38,
+      "notes": "The plan covers both flag states, rollback, Terraform validation, service health, and an end-to-end Keycloak workflow. Its largest deficiency is that it never proves Keycloak can generate a fresh token and authenticate to MySQL, especially after the 15-minute token lifetime; manually running `generate-db-auth-token` is not that oracle. Several commands contradict the repository or AWS interfaces: `keycloak_use_rds_iam_auth` and `keycloak_admin_url` are not Terraform outputs, admin credentials are SSM parameters rather than the named Secrets Manager entries, and `describe-db-proxy-targets` does not expose the proposed connection-count fields. The security-group failure test is destructive and does not restore the original referenced-group rule, while repeatability and deployed behavior remain unverified because no tests were executed."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 0,
+      "specificity": 5,
+      "risk_awareness": 6,
+      "total": 15,
+      "notes": "The patch does not implement a functional IAM authentication path and is not a valid applicable unified diff: the first hunk header counts do not match its body, and one index contains the non-hex value `abcdefg`. Although the target files and major symbols exist, the ECS edit contains an extra list bracket, omits `KC_DB_USERNAME` and any token-valued password in IAM mode, and introduces an unrecognized `KC_DB_USE_IAM_AUTH` variable. The real JDBC URL still targets the Aurora cluster directly, while the proxy IAM configuration supplies a null secret under the `SECRETS` scheme and the IAM policy serializes a null statement. The summary acknowledges omitted user automation and tests but falsely claims native Keycloak token generation, transparent refresh, simple rollback, and automatic IAM username configuration."
+    }
+  },
+  "task_score": 38.8,
+  "verdict": "The submission has structured, repository-aware artifacts, but its unsupported Keycloak token-generation model and malformed, nonfunctional patch invalidate the core implementation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-14T23:06:51.592554Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 813204,
+      "cached_input_tokens": 755626,
+      "cache_write_input_tokens": 57538,
+      "output_tokens": 9973,
+      "reasoning_output_tokens": 6568
+    },
+    "duration_ms": 161899
+  }
+}

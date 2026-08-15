@@ -225,6 +225,59 @@ class PiBedrockTest(unittest.TestCase):
                 load_runner_config(_write(text))
 
 
+_KIRO = "agent: kiro\nprovider: kiro\nmodel: claude-sonnet-5\ndataset: d.yaml\n"
+
+
+class KiroConfigTest(unittest.TestCase):
+    """kiro-cli drives its own managed models: agent=kiro must pair with
+    provider=kiro, needs no endpoint or region, and reports credits (turned into
+    dollars via kiro_dollars_per_credit)."""
+
+    def test_kiro_config_loads_without_endpoint_or_region(self) -> None:
+        config = load_runner_config(_write(_KIRO))
+        self.assertTrue(config.is_kiro)
+        self.assertFalse(config.is_bedrock)
+        self.assertEqual(config.harness_slug, "kiro-cli")
+
+    def test_kiro_default_dollars_per_credit(self) -> None:
+        config = load_runner_config(_write(_KIRO))
+        self.assertEqual(config.kiro_dollars_per_credit, 0.04)
+
+    def test_kiro_dollars_per_credit_override(self) -> None:
+        config = load_runner_config(_write(_KIRO), {"kiro_dollars_per_credit": 0.02})
+        self.assertEqual(config.kiro_dollars_per_credit, 0.02)
+
+    def test_kiro_model_slug_dashes_dots(self) -> None:
+        # kiro's managed names carry dots; the slug dashes them so kiro shares
+        # the dash-style folder (claude-haiku-4.5 -> claude-haiku-4-5).
+        text = "agent: kiro\nprovider: kiro\nmodel: claude-haiku-4.5\ndataset: d.yaml\n"
+        self.assertEqual(
+            load_runner_config(_write(text)).model_slug, "claude-haiku-4-5"
+        )
+
+    def test_non_kiro_model_slug_keeps_dots(self) -> None:
+        # Self-hosted dotted slugs (glm-5.2, deepseek-v3.2) must be preserved for
+        # claude/pi so existing committed data and charts are not orphaned.
+        self.assertEqual(
+            load_runner_config(_write(_MINIMAL), {"model": "glm-5.2"}).model_slug,
+            "glm-5.2",
+        )
+        self.assertEqual(model_to_slug("claude-haiku-4.5"), "claude-haiku-4.5")
+        self.assertEqual(
+            model_to_slug("claude-haiku-4.5", normalize_dots=True), "claude-haiku-4-5"
+        )
+
+    def test_kiro_agent_requires_kiro_provider(self) -> None:
+        text = "agent: kiro\nprovider: endpoint\nendpoint: http://x:8000\nmodel: m\ndataset: d.yaml\n"
+        with self.assertRaisesRegex(RunnerConfigError, "used together"):
+            load_runner_config(_write(text))
+
+    def test_kiro_provider_requires_kiro_agent(self) -> None:
+        text = "agent: pi\nprovider: kiro\nmodel: m\ndataset: d.yaml\n"
+        with self.assertRaisesRegex(RunnerConfigError, "used together"):
+            load_runner_config(_write(text))
+
+
 class SkillConfigTest(unittest.TestCase):
     """The skill field selects swe3 (default) or swe2; it is a SEPARATE path level,
     so harness_slug is agent-only and never encodes the skill."""
