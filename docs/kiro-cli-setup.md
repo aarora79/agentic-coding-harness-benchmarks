@@ -153,6 +153,12 @@ Treat `DOLLARS_PER_CREDIT` as a **configurable rate**, the same way the self-hos
 
 Kiro credits are a **third cost basis**, alongside metered Bedrock dollars and hardware-derived self-hosted GPU-seconds. As with those, compare within a hosting basis rather than reading raw dollars across bases; the credit-to-dollar conversion depends on your Kiro plan.
 
+### Caveat: Kiro is a per-developer subscription, and this figure ignores that
+
+Kiro's real pricing is a **per-developer monthly subscription** ([kiro.dev/pricing](https://kiro.dev/pricing/)): Free ($0/mo, 50 credits), Pro ($20/mo, 1,000), Pro+ ($40/mo, 2,000), Pro Max ($100/mo, 5,000), Power ($200/mo, 10,000). Those credits are **included in the seat**; the **$0.04/credit** default applies **only to overage** beyond the monthly allotment. So the `credits x $0.04` cost the harness reports treats **every credit as if it were add-on overage** -- the conservative worst case. A developer working within their monthly allotment has effectively already paid for those credits via the seat; the amortized rate is nearer the blended **$0.02/credit**.
+
+This matters when comparing kiro-cli to the **pi** and **Claude Code** harnesses: driving those through **Amazon Bedrock is pure usage-based, per-token** billing -- no seat, no monthly commitment. kiro-cli instead bundles a **fixed monthly seat with an included credit allotment**. A fair total-cost comparison models kiro's **seat cost + expected monthly volume** against the others' metered/hardware spend, rather than treating the single per-task credit-dollar figure as equivalent. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
+
 ## Benchmark integration status
 
 kiro-cli is **not yet wired** into the benchmark harness. Two properties of the tool differ from the `pi` and `claude-code` harnesses and shape how it can be integrated (tracked in issue #73):

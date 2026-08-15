@@ -299,7 +299,12 @@ def _render(
             " _Kiro credits_ (kiro-cli): kiro-cli reports no tokens, only credits "
             "consumed; cost is credits x $0.04/credit (configurable), summed over the "
             "run. Credits already embed the model's rate multiplier. This is a third "
-            "basis -- neither a metered token bill nor a GPU estimate."
+            "basis -- neither a metered token bill nor a GPU estimate. NOTE: Kiro is a "
+            "per-developer monthly subscription (kiro.dev/pricing) with credits "
+            "included in the seat; $0.04/credit is the OVERAGE rate, so this treats "
+            "every credit as add-on overage (worst case). pi/Claude Code on Bedrock "
+            "are pure usage-based per-token billing with no seat -- a fair comparison "
+            "models kiro's seat cost + volume, not just this per-task figure."
         )
     note.append(" See [cost-per-task-methodology.md](cost-per-task-methodology.md).")
     lines += [
