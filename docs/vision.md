@@ -21,6 +21,52 @@ Given a task, the harness classifies it and routes each phase to the cheapest mo
 
 The result: the developer states a task and a budget posture ("cheap", "balanced", "best"), and the harness handles model selection and switching underneath. Three tiers -- **frontier**, **workhorse**, **budget** -- picked and swapped per task and per phase, automatically.
 
+## The first concrete step: `/swe-auto` ([#123](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/123))
+
+The first slice of this vision is **`/swe-auto`** -- a router skill that runs on **either Claude Code or pi**. The developer does not choose the model. Given a repo + ref + problem, a configurable **router model** triages the task read-only, classifies it as **frontier / workhorse / budget**, consults the measured [cost/quality Pareto frontier](../README.md#results-a-worked-example) to pick the cheapest non-dominated model that clears that tier's quality band, then shells out to the existing headless runner to run the **`/swe3`** skill with the selected model and harness -- producing the six artifacts (and, optionally, an `eval.json`). If the first pick fails to complete or scores below its band, it escalates one tier and re-runs, bounded by `max_escalations`.
+
+The key design decision: the skill does the triage and frontier lookup **inline** (cheap), then **executes via `run-swe-headless.py`** rather than spawning a subagent -- so the same executor path works whether the router runs under Claude Code or pi (pi cannot fan out). Note the two independent harness choices: which agent runs the *router skill*, and which agent the *executor* drives `/swe3` under (`--agent`); they can match or differ.
+
+The sequence below shows one `/swe-auto` invocation end to end -- launch, triage, frontier lookup, execution, optional scoring, and the escalation loop:
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer<br/>(Claude Code or pi)
+    participant SA as /swe-auto skill<br/>(router)
+    participant RM as Router model<br/>(e.g. claude-opus-5)
+    participant G as GitHub repo
+    participant F as Pareto frontier JSON<br/>(GitHub main, raw)
+    participant R as Headless runner<br/>(run-swe-headless.py)
+    participant M as Selected model + harness<br/>(runs /swe3)
+    participant J as Judge<br/>(optional)
+
+    Dev->>SA: /swe-auto repo, ref, problem
+    SA->>G: clone repo at pinned ref (read-only triage)
+    SA->>RM: classify this task (problem + relevant code)
+    RM-->>SA: tier (frontier, workhorse, or budget) + rationale
+    SA->>F: fetch pareto-frontier for harness + swe3
+    F-->>SA: non-dominated models (by frontier_scope)
+    SA->>SA: map tier to quality band, pick cheapest model that clears it
+
+    loop until artifacts complete and score in band (max_escalations)
+        SA->>R: run-swe-headless.py --agent HARNESS --model SELECTED --skill swe3
+        R->>M: drive /swe3 over the task (bounded agent loop)
+        M-->>R: six artifacts (issue, lld, review, testing, patch.diff, implementation)
+        opt judge enabled
+            R->>J: score the artifacts
+            J-->>R: eval.json (quality score)
+        end
+        R-->>SA: artifacts + metrics (+ eval.json)
+        alt incomplete or scored below band
+            SA->>SA: escalate one tier up, re-select model
+        else complete and in band
+            SA->>SA: done
+        end
+    end
+
+    SA-->>Dev: artifacts + routing.json<br/>(tier, candidates, selected model, rationale, escalations, cost/score)
+```
+
 ## Why this repo is the foundation
 
 You cannot route intelligently without knowing, per model:
@@ -33,4 +79,4 @@ That is exactly what this harness produces today. The routing agent is the next 
 
 ## Status
 
-The measurement half -- quality benchmarking, throughput benchmarking, and the combined frontier across three hosting paths -- is what exists in this repo now. The routing agent described above is the direction this work is heading, not a shipped feature. This document is the north star that the benchmark harness is built to serve.
+The measurement half -- quality benchmarking, throughput benchmarking, and the combined frontier across three hosting paths -- is what exists in this repo now. The routing agent described above is the direction this work is heading, not a shipped feature; its first concrete slice is tracked as [`/swe-auto` (#123)](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/123) -- per-task routing that picks one model for the whole task and escalates a tier between runs. Per-*phase* routing (plan with a frontier model, execute with a workhorse) and in-flight mid-run model switching are later steps that build on it. This document is the north star that the benchmark harness is built to serve.
