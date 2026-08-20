@@ -74,12 +74,12 @@ HARNESS_LABELS = {
 # Chart font sizes (points). Sized up for legibility when the chart is embedded
 # in slides and social posts. The two footnotes stay at FOOTNOTE_FONTSIZE so the
 # pricing-basis and excluded-task notes read as fine print, not body text.
-TITLE_FONTSIZE = 17
-AXIS_LABEL_FONTSIZE = 15
-TICK_FONTSIZE = 13
-POINT_LABEL_FONTSIZE = 13
-LEGEND_FONTSIZE = 13
-FOOTNOTE_FONTSIZE = 8
+TITLE_FONTSIZE = 19
+AXIS_LABEL_FONTSIZE = 16
+TICK_FONTSIZE = 14
+POINT_LABEL_FONTSIZE = 14
+LEGEND_FONTSIZE = 14
+FOOTNOTE_FONTSIZE = 9
 
 
 def _default_output(harness: str, skill: str, dark: bool) -> Path:
@@ -511,8 +511,8 @@ def _label_offsets(ax, fig, points: list[ModelPoint]) -> dict[int, float]:
     # within ~1.6 line-heights in y. The x band is generous (a label is wide), so
     # a whole diagonal run of nearby dots merges into one cluster rather than
     # fragmenting into pairs that would still overlap each other.
-    x_band_px = 12 + POINT_LABEL_FONTSIZE * 0.6 * 16  # 12px gap + ~16 chars at ~0.6em
-    y_touch_px = line_px * 1.6
+    x_band_px = 12 + POINT_LABEL_FONTSIZE * 0.6 * 22  # 12px gap + ~22 chars at ~0.6em
+    y_touch_px = line_px * 2.8
     px = {id(p): to_px((p.mean_cost, p.mean_score)) for p in points}
 
     # Union-find over "collides" (near in x AND y) to form clusters.
@@ -541,7 +541,7 @@ def _label_offsets(ax, fig, points: list[ModelPoint]) -> dict[int, float]:
             continue  # isolated label: no move, no line
         members.sort(key=lambda p: px[id(p)][1])  # by pixel-y, ascending
         ys_px = [px[id(p)][1] for p in members]
-        spread_px = _spread(ys_px, line_px * 1.35)
+        spread_px = _spread(ys_px, line_px * 2.5)
         for p, new_y in zip(members, spread_px):
             # display-y grows downward in some backends; transData is bottom-up,
             # so a higher pixel value = higher on screen. Convert delta to points.
@@ -577,7 +577,7 @@ def _plot(
         output: Destination image path.
     """
     theme = _THEME[mode]
-    fig, ax = plt.subplots(figsize=(11, 7), dpi=150)
+    fig, ax = plt.subplots(figsize=(16, 10), dpi=150)
     fig.patch.set_facecolor(theme["surface"])
     ax.set_facecolor(theme["surface"])
 
@@ -601,7 +601,7 @@ def _plot(
             fy,
             min(p.mean_score for p in points) - 5,
             color=theme["accent"],
-            alpha=0.06,
+            alpha=0.04,
             zorder=1,
         )
 
@@ -632,7 +632,7 @@ def _plot(
     )
     ax.set_title(title, fontsize=TITLE_FONTSIZE, color=theme["ink"], pad=16, loc="left")
 
-    ax.grid(True, color=theme["grid"], linewidth=0.8, zorder=0)
+    ax.grid(True, color=theme["grid"], linewidth=0.5, alpha=0.6, zorder=0)
     ax.set_axisbelow(True)
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
@@ -664,10 +664,17 @@ def _plot(
             textcoords="offset points",
             xytext=(12, dy_pts),
             fontsize=POINT_LABEL_FONTSIZE,
+            fontweight="bold",
             color=theme["ink"],
             ha="left",
             va="center",
             zorder=4,
+            bbox={
+                "boxstyle": "round,pad=0.3",
+                "facecolor": theme["surface"],
+                "edgecolor": "none",
+                "alpha": 0.85,
+            },
             arrowprops=(
                 {
                     "arrowstyle": "-",
