@@ -596,14 +596,60 @@ def _plot(
             zorder=2,
             label=frontier_label,
         )
-        ax.fill_between(
-            fx,
-            fy,
-            min(p.mean_score for p in points) - 5,
-            color=theme["accent"],
-            alpha=0.04,
+        # Gradient fill under frontier: strongest near the line, fading to
+        # transparent at the bottom. Uses imshow with a vertical alpha gradient
+        # clipped to the frontier polygon.
+        import numpy as np
+        from matplotlib.patches import PathPatch
+        from matplotlib.path import Path as MplPath
+        from matplotlib.colors import to_rgba
+
+        y_bottom = min(p.mean_score for p in points) - 5
+        # Build polygon: frontier line top, then straight down to bottom
+        poly_x = fx + [fx[-1], fx[0]]
+        poly_y = fy + [y_bottom, y_bottom]
+        poly_verts = list(zip(poly_x, poly_y))
+        poly_path = MplPath(poly_verts + [poly_verts[0]], closed=True)
+        patch = PathPatch(poly_path, facecolor="none", edgecolor="none")
+        ax.add_patch(patch)
+
+        # Render gradient image clipped to the polygon
+        x_min, x_max = min(fx), max(fx)
+        y_min, y_max = y_bottom, max(fy)
+        gradient = np.linspace(1, 0, 256).reshape(256, 1)
+        accent_rgba = to_rgba(theme["accent"])
+        ax.imshow(
+            gradient,
+            extent=[x_min, x_max, y_min, y_max],
+            origin="upper",
+            aspect="auto",
+            cmap=None,
+            vmin=0,
+            vmax=1,
+            alpha=0.12,
             zorder=1,
+            interpolation="bicubic",
         )
+        # Apply color by using a custom colormap from accent to transparent
+        from matplotlib.colors import LinearSegmentedColormap
+        accent_cmap = LinearSegmentedColormap.from_list(
+            "accent_fade",
+            [(*accent_rgba[:3], 0.15), (*accent_rgba[:3], 0.0)],
+        )
+        # Clear the plain imshow and redo with the colormap
+        ax.images[-1].remove()
+        im = ax.imshow(
+            gradient,
+            extent=[x_min, x_max, y_min, y_max],
+            origin="upper",
+            aspect="auto",
+            cmap=accent_cmap,
+            vmin=0,
+            vmax=1,
+            zorder=1,
+            interpolation="bicubic",
+        )
+        im.set_clip_path(patch)
 
     # Dots now; labels later (after the limits are final) so the declutter pass
     # can measure real text height. Frontier points are already accent from the
