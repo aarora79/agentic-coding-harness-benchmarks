@@ -632,6 +632,7 @@ def _plot(
         )
         # Apply color by using a custom colormap from accent to transparent
         from matplotlib.colors import LinearSegmentedColormap
+
         accent_cmap = LinearSegmentedColormap.from_list(
             "accent_fade",
             [(*accent_rgba[:3], 0.15), (*accent_rgba[:3], 0.0)],
