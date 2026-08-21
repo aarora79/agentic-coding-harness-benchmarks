@@ -21,4 +21,3 @@
 | migrate-ecs-env-vars-to-secrets-manager | 6/6 | 33 | -- | 22.15 | 49.2 |
 
 Mean over the 5 completed tasks: 56.28 (mean cost $13.34). A 0-score task is a model failure (missing artifacts) and is excluded from the means, pending investigation. Cost is a token-based estimate for self-hosted models.
-
