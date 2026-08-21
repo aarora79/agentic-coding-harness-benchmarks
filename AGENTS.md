@@ -34,13 +34,43 @@ They are large, generated, or irrelevant to code changes, so walking them wastes
 
 ## Repository structure
 
-When a task is unscoped, the source worth reading lives under:
+When a task is unscoped, the source worth reading lives under `benchmarks/` and `self-hosted/`. Each is its own `uv` project: run tooling from the directory that owns the file you are changing. The map below shows where to find what.
 
-- `benchmarks/` : the SWE benchmark harness that drives Claude Code, plus the LiteLLM proxy for open-weight Bedrock models (Paths 1 and 2).
-- `self-hosted/` : the vLLM self-hosting path on EC2 (scripts, model docs, clients) (Path 3).
-- top-level `README.md` and each subdirectory's `README.md`.
+```text
+.
+├── README.md                     # top-level project overview (start here)
+├── AGENTS.md                     # this file: canonical agent guide
+├── CLAUDE.md                     # pointer to AGENTS.md
+├── benchmarks/                   # SWE benchmark harness (Paths 1 and 2) — its own uv project
+│   ├── README.md                 # how to run the harness end to end
+│   ├── pyproject.toml            # benchmarks dependencies (run uv here)
+│   ├── config/                   # runner + proxy config
+│   │   ├── runner.example.yaml   # documented example config (all knobs)
+│   │   └── litellm-mantle.yaml   # LiteLLM proxy config for open-weight Bedrock models
+│   ├── dataset/                  # the coding-task dataset the harness runs over
+│   ├── scripts/                  # the harness itself: runners, judge, config, plots
+│   │   ├── run-e2e-benchmark.sh  # top-level end-to-end entry point
+│   │   ├── run-swe-headless.py   # drives Claude Code over the dataset
+│   │   ├── runner_config.py      # RunnerConfig Pydantic model (config source of truth)
+│   │   ├── codex_judge.py        # scores artifacts (the judge)
+│   │   └── plot_*.py             # result charts
+│   ├── tests/                    # pytest suite for the harness
+│   └── docs/                     # harness-specific docs
+├── self-hosted/                  # vLLM self-hosting path on EC2 (Path 3)
+│   └── vllm/                     # its own uv project
+│       ├── README.md             # vLLM setup + throughput sweep guide
+│       ├── scripts/              # vllm-install/serve/verify, throughput sweep, opencode setup
+│       ├── clients/              # clients that drive the served model
+│       ├── config/               # serving config
+│       ├── models/               # model docs
+│       ├── pricing.json          # instance pricing for cost derivation
+│       └── tests/                # pytest suite
+├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
+├── .claude/skills/               # repo skills (benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check)
+└── .github/                      # CI workflows and repo metadata
+```
 
-Each `uv` project owns its own files: run tooling from `benchmarks/` or `self-hosted/vllm/` as appropriate.
+Read the top-level `README.md` and each subdirectory's `README.md` first when a task touches an area you do not know.
 
 ## Environment setup
 
@@ -409,6 +439,10 @@ For ARM64 builds, add QEMU setup with `multiarch/qemu-user-static`.
 
 ## Commits and pull requests
 
+### Before starting
+
+- Check for an existing issue, branch, or open PR that already covers the work before creating new ones, to avoid duplicate effort.
+
 ### Git rules
 
 - **Never commit directly to `main`.** Always create a feature branch and open a PR.
@@ -440,6 +474,12 @@ For ARM64 builds, add QEMU setup with `multiarch/qemu-user-static`.
 - **Type safety**: clear type annotations with modern syntax.
 
 Always prioritize simplicity and clarity over cleverness.
+
+## Boundaries
+
+- **Ask first** before: large or repo-wide refactors, deleting or overwriting files you did not create, changing CI or release workflows, or adding a new runtime dependency.
+- **Never**: commit secrets, tokens, or `.env` files; commit or merge directly to `main`; read the paths in the [Never read or search these paths](#never-read-or-search-these-paths) denylist; disable a failing test to make CI pass.
+- Keep changes minimal and scoped to the task; match the style of surrounding code.
 
 ## References
 
