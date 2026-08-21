@@ -232,7 +232,7 @@ case "$PROVIDER" in
         ;;
     litellm)
         info "Path: open-weight models on Amazon Bedrock via the LiteLLM proxy (provider=endpoint at $ENDPOINT)."
-        if ! curl -s -m 5 "$ENDPOINT/health" >/dev/null 2>&1; then
+        if ! curl -s -m 5 "$ENDPOINT/health/liveliness" >/dev/null 2>&1; then
             die "LiteLLM proxy not reachable at $ENDPOINT.
        Start it: (cd $BENCHMARKS_DIR && ./scripts/bedrock-mantle-proxy.sh)
        Status:   (cd $BENCHMARKS_DIR && ./scripts/bedrock-mantle-proxy.sh --status)
