@@ -100,6 +100,35 @@ sequenceDiagram
     RUN-->>Dev: routing record (tier, model, escalations, cost/score)
 ```
 
+### How the three routing decisions are made
+
+Turning a task into a run takes three decisions. Only the **first** is a model judgement; the other two are deterministic and reproducible.
+
+**1. Tier - "how hard is this task?" (the one model-driven decision).**
+The router model (running the skill) reads the problem - fetching the issue first if the task was given as a link - and does a quick read-only scope of the repo, then classifies the task into exactly one of **budget**, **workhorse**, or **frontier**. The judgement is about **risk multiplied by leverage, not raw size**: how expensive is a wrong design here (security, auth, data-model, migration, concurrency pull *up*), how much of the system does it touch (cross-cutting pulls *up*), and would a cheap model reliably get it right (mechanical work stays *down*). The rubric and worked examples - including two deliberate "small task, high tier" cases (a `medium`-complexity SSRF fix is `frontier`; a `low`-complexity middleware feature is `workhorse`) - live in [triage-examples.md](../../.claude/skills/swe-auto/triage-examples.md). The rule of thumb is **when in doubt, pick the lower tier**, because decision 3's escalation will raise it automatically if the run falls short. This classification is the only non-deterministic step; everything after it is mechanical.
+
+**2. Harness - "which coding agent, and which frontier table?" (an operator config choice, not per-task).**
+The harness is **not** inferred from the task. It is the `harness` knob in `swe-auto.yaml` (`pi` by default, or `claude-code`), overridable per run with `--harness`. It fixes two things at once:
+
+- **which agent executes `/swe3`** - `swe_auto_run` maps the harness to the runner's `--agent` (`pi` -> `pi`, `claude-code` -> `claude`), so that agent's CLI is what drives the task;
+- **which frontier table is consulted** - `pi` reads `pareto-frontier-pi-swe3.json`, `claude-code` reads `pareto-frontier-cc-swe3.json`. This matters because **the same model scores and costs differently under each harness**, so model selection must read the table for the harness that will actually run the task.
+
+It is independent of which agent runs the *router skill* itself (that can be Claude Code or pi regardless); the harness knob only governs the *executor*.
+
+**3. Model - "which model runs it?" (deterministic, read off the frontier).**
+Given the tier (decision 1) and the harness's frontier table (decision 2), `swe_auto_router` picks the model with no further judgement:
+
+- **map tier -> quality band**: budget >= 47, workhorse >= 54, frontier = "the top-scoring model, cost no object" - then shift the budget/workhorse floors by `budget_posture` (`cheap` lowers the bar, `best` raises it);
+- **restrict to the frontier list** named by `frontier_scope` (`combined` / `bedrock-only` / `self-hosted-only`);
+- **keep only runnable models** - Bedrock models are runnable out of the box (built-in recipes), a self-hosted model only once its endpoint is configured - so the router never picks a model it cannot launch;
+- **pick the cheapest model that clears the band** (reliability gating prefers models that completed every task in the frontier data); for the frontier tier, pick the highest-scoring model; if nothing clears the band, fall back to the top-scoring runnable model and flag it as below-band.
+
+**Escalation ties decisions 1 and 3 together.** If a run does not complete all six artifacts (or, with the judge on, scores below its band), the router bumps the tier one step up the ladder (budget -> workhorse -> frontier) and re-runs decision 3 - which selects a new, usually stronger, model - up to `max_escalations` times. The harness (decision 2) does not change during escalation.
+
+**When and where the frontier is consulted.** The frontier is the input to decision 3, so it is read during the **execute phase**, never during triage. Concretely: `swe_auto_run.run_swe_auto()` calls `swe_auto_router.load_frontier(config)` **once per invocation** - right after triage hands over the tier and before the first attempt - fetching the harness+skill table from its canonical GitHub-raw URL (local `docs/metrics` copy as fallback) and recording the provenance in `routing.json`. It is **loaded once and reused across all escalation attempts** (never re-fetched per attempt); each attempt then calls `select_model()` over those in-memory entries to pick the model for its tier. The read-only preview paths (`swe_auto_run.py --dry-run` and `swe_auto_router.py select`) consult it the same way but stop after selection without executing. In the sequence diagram above this is the single `RUN -> RT: load_frontier` step preceding the attempt loop.
+
+The exact formulas and code for decision 3 are in the [LLD](#lld) below.
+
 ### Data contracts
 
 **In - frontier JSON** (`docs/metrics/pareto-frontier-<code>-<skill>.json`, `<code>` in cc/pi/kiro). Read one of three lists by `frontier_scope`: `combined_frontier_cross_hosting_directional`, `bedrock_frontier`, `self_hosted_frontier`. Each entry:
