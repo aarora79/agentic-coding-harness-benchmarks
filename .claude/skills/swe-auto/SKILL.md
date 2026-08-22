@@ -42,8 +42,15 @@ Read the routing knobs from `swe-auto.yaml` in this skill's own directory (`.cla
 
 ## Step 2: Triage the task into a tier (the one model-driven step)
 
-1. **Understand the task, then clone the repo read-only at the ref** into a temporary directory and read only what you need to size it (the directly relevant code paths). If the task was given as an `issue:` link rather than a verbose `problem:`, first fetch that issue (read-only) to read its title and body, and use that as the task description for triage. This is a quick scoping read, not a full analysis; the selected `/swe3` model will do the deep work later. Do not edit anything.
-2. **Classify the task into exactly one tier**, using this rubric:
+1. **Get the task description.** If the task came as an `issue:` link, fetch that issue read-only (its title and body) and treat that as the description. A verbose `problem:` is used as-is.
+2. **Clone the repo read-only at the ref and study it - do not triage from the issue text alone.** The issue tells you *what* to do; the repository tells you *how hard it is here* - its size, stack, conventions, and where the change actually lands - and that is what the tier depends on. Clone into a temporary directory and read; do not edit anything. This is a quick scoping read, not a full analysis (the selected `/swe3` model does the deep work later).
+3. **Orient cheaply: read the repo's own agent guide first, so you do not scan the whole tree.** Look for a guide file at the repo root, in this exact order, and let it steer which parts you read:
+   - **`AGENTS.md`** (preferred) - the canonical agent guide (repo map + conventions);
+   - else **`CLAUDE.md`**;
+   - if **neither exists**, say so **loudly** in your output, to this effect: *"No AGENTS.md or CLAUDE.md found in this repository. I will study whatever parts of the repo I judge necessary from the issue, which may consume many more tokens than needed. Adding an AGENTS.md or CLAUDE.md (a repo map plus conventions) would make future runs much cheaper."* Then read the directly relevant paths guided by the task.
+
+   When a guide is present, use it to jump straight to the relevant modules instead of reading everything - that is the point of preferring it.
+4. **Classify the task into exactly one tier**, using this rubric:
 
    | Tier | Use when the task is... | Examples |
    |---|---|---|
@@ -51,7 +58,7 @@ Read the routing knobs from `swe-auto.yaml` in this skill's own directory (`.cla
    | `workhorse` | a typical feature or refactor; real but well-scoped engineering | add an endpoint, refactor a module, remove a subsystem, wire a config through |
    | `frontier` | business-critical, cross-cutting, or subtle-correctness/security work where a wrong design is expensive | auth/security changes, data-model or migration work, anything spanning many components or with sharp edge cases |
 
-3. **Write down a one- or two-sentence rationale** for the tier (what about the task put it there). You will pass this along; it is recorded in `routing.json`.
+5. **Write down a one- or two-sentence rationale** for the tier (what about the task put it there). You will pass this along; it is recorded in `routing.json`.
 
 **Tier is about risk multiplied by leverage, not raw size** - a small security change can be `frontier`, and a `low`-complexity feature can be `workhorse`. For worked examples of each tier drawn from the shipped datasets (including two deliberate "small task, high tier" cases), read [triage-examples.md](triage-examples.md) before classifying.
 
