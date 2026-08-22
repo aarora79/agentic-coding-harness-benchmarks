@@ -107,6 +107,7 @@ All knobs live in `swe-auto.yaml` (documented in full in [swe-auto.example.yaml]
 
 ## See also
 
+- [design/swe-auto-design.md](design/swe-auto-design.md) - the full HLD + LLD (block and sequence diagrams, the selection/escalation algorithms, data contracts, and code snippets).
 - [vision.md](vision.md) - the north star and the sequence diagram this skill implements.
 - [issue #123](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/123) - the feature spec.
 - [/swe3 skill](../.claude/skills/swe3/SKILL.md) - what the selected model actually runs.
