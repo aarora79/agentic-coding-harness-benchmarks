@@ -24,7 +24,13 @@ cp .claude/skills/swe-auto/swe-auto.example.yaml .claude/skills/swe-auto/swe-aut
 # self-hosted endpoints you run
 ```
 
-Then invoke the skill (from Claude Code or pi):
+Then invoke the skill (from Claude Code or pi). To **kick the tires**, start with the trivial hello-world task - a tiny, low-risk docs change that triages to `budget` and finishes fast:
+
+```
+/swe-auto repo: https://github.com/octocat/Hello-World ref: master problem: "Add a CONTRIBUTING.md that explains how to report issues, open a pull request, and the expected review workflow."
+```
+
+The router triages this to `budget`, selects the cheapest model on the frontier that clears the budget band, runs `/swe3`, and writes the six artifacts plus `routing.json` under `benchmarks/swe-benchmark-data/<model>/<harness>/swe3/Hello-World/add-contributing-guide/`. A real routing task looks the same, just pointed at your repo and problem:
 
 ```
 /swe-auto repo: https://github.com/agentic-community/mcp-gateway-registry ref: 1.24.4 problem: "Remove FAISS from the codebase and documentation."
