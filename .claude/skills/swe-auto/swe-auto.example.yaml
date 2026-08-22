@@ -1,0 +1,123 @@
+# =============================================================================
+# /swe-auto routing configuration (EXAMPLE / template)
+# =============================================================================
+#
+# Copy this file to `swe-auto.yaml` in this same directory and edit it:
+#
+#     cp swe-auto.example.yaml swe-auto.yaml
+#
+# `swe-auto.yaml` is gitignored, so your local endpoints and overrides never get
+# committed. This example stays the checked-in, documented template.
+#
+# IMPORTANT: this file holds ONLY routing behavior. The task itself -- the repo,
+# the git ref, and the problem -- is ALWAYS passed as arguments to /swe-auto, and
+# is never configured here. Every knob below can also be overridden per
+# invocation; the file is just the reusable default.
+#
+# These keys mirror the SweAutoConfig model in
+# benchmarks/scripts/swe_auto_router.py exactly (unknown keys are rejected).
+# =============================================================================
+
+# ---- Triage ------------------------------------------------------------------
+# The model that reads the problem + relevant code and classifies the task into a
+# tier (budget | workhorse | frontier). This is the one model YOU choose; the
+# per-task execution model is then selected automatically from the frontier.
+router_model: claude-opus-5
+
+# ---- Which harness the executor drives /swe3 under ---------------------------
+# claude-code (Claude Code) or pi (the pi coding agent). This also selects which
+# pareto-frontier-<code>-<skill>.json is consulted (cc vs pi). It is independent
+# of which agent runs THIS router skill. Default: pi (single-agent, typically
+# faster and cheaper per task).
+harness: pi
+
+# The executed SWE skill. v1 runs swe3 (single-agent); leave as-is.
+skill: swe3
+
+# ---- The frontier (the lookup table) -----------------------------------------
+# Where to read the cost/quality Pareto frontier. Leave `frontier_file` unset to
+# use the canonical GitHub `main` raw URL for the chosen harness+skill (the source
+# of truth); the committed docs/metrics copy is only a fallback if that is
+# unreachable. Set it to a URL or a local path to override.
+# frontier_file: https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/docs/metrics/pareto-frontier-cc-swe3.json
+
+# Which frontier list to read:
+#   combined          - cross-hosting, directional cost (mixes metered Bedrock $
+#                       with hardware-derived self-hosted $); the default.
+#   bedrock-only      - only metered Bedrock models (apples-to-apples cost).
+#   self-hosted-only  - only hardware-derived self-hosted models.
+frontier_scope: combined
+
+# ---- Quality bands and budget posture ----------------------------------------
+# The minimum mean score (0-100) each tier must clear. `frontier` is null, meaning
+# "pick the top-scoring model regardless of cost". These are illustrative defaults
+# (see issue #123); calibrate against the current frontier data.
+tier_bands:
+  budget: 47.0
+  workhorse: 54.0
+  frontier: null
+
+# Shifts the budget/workhorse bars: cheap lowers the bar (accept a cheaper,
+# lower-scoring model), best raises it, balanced leaves them as configured.
+# frontier is never shifted (it is always "the top model").
+budget_posture: balanced
+# How many score points cheap/best move the budget and workhorse floors.
+posture_shift_points: 5.0
+
+# Prefer models that completed EVERY task in the frontier data; only fall back to
+# a partial-completion model when nothing fully-completed clears the band.
+reliability_gating: true
+
+# ---- Judge + escalation ------------------------------------------------------
+# Run the judge after the executor to score the run (produces eval.json). With
+# judge off, escalation triggers on non-completion only; with judge on, it also
+# triggers when the score is below the tier's band.
+judge: true
+
+# How many times the router may escalate one tier and re-run.
+max_escalations: 1
+
+# ---- The executor (in-repo headless runner) ----------------------------------
+# v1 runs the in-repo runner in place; leave unset to use the sibling
+# benchmarks/scripts/run-swe-headless.py. (Packaging the runner as a pinned
+# installable for use outside this repo is a planned follow-up, not v1.)
+# runner_path: /abs/path/to/benchmarks/scripts/run-swe-headless.py
+
+# ---- Model execution registry ------------------------------------------------
+# Maps each SELECTABLE frontier model slug to HOW to run it. The router only ever
+# picks a model listed here, so it can never select a model it cannot launch.
+#
+# Seeded below with the Bedrock Anthropic models, which run anywhere with AWS
+# credentials (provider: bedrock + the Bedrock inference-profile id). Verify each
+# `model:` id against the ids actually enabled in your account/region.
+#
+# NOTE ON DEFAULTS: an EMPTY registry means "consider every frontier model
+# runnable" (no restriction) -- useful for a dry-run preview, but the router may
+# then pick a self-hosted model you have not stood up. Populating it (as below)
+# flips to "only these are runnable", which is the safe production behavior.
+#
+# To make a self-hosted model selectable, uncomment its block and point `endpoint`
+# at a vLLM server that is ALREADY serving that model (see self-hosted/vllm/).
+model_execution:
+  claude-opus-5:
+    provider: bedrock
+    model: us.anthropic.claude-opus-5
+  claude-sonnet-5:
+    provider: bedrock
+    model: us.anthropic.claude-sonnet-5
+  claude-opus-4-8:
+    provider: bedrock
+    model: us.anthropic.claude-opus-4-8
+  claude-haiku-4-5:
+    provider: bedrock
+    model: us.anthropic.claude-haiku-4-5-20251001-v1:0
+
+  # ---- Self-hosted examples (require a running vLLM endpoint) ----------------
+  # glm-5.2:
+  #   provider: endpoint
+  #   model: glm-5.2                 # the vLLM served-model-name
+  #   endpoint: http://127.0.0.1:8000
+  # qwen3.6-35b:
+  #   provider: endpoint
+  #   model: qwen3.6-35b
+  #   endpoint: http://127.0.0.1:8000
