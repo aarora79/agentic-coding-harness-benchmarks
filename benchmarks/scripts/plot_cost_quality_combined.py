@@ -80,14 +80,19 @@ HARNESS_DISPLAY = {
 HARNESS_MARKERS = {"claude-code": "s", "pi": "o", "kiro-cli": "^", "opencode": "D"}
 FALLBACK_MARKER = "o"
 # Colour per harness, doubling the shape encoding so the split is legible at a
-# glance and still survives colour-blindness and greyscale printing. Slots 1 and
-# 3 of the validated categorical palette (blue, aqua), stepped per mode; slot 2
-# (orange) is left to the frontier line, and all three clear the all-pairs CVD
-# and normal-vision floors in both modes. Every point is directly labelled,
-# which is the relief the light-mode aqua's sub-3:1 contrast requires.
+# glance and still survives colour-blindness and greyscale printing.
+#
+# The frontier line owns the warm accent, and every warm hue fails the
+# separation floors against it (orange vs red is dE 7.1 to normal vision, vs
+# yellow 13.7 -- both under the 15 floor), so a second warm hue is not
+# available. One harness therefore takes violet, the palette slot furthest from
+# the accent (dE 37.6 light / 27.0 dark, and clear on all three CVD axes), and
+# the other keeps the chart's own warm charcoal. That adds exactly one hue to
+# the scheme rather than importing a cool pair that fights it, and the two are
+# separated by lightness as well as hue, with the marker shape behind both.
 HARNESS_COLORS = {
-    "light": {"claude-code": "#2a78d6", "pi": "#1baf7a"},
-    "dark": {"claude-code": "#3987e5", "pi": "#199e70"},
+    "light": {"claude-code": "#4a3aa7", "pi": "#33322f"},
+    "dark": {"claude-code": "#9085e9", "pi": "#d7d6cf"},
 }
 # Vendor prefix dropped from chart labels only. Each label here already carries
 # a harness, so the model half has to earn its width, and "opus-5" is no less
