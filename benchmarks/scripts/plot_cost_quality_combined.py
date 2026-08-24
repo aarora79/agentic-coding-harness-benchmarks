@@ -442,6 +442,12 @@ def _parse_args() -> argparse.Namespace:
         default=cq.DEFAULT_METRICS_DIR,
         help="Where to write the frontier JSON (default: docs/metrics/).",
     )
+    parser.add_argument(
+        "--fill-color",
+        default=None,
+        help="Colour of the tint under the frontier (default: the accent, so "
+        "the shaded region reads as part of the frontier line that caps it).",
+    )
     parser.add_argument("--title", default=None, help="Override the chart title")
     parser.add_argument(
         "--cost-label",
@@ -503,6 +509,7 @@ def main() -> None:
         label_weight="normal",
         marker_for=_marker_for,
         color_for=lambda point: _color_for(point, mode),
+        fill_color=args.fill_color,
         extra_legend=_legend_handles(harnesses, mode),
         label_backing=False,
         log_x=args.log_x,

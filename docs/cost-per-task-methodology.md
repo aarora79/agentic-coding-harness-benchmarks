@@ -190,6 +190,10 @@ Kiro's published pricing gives two defensible per-credit rates:
 - **The only lever that lowers self-hosted cost is raising sustained throughput, which on a KV-bound model means more KV headroom — bought by shrinking the context window, at a possible accuracy cost. No free lunch.** Check `kv_cache_usage.peak`: if it pegs at 1.00 at low concurrency (Regime A, e.g. GLM-5.2 on p5en) there is no vertical headroom — right-size the model/window or scale horizontally; if it stays low (Regime B, e.g. qwen3.6-35b on g6e) push concurrency up to your latency budget first.
 - Blended per-task cost is flat across replicas: plan capacity from the measured per-task cost — **measure once, multiply by replicas.**
 
+## Companion: picking the best harness per model
+
+The combined cost/quality chart plots one point per model rather than one per model-and-harness, which means something has to choose between a model's Claude Code run and its pi run. That choice uses **both** axes -- Pareto dominance first, then the lower cost per point as the tie-break -- and it is documented, with the per-model decision tables and the caveat that the plotted point is not always the model's highest score, in [best-harness-selection.md](best-harness-selection.md).
+
 ## References
 
 Public data on the input-heavy / prefill-heavy shape of agentic-coding workloads — the external corroboration for the ~150:1 input:output ratio and the "prefill-bound, not decode-bound" framing used above:
