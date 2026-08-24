@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -177,6 +178,14 @@ class ModelPoint:
     hosting: str = (
         "self-hosted"  # "Bedrock" (metered) or "self-hosted" (hardware-derived)
     )
+    # The coding agent that produced the run. Empty on a single-harness chart
+    # (its title already names the harness); set by the combined chart, which
+    # reports it in the frontier JSON and folds it into ``label``.
+    harness: str = ""
+    # Optional ready-made chart label. ``model`` stays the identity used for
+    # lookups and for every emitted JSON; only the drawn text changes. The
+    # combined chart uses it to name both the model and the harness that won.
+    label: str = ""
 
 
 def _read_json(path: Path) -> dict | None:
@@ -406,7 +415,7 @@ def _pareto_frontier(points: list[ModelPoint]) -> list[ModelPoint]:
 
 def _point_dict(p: ModelPoint) -> dict:
     """Serialize one model point for the frontier JSON."""
-    return {
+    entry = {
         "model": p.model,
         "mean_score": round(p.mean_score, 2),
         "mean_cost_per_task": round(p.mean_cost, 4),
@@ -416,6 +425,11 @@ def _point_dict(p: ModelPoint) -> dict:
         "completed": f"{p.n_scored}/{p.n_tasks}",
         "excluded_tasks": p.excluded,
     }
+    # Only the combined chart sets a harness; omitting the key elsewhere keeps
+    # the existing per-harness JSONs byte-identical.
+    if p.harness:
+        entry["harness"] = p.harness
+    return entry
 
 
 def _write_frontier_json(
@@ -464,11 +478,22 @@ def _write_frontier_json(
     return out_path
 
 
+def _point_name(point: ModelPoint) -> str:
+    """Name a point: its caller-supplied label, else the bare model slug.
+
+    A single-harness chart names its harness in the title, so the model alone
+    reads best there. The combined chart mixes harnesses and supplies a label
+    naming both.
+    """
+    return point.label or point.model
+
+
 def _label(point: ModelPoint) -> str:
     """Build a point label; mark models whose mean excludes a failed task."""
+    name = _point_name(point)
     if point.excluded:
-        return f"{point.model}*"
-    return point.model
+        return f"{name}*"
+    return name
 
 
 def _spread(ys: list[float], step: float) -> list[float]:
@@ -485,7 +510,47 @@ def _spread(ys: list[float], step: float) -> list[float]:
     return [y - drift for y in out]
 
 
-def _label_offsets(ax, fig, points: list[ModelPoint]) -> dict[int, float]:
+def _label_sides(
+    ax, fig, points: list[ModelPoint], offsets: dict[int, float], label_chars: int
+) -> dict[int, str]:
+    """Choose which side of its dot each label sits on.
+
+    ``_label_offsets`` only keeps labels from overlapping EACH OTHER; a label
+    can still be drawn straight across another model's marker, which reads as
+    if it belonged to that dot. Any label whose text would run over another
+    point is flipped to the left of its own dot instead.
+
+    Args:
+        ax: The axes (already drawn, so transforms are valid).
+        fig: The figure (for the pixel <-> point conversion).
+        points: All model aggregates.
+        offsets: The vertical offsets from ``_label_offsets``, in points.
+        label_chars: Typical label length, used to estimate text width.
+
+    Returns:
+        ``{id(point): "left" | "right"}``.
+    """
+    to_px = ax.transData.transform
+    px = {id(p): to_px((p.mean_cost, p.mean_score)) for p in points}
+    text_w = 12 + POINT_LABEL_FONTSIZE * 0.6 * label_chars
+    half_line = POINT_LABEL_FONTSIZE * 1.35 * fig.dpi / 72.0 * 0.5
+    sides: dict[int, str] = {}
+    for point in points:
+        x_px, y_px = px[id(point)]
+        label_y = y_px + offsets[id(point)] * fig.dpi / 72.0
+        collides = any(
+            other is not point
+            and x_px < px[id(other)][0] <= x_px + text_w
+            and abs(px[id(other)][1] - label_y) < half_line
+            for other in points
+        )
+        sides[id(point)] = "left" if collides else "right"
+    return sides
+
+
+def _label_offsets(
+    ax, fig, points: list[ModelPoint], label_chars: int = 22
+) -> dict[int, float]:
     """Return each label's vertical offset (in points) to avoid overlaps.
 
     Labels sit to the right of their dot at the dot's y-level. Two labels collide
@@ -501,6 +566,10 @@ def _label_offsets(ax, fig, points: list[ModelPoint]) -> dict[int, float]:
         ax: The axes (already drawn, so transforms are valid).
         fig: The figure (for DPI when converting pixels <-> points).
         points: All model aggregates.
+        label_chars: Typical label length in characters, used to size the
+            horizontal collision band. Charts with longer labels (the combined
+            chart names a harness too) must raise it or wide labels will overlap
+            without being detected as colliding.
 
     Returns:
         ``{id(point): dy_in_points}`` -- 0.0 for labels that did not move.
@@ -511,7 +580,7 @@ def _label_offsets(ax, fig, points: list[ModelPoint]) -> dict[int, float]:
     # within ~1.6 line-heights in y. The x band is generous (a label is wide), so
     # a whole diagonal run of nearby dots merges into one cluster rather than
     # fragmenting into pairs that would still overlap each other.
-    x_band_px = 12 + POINT_LABEL_FONTSIZE * 0.6 * 22  # 12px gap + ~22 chars at ~0.6em
+    x_band_px = 12 + POINT_LABEL_FONTSIZE * 0.6 * label_chars  # gap + text width
     y_touch_px = line_px * 2.8
     px = {id(p): to_px((p.mean_cost, p.mean_score)) for p in points}
 
@@ -565,6 +634,13 @@ def _plot(
     output: Path,
     frontier_label: str = "Cost/quality frontier",
     cost_basis_note: str = _DEFAULT_COST_BASIS_NOTE,
+    leader_lines: bool = True,
+    label_weight: str = "bold",
+    marker_for: Callable[[ModelPoint], str] | None = None,
+    extra_legend: list | None = None,
+    label_backing: bool = True,
+    log_x: bool = False,
+    avoid_markers: bool = False,
 ) -> None:
     """Render the scatter with its frontier and save to ``output``.
 
@@ -575,11 +651,31 @@ def _plot(
         title: Chart title.
         cost_label: X-axis label (cost provenance is caller's responsibility).
         output: Destination image path.
+        frontier_label: Legend text for the frontier line.
+        cost_basis_note: Fine-print note naming the cost basis.
+        leader_lines: Draw a thin line from a displaced label back to its dot.
+            Off for charts whose labels are self-identifying enough not to need
+            them.
+        label_weight: Font weight for the point labels.
+        marker_for: Optional per-point marker chooser; defaults to a circle for
+            every point. The combined chart uses it to encode the harness.
+        extra_legend: Optional extra legend handles, e.g. the marker key that
+            says which shape is which harness.
+        label_backing: Draw the surface-coloured plate behind each label. It
+            keeps text readable where labels sit over the frontier fill; turn it
+            off for a flatter look when labels clear the fill anyway.
+        log_x: Put cost on a log scale. Cost spans nearly two orders of
+            magnitude, so a linear axis crushes the cheapest models into the
+            left margin, and their labels cannot sit beside their own dots.
+        avoid_markers: Flip a label to the left of its dot when drawing it to
+            the right would run the text across another model's marker.
     """
     theme = _THEME[mode]
     fig, ax = plt.subplots(figsize=(16, 10), dpi=150)
     fig.patch.set_facecolor(theme["surface"])
     ax.set_facecolor(theme["surface"])
+    if log_x:
+        ax.set_xscale("log")
 
     # Frontier: a recessive accent line under the marks, filled to the baseline.
     if len(frontier) >= 2:
@@ -609,6 +705,11 @@ def _plot(
         poly_x = fx + [fx[-1], fx[0]]
         poly_y = fy + [y_bottom, y_bottom]
         poly_verts = list(zip(poly_x, poly_y))
+        if log_x:
+            # imshow maps its extent linearly, so a log axis needs a plain fill.
+            ax.fill_between(
+                fx, fy, y_bottom, color=theme["accent"], alpha=0.08, zorder=1
+            )
         poly_path = MplPath(poly_verts + [poly_verts[0]], closed=True)
         patch = PathPatch(poly_path, facecolor="none", edgecolor="none")
         ax.add_patch(patch)
@@ -651,6 +752,9 @@ def _plot(
             interpolation="bicubic",
         )
         im.set_clip_path(patch)
+        if log_x:
+            im.remove()
+            patch.remove()
 
     # Dots now; labels later (after the limits are final) so the declutter pass
     # can measure real text height. Frontier points are already accent from the
@@ -662,6 +766,7 @@ def _plot(
             point.mean_cost,
             point.mean_score,
             s=90,
+            marker=marker_for(point) if marker_for else "o",
             color=theme["accent"] if on_frontier else theme["dot"],
             edgecolors=theme["surface"],
             linewidths=1.5,
@@ -686,13 +791,27 @@ def _plot(
     for spine in ("left", "bottom"):
         ax.spines[spine].set_color(theme["grid"])
     ax.tick_params(colors=theme["muted"], labelsize=TICK_FONTSIZE)
+    if log_x:
+        # A log axis defaults to decade ticks (10^0, 10^1), which is useless on
+        # a chart whose whole point is the dollar figure. Label the 1-2-5 steps
+        # in plain dollars instead.
+        from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
+
+        ax.xaxis.set_major_locator(LogLocator(base=10.0, subs=(1.0, 2.0, 5.0)))
+        ax.xaxis.set_major_formatter(
+            FuncFormatter(lambda v, _: f"${v:g}" if v >= 1 else f"${v:.2f}")
+        )
+        ax.xaxis.set_minor_formatter(NullFormatter())
 
     # Headroom so labels near the axis edges do not clip.
     xs = [p.mean_cost for p in points]
     ys = [p.mean_score for p in points]
     xpad = max((max(xs) - min(xs)) * 0.12, 1.0)
     ypad = max((max(ys) - min(ys)) * 0.12, 3.0)
-    ax.set_xlim(max(0.0, min(xs) - xpad), max(xs) + xpad * 2.2)
+    if log_x:
+        ax.set_xlim(min(xs) / 1.5, max(xs) * 2.6)
+    else:
+        ax.set_xlim(max(0.0, min(xs) - xpad), max(xs) + xpad * 2.2)
     ax.set_ylim(max(0.0, min(ys) - ypad), min(100.0, max(ys) + ypad))
 
     # Labels last, after the limits are final. Only labels that actually collide
@@ -701,27 +820,41 @@ def _plot(
     # offset with no line. A draw() fixes the data<->pixel scale so a label's
     # rendered size can be expressed in data units.
     fig.canvas.draw()
-    dy_by_point = _label_offsets(ax, fig, points)
+    # Size the collision band to the longest label actually drawn, so the wider
+    # labels of a combined chart are spread rather than left overlapping.
+    longest = max((len(_label(p)) for p in points), default=22)
+    label_chars = max(22, longest)
+    dy_by_point = _label_offsets(ax, fig, points, label_chars=label_chars)
+    sides = (
+        _label_sides(ax, fig, points, dy_by_point, label_chars)
+        if avoid_markers
+        else {id(p): "right" for p in points}
+    )
     for point in points:
         dy_pts = dy_by_point[id(point)]
         moved = abs(dy_pts) > 1e-6
+        on_left = sides[id(point)] == "left"
         ax.annotate(
             _label(point),
             (point.mean_cost, point.mean_score),
             textcoords="offset points",
-            xytext=(12, dy_pts),
+            xytext=(-12 if on_left else 12, dy_pts),
             fontsize=POINT_LABEL_FONTSIZE,
-            fontweight="bold",
+            fontweight=label_weight,
             color=theme["ink"],
-            ha="left",
+            ha="right" if on_left else "left",
             va="center",
             zorder=4,
-            bbox={
-                "boxstyle": "round,pad=0.3",
-                "facecolor": theme["surface"],
-                "edgecolor": "none",
-                "alpha": 0.85,
-            },
+            bbox=(
+                {
+                    "boxstyle": "round,pad=0.3",
+                    "facecolor": theme["surface"],
+                    "edgecolor": "none",
+                    "alpha": 0.85,
+                }
+                if label_backing
+                else None
+            ),
             arrowprops=(
                 {
                     "arrowstyle": "-",
@@ -730,13 +863,17 @@ def _plot(
                     "shrinkA": 2,
                     "shrinkB": 3,
                 }
-                if moved
+                if moved and leader_lines
                 else None
             ),
         )
 
-    if len(frontier) >= 2:
-        legend = ax.legend(loc="lower right", frameon=False, fontsize=LEGEND_FONTSIZE)
+    handles, _ = ax.get_legend_handles_labels()
+    handles.extend(extra_legend or [])
+    if handles:
+        legend = ax.legend(
+            handles=handles, loc="lower right", frameon=False, fontsize=LEGEND_FONTSIZE
+        )
         for text in legend.get_texts():
             text.set_color(theme["muted"])
 
@@ -758,7 +895,9 @@ def _plot(
     # Note any excluded failed tasks so the chart is self-explaining: a 0-score
     # (missing-artifact) task is a model failure, not a quality reading, so it is
     # left out of the means, pending investigation.
-    excl_notes = [f"{p.model}: {', '.join(p.excluded)}" for p in points if p.excluded]
+    excl_notes = [
+        f"{_point_name(p)}: {', '.join(p.excluded)}" for p in points if p.excluded
+    ]
     if excl_notes:
         note = (
             "* Mean excludes a failed task (0 score / missing artifacts), pending "
