@@ -151,7 +151,7 @@ start_proxy() {
 
     export MANTLE_API_KEY
     export LITELLM_USE_CHAT_COMPLETIONS_URL_FOR_ANTHROPIC_MESSAGES=true
-    setsid uv run --with 'litellm[proxy]' litellm \
+    setsid uv run --with 'litellm[proxy]>=1.72,<1.84' --with 'fastapi<0.116' litellm \
         --config "$CONFIG_FILE" --host "$HOST" --port "$PORT" \
         > "$LOG_FILE" 2>&1 < /dev/null &
     echo $! > "$PID_FILE"
