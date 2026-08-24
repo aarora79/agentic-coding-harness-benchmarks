@@ -704,23 +704,42 @@ def _plot(
     dy_by_point = _label_offsets(ax, fig, points)
     for point in points:
         dy_pts = dy_by_point[id(point)]
+        on_frontier = id(point) in frontier_ids
+        # Frontier models: bold, full size, close to dot.
+        # Off-frontier models: smaller, not bold, slightly muted.
         moved = abs(dy_pts) > 1e-6
+        fsize = POINT_LABEL_FONTSIZE if on_frontier else POINT_LABEL_FONTSIZE - 2
+        fweight = "bold" if on_frontier else "normal"
+        fcolor = theme["ink"] if on_frontier else theme["muted"]
+        # Off-frontier labels always sit directly next to the dot (no offset).
+        # Frontier labels get the cluster-spread offset + leader line when moved.
+        # Exception: devstral-2-123b sits above its dot to avoid haiku overlap.
+        effective_dy = dy_pts if on_frontier else 0
+        x_offset = 10
+        h_align = "left"
+        v_align = "center"
+        if "devstral" in point.model.lower():
+            x_offset = 10
+            effective_dy = 14
+            h_align = "left"
+            v_align = "bottom"
+        draw_arrow = moved and on_frontier
         ax.annotate(
             _label(point),
             (point.mean_cost, point.mean_score),
             textcoords="offset points",
-            xytext=(12, dy_pts),
-            fontsize=POINT_LABEL_FONTSIZE,
-            fontweight="bold",
-            color=theme["ink"],
-            ha="left",
-            va="center",
+            xytext=(x_offset, effective_dy),
+            fontsize=fsize,
+            fontweight=fweight,
+            color=fcolor,
+            ha=h_align,
+            va=v_align,
             zorder=4,
             bbox={
-                "boxstyle": "round,pad=0.3",
+                "boxstyle": "round,pad=0.2",
                 "facecolor": theme["surface"],
                 "edgecolor": "none",
-                "alpha": 0.85,
+                "alpha": 0.80 if on_frontier else 0.70,
             },
             arrowprops=(
                 {
@@ -730,7 +749,7 @@ def _plot(
                     "shrinkA": 2,
                     "shrinkB": 3,
                 }
-                if moved
+                if draw_arrow
                 else None
             ),
         )
