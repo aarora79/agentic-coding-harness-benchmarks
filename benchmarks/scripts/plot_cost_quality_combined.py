@@ -34,10 +34,9 @@ charts do -- the emitted JSON carries a per-hosting frontier alongside the
 combined, cross-hosting one, and the combined view is directional only. See
 docs/cost-per-task-methodology.md.
 
-Cost is drawn on a LOG axis by default (--linear-x opts out): the measured costs
-run from $0.31 to $24.64, so a linear axis packs a third of the models into the
-leftmost few percent of the width, where their labels cannot sit beside their
-own dots.
+Cost is linear, matching the per-harness charts. ``--log-x`` switches to a log
+axis, which spreads the sub-$1 models out of the left margin at the price of an
+axis that no longer reads directly against the other charts.
 
 Usage:
     uv run scripts/plot_cost_quality_combined.py
@@ -401,12 +400,12 @@ def _parse_args() -> argparse.Namespace:
         "--dark", action="store_true", help="Render the dark-mode theme"
     )
     parser.add_argument(
-        "--linear-x",
+        "--log-x",
         action="store_true",
-        help="Put cost back on a linear axis. The default is logarithmic: cost "
-        "spans nearly two orders of magnitude here, and on a linear axis the "
-        "sub-$1 models crowd into the left margin, where their labels can no "
-        "longer sit beside their own dots.",
+        help="Draw cost on a log axis. Cost spans nearly two orders of "
+        "magnitude, so a log scale spreads the sub-$1 models out of the left "
+        "margin; the linear default keeps the axis directly comparable with "
+        "the per-harness charts.",
     )
     parser.add_argument(
         "--metrics-dir",
@@ -469,12 +468,14 @@ def main() -> None:
         cost_label=cost_label,
         output=output,
         frontier_label=f"Cost/quality frontier ({args.repo})",
-        leader_lines=False,
+        # A linear cost axis packs the cheap models together, so a displaced
+        # label needs a thin line back to its own dot to stay attributable.
+        leader_lines=not args.log_x,
         label_weight="normal",
         marker_for=_marker_for,
         extra_legend=_legend_handles(harnesses, mode),
         label_backing=False,
-        log_x=not args.linear_x,
+        log_x=args.log_x,
         avoid_markers=True,
     )
 

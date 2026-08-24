@@ -534,6 +534,9 @@ def _label_sides(
     px = {id(p): to_px((p.mean_cost, p.mean_score)) for p in points}
     text_w = 12 + POINT_LABEL_FONTSIZE * 0.6 * label_chars
     half_line = POINT_LABEL_FONTSIZE * 1.35 * fig.dpi / 72.0 * 0.5
+    # Flipping left is only an option while the text still fits inside the axes;
+    # past that it would run out over the y-axis instead.
+    left_edge_px = ax.transAxes.transform((0.0, 0.0))[0]
     sides: dict[int, str] = {}
     for point in points:
         x_px, y_px = px[id(point)]
@@ -544,7 +547,8 @@ def _label_sides(
             and abs(px[id(other)][1] - label_y) < half_line
             for other in points
         )
-        sides[id(point)] = "left" if collides else "right"
+        room_on_left = x_px - text_w > left_edge_px
+        sides[id(point)] = "left" if collides and room_on_left else "right"
     return sides
 
 
