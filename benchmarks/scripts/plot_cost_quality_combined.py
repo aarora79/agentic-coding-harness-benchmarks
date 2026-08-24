@@ -26,7 +26,8 @@ verdict for every model, so a reader can see exactly what was set aside and why.
 Numbers come from the same ``_collect_points`` the per-harness charts use, so
 this chart can never disagree with them; nothing is re-derived here. Every point
 carries the model name, with the winning harness encoded as the marker shape
-and named in the legend.
+and named in the legend. Marks are monochrome on purpose: the frontier is the
+only thing wearing colour.
 
 Cost bases are NOT comparable as raw dollars across hosting (a metered Bedrock
 bill vs a hardware-derived self-hosted figure), so -- exactly as the per-harness
@@ -83,19 +84,7 @@ FALLBACK_MARKER = "o"
 # at low alpha). This chart takes blue for that pair rather than the warm accent
 # the per-harness charts use: the tint covers most of the plot here, and a cool
 # region recedes behind the marks instead of competing with them.
-#
-# That frees the warm half of the palette for the marks. Colour per harness
-# doubles the shape encoding so the split reads at a glance and still survives
-# colour-blindness and greyscale printing: one harness takes red -- the
-# strongest validated counterpart to the accent (dE 32.3 light / 29.0 dark to
-# normal vision, 21.6 / 19.2 on the worst CVD axis, and the only candidate
-# clearing 3:1 contrast in BOTH modes without relief) -- and the other keeps the
-# chart's own charcoal, so exactly one hue is added to the marks.
 COMBINED_ACCENT = {"light": "#2a78d6", "dark": "#3987e5"}
-HARNESS_COLORS = {
-    "light": {"claude-code": "#e34948", "pi": "#33322f"},
-    "dark": {"claude-code": "#e66767", "pi": "#d7d6cf"},
-}
 # Vendor prefix dropped from chart labels only. Each label here already carries
 # a harness, so the model half has to earn its width, and "opus-5" is no less
 # clear than "claude-opus-5". Every emitted JSON still reports the full slug.
@@ -133,22 +122,26 @@ def _marker_for(point: cq.ModelPoint) -> str:
     return HARNESS_MARKERS.get(point.harness, FALLBACK_MARKER)
 
 
-def _color_for(point: cq.ModelPoint, mode: str) -> str:
-    """Marker colour encoding the harness that won this model.
+def _mark_color(mode: str) -> str:
+    """The single colour every mark wears.
+
+    Marks are deliberately monochrome: the frontier is the chart's headline and
+    it is the only thing that carries colour, so every model sits in one quiet
+    neutral layer beneath it. The harness is carried by the marker SHAPE and its
+    legend key instead of a second hue -- which also keeps the chart readable in
+    greyscale and under colour-blindness, since shape survives both.
 
     Args:
-        point: The winning model+harness aggregate.
         mode: "light" or "dark".
 
     Returns:
-        The hex colour for that harness, falling back to the theme's recessive
-        neutral for a harness with no assigned slot.
+        The theme's recessive mark colour.
     """
-    return HARNESS_COLORS[mode].get(point.harness, cq._THEME[mode]["dot"])
+    return cq._THEME[mode]["dot"]
 
 
 def _legend_handles(harnesses: list[str], mode: str) -> list[Line2D]:
-    """Build the marker key naming which shape and colour is which harness."""
+    """Build the marker key naming which shape is which harness."""
     theme = cq._THEME[mode]
     return [
         Line2D(
@@ -157,7 +150,7 @@ def _legend_handles(harnesses: list[str], mode: str) -> list[Line2D]:
             linestyle="none",
             marker=HARNESS_MARKERS.get(harness, FALLBACK_MARKER),
             markersize=9,
-            markerfacecolor=HARNESS_COLORS[mode].get(harness, theme["dot"]),
+            markerfacecolor=theme["dot"],
             markeredgecolor=theme["surface"],
             label=HARNESS_DISPLAY.get(harness, harness),
         )
@@ -509,15 +502,12 @@ def main() -> None:
         # A linear cost axis packs the cheap models together, so a displaced
         # label needs a thin line back to its own dot to stay attributable.
         leader_lines=not args.log_x,
-        label_weight="normal",
         marker_for=_marker_for,
-        color_for=lambda point: _color_for(point, mode),
+        color_for=lambda _point: _mark_color(mode),
         accent_color=args.accent_color or COMBINED_ACCENT[mode],
         extra_legend=_legend_handles(harnesses, mode),
         label_backing=False,
         log_x=args.log_x,
-        avoid_markers=True,
-        vertical_leaders=True,
     )
 
 

@@ -639,15 +639,15 @@ def _plot(
     frontier_label: str = "Cost/quality frontier",
     cost_basis_note: str = _DEFAULT_COST_BASIS_NOTE,
     leader_lines: bool = True,
-    label_weight: str = "bold",
+    label_weight: str = "normal",
     marker_for: Callable[[ModelPoint], str] | None = None,
     color_for: Callable[[ModelPoint], str] | None = None,
     accent_color: str | None = None,
     extra_legend: list | None = None,
     label_backing: bool = True,
     log_x: bool = False,
-    avoid_markers: bool = False,
-    vertical_leaders: bool = False,
+    avoid_markers: bool = True,
+    vertical_leaders: bool = True,
 ) -> None:
     """Render the scatter with its frontier and save to ``output``.
 
@@ -663,7 +663,9 @@ def _plot(
         leader_lines: Draw a thin line from a displaced label back to its dot.
             Off for charts whose labels are self-identifying enough not to need
             them.
-        label_weight: Font weight for the point labels.
+        label_weight: Font weight for the point labels. Regular by default --
+            bold at label length reads as emphasis on every point at once,
+            which is emphasis on nothing.
         marker_for: Optional per-point marker chooser; defaults to a circle for
             every point. The combined chart uses it to encode the harness.
         color_for: Optional per-point colour chooser. Without it a point is the
@@ -684,10 +686,12 @@ def _plot(
             magnitude, so a linear axis crushes the cheapest models into the
             left margin, and their labels cannot sit beside their own dots.
         avoid_markers: Flip a label to the left of its dot when drawing it to
-            the right would run the text across another model's marker.
+            the right would run the text across another model's marker (only
+            while the text still fits inside the axes).
         vertical_leaders: Centre a displaced label over its own dot so the
-            leader line runs (near) vertically instead of diagonally. Reads as
-            a tick up to the label rather than a wire across the plot.
+            leader line runs vertically instead of diagonally -- a tick up to
+            the label rather than a wire across the plot. Falls back to side
+            placement when a centred label would overhang the axes.
     """
     theme = dict(_THEME[mode])
     if accent_color:
