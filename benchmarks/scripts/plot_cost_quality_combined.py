@@ -79,6 +79,16 @@ HARNESS_DISPLAY = {
 # in every label, which keeps the labels short enough to sit beside their dots.
 HARNESS_MARKERS = {"claude-code": "s", "pi": "o", "kiro-cli": "^", "opencode": "D"}
 FALLBACK_MARKER = "o"
+# Colour per harness, doubling the shape encoding so the split is legible at a
+# glance and still survives colour-blindness and greyscale printing. Slots 1 and
+# 3 of the validated categorical palette (blue, aqua), stepped per mode; slot 2
+# (orange) is left to the frontier line, and all three clear the all-pairs CVD
+# and normal-vision floors in both modes. Every point is directly labelled,
+# which is the relief the light-mode aqua's sub-3:1 contrast requires.
+HARNESS_COLORS = {
+    "light": {"claude-code": "#2a78d6", "pi": "#1baf7a"},
+    "dark": {"claude-code": "#3987e5", "pi": "#199e70"},
+}
 # Vendor prefix dropped from chart labels only. Each label here already carries
 # a harness, so the model half has to earn its width, and "opus-5" is no less
 # clear than "claude-opus-5". Every emitted JSON still reports the full slug.
@@ -116,8 +126,22 @@ def _marker_for(point: cq.ModelPoint) -> str:
     return HARNESS_MARKERS.get(point.harness, FALLBACK_MARKER)
 
 
+def _color_for(point: cq.ModelPoint, mode: str) -> str:
+    """Marker colour encoding the harness that won this model.
+
+    Args:
+        point: The winning model+harness aggregate.
+        mode: "light" or "dark".
+
+    Returns:
+        The hex colour for that harness, falling back to the theme's recessive
+        neutral for a harness with no assigned slot.
+    """
+    return HARNESS_COLORS[mode].get(point.harness, cq._THEME[mode]["dot"])
+
+
 def _legend_handles(harnesses: list[str], mode: str) -> list[Line2D]:
-    """Build the marker key naming which shape is which harness."""
+    """Build the marker key naming which shape and colour is which harness."""
     theme = cq._THEME[mode]
     return [
         Line2D(
@@ -126,7 +150,7 @@ def _legend_handles(harnesses: list[str], mode: str) -> list[Line2D]:
             linestyle="none",
             marker=HARNESS_MARKERS.get(harness, FALLBACK_MARKER),
             markersize=9,
-            markerfacecolor=theme["dot"],
+            markerfacecolor=HARNESS_COLORS[mode].get(harness, theme["dot"]),
             markeredgecolor=theme["surface"],
             label=HARNESS_DISPLAY.get(harness, harness),
         )
@@ -473,6 +497,7 @@ def main() -> None:
         leader_lines=not args.log_x,
         label_weight="normal",
         marker_for=_marker_for,
+        color_for=lambda point: _color_for(point, mode),
         extra_legend=_legend_handles(harnesses, mode),
         label_backing=False,
         log_x=args.log_x,

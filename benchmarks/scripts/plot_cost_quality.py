@@ -641,6 +641,7 @@ def _plot(
     leader_lines: bool = True,
     label_weight: str = "bold",
     marker_for: Callable[[ModelPoint], str] | None = None,
+    color_for: Callable[[ModelPoint], str] | None = None,
     extra_legend: list | None = None,
     label_backing: bool = True,
     log_x: bool = False,
@@ -664,6 +665,11 @@ def _plot(
         label_weight: Font weight for the point labels.
         marker_for: Optional per-point marker chooser; defaults to a circle for
             every point. The combined chart uses it to encode the harness.
+        color_for: Optional per-point colour chooser. Without it a point is the
+            warm accent when it sits on the frontier and a recessive neutral
+            otherwise -- i.e. colour encodes rank. Supplying it moves colour
+            onto the entity (the harness), leaving the frontier to be read from
+            the line that connects its points.
         extra_legend: Optional extra legend handles, e.g. the marker key that
             says which shape is which harness.
         label_backing: Draw the surface-coloured plate behind each label. It
@@ -775,7 +781,11 @@ def _plot(
             point.mean_score,
             s=90,
             marker=marker_for(point) if marker_for else "o",
-            color=theme["accent"] if on_frontier else theme["dot"],
+            color=(
+                color_for(point)
+                if color_for
+                else (theme["accent"] if on_frontier else theme["dot"])
+            ),
             edgecolors=theme["surface"],
             linewidths=1.5,
             zorder=3,
