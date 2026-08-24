@@ -477,6 +477,7 @@ def main() -> None:
         label_backing=False,
         log_x=args.log_x,
         avoid_markers=True,
+        vertical_leaders=True,
     )
 
 

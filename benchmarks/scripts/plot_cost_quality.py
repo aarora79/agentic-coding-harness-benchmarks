@@ -645,6 +645,7 @@ def _plot(
     label_backing: bool = True,
     log_x: bool = False,
     avoid_markers: bool = False,
+    vertical_leaders: bool = False,
 ) -> None:
     """Render the scatter with its frontier and save to ``output``.
 
@@ -673,6 +674,9 @@ def _plot(
             left margin, and their labels cannot sit beside their own dots.
         avoid_markers: Flip a label to the left of its dot when drawing it to
             the right would run the text across another model's marker.
+        vertical_leaders: Centre a displaced label over its own dot so the
+            leader line runs (near) vertically instead of diagonally. Reads as
+            a tick up to the label rather than a wire across the plot.
     """
     theme = _THEME[mode]
     fig, ax = plt.subplots(figsize=(16, 10), dpi=150)
@@ -834,19 +838,34 @@ def _plot(
         if avoid_markers
         else {id(p): "right" for p in points}
     )
+    # A centred label spans half its width each side of the dot, so it can only
+    # be centred while both halves stay inside the axes.
+    x0_px, x1_px = (
+        ax.transAxes.transform((0.0, 0.0))[0],
+        ax.transAxes.transform((1.0, 0.0))[0],
+    )
+    half_w_px = (POINT_LABEL_FONTSIZE * 0.6 * label_chars) / 2
     for point in points:
         dy_pts = dy_by_point[id(point)]
         moved = abs(dy_pts) > 1e-6
         on_left = sides[id(point)] == "left"
+        dot_x_px = ax.transData.transform((point.mean_cost, point.mean_score))[0]
+        centred = (
+            vertical_leaders
+            and moved
+            and leader_lines
+            and dot_x_px - half_w_px > x0_px
+            and dot_x_px + half_w_px < x1_px
+        )
         ax.annotate(
             _label(point),
             (point.mean_cost, point.mean_score),
             textcoords="offset points",
-            xytext=(-12 if on_left else 12, dy_pts),
+            xytext=(0 if centred else (-12 if on_left else 12), dy_pts),
             fontsize=POINT_LABEL_FONTSIZE,
             fontweight=label_weight,
             color=theme["ink"],
-            ha="right" if on_left else "left",
+            ha="center" if centred else ("right" if on_left else "left"),
             va="center",
             zorder=4,
             bbox=(
