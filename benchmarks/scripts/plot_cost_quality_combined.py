@@ -79,20 +79,22 @@ HARNESS_DISPLAY = {
 # in every label, which keeps the labels short enough to sit beside their dots.
 HARNESS_MARKERS = {"claude-code": "s", "pi": "o", "kiro-cli": "^", "opencode": "D"}
 FALLBACK_MARKER = "o"
-# Colour per harness, doubling the shape encoding so the split is legible at a
-# glance and still survives colour-blindness and greyscale printing.
+# The frontier line and the tint under it are one colour (the fill is the line
+# at low alpha). This chart takes blue for that pair rather than the warm accent
+# the per-harness charts use: the tint covers most of the plot here, and a cool
+# region recedes behind the marks instead of competing with them.
 #
-# The frontier line owns the warm accent, and every warm hue fails the
-# separation floors against it (orange vs red is dE 7.1 to normal vision, vs
-# yellow 13.7 -- both under the 15 floor), so a second warm hue is not
-# available. One harness therefore takes violet, the palette slot furthest from
-# the accent (dE 37.6 light / 27.0 dark, and clear on all three CVD axes), and
-# the other keeps the chart's own warm charcoal. That adds exactly one hue to
-# the scheme rather than importing a cool pair that fights it, and the two are
-# separated by lightness as well as hue, with the marker shape behind both.
+# That frees the warm half of the palette for the marks. Colour per harness
+# doubles the shape encoding so the split reads at a glance and still survives
+# colour-blindness and greyscale printing: one harness takes red -- the
+# strongest validated counterpart to the accent (dE 32.3 light / 29.0 dark to
+# normal vision, 21.6 / 19.2 on the worst CVD axis, and the only candidate
+# clearing 3:1 contrast in BOTH modes without relief) -- and the other keeps the
+# chart's own charcoal, so exactly one hue is added to the marks.
+COMBINED_ACCENT = {"light": "#2a78d6", "dark": "#3987e5"}
 HARNESS_COLORS = {
-    "light": {"claude-code": "#4a3aa7", "pi": "#33322f"},
-    "dark": {"claude-code": "#9085e9", "pi": "#d7d6cf"},
+    "light": {"claude-code": "#e34948", "pi": "#33322f"},
+    "dark": {"claude-code": "#e66767", "pi": "#d7d6cf"},
 }
 # Vendor prefix dropped from chart labels only. Each label here already carries
 # a harness, so the model half has to earn its width, and "opus-5" is no less
@@ -443,10 +445,11 @@ def _parse_args() -> argparse.Namespace:
         help="Where to write the frontier JSON (default: docs/metrics/).",
     )
     parser.add_argument(
-        "--fill-color",
+        "--accent-color",
         default=None,
-        help="Colour of the tint under the frontier (default: the accent, so "
-        "the shaded region reads as part of the frontier line that caps it).",
+        help="Override the accent: the frontier line and the tint under it, "
+        "which are one colour by design (the fill is the line at low alpha). "
+        "Defaults to this chart's blue.",
     )
     parser.add_argument("--title", default=None, help="Override the chart title")
     parser.add_argument(
@@ -509,7 +512,7 @@ def main() -> None:
         label_weight="normal",
         marker_for=_marker_for,
         color_for=lambda point: _color_for(point, mode),
-        fill_color=args.fill_color,
+        accent_color=args.accent_color or COMBINED_ACCENT[mode],
         extra_legend=_legend_handles(harnesses, mode),
         label_backing=False,
         log_x=args.log_x,

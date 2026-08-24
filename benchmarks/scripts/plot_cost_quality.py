@@ -642,7 +642,7 @@ def _plot(
     label_weight: str = "bold",
     marker_for: Callable[[ModelPoint], str] | None = None,
     color_for: Callable[[ModelPoint], str] | None = None,
-    fill_color: str | None = None,
+    accent_color: str | None = None,
     extra_legend: list | None = None,
     label_backing: bool = True,
     log_x: bool = False,
@@ -671,9 +671,10 @@ def _plot(
             otherwise -- i.e. colour encodes rank. Supplying it moves colour
             onto the entity (the harness), leaving the frontier to be read from
             the line that connects its points.
-        fill_color: Colour of the tint under the frontier. Defaults to the
-            accent, which keeps the shaded region visibly part of the frontier
-            line that caps it.
+        accent_color: Override the accent -- the frontier line AND the tint
+            under it. They are one colour by design: the fill is the line at
+            low alpha, which is what makes the shaded region read as belonging
+            to the frontier rather than as a second, unexplained object.
         extra_legend: Optional extra legend handles, e.g. the marker key that
             says which shape is which harness.
         label_backing: Draw the surface-coloured plate behind each label. It
@@ -688,7 +689,9 @@ def _plot(
             leader line runs (near) vertically instead of diagonally. Reads as
             a tick up to the label rather than a wire across the plot.
     """
-    theme = _THEME[mode]
+    theme = dict(_THEME[mode])
+    if accent_color:
+        theme["accent"] = accent_color
     fig, ax = plt.subplots(figsize=(16, 10), dpi=150)
     fig.patch.set_facecolor(theme["surface"])
     ax.set_facecolor(theme["surface"])
@@ -736,7 +739,7 @@ def _plot(
         x_min, x_max = min(fx), max(fx)
         y_min, y_max = y_bottom, max(fy)
         gradient = np.linspace(1, 0, 256).reshape(256, 1)
-        accent_rgba = to_rgba(fill_color or theme["accent"])
+        accent_rgba = to_rgba(theme["accent"])
         ax.imshow(
             gradient,
             extent=[x_min, x_max, y_min, y_max],
