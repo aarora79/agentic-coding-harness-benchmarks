@@ -75,7 +75,9 @@ If instead you want to **keep** a prior run, rename its folder (e.g. `qwen3.6-35
 - **GPUs are free** (or only holding a server you intend to replace): `nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv`.
 - **Port 8000 is free** (nothing already bound): `curl -s -m 2 http://127.0.0.1:8000/health && echo "  <- something is already serving :8000"`. If a server is already up with the model you want, you can skip Step 1.
 - **The harness config exists**: `test -f config/runner.yaml && echo "runner.yaml present" || echo "run: cp config/runner.example.yaml config/runner.yaml"`.
-- **AWS credentials for the judge** (Step 4 uses codex/Bedrock): `aws sts get-caller-identity`.
+- **The judge can actually reach Bedrock** (Step 4 runs codex against it). `aws sts get-caller-identity` proves the box can reach AWS but NOT that codex is pointed at Bedrock -- an unconfigured codex ignores those credentials and 401s against `api.openai.com`. Prove it end to end:
+  `codex exec --skip-git-repo-check "Reply with exactly: JUDGE OK"`
+  If that fails, see [agent-cli-bedrock-setup.md](agent-cli-bedrock-setup.md).
 
 ## Step 1 - Start vLLM serving the model of interest
 
