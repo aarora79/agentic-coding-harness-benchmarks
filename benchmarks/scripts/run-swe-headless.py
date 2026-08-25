@@ -716,7 +716,12 @@ def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
     ]
 
 
-def _run_omp(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any]:
+def _run_omp(
+    cmd: list[str],
+    env: dict[str, str],
+    timeout: int,
+    stream_log: Path | None = None,
+) -> dict[str, Any]:
     """Run ``omp -p --mode json`` and normalize its events to a result dict.
 
     omp emits the same event stream as pi (``turn_start`` for turn counting, a
@@ -732,6 +737,11 @@ def _run_omp(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any
         cmd: The omp command argument vector.
         env: Environment for the subprocess (pins PI_CODING_AGENT_DIR).
         timeout: Wall-clock timeout in seconds.
+        stream_log: Optional file to append omp's events to as they arrive. A
+            task runs for tens of minutes with no terminal output otherwise --
+            ``capture_output`` only yields once the process exits -- so this is
+            the only way to watch a run in flight (``tail -f`` it). omp's own
+            ``~/.omp/logs`` carries lifecycle debug lines, not the event stream.
 
     Returns:
         The claude-shaped result dict (see ``_pi_result_from_events``).
@@ -740,39 +750,57 @@ def _run_omp(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any
         RuntimeError: If omp times out, emits no output, or emits no agent_end.
     """
     start = time.time()
+    # Read stdout line by line rather than with subprocess.run so the stream can
+    # be mirrored to stream_log while the task runs; run() would withhold every
+    # line until exit, leaving a 30-60 minute task looking identical to a hang.
+    sink = None
+    if stream_log is not None:
+        stream_log.parent.mkdir(parents=True, exist_ok=True)
+        sink = stream_log.open("a", encoding="utf-8")
+    stdout_lines: list[str] = []
+    events: list[dict[str, Any]] = []
     try:
-        proc = subprocess.run(  # nosec B603 - hardcoded 'omp', list args, no shell
+        proc = subprocess.Popen(  # nosec B603 - hardcoded 'omp', list args, no shell
             cmd,
             env=env,
             cwd=str(REPO_ROOT),
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
-            check=False,
             stdin=subprocess.DEVNULL,
         )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"omp -p timed out after {timeout}s") from exc
+        try:
+            for line in proc.stdout or []:
+                stdout_lines.append(line)
+                if sink is not None:
+                    sink.write(line)
+                    sink.flush()
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    events.append(json.loads(stripped))
+                except json.JSONDecodeError:
+                    # omp interleaves human-readable startup notices; skip them.
+                    continue
+            proc.wait(timeout=max(timeout - (time.time() - start), 1))
+        except subprocess.TimeoutExpired as exc:
+            proc.kill()
+            raise RuntimeError(f"omp -p timed out after {timeout}s") from exc
+        stderr = (proc.stderr.read() if proc.stderr else "") or ""
+    finally:
+        if sink is not None:
+            sink.close()
     elapsed = time.time() - start
 
-    if not proc.stdout.strip():
+    if not "".join(stdout_lines).strip():
         raise RuntimeError(
             f"omp -p produced no output (exit {proc.returncode}): "
-            f"{proc.stderr.strip()[:500]}"
+            f"{stderr.strip()[:500]}"
         )
-    events: list[dict[str, Any]] = []
-    for line in proc.stdout.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError:
-            # omp interleaves human-readable startup notices; skip non-JSON lines.
-            continue
     if not events:
         raise RuntimeError(
-            f"omp -p output had no JSON events: {proc.stdout.strip()[:500]}"
+            f"omp -p output had no JSON events: {''.join(stdout_lines).strip()[:500]}"
         )
     result = _pi_result_from_events(events, elapsed)
     result["_elapsed_seconds"] = round(elapsed, 1)
@@ -2390,7 +2418,12 @@ def _run_task(
                 # same result shape. It has no separate streaming trace mode.
                 result = _run_pi(cmd, env, config.timeout_seconds)
             elif config.is_omp:
-                result = _run_omp(cmd, env, config.timeout_seconds)
+                result = _run_omp(
+                    cmd,
+                    env,
+                    config.timeout_seconds,
+                    stream_log=_artifact_dir(config, task) / "omp-stream.jsonl",
+                )
             elif config.is_kiro:
                 # kiro-cli streams ANSI text and prints a Credits/Time summary on
                 # stderr; _run_kiro normalizes that to the same result shape.
