@@ -40,7 +40,7 @@ set -euo pipefail
 #
 # Optional flags:
 #   --agent NAME           coding agent that runs the task: claude (Claude Code,
-#                          default) or pi (the pi coding agent). Same task either
+#                          default), pi, omp (oh-my-pi), or kiro. Same task either
 #                          way. Both support every --provider: an
 #                          OpenAI-compatible endpoint (vllm/litellm) or native
 #                          Amazon Bedrock.
@@ -158,8 +158,8 @@ case "$PROVIDER" in
 esac
 
 case "$AGENT" in
-    claude|pi|kiro) ;;
-    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, kiro." ;;
+    claude|pi|omp|kiro) ;;
+    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, omp, kiro." ;;
 esac
 case "$SKILL" in
     swe2|swe3) ;;

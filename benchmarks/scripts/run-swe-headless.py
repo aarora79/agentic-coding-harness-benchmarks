@@ -698,6 +698,10 @@ def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
         model = f"{OMP_PROVIDER_BEDROCK}/{model_to_wire_id(config.model)}"
     else:
         model = f"{OMP_PROVIDER_VLLM}/{config.model}"
+    # A trailing "--" ends option parsing so the prompt is always treated as the
+    # positional INPUT -- essential here because the inlined SKILL.md begins with
+    # "---" (YAML frontmatter), which omp would otherwise reject as an unknown
+    # flag, exactly as kiro-cli does (see _build_kiro_cmd).
     return [
         "omp",
         "-p",
@@ -707,6 +711,7 @@ def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
         "--auto-approve",
         "--model",
         model,
+        "--",
         full_prompt,
     ]
 
