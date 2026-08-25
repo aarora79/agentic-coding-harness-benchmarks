@@ -31,6 +31,8 @@ import math
 from pathlib import Path
 from typing import Any
 
+from token_accounting import compute_total_tokens_processed
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -100,8 +102,15 @@ def _task_shape(data_dir: Path, harness: str, skill: str, repo: str) -> str | No
 
     A "task" is one dataset problem. We summarize its scale as the median across
     all this (harness, skill) run's per-task token counts: the read-heavy input
-    side (fresh input + cache read + cache write) vs the output side. This tells
-    the reader what "cost per task" is priced over.
+    (prompt) side vs the output side. This tells the reader what "cost per task"
+    is priced over.
+
+    The input side is the prompt tokens PROCESSED once each, from
+    ``compute_total_tokens_processed`` (with output=0 it returns just the prompt
+    part). That collapses the cache into input on self-hosted partition runs
+    (where cache_read/cache_write already live inside input_tokens) and keeps it
+    additive on Bedrock -- so this ratio no longer ~2x double-counts the prompt
+    on self-hosted runs (issue #136).
     """
     ins: list[int] = []
     outs: list[int] = []
@@ -120,8 +129,15 @@ def _task_shape(data_dir: Path, harness: str, skill: str, repo: str) -> str | No
                 task.get("cache_write_tokens") or task.get("cache_creation_tokens") or 0
             )
             o = task.get("output_tokens") or 0
-            if (i + cr + cw) > 0 and o > 0:
-                ins.append(i + cr + cw)
+            prompt_processed = compute_total_tokens_processed(
+                i,
+                0,
+                cr,
+                cw,
+                context=f"plot_cost_accuracy_bubble:{summ.get('model_slug')}/{task.get('task')}",
+            )
+            if prompt_processed > 0 and o > 0:
+                ins.append(prompt_processed)
                 outs.append(o)
     if not ins:
         return None

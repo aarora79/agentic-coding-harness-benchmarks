@@ -71,6 +71,27 @@ class RunTotalsTest(unittest.TestCase):
         self.assertEqual(totals["cache_read_tokens"], 180000)
         self.assertEqual(totals["cache_write_tokens"], 500)
 
+    def test_total_tokens_partition_not_double_counted(self) -> None:
+        # Self-hosted vLLM (issue #136): cache_read + cache_write == input_tokens,
+        # so the cache is a PARTITION of input (already counted inside it). The
+        # total must be input + output only, NOT input + output + cache (which was
+        # the ~2x double-count bug).
+        summary = {
+            "tasks": [
+                {
+                    "input_tokens": 4_141_291,
+                    "output_tokens": 23_657,
+                    "cache_read_tokens": 4_070_208,
+                    "cache_write_tokens": 71_083,
+                },
+            ]
+        }
+        totals = gen._run_totals(summary)
+        self.assertEqual(totals["total_tokens"], 4_141_291 + 23_657)
+        # The per-field breakdown columns are still tracked verbatim.
+        self.assertEqual(totals["cache_read_tokens"], 4_070_208)
+        self.assertEqual(totals["cache_write_tokens"], 71_083)
+
     def test_total_tokens_accepts_cache_creation_alias(self) -> None:
         # claude-code metrics use cache_creation_tokens for cache-write.
         summary = {
