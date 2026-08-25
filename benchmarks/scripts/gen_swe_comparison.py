@@ -406,9 +406,9 @@ def _render(
             f"- **Budget tier (routine / high-volume edits): `{budget['model']}`** "
             f"-- cheapest full 5/5 run at ${budget['cost_per_task']:.2f}/task "
             f"(score {budget['mean']:.0f}/100). Good for boilerplate, small fixes, "
-            "and throwaway scaffolding where you will review the output anyway. "
+            "and throwaway scaffolding where you will review the output anyway."
             + (
-                f"Cheapest self-hosted equivalent: `{open_budget['model']}` at "
+                f" Cheapest self-hosted equivalent: `{open_budget['model']}` at "
                 f"${open_budget['cost_per_task']:.2f}/task."
                 if open_budget and open_budget["model"] != budget["model"]
                 else ""
