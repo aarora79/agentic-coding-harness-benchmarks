@@ -128,7 +128,15 @@ AGENT_PI = "pi"
 # tokens) on stderr, which the harness maps to a dollar cost. See
 # docs/kiro-cli-setup.md.
 AGENT_KIRO = "kiro"
-VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI, AGENT_KIRO}
+# "omp" is the omp coding agent (oh-my-pi), a fork of pi. It speaks the same
+# JSON-lines event stream, so the harness reuses pi's result parser verbatim, but
+# it differs in three ways that the omp helpers handle: its per-run config is
+# YAML (`models.yml` + `config.yml`, not pi's `models.json`), it has no `--skill`
+# flag so the SKILL.md is inlined into the prompt the way kiro's is, and it hangs
+# waiting for EOF unless its stdin is closed. Like pi it supports
+# provider=endpoint and provider=bedrock.
+AGENT_OMP = "omp"
+VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI, AGENT_KIRO, AGENT_OMP}
 DEFAULT_AGENT = AGENT_CLAUDE
 
 # Artifacts are grouped by the coding agent (the "harness") that produced them,
@@ -136,7 +144,12 @@ DEFAULT_AGENT = AGENT_CLAUDE
 # ``<model-slug>/<harness-slug>/<repo>/<task>/``. The harness slug is the folder
 # name for each agent; "claude" -> "claude-code" (the historical Claude Code
 # results, migrated under this name), "pi" -> "pi".
-HARNESS_SLUGS = {AGENT_CLAUDE: "claude-code", AGENT_PI: "pi", AGENT_KIRO: "kiro-cli"}
+HARNESS_SLUGS = {
+    AGENT_CLAUDE: "claude-code",
+    AGENT_PI: "pi",
+    AGENT_KIRO: "kiro-cli",
+    AGENT_OMP: "omp",
+}
 
 # kiro-cli bills in credits, not tokens; the harness translates credits (parsed
 # from kiro-cli's stderr summary line) to a dollar cost with a configurable
@@ -413,6 +426,11 @@ class RunnerConfig(BaseModel):
     def is_pi(self) -> bool:
         """True when the pi coding agent drives the task (instead of Claude Code)."""
         return self.agent == AGENT_PI
+
+    @property
+    def is_omp(self) -> bool:
+        """True when the omp (oh-my-pi) coding agent drives the task."""
+        return self.agent == AGENT_OMP
 
     @property
     def is_kiro(self) -> bool:
@@ -693,7 +711,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("config", help="Path to the runner config YAML file")
     parser.add_argument(
-        "--agent", help="Override: coding agent that runs the task (claude | pi)"
+        "--agent",
+        help="Override: coding agent that runs the task (claude | pi | omp | kiro)",
     )
     parser.add_argument(
         "--provider", help="Override: routing provider (endpoint | bedrock)"

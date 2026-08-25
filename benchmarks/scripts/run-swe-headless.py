@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
+import yaml
 
 from dataset_loader import Dataset, DatasetError, Task, load_dataset
 from runner_config import (
@@ -97,6 +98,10 @@ def _skill_path(config: RunnerConfig) -> Path:
 # has a native provider backed by the bundled AWS SDK bedrock-runtime client.
 PI_PROVIDER_VLLM = "vllm"
 PI_PROVIDER_BEDROCK = "amazon-bedrock"
+# omp uses the same provider ids as pi; named separately so the two agents can
+# diverge without a silent coupling.
+OMP_PROVIDER_VLLM = "vllm"
+OMP_PROVIDER_BEDROCK = "amazon-bedrock"
 
 # kiro-cli binary and the parsers for the one-line summary it prints on stderr at
 # the end of a non-interactive run, e.g. "▸ Credits: 0.21 • Time: 17s". kiro-cli
@@ -295,10 +300,11 @@ def _build_prompt(
         f"repo: {clone_path} problem: {task.id} model: {model} "
         f'tag: {ref} artifacts_dir: {artifacts_dir} answers: "{answers.strip()}"'
     )
-    if agent in ("pi", "kiro"):
-        # Neither pi nor kiro has slash commands; name the skill in prose and hand
-        # it the payload. (pi loads SKILL.md via --skill; kiro has no --skill flag,
-        # so _build_kiro_cmd inlines the SKILL.md content ahead of this prompt.)
+    if agent in ("pi", "kiro", "omp"):
+        # None of pi, kiro or omp has slash commands; name the skill in prose and
+        # hand it the payload. (pi loads SKILL.md via --skill; kiro and omp have no
+        # --skill flag, so their _build_*_cmd inlines the SKILL.md content ahead of
+        # this prompt.)
         invocation = f"Use the {skill} skill to complete this task. {payload}"
     else:
         invocation = f"/{skill} {payload}"
@@ -581,6 +587,191 @@ def _write_pi_settings(config: RunnerConfig, agent_dir: Path) -> None:
     (agent_dir / "settings.json").write_text(
         json.dumps(settings, indent=2) + "\n", encoding="utf-8"
     )
+
+
+def _write_omp_config(config: RunnerConfig, agent_dir: Path) -> None:
+    """Write the per-run omp ``models.yml`` and ``config.yml`` into ``agent_dir``.
+
+    omp is a fork of pi and honours the same ``PI_CODING_AGENT_DIR`` override, but
+    its config is YAML rather than pi's ``models.json``: custom providers live in
+    ``models.yml`` and settings in ``config.yml``. Writing both per run keeps the
+    benchmark isolated from a developer's global ``~/.omp``.
+
+    Compaction is sized the same way as pi's (see ``_write_pi_settings``): omp
+    expresses the trigger as an absolute ``compaction.thresholdTokens`` instead of
+    pi's ``reserveTokens``, so we convert, reserving a full response plus ~8K of
+    headroom. Without it omp fills the window to within its default reserve and a
+    single capped response overflows, killing the run before the last artifacts
+    are written.
+
+    Args:
+        config: The runner config (endpoint, model, window, output cap).
+        agent_dir: The per-run omp agent dir to write both files into.
+    """
+    base = config.endpoint.rstrip("/")
+    base_url = base if base.endswith("/v1") else f"{base}/v1"
+    window = config.context_window or 200000
+    models_yml = {
+        "providers": {
+            OMP_PROVIDER_VLLM: {
+                "baseUrl": base_url,
+                "api": "openai-completions",
+                "apiKey": config.api_key,
+                "models": [
+                    {
+                        "id": config.model,
+                        "name": f"vLLM: {config.model}",
+                        "contextWindow": window,
+                        "maxTokens": config.max_output_tokens,
+                        "cost": {
+                            "input": 0,
+                            "output": 0,
+                            "cacheRead": 0,
+                            "cacheWrite": 0,
+                        },
+                    }
+                ],
+            }
+        }
+    }
+    # Compact once the context passes (window - one full response - headroom), the
+    # same effective trigger pi derives from reserveTokens.
+    threshold = max(window - (config.max_output_tokens + 8192), 1)
+    config_yml = {"compaction": {"enabled": True, "thresholdTokens": threshold}}
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    (agent_dir / "models.yml").write_text(
+        yaml.safe_dump(models_yml, sort_keys=False), encoding="utf-8"
+    )
+    (agent_dir / "config.yml").write_text(
+        yaml.safe_dump(config_yml, sort_keys=False), encoding="utf-8"
+    )
+
+
+def _build_omp_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
+    """Build the environment for the omp subprocess.
+
+    Mirrors ``_build_pi_env``: ``PI_CODING_AGENT_DIR`` (which omp inherits from pi)
+    points at the per-run config dir, and the Bedrock path pins the region and
+    resolves the ambient credential chain into explicit keys.
+
+    Args:
+        config: The runner config (provider, aws region).
+        agent_dir: The per-run omp agent config dir.
+
+    Returns:
+        A copy of the environment with the omp agent dir pinned.
+    """
+    env = os.environ.copy()
+    env["PI_CODING_AGENT_DIR"] = str(agent_dir)
+    if config.is_bedrock:
+        region = config.resolved_region()
+        if region:
+            env["AWS_REGION"] = region
+        _ensure_aws_sigv4_env(env)
+    return env
+
+
+def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
+    """Assemble the ``omp -p --mode json`` argument vector.
+
+    omp has no ``--skill`` flag (its ``--skills`` is a glob filter over discovered
+    skills, not a path), so the SKILL.md the other agents load is inlined ahead of
+    the task payload exactly as ``_build_kiro_cmd`` does. ``--mode json`` gives the
+    pi-shaped event stream the harness already knows how to read, and
+    ``--no-session`` keeps the run ephemeral.
+
+    Args:
+        config: The runner config (model, provider).
+        prompt: The hydrated prompt (see ``_build_prompt`` agent="omp").
+
+    Returns:
+        The command as a list of arguments (never a shell string).
+    """
+    skill_md = _skill_path(config).read_text(encoding="utf-8")
+    full_prompt = (
+        f"{skill_md}\n\n"
+        "---\n\n"
+        "Follow the skill instructions above to complete the following task.\n\n"
+        f"{prompt}"
+    )
+    if config.is_bedrock:
+        model = f"{OMP_PROVIDER_BEDROCK}/{model_to_wire_id(config.model)}"
+    else:
+        model = f"{OMP_PROVIDER_VLLM}/{config.model}"
+    return [
+        "omp",
+        "-p",
+        "--mode",
+        "json",
+        "--no-session",
+        "--auto-approve",
+        "--model",
+        model,
+        full_prompt,
+    ]
+
+
+def _run_omp(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any]:
+    """Run ``omp -p --mode json`` and normalize its events to a result dict.
+
+    omp emits the same event stream as pi (``turn_start`` for turn counting, a
+    final ``agent_end`` carrying per-message ``usage``), so the pi normalizer is
+    reused verbatim rather than duplicated.
+
+    The one behavioural difference that matters: omp treats an inherited stdin as
+    a piped prompt and blocks waiting for EOF, ignoring the positional prompt
+    entirely. ``stdin=DEVNULL`` is therefore required, not cosmetic -- without it
+    the run hangs until the timeout with no output.
+
+    Args:
+        cmd: The omp command argument vector.
+        env: Environment for the subprocess (pins PI_CODING_AGENT_DIR).
+        timeout: Wall-clock timeout in seconds.
+
+    Returns:
+        The claude-shaped result dict (see ``_pi_result_from_events``).
+
+    Raises:
+        RuntimeError: If omp times out, emits no output, or emits no agent_end.
+    """
+    start = time.time()
+    try:
+        proc = subprocess.run(  # nosec B603 - hardcoded 'omp', list args, no shell
+            cmd,
+            env=env,
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            stdin=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"omp -p timed out after {timeout}s") from exc
+    elapsed = time.time() - start
+
+    if not proc.stdout.strip():
+        raise RuntimeError(
+            f"omp -p produced no output (exit {proc.returncode}): "
+            f"{proc.stderr.strip()[:500]}"
+        )
+    events: list[dict[str, Any]] = []
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            # omp interleaves human-readable startup notices; skip non-JSON lines.
+            continue
+    if not events:
+        raise RuntimeError(
+            f"omp -p output had no JSON events: {proc.stdout.strip()[:500]}"
+        )
+    result = _pi_result_from_events(events, elapsed)
+    result["_elapsed_seconds"] = round(elapsed, 1)
+    return result
 
 
 def _build_pi_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
@@ -2133,6 +2324,20 @@ def _run_task(
             logger.info(
                 "  %s Running pi -p %s (agent=pi, no turn cap)...", label, run_kind
             )
+        elif config.is_omp:
+            # Per-run omp config dir under the clone parent, same isolation as pi.
+            # The endpoint path needs models.yml + config.yml; omp's native Bedrock
+            # provider needs neither, but the compaction setting still applies.
+            omp_agent_dir = clone_parent / "omp-agent"
+            if config.is_bedrock:
+                omp_agent_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                _write_omp_config(config, omp_agent_dir)
+            cmd = _build_omp_cmd(config, prompt)
+            env = _build_omp_env(config, omp_agent_dir)
+            logger.info(
+                "  %s Running omp -p %s (agent=omp, no turn cap)...", label, run_kind
+            )
         elif config.is_kiro:
             # kiro-cli uses its own global sign-in (~/.kiro); there is no per-run
             # config dir to write and no endpoint to route. The SKILL.md is inlined
@@ -2179,6 +2384,8 @@ def _run_task(
                 # pi emits a JSON-lines event stream; _run_pi normalizes it to the
                 # same result shape. It has no separate streaming trace mode.
                 result = _run_pi(cmd, env, config.timeout_seconds)
+            elif config.is_omp:
+                result = _run_omp(cmd, env, config.timeout_seconds)
             elif config.is_kiro:
                 # kiro-cli streams ANSI text and prints a Credits/Time summary on
                 # stderr; _run_kiro normalizes that to the same result shape.
@@ -2313,6 +2520,8 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
         )
         if config.is_pi:
             cmd = _build_pi_cmd(config, prompt)
+        elif config.is_omp:
+            cmd = _build_omp_cmd(config, prompt)
         elif config.is_kiro:
             cmd = _build_kiro_cmd(config, prompt)
         else:

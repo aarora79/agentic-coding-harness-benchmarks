@@ -214,6 +214,9 @@ ok "runner config: $CONFIG"
 if [[ "$AGENT" == "pi" ]]; then
     command -v pi >/dev/null 2>&1 || die "pi CLI not found on PATH (--agent pi runs 'pi -p'). Install the pi coding agent (needs Node >=22)."
     ok "pi CLI found: $(command -v pi)"
+elif [[ "$AGENT" == "omp" ]]; then
+    command -v omp >/dev/null 2>&1 || die "omp CLI not found on PATH (--agent omp runs 'omp -p'). Install it: curl -fsSL https://omp.sh/install | sh"
+    ok "omp CLI found: $(command -v omp)"
 elif [[ "$AGENT" == "kiro" ]]; then
     command -v kiro-cli >/dev/null 2>&1 || die "kiro-cli not found on PATH (--agent kiro runs 'kiro-cli chat'). Install it: curl -fsSL https://cli.kiro.dev/install | bash (see docs/kiro-cli-setup.md), then sign in with 'kiro-cli login'."
     ok "kiro-cli found: $(command -v kiro-cli)"
