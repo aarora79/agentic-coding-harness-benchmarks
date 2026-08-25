@@ -42,15 +42,16 @@ PORT=8000 \
 MAX_MODEL_LEN=65536 \
 GPU_MEM_UTIL=0.90 \
 TOOL_PARSER="qwen3_coder" \
-EXTRA_ARGS="--max-num-seqs 32 --kv-cache-dtype fp8 --max-num-batched-tokens 8192" \
+EXTRA_ARGS="--max-num-seqs 32 --kv-cache-dtype fp8 --max-num-batched-tokens 8192 \
+            --chat-template ../config/qwen3.8-27b-chat-template.jinja" \
   ./vllm-serve.sh
 ```
 
 `MAX_MODEL_LEN=65536` is a deliberate cut from the 256K native window: it is the smallest window this repo will accept for agentic tasks (the multi-model runner skips anything under 64000), and on 45 GiB it is what leaves any KV headroom at all. See the measured numbers below.
 
-## Three environment gotchas on the DLAMI
+## Four gotchas
 
-All three fail at engine init with an unhelpful `Engine core initialization failed`; the real cause is further up the log.
+The first three fail at engine init with an unhelpful `Engine core initialization failed`; the real cause is further up the log. The fourth is worse: the server starts fine and every request fails.
 
 1. **`max_num_seqs (256) exceeds available Mamba cache blocks (173)`.** The 48 linear-attention layers each need a Mamba-style state block per decode sequence, and that pool is sized independently of the KV cache. vLLM's default `max_num_seqs` of 256 exceeds it, so CUDA-graph capture refuses to proceed. Cap it: `--max-num-seqs 32` (also the Anyscale value, and far above any concurrency this repo sweeps).
 2. **`FileNotFoundError: 'ninja'`.** `vllm-install.sh` installs ninja *into the venv* (`~/vllm-env/bin/ninja`) but `vllm-serve.sh` does not put that directory on `PATH`, so FlashInfer's JIT cannot find it. Export the venv `bin` before serving. Only bites on JIT paths, which is why the 4x L40S reference node never hit it.
@@ -63,6 +64,12 @@ All three fail at engine init with an unhelpful `Engine core initialization fail
    ```
 
    The first serve after this pays a one-off JIT compile; later starts reuse `~/.cache/flashinfer`.
+
+4. **`Unexpected reasoning effort high. Supported types are xhigh (default), medium, and low.`** The stock chat template validates `reasoning_effort` against `('xhigh', 'medium', 'low')`, and **Claude Code sends `high`** — so every `/v1/messages` request returns 500 and the model generates nothing. This does **not** stop the server, and the throughput harness records the dead sessions as ordinary `cutoff`s, so a sweep can run to completion and report ~0 tok/s with no obvious error. Always check `server ~N gen tok/s` in the harness heartbeat is non-zero before trusting a run.
+
+   [`config/qwen3.8-27b-chat-template.jinja`](../config/qwen3.8-27b-chat-template.jinja) is the stock template with a two-line change: `high` is added to the accepted set and mapped to the same instruction text as `xhigh`. Serve with `--chat-template` pointing at it (already in the command above).
+
+   This is a **deviation from the stock template** and belongs in any write-up of results from this model: the prompt Qwen ships does not accept the effort level Claude Code asks for, and we chose to accept it as `xhigh` rather than have the agent silently downgrade.
 
 ## Optimization knobs
 
