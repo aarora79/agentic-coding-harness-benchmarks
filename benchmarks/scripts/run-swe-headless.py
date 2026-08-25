@@ -49,6 +49,7 @@ from runner_config import (
     load_runner_config,
     model_to_wire_id,
 )
+from token_accounting import compute_total_tokens_processed
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1914,13 +1915,24 @@ def _summary_metrics(
             "no vLLM server for this provider, so no server-side cache telemetry."
         )
     )
-    # total_tokens counts ALL tokens the model processed (input + output + cache
-    # read + cache write), so a heavily-cached run is not understated ~100x by an
-    # input+output-only sum. total_cost_usd is the agent's own metered bill (null
-    # for a self-hosted model, which has no per-token price).
+    # total_tokens is the total tokens processed once each, from
+    # compute_total_tokens_processed (issue #136). It detects whether the cache
+    # fields are a PARTITION of input_tokens (self-hosted vLLM: cache already
+    # inside input, so total = input + output) or ADDITIVE (Bedrock prompt
+    # caching: total = input + output + cache_read + cache_write, so a
+    # heavily-cached run is not understated ~100x). Adding the cache
+    # unconditionally, as this used to, ~2x double-counted self-hosted partition
+    # runs. total_cost_usd is the agent's own metered bill (null for a
+    # self-hosted model, which has no per-token price).
     inp = metrics.get("input_tokens") or 0
     out = metrics.get("output_tokens") or 0
-    total_tokens = inp + out + (cache_read or 0) + (cache_write or 0)
+    total_tokens = compute_total_tokens_processed(
+        inp,
+        out,
+        cache_read or 0,
+        cache_write or 0,
+        context=f"run-swe-headless:_summary_metrics/{agent}",
+    )
     token_src = (
         f"{api}.modelUsage (per-model rollup; INCLUDES subagent tokens)"
         if agent == "claude"
@@ -1943,7 +1955,11 @@ def _summary_metrics(
         "output_tokens": f"{token_src}.output",
         "cache_read_tokens": cache_read_src,
         "cache_write_tokens": cache_write_src,
-        "total_tokens": "sum(input + output + cache_read + cache_write)",
+        "total_tokens": (
+            "total tokens processed once each (issue #136): input + output, plus "
+            "cache_read + cache_write ONLY when the cache is additive (not a "
+            "partition of input)"
+        ),
         "total_cost_usd": (
             f"{api}.total_cost_usd (metered)"
             if metrics.get("total_cost_usd") is not None
@@ -2546,13 +2562,17 @@ def _annotate_metrics_topup(
             target = mm_key.get(k, k)
             if target in block:
                 block[target] = v
-        # total_tokens is derived, not in `additive`; recompute from the summed parts.
+        # total_tokens is derived, not in `additive`; recompute from the summed
+        # parts via compute_total_tokens_processed so the partition-vs-additive
+        # rule (issue #136) is applied consistently and does not ~2x double-count
+        # self-hosted partition runs.
         if "total_tokens" in block:
-            block["total_tokens"] = (
-                (totals.get("input_tokens") or 0)
-                + (totals.get("output_tokens") or 0)
-                + (totals.get("cache_read_tokens") or 0)
-                + (totals.get("cache_creation_tokens") or 0)
+            block["total_tokens"] = compute_total_tokens_processed(
+                totals.get("input_tokens") or 0,
+                totals.get("output_tokens") or 0,
+                totals.get("cache_read_tokens") or 0,
+                totals.get("cache_creation_tokens") or 0,
+                context=f"run-swe-headless:_annotate_metrics_topup/{block_name}",
             )
     record["agent_invocations"] = invocations
     record["topped_up_artifacts"] = topped_up

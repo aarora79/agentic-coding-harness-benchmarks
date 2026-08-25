@@ -25,6 +25,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from token_accounting import compute_total_tokens_processed
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s,p%(process)s,{%(filename)s:%(lineno)d},%(levelname)s,%(message)s",
@@ -94,16 +96,19 @@ def _task_row(task_dir: Path) -> dict[str, Any] | None:
         "num_turns": mm.get("num_turns"),
         "input_tokens": mm.get("input_tokens"),
         "output_tokens": mm.get("output_tokens"),
-        # total_tokens = input + output + cache read + write (all tokens the model
-        # processed); from the normalized block, falling back to a sum for older
-        # metrics.json that predate the field.
-        "total_tokens": mm.get("total_tokens")
-        if mm.get("total_tokens") is not None
-        else (
-            (mm.get("input_tokens") or 0)
-            + (mm.get("output_tokens") or 0)
-            + (mm.get("cache_read_tokens") or 0)
-            + (mm.get("cache_write_tokens") or 0)
+        # total_tokens = total tokens processed once each, ALWAYS recomputed here
+        # from the per-field counts via compute_total_tokens_processed (issue
+        # #136). We deliberately do NOT trust mm["total_tokens"]: upstream used to
+        # write it as input+output+cache_read+cache_write unconditionally, which
+        # ~2x double-counted self-hosted partition runs (where cache_read/write
+        # already live inside input_tokens). Recomputing here keeps the derived
+        # total consistent regardless of what the metrics.json carried.
+        "total_tokens": compute_total_tokens_processed(
+            mm.get("input_tokens") or 0,
+            mm.get("output_tokens") or 0,
+            mm.get("cache_read_tokens") or 0,
+            mm.get("cache_write_tokens") or mm.get("cache_creation_tokens") or 0,
+            context=f"summarize_run:{task_dir.name}",
         ),
         "latency_seconds": mm.get("latency_seconds"),
         # Cost from the normalized block (which now carries it); fall back to the
