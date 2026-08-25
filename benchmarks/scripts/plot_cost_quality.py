@@ -912,6 +912,11 @@ def _plot(
                     "linewidth": 0.6,
                     "shrinkA": 2,
                     "shrinkB": 3,
+                    # Right-angle elbow so the segment meeting the label is
+                    # horizontal (a clean callout tick into the text) rather than
+                    # a slanted diagonal. angleA is the text (xytext) end -> 0 =
+                    # horizontal; angleB is the dot (xy) end -> 90 = vertical.
+                    "connectionstyle": "angle,angleA=0,angleB=90,rad=0",
                 }
                 if moved and leader_lines
                 else None
