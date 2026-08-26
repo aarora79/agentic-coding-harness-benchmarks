@@ -273,6 +273,22 @@ def _render(summary: dict[str, Any]) -> str:
     m_out = summary.get("task_output_tokens")
     ratio = summary.get("task_input_output_ratio")
     w = summary.get("split_input_weight")
+    # Per-task tokens are optional: build_performance_summary only fills them
+    # when --output-tokens-per-task/--input-tokens-per-task are supplied, which
+    # needs prior /swe runs for the model. Without them the throughput and
+    # cost-per-1M panels are still complete, so describe the task basis as
+    # unavailable rather than failing to render the whole dashboard.
+    task_basis = (
+        f'A "task" is a blended {n_in:,} input : {m_out:,} output tokens '
+        f"(~{ratio}:1, from real /swe runs)."
+        if n_in and m_out
+        else (
+            "Per-task cost is not shown: this model has no scored /swe runs yet, "
+            "so there is no measured input:output shape to cost. Re-run "
+            "build_performance_summary with --input-tokens-per-task / "
+            "--output-tokens-per-task once it does."
+        )
+    )
     tiles = [
         _tile(
             "peak throughput",
@@ -447,8 +463,7 @@ def _render(summary: dict[str, Any]) -> str:
   <h1>Throughput &amp; cost -- {model} on {instance}</h1>
   <p class="sub">Agentic /swe concurrency sweep. Throughput from vLLM server
      counters (DuckDB); machine cost = ${summary.get("dollars_per_hour")}/hr on
-     {instance}. A "task" is a blended {n_in:,} input : {m_out:,} output tokens
-     (~{ratio}:1, from real /swe runs). <b>Two cost lenses:</b> <b>blended</b> (Lens A)
+     {instance}. {task_basis} <b>Two cost lenses:</b> <b>blended</b> (Lens A)
      charges every processed token the same measured GPU-slice; <b>split</b> (Lens B)
      weights an input token at {w}&times; an output token (a lab-style convention,
      not measured). Cost is hardware-derived, not a per-token bill.</p>

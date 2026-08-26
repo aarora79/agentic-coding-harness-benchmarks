@@ -1,0 +1,64 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 87,
+      "notes": "The issue defines concrete scope, compatibility constraints, non-goals, and testable outcomes across Terraform, ECS tasks, scripts, build wiring, and documentation. The supplied source context confirms the six access points, auth-server and mcpgw mounts, EFS outputs, and scopes-init infrastructure it names. Its cleanup oracle incorrectly expects four remaining \"EFS volumes removed\" comments, while the proposed pattern yields six: two existing registry comments and two each for auth-server and mcpgw. No independent task statement was supplied, and the runtime no-consumer assertions could not all be independently verified from the available repository access."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The LLD is unusually concrete about real files, module references, task-definition fields, data flow, destructive rollout, snapshots, rollback, and the supported DocumentDB path. Its storage.tf, ecs-services.tf, output, variable, CodeBuild, and shell-script descriptions agree closely with the submitted source contexts. The largest defect is Step 10b: Terraform has no standalone top-level warning block; non-blocking assertions use a named check block containing assert, so the proposed configuration cannot validate. ([developer.hashicorp.com](https://developer.hashicorp.com/terraform/language/validate)) The expected-plan inventory also omits the CodeBuild project update caused by changing its inline buildspec and understates the resulting comment count."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 73,
+      "notes": "The review finds substantive project-specific concerns, especially the file-backend behavior change, ECS rolling restarts, EFS data recovery, duplicated CodeBuild image lists, and residual documentation. Its recommendations are prioritized and tied to exact design sections rather than generic reviewer role-play. However, it recommends and then approves the invalid standalone warning block while incorrectly claiming that syntax is available in Terraform 1.2+, missing the defect that prevents validation. It also fails to challenge the incomplete plan checklist, which excludes the changed CodeBuild project and treats expected task-definition replacement imprecisely."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 75,
+      "notes": "The plan covers validation, existing-state planning, residual-reference checks, shell branches, compatibility, rollback, fresh deployment, authorization, and service-replacement canaries with concrete expected states. Its strongest oracles include the exact EFS destroy set, absence of EFS state, DocumentDB scope behavior, and negative authorization cases. Several central expectations are wrong: the invalid warning makes terraform validate fail, task-definition changes normally require replacement despite the blanket instruction to investigate any replacement, and the CodeBuild project update is absent from the allowed plan. The grep test also expects four explanatory comments although the patch creates six, so the written suite would report a correct portion of the patch as a failure."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 8,
+      "specificity": 23,
+      "risk_awareness": 13,
+      "total": 66,
+      "notes": "The patch otherwise implements the designed removal broadly and consistently: it deletes storage.tf and scopes-init assets, removes every shown module.efs consumer and output, strips both task mounts, and updates build, script, configuration, and documentation surfaces. The decisive defect is the standalone warning block added to terraform/aws-ecs/variables.tf, which is unsupported Terraform syntax and therefore violates the primary terraform validate acceptance criterion. The CodeBuild edits also imply an in-place CodeBuild project change that the implementation summary and expected-plan claims do not acknowledge. Repository command execution was unavailable, so git apply --check could not be rerun; additionally, the deleted task script references scripts/build-and-push-scopes-init.sh, but the patch does not establish whether that residual helper was removed or absent."
+    }
+  },
+  "task_score": 76.2,
+  "verdict": "The artifacts are detailed and mostly repository-specific, but the implementation is not mergeable because its invalid Terraform warning block prevents validation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-25T12:09:38.740132Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 223057,
+      "cached_input_tokens": 136571,
+      "cache_write_input_tokens": 46363,
+      "output_tokens": 9363,
+      "reasoning_output_tokens": 8093
+    },
+    "duration_ms": 190011
+  }
+}

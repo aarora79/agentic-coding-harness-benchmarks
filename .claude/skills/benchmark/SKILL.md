@@ -166,6 +166,14 @@ State this expectation to the user **loudly**, because the skill does not config
 
 > Heads-up: this benchmark assumes `claude` and `codex` on this machine are already wired to Amazon Bedrock (credentials/region). The judge always calls Bedrock; on the bedrock path claude does too. I do not configure them -- if either is pointed elsewhere, the run or scoring will fail.
 
+Working AWS credentials are **not** sufficient: an unconfigured `codex` ignores them and 401s against `api.openai.com`. Prove the judge end to end before a long run, because the alternative is discovering it after the harness has finished:
+
+```bash
+codex exec --skip-git-repo-check "Reply with exactly: JUDGE OK"
+```
+
+If it fails, [benchmarks/docs/agent-cli-bedrock-setup.md](../../../benchmarks/docs/agent-cli-bedrock-setup.md) has the fix (codex ships a native `amazon-bedrock` provider; no proxy or bearer token needed).
+
 **3b.** Show the user which artifact folders already exist for this model+dataset (a pre-existing folder makes the headless `/swe2` run stall on its overwrite prompt). This is a read-only check:
 
 ```bash

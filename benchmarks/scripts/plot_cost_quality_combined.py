@@ -73,12 +73,19 @@ DEFAULT_HARNESSES = ("claude-code", "pi")
 HARNESS_DISPLAY = {
     "claude-code": "Claude Code",
     "pi": "Pi",
+    "omp": "omp",
     "kiro-cli": "Kiro CLI",
     "opencode": "opencode",
 }
 # Marker per harness. The harness is encoded as a shape rather than spelled out
 # in every label, which keeps the labels short enough to sit beside their dots.
-HARNESS_MARKERS = {"claude-code": "s", "pi": "o", "kiro-cli": "^", "opencode": "D"}
+HARNESS_MARKERS = {
+    "claude-code": "s",
+    "pi": "o",
+    "omp": "v",
+    "kiro-cli": "^",
+    "opencode": "D",
+}
 FALLBACK_MARKER = "o"
 # The frontier line and the tint under it are one colour (the fill is the line
 # at low alpha). This chart takes blue for that pair rather than the warm accent

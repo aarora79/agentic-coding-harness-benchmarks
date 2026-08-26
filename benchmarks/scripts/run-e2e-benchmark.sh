@@ -40,7 +40,7 @@ set -euo pipefail
 #
 # Optional flags:
 #   --agent NAME           coding agent that runs the task: claude (Claude Code,
-#                          default) or pi (the pi coding agent). Same task either
+#                          default), pi, omp (oh-my-pi), or kiro. Same task either
 #                          way. Both support every --provider: an
 #                          OpenAI-compatible endpoint (vllm/litellm) or native
 #                          Amazon Bedrock.
@@ -158,8 +158,8 @@ case "$PROVIDER" in
 esac
 
 case "$AGENT" in
-    claude|pi|kiro) ;;
-    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, kiro." ;;
+    claude|pi|omp|kiro) ;;
+    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, omp, kiro." ;;
 esac
 case "$SKILL" in
     swe2|swe3) ;;
@@ -214,6 +214,9 @@ ok "runner config: $CONFIG"
 if [[ "$AGENT" == "pi" ]]; then
     command -v pi >/dev/null 2>&1 || die "pi CLI not found on PATH (--agent pi runs 'pi -p'). Install the pi coding agent (needs Node >=22)."
     ok "pi CLI found: $(command -v pi)"
+elif [[ "$AGENT" == "omp" ]]; then
+    command -v omp >/dev/null 2>&1 || die "omp CLI not found on PATH (--agent omp runs 'omp -p'). Install it: curl -fsSL https://omp.sh/install | sh"
+    ok "omp CLI found: $(command -v omp)"
 elif [[ "$AGENT" == "kiro" ]]; then
     command -v kiro-cli >/dev/null 2>&1 || die "kiro-cli not found on PATH (--agent kiro runs 'kiro-cli chat'). Install it: curl -fsSL https://cli.kiro.dev/install | bash (see docs/kiro-cli-setup.md), then sign in with 'kiro-cli login'."
     ok "kiro-cli found: $(command -v kiro-cli)"

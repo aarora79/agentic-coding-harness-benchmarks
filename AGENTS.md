@@ -481,6 +481,34 @@ Always prioritize simplicity and clarity over cleverness.
 - **Never**: commit secrets, tokens, or `.env` files; commit or merge directly to `main`; read the paths in the [Never read or search these paths](#never-read-or-search-these-paths) denylist; disable a failing test to make CI pass.
 - Keep changes minimal and scoped to the task; match the style of surrounding code.
 
+## Setup and reference docs (read before running anything)
+
+Read the doc that covers what you are about to do rather than rediscovering it. Several of these exist because something failed in a way that was slow to diagnose, so the cost of skipping them is measured in hours.
+
+**Machine setup -- do this before any benchmark run:**
+
+- [benchmarks/docs/agent-cli-bedrock-setup.md](benchmarks/docs/agent-cli-bedrock-setup.md) -- wiring `codex` (the judge) and `claude` to Amazon Bedrock. **Working AWS credentials are not sufficient**: an unconfigured `codex` ignores them and 401s against `api.openai.com`, so prove it with a real call before starting a long run.
+- [docs/kiro-cli-setup.md](docs/kiro-cli-setup.md) -- kiro-cli's own sign-in and its credit-based cost basis.
+
+**Running a benchmark:**
+
+- [benchmarks/docs/end-to-end-self-hosted-run.md](benchmarks/docs/end-to-end-self-hosted-run.md) -- the full manual run-book for a self-hosted run.
+- [benchmarks/docs/harness-reference.md](benchmarks/docs/harness-reference.md) -- the dataset format, the artifacts, and what the judge does.
+- [benchmarks/docs/path-anthropic-on-bedrock.md](benchmarks/docs/path-anthropic-on-bedrock.md), [path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md), [path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) -- the three hosting paths.
+
+**Serving a model:**
+
+- [self-hosted/vllm/README.md](self-hosted/vllm/README.md) -- install and serve.
+- [self-hosted/vllm/models/](self-hosted/vllm/models/) -- **one guide per model**, and the first thing to read before serving one. Each records the exact serve command, the tool-call parser, the context window that actually boots on a given node, and the environment failures already hit for that model. Add a guide when you bring up a new model; that is where the next person will look.
+
+**Interpreting or extending results:**
+
+- [docs/cost-per-task-methodology.md](docs/cost-per-task-methodology.md) -- how a fixed instance price becomes a cost per token and per task, and why the two cost bases are not comparable.
+- [docs/best-harness-selection.md](docs/best-harness-selection.md) -- how the combined cost/quality chart picks one harness per model.
+- [docs/results-swe3.md](docs/results-swe3.md), [docs/results-swe2.md](docs/results-swe2.md) -- published results and their footnotes.
+
+When you solve a setup problem that was not written down, **write it down** -- in the model guide if it is model-specific, in the setup doc if it is machine-specific -- and link it here.
+
 ## References
 
 - AGENTS.md format and examples: [agents.md](https://agents.md/)

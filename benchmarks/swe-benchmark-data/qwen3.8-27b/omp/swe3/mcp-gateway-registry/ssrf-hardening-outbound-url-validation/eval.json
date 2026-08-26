@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 79,
+      "notes": "The issue precisely identifies the agent validation, agent health, and MCP health paths and supplies testable acceptance criteria covering configuration and deployment surfaces. Submitted diff context corroborates the named symbols such as `_check_endpoint_reachability`, `check_agent_health`, and `_check_server_endpoint_transport_aware`. Its largest gap is that it notes `follow_redirects=True` without explicitly requiring safe redirect handling, and globally extending `GITHUB_EXTRA_HOSTS` broadens a GitHub-specific trust decision to unrelated outbound probes. No independent task statement was supplied, so intended requirements beyond the task identifier and artifacts could not be verified."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 11,
+      "specificity": 23,
+      "risk_awareness": 13,
+      "total": 68,
+      "notes": "The LLD is unusually concrete about files, call flows, compatibility behavior, configuration wiring, and negative cases, including explicit endpoint fields and IPv4-mapped IPv6. Its central redirect mitigation is technically unsound: `is_redirect_blocked` runs only after an HTTP client using `follow_redirects=True` has already requested the internal destination. The proposed `_ssrf_candidate_urls(server_info)` also ignores the function's actual `proxy_pass_url` argument, and merging `github_extra_hosts` into every path creates an insufficiently scoped trust boundary. Claims that logged URLs cannot contain credentials and that all fetch paths are covered were not established by the available evidence."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 10,
+      "specificity": 22,
+      "risk_awareness": 14,
+      "total": 66,
+      "notes": "The review surfaces concrete repository-specific concerns around explicit endpoint precedence, redirect behavior, IPv4-mapped addresses, rollout impact, and fixture scope. Its largest failure is that the security reviewer correctly identifies redirect SSRF but approves checking `response.url` after automatic redirect following, which cannot prevent the prohibited request. The implementation diff confirms all seven checks occur after awaited requests retaining `follow_redirects=True`. The review also misses the broadened trust caused by applying `GITHUB_EXTRA_HOSTS` globally and accepts an unsupported assertion that URLs contain no credentials."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 13,
+      "total": 63,
+      "notes": "The plan provides concrete response oracles, no-request assertions, compatibility scenarios, deployment rendering checks, restart behavior, and rollback coverage. Its redirect test can pass even though httpx already contacted the internal destination, so it does not test the defining SSRF invariant. The submitted explicit-endpoint test also reverses `is_safe_url` semantics: its side effect returns false for the public URL and true for the metadata URL, causing a block for the wrong reason. There is no focused unit test proving `_check_endpoint_reachability` avoids `httpx.get`, and the manual registration payloads could not be independently validated against the repository schemas."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 8,
+      "specificity": 22,
+      "risk_awareness": 9,
+      "total": 58,
+      "notes": "The patch implements the planned shared utility, direct URL guards, health status, configuration wiring, documentation, and substantial unit coverage across the cited files. The principal security defect remains exploitable because every redirect check occurs after a request made with `follow_redirects=True`; an attacker-controlled public endpoint can therefore still cause GET or POST traffic to an internal target. The global merge of `github_extra_hosts` also turns a GitHub-fetch exception into an allowlist for agent and MCP probes, while the explicit-endpoint regression test passes through an inverted mock predicate. The old-side diff contexts are internally consistent with the cited source, but `git apply --check` and independent source inspection could not be completed because the read-only shell sandbox failed before command execution."
+    }
+  },
+  "task_score": 66.8,
+  "verdict": "The artifacts are detailed and broadly integrated, but the implementation's post-fetch redirect check does not actually prevent redirect-based SSRF, leaving the central security objective materially incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-25T17:17:50.017982Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 241755,
+      "cached_input_tokens": 158109,
+      "cache_write_input_tokens": 54062,
+      "output_tokens": 9023,
+      "reasoning_output_tokens": 6872
+    },
+    "duration_ms": 282844
+  }
+}
