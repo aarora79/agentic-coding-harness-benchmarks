@@ -32,7 +32,7 @@ Compare **within** a hosting basis; treat cross-hosting dollars as order-of-magn
 
 ![Cost vs. quality scatter for the pi harness on /swe3, with the cost/quality frontier highlighted](images/cost-quality-pi-swe3.png)
 
-Mean cost per task (x) against mean task score (y), one point per model, pi harness. Anthropic points are **real token-metered Bedrock bills**; self-hosted points are **hardware-derived** (see the cost basis above). Because the two bases are not comparable as raw dollars, the honest frontier is taken **within each hosting basis** -- but if you force a single cross-hosting frontier it runs **qwen3-coder-30b ($0.16 / 26.9, 2/5) -> qwen3.6-35b ($0.44 / 52.3) -> deepseek-v3.2 ($1.71 / 54.4) -> claude-sonnet-5 ($3.81 / 66.5) -> glm-5.2 ($5.98 / 70.8) -> claude-opus-5 ($8.28 / 75.7)**. The cheap open-weight models hold the low-to-mid frontier, and with self-hosted costs corrected (see the note below) glm-5.2 now joins the top of it just under claude-opus-5. Machine-readable frontier: [metrics/pareto-frontier-pi-swe3.json](metrics/pareto-frontier-pi-swe3.json). Regenerate with `uv run scripts/plot_cost_quality.py --harness pi --skill swe3` (add `--dark`) from `benchmarks/`.
+Mean cost per task (x) against mean task score (y), one point per model, pi harness. Anthropic points are **real token-metered Bedrock bills**; self-hosted points are **hardware-derived** (see the cost basis above). Because the two bases are not comparable as raw dollars, the honest frontier is taken **within each hosting basis** -- but if you force a single cross-hosting frontier it runs **qwen3-coder-30b ($0.16 / 26.9, 2/5) -> qwen3.6-35b ($0.44 / 52.3) -> deepseek-v3.2 ($1.71 / 54.4) -> claude-sonnet-5 ($3.81 / 66.5) -> glm-5.2 ($5.98 / 70.8) -> claude-opus-5 ($8.28 / 75.7)**. Note this is the **pi-only** frontier: `qwen3.8-27b`, run under the omp harness (see below), sits at **$3.49 / 70.32** and would displace `claude-sonnet-5` from it entirely -- see [the combined chart](best-harness-selection.md), which merges the harnesses. The cheap open-weight models hold the low-to-mid frontier, and with self-hosted costs corrected (see the note below) glm-5.2 now joins the top of it just under claude-opus-5. Machine-readable frontier: [metrics/pareto-frontier-pi-swe3.json](metrics/pareto-frontier-pi-swe3.json). Regenerate with `uv run scripts/plot_cost_quality.py --harness pi --skill swe3` (add `--dark`) from `benchmarks/`.
 
 ## Results -- 5 tasks x models (pi harness)
 
@@ -99,6 +99,23 @@ The single task score hides *how* a model earns it. The radar breaks the judge's
 ![Radar charts of quality by rubric criterion and by artifact, pi harness on /swe3](images/quality-radar-pi-swe3.png)
 
 Every model dips hardest on **implementation** and **correctness** -- landing working code is the hard part. Regenerate with `uv run scripts/plot_quality_radar.py --harness pi --skill swe3` (add `--dark`) from `benchmarks/`.
+
+## Also measured: qwen3.8-27b on the omp harness
+
+Everything above is the **pi** harness. One model has been run under a fourth harness, [omp](https://omp.sh) (oh-my-pi), and is kept in its own section rather than mixed into the pi tables:
+
+| Model | Harness | Mean score | Completed | Cost/task | Hardware |
+|---|---|---:|---:|---:|---|
+| `qwen3.8-27b` (FP8) | omp | **70.32** | 5/5 | $3.49 | 1x L40S (`g6e.4xlarge`) |
+
+Two things make it worth reading next to the pi table above, with the harness caveat firmly attached:
+
+- It matches `glm-5.2` (70.76) for **42% less** per task, on a **single 46 GB GPU** rather than 8x H200, and it beats `claude-sonnet-5` (66.52) at slightly lower cost.
+- It completed **5/5** with all six artifacts. Its predecessor `qwen3.6-35b` scores 52.30 over 4/5 -- the task it failed outright (`remove-faiss`) is one qwen3.8 completed and scored 70.0 on.
+
+**Do not read this as a like-for-like row in the pi leaderboard.** The harness is a real variable here: on `remove-faiss`, `claude-opus-5` scores 79.6 under pi and 69.6 under Claude Code, a 10-point swing on one model and one task. Until qwen3.8-27b is also run under pi, its 70.32 is a statement about *omp plus qwen3.8*, not about the model in isolation. Full per-harness detail: [harness-omp-swe3.md](harness-omp-swe3.md).
+
+Its quality run used a **200K context window**; the throughput/cost sweep for the same model was measured at **65K**, because one L40S cannot serve a long window and useful concurrency at once. See [its model guide](../self-hosted/vllm/models/qwen3.8-27b.md).
 
 ## Hardware
 

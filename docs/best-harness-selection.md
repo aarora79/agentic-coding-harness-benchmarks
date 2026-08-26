@@ -12,7 +12,7 @@ Ranking by score alone would systematically plot the pricier harness; ranking by
 
 ## Step 1: Pareto dominance
 
-A harness run wins outright when it is **no worse on both axes and better on at least one** -- at least the score, at most the cost. This settles 7 of the 12 models measured under both harnesses. Nothing is traded away in these cases; the losing run is worse at everything.
+A harness run wins outright when it is **no worse on both axes and better on at least one** -- at least the score, at most the cost. This settles 7 of the 12 models measured under both harnesses (of 16 models on the chart; the other 4 ran under a single harness). Nothing is traded away in these cases; the losing run is worse at everything.
 
 With the self-hosted cost correction (see [cost-per-task-methodology.md](cost-per-task-methodology.md) and issue #136, which roughly halved every self-hosted `$/task`), **pi is now the winner for all 12 both-harness models** -- 7 by outright dominance below, 5 on cost/point in Step 2. Several self-hosted models (`devstral-2-123b`, `minimax-m2.5`, `qwen3-coder-480b`) that Claude Code used to win now flip to pi, and three (`kimi-k2.7-code`, `nemotron-ultra-550b`, `qwen3.6-35b`) move up from the cost/point tie-break into outright dominance because pi is now both cheaper and higher-scoring.
 
@@ -48,7 +48,9 @@ The alternative -- always plotting the higher score -- was rejected because it m
 
 ## Models measured under one harness only
 
-`gemma-4-31b` (pi), `grok-4.6` (pi), `qwen3-coder-30b` (pi) have no second run to compare against, so they pass through unchanged. They are on the chart for completeness, not because their harness was chosen -- if the other harness would do better for them, we have not measured it.
+`gemma-4-31b` (pi), `grok-4.6` (pi), `qwen3-coder-30b` (pi) and `qwen3.8-27b` (omp) have no second run to compare against, so they pass through unchanged. They are on the chart for completeness, not because their harness was chosen -- if another harness would do better for them, we have not measured it.
+
+`qwen3.8-27b` is the one that matters for reading the chart, because it is the only single-harness model **on the frontier** (70.32 at $3.49/task, self-hosted on a single L40S). Its position is therefore a statement about omp-plus-qwen3.8, not about the model alone: no pi or Claude Code run exists to say whether the harness is helping or hurting it. Every other frontier point had at least two harnesses to choose from.
 
 ## Cost bases are still not interchangeable
 
