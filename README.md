@@ -169,7 +169,7 @@ A dataset is a single YAML file: a metadata header plus a list of tasks, each po
 
 The point of this repo is to help you **pick the right coding agent and model for your tasks** -- the pairing that lands the quality you need at the cost and latency you can live with, instead of defaulting to the most expensive option. There are two ways to get there:
 
-1. **Use the frontier we already published.** The cost/quality results here (across harnesses, models, and hosting paths) are a strong, ready-made baseline -- read the [harness comparison](docs/harness-comparison.md) and per-harness docs and pick from the models on the frontier. No runs of your own required.
+1. **Use the frontier we already published.** The cost/quality results here (across harnesses, models, and hosting paths) are a strong, ready-made baseline -- read the [harness comparison](docs/agentic-coding-swe-comparison-swe3.md) and per-harness docs and pick from the models on the frontier. No runs of your own required.
 2. **Build your own frontier on your own code.** When you want numbers on **work that looks like yours** rather than our example repo, use the benchmarking harness in this repo: write a dataset YAML pointing at your repositories and run it -- the models, harnesses, judge, and cost math are identical to what produced the results above. This is the rest of this section.
 
 **We are also working on making this automatic.** [`/swe-auto` (#123)](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/123) is a planned router skill that will triage a task, consult the cost/quality frontier, and **select and run the right model for the job for you** -- so you get frontier-quality results at a fraction of the cost without managing model selection by hand.
