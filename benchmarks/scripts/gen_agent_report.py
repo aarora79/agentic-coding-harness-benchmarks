@@ -28,6 +28,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from token_accounting import compute_total_tokens_processed
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s,p%(process)s,{%(filename)s:%(lineno)d},%(levelname)s,%(message)s",
@@ -107,19 +109,21 @@ def _blended_rate(model_slug: str) -> tuple[float, str] | None:
 def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
     """Sum a run's per-task tokens, wall-clock, and metered cost into totals.
 
-    ``total_tokens`` counts ALL tokens the model processed -- input + output PLUS
-    cache-read + cache-write -- not just fresh input+output. This matters on the
-    Bedrock path: prompt caching means a task can report `input_tokens: 2` while
-    actually processing ~180K tokens served from cache (`cache_read_tokens`).
-    Counting only input+output there understates the real work ~100x and makes a
-    cached run look absurdly light next to an un-cache-credited self-hosted run.
+    ``total_tokens`` is the total tokens processed once each, computed by
+    ``compute_total_tokens_processed`` (issue #136). That helper detects whether
+    the cache fields are a PARTITION of ``input_tokens`` (self-hosted vLLM, where
+    ``input`` already contains the cached prompt -- so ``total = input + output``)
+    or ADDITIVE (Bedrock prompt caching, where a task can report ``input: 2``
+    while processing ~180K cached tokens -- so ``total = input + output +
+    cache_read + cache_write``). Adding the cache unconditionally, as this code
+    used to, ~2x double-counted every self-hosted partition run.
 
     Args:
         summary: One model's run-summary dict.
 
     Returns:
-        Dict with total input/output tokens, total tokens processed (incl.
-        cache), total latency seconds, and total metered cost (sum of per-task
+        Dict with total input/output tokens, total tokens processed, total
+        latency seconds, and total metered cost (sum of per-task
         ``total_cost_usd``; None on the self-hosted path with no per-token price).
     """
     tasks = summary.get("tasks", []) or []
@@ -133,12 +137,23 @@ def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
     tsec = sum((t.get("latency_seconds") or 0) for t in tasks)
     costs = [t.get("total_cost_usd") for t in tasks if t.get("total_cost_usd")]
     metered_cost = sum(costs) if costs else None
+    context = (
+        f"gen_agent_report:{summary.get('model_slug')}/"
+        f"{summary.get('agent')}/{summary.get('skill')}"
+    )
+    total_tokens = compute_total_tokens_processed(
+        tin,
+        tout,
+        tcr,
+        tcw,
+        context=context,
+    )
     return {
         "input_tokens": tin,
         "output_tokens": tout,
         "cache_read_tokens": tcr,
         "cache_write_tokens": tcw,
-        "total_tokens": tin + tout + tcr + tcw,
+        "total_tokens": total_tokens,
         "latency_seconds": tsec,
         "metered_cost": metered_cost,
     }

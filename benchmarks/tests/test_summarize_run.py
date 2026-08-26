@@ -112,13 +112,20 @@ class SummarizeRunTest(unittest.TestCase):
             # A single-shot run defaults to one invocation, no top-ups.
             self.assertEqual(row["agent_invocations"], 1)
             self.assertEqual(row["topped_up_artifacts"], [])
-            # total_tokens = input + output + cache read + write (all processed
-            # tokens); summed here from the block for older metrics.json.
-            self.assertEqual(row["total_tokens"], 1000 + 200 + 900 + 100)
+            # total_tokens is partition-aware (issue #136): here cache_read(900) +
+            # cache_write(100) == input_tokens(1000), so the cache is a PARTITION
+            # of input (self-hosted vLLM style) and is already counted inside
+            # input_tokens. total_tokens must therefore be input + output only,
+            # NOT input + output + cache (which would ~2x double-count).
+            self.assertEqual(row["total_tokens"], 1000 + 200)
 
     def test_reads_normalized_metrics_block_and_result_subtype(self) -> None:
-        # New-format metrics.json carries a "metrics" block (total_tokens,
-        # total_cost_usd) and a top-level result_subtype; summarize must read them.
+        # New-format metrics.json carries a "metrics" block (total_cost_usd) and a
+        # top-level result_subtype; summarize must read them. total_tokens is
+        # RECOMPUTED (issue #136), not trusted from the block: the stored value
+        # below is deliberately wrong (99999) to prove summarize ignores it. Here
+        # cache_read(2000)+cache_write(50)=2050 vs input(5) is additive (not a
+        # partition), so the recomputed total is 5 + 100 + 2000 + 50 = 2155.
         import json
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -141,7 +148,7 @@ class SummarizeRunTest(unittest.TestCase):
                             "output_tokens": 100,
                             "cache_read_tokens": 2000,
                             "cache_write_tokens": 50,
-                            "total_tokens": 2155,
+                            "total_tokens": 99999,
                             "total_cost_usd": 1.23,
                             "num_turns": 40,
                             "latency_seconds": 12.0,

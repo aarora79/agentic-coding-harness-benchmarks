@@ -14,15 +14,17 @@ Ranking by score alone would systematically plot the pricier harness; ranking by
 
 A harness run wins outright when it is **no worse on both axes and better on at least one** -- at least the score, at most the cost. This settles 7 of the 12 models measured under both harnesses. Nothing is traded away in these cases; the losing run is worse at everything.
 
+With the self-hosted cost correction (see [cost-per-task-methodology.md](cost-per-task-methodology.md) and issue #136, which roughly halved every self-hosted `$/task`), **pi is now the winner for all 12 both-harness models** -- 7 by outright dominance below, 5 on cost/point in Step 2. Several self-hosted models (`devstral-2-123b`, `minimax-m2.5`, `qwen3-coder-480b`) that Claude Code used to win now flip to pi, and three (`kimi-k2.7-code`, `nemotron-ultra-550b`, `qwen3.6-35b`) move up from the cost/point tie-break into outright dominance because pi is now both cheaper and higher-scoring.
+
 | Model | Winner | Score | Cost/task | Loser | Score | Cost/task |
 |---|---|---:|---:|---|---:|---:|
 | `claude-haiku-4-5` | pi | 47.12 | $0.64 | claude-code | 41.08 | $0.80 |
 | `claude-opus-5` | pi | 75.72 | $8.28 | claude-code | 70.76 | $24.05 |
-| `deepseek-v3.2` | pi | 54.44 | $3.40 | claude-code | 53.72 | $5.26 |
-| `devstral-2-123b` | claude-code | 49.52 | $1.14 | pi | 47.64 | $1.51 |
-| `glm-5.2` | pi | 70.76 | $11.92 | claude-code | 65.6 | $12.50 |
-| `minimax-m2.5` | claude-code | 48.36 | $0.86 | pi | 45.08 | $0.94 |
-| `qwen3-coder-480b` | claude-code | 46.32 | $4.03 | pi | 43.96 | $6.21 |
+| `deepseek-v3.2` | pi | 54.44 | $1.71 | claude-code | 53.72 | $5.26 |
+| `glm-5.2` | pi | 70.76 | $5.98 | claude-code | 65.6 | $12.50 |
+| `kimi-k2.7-code` | pi | 60.68 | $5.52 | claude-code | 55.44 | $6.26 |
+| `nemotron-ultra-550b` | pi | 55.20 | $3.91 | claude-code | 53.68 | $5.43 |
+| `qwen3.6-35b` | pi | 52.30 | $0.44 | claude-code | 48.16 | $0.71 |
 
 ## Step 2: cost per point, as the tie-break
 
@@ -32,9 +34,9 @@ For the remaining 5 models neither run dominates -- one is cheaper, the other sc
 |---|---|---:|---:|---:|---|---:|---:|---:|
 | `claude-opus-4-8` | pi | 60.68 | $4.60 | 0.0758 | claude-code | 69.24 | $9.90 | 0.1430 |
 | `claude-sonnet-5` | pi | 66.52 | $3.81 | 0.0573 | claude-code | 68.04 | $24.64 | 0.3621 |
-| `kimi-k2.7-code` | claude-code | 55.44 | $6.26 | 0.1128 | pi | 60.68 | $11.04 | 0.1819 |
-| `nemotron-ultra-550b` | claude-code | 53.68 | $5.43 | 0.1012 | pi | 55.2 | $7.81 | 0.1414 |
-| `qwen3.6-35b` | claude-code | 48.16 | $0.71 | 0.0148 | pi | 52.3 | $0.87 | 0.0166 |
+| `devstral-2-123b` | pi | 47.64 | $0.76 | 0.0159 | claude-code | 49.52 | $1.14 | 0.0229 |
+| `minimax-m2.5` | pi | 45.08 | $0.47 | 0.0104 | claude-code | 48.36 | $0.86 | 0.0179 |
+| `qwen3-coder-480b` | pi | 43.96 | $3.11 | 0.0708 | claude-code | 46.32 | $4.03 | 0.0870 |
 
 ## What this does NOT mean
 

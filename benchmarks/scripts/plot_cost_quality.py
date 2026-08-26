@@ -39,6 +39,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from token_accounting import compute_total_tokens_processed
+
 import matplotlib
 
 matplotlib.use("Agg")  # headless: render to file, never a display
@@ -264,20 +266,24 @@ def _blended_mean_cost(summary: dict, model: str) -> float | None:
         return None
     failed = set(summary.get("failed_tasks") or [])
     costs: list[float] = []
+    model_slug = summary.get("model_slug") or model
     for task in summary.get("tasks", []):
         if task.get("failed") or task.get("task") in failed:
             continue
-        # Price ALL processed tokens (input + output + cache read + write), not
-        # just input+output. The blended rate was measured over every token the
-        # server processed, so the count must match. This also keeps pi and
-        # claude-code consistent: pi reports vLLM cache tokens in cache_read/
-        # cache_write, while claude-code folds them into input_tokens (its
-        # cache_read is 0) -- the two agree only on the total-processed sum.
-        tokens = (
-            (task.get("input_tokens") or 0)
-            + (task.get("output_tokens") or 0)
-            + (task.get("cache_read_tokens") or 0)
-            + (task.get("cache_write_tokens") or task.get("cache_creation_tokens") or 0)
+        # Price the tokens the server ACTUALLY processed once each. The blended
+        # rate was measured over every server-side token counted once, so the
+        # count must match. compute_total_tokens_processed detects whether the
+        # cache fields are a PARTITION of input_tokens (self-hosted vLLM: cache is
+        # already inside input, so total = input + output) or ADDITIVE (Bedrock:
+        # total = input + output + cache_read + cache_write). Adding the cache
+        # unconditionally, as this used to, ~2x double-counted self-hosted runs
+        # (issue #136).
+        tokens = compute_total_tokens_processed(
+            task.get("input_tokens") or 0,
+            task.get("output_tokens") or 0,
+            task.get("cache_read_tokens") or 0,
+            task.get("cache_write_tokens") or task.get("cache_creation_tokens") or 0,
+            context=f"plot_cost_quality:{model_slug}/{task.get('task')}",
         )
         if tokens > 0:
             costs.append(tokens * per_token)
@@ -906,6 +912,11 @@ def _plot(
                     "linewidth": 0.6,
                     "shrinkA": 2,
                     "shrinkB": 3,
+                    # Right-angle elbow so the segment meeting the label is
+                    # horizontal (a clean callout tick into the text) rather than
+                    # a slanted diagonal. angleA is the text (xytext) end -> 0 =
+                    # horizontal; angleB is the dot (xy) end -> 90 = vertical.
+                    "connectionstyle": "angle,angleA=0,angleB=90,rad=0",
                 }
                 if moved and leader_lines
                 else None
