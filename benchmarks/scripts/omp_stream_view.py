@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render an omp event stream as readable text, live or after the fact.
+"""Render an omp or pi event stream as readable text, live or after the fact.
 
 ``run-swe-headless.py`` mirrors omp's JSON-lines events to
 ``<artifacts_dir>/omp-stream.jsonl`` while a task runs (see ``_run_omp``). That
@@ -38,7 +38,9 @@ from typing import Any, Iterator, TextIO
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 _BENCHMARKS_DIR = _SCRIPTS_DIR.parent
 DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
-STREAM_FILENAME = "omp-stream.jsonl"
+# pi and omp emit the same event stream (omp is a fork), so one viewer
+# serves both; --latest searches for either.
+STREAM_FILENAMES = ("omp-stream.jsonl", "pi-stream.jsonl")
 
 # How much of a tool's arguments and result to show. Full arguments can be a
 # whole file's contents, which would bury the trace it is meant to reveal.
@@ -60,12 +62,12 @@ def _latest_stream(data_dir: Path) -> Path:
     Raises:
         SystemExit: If no stream file exists yet.
     """
-    streams = sorted(
-        data_dir.rglob(STREAM_FILENAME), key=lambda p: p.stat().st_mtime, reverse=True
-    )
+    found = [f for name in STREAM_FILENAMES for f in data_dir.rglob(name)]
+    streams = sorted(found, key=lambda p: p.stat().st_mtime, reverse=True)
     if not streams:
         raise SystemExit(
-            f"no {STREAM_FILENAME} under {data_dir} -- is an omp run in progress?"
+            f"no {' or '.join(STREAM_FILENAMES)} under {data_dir} -- "
+            "is an omp or pi run in progress?"
         )
     return streams[0]
 
