@@ -65,11 +65,18 @@ METRICS_FILENAME = "metrics.json"
 # agent+skill's chart is self-identifying and never overwrites another's
 # (cost-quality-cc-swe2.png, cost-quality-pi-swe3.png). An unknown harness falls
 # back to its own slug.
-HARNESS_CODES = {"claude-code": "cc", "pi": "pi", "opencode": "oc", "kiro-cli": "kiro"}
+HARNESS_CODES = {
+    "claude-code": "cc",
+    "pi": "pi",
+    "omp": "omp",
+    "opencode": "oc",
+    "kiro-cli": "kiro",
+}
 # Human-readable harness names for the chart title (the code is for filenames).
 HARNESS_LABELS = {
     "claude-code": "Claude Code",
     "pi": "pi",
+    "omp": "omp",
     "opencode": "opencode",
     "kiro-cli": "kiro-cli",
 }
