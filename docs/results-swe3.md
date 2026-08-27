@@ -43,6 +43,7 @@ All cells are task scores (0-100), the mean of the artifact totals per (task x m
 | claude-opus-5 | Bedrock | 79.6 | 88.8 | 69.6 | 74.2 | 66.4 | **75.72** | 5/5 |
 | glm-5.2 | self-hosted | 67.4 | 77.8 | 72.6 | 69.6 | 66.4 | **70.76** | 5/5 |
 | claude-sonnet-5 | Bedrock | 68.4 | 65.0 | 71.4 | 68.6 | 59.2 | **66.52** | 5/5 |
+| qwen3.8-27b | self-hosted | 66.8 | 77.0 | 81.2 | 70.2 | 36.8 | **66.40** | 5/5 |
 | claude-opus-4-8 | Bedrock | 68.0 | 59.8 | 59.6 | 68.0 | 48.0 | **60.68** | 5/5 |
 | kimi-k2.7-code | self-hosted | 55.4 | 70.6 | 78.8 | 44.0 | 54.6 | **60.68** | 5/5 |
 | grok-4.6 | Bedrock | 58.6 | 56.2 | 65.0 | 49.2 | 52.4 | **56.28** | 5/5 |
@@ -67,18 +68,19 @@ All cells are task scores (0-100), the mean of the artifact totals per (task x m
 | 1 | claude-opus-5 | Bedrock | **75.72** | $8.28† | 5/5 |
 | 2 | glm-5.2 | self-hosted | **70.76** | $5.98 | 5/5 |
 | 3 | claude-sonnet-5 | Bedrock | **66.52** | $3.81† | 5/5 |
-| 4 | claude-opus-4-8 | Bedrock | **60.68** | $4.60† | 5/5 |
-| 5 | kimi-k2.7-code | self-hosted | **60.68** | $5.52 | 5/5 |
-| 6 | grok-4.6 | Bedrock | **56.28** | $13.34† | 5/5 |
-| 7 | nemotron-ultra-550b | self-hosted | **55.20** | $3.91 | 5/5 |
-| 8 | deepseek-v3.2 | self-hosted | **54.44** | $1.71 | 5/5 |
-| 9 | qwen3.6-35b | self-hosted | **52.30** | $0.44 | 4/5 |
-| 10 | devstral-2-123b | self-hosted | **47.64** | $0.76 | 5/5 |
-| 11 | claude-haiku-4-5 | Bedrock | **47.12** | $0.64† | 5/5 |
-| 12 | minimax-m2.5 | self-hosted | **45.08** | $0.47 | 5/5 |
-| 13 | qwen3-coder-480b | self-hosted | **43.96** | $3.11 | 5/5 |
-| 14 | gemma-4-31b | self-hosted | **42.96** | $1.04 | 5/5 |
-| 15 | qwen3-coder-30b | self-hosted | **26.90** | $0.16 | 2/5 |
+| 4 | qwen3.8-27b | self-hosted | **66.40** | $3.53 | 5/5 |
+| 5 | claude-opus-4-8 | Bedrock | **60.68** | $4.60† | 5/5 |
+| 6 | kimi-k2.7-code | self-hosted | **60.68** | $5.52 | 5/5 |
+| 7 | grok-4.6 | Bedrock | **56.28** | $13.34† | 5/5 |
+| 8 | nemotron-ultra-550b | self-hosted | **55.20** | $3.91 | 5/5 |
+| 9 | deepseek-v3.2 | self-hosted | **54.44** | $1.71 | 5/5 |
+| 10 | qwen3.6-35b | self-hosted | **52.30** | $0.44 | 4/5 |
+| 11 | devstral-2-123b | self-hosted | **47.64** | $0.76 | 5/5 |
+| 12 | claude-haiku-4-5 | Bedrock | **47.12** | $0.64† | 5/5 |
+| 13 | minimax-m2.5 | self-hosted | **45.08** | $0.47 | 5/5 |
+| 14 | qwen3-coder-480b | self-hosted | **43.96** | $3.11 | 5/5 |
+| 15 | gemma-4-31b | self-hosted | **42.96** | $1.04 | 5/5 |
+| 16 | qwen3-coder-30b | self-hosted | **26.90** | $0.16 | 2/5 |
 
 † Bedrock `$/task` is a real token-metered API bill, not hardware-derived. Machine-readable: [metrics/pareto-frontier-pi-swe3.json](metrics/pareto-frontier-pi-swe3.json) and [metrics/harness-delta-swe3.json](metrics/harness-delta-swe3.json).
 

@@ -9,6 +9,7 @@ Benchmark results for every model run under the **pi** coding agent with the **s
 | claude-opus-5 | 75.72 | 5/5 | 774 | 462,242 | 48,639,156 | 886,691 | 49,988,863 | 94.0m | $41.42 | metered (Bedrock) |
 | glm-5.2 | 70.76 | 5/5 | 40,983,637 | 535,508 | 40,663,808 | 532,339 | 41,519,145 | 104.8m | $29.90 | hardware-derived (p5en.48xlarge) |
 | claude-sonnet-5 | 66.52 | 5/5 | 948 | 384,852 | 65,823,081 | 822,296 | 67,031,177 | 73.7m | $19.07 | metered (Bedrock) |
+| qwen3.8-27b | 66.40 | 5/5 | 27,584,894 | 329,829 | 66,505,152 | 2,318,687 | 96,738,562 | 709.8m | $22.54 | hardware-derived (g6e.4xlarge) |
 | claude-opus-4-8 | 60.68 | 5/5 | 430 | 322,184 | 21,532,803 | 666,666 | 22,522,083 | 62.5m | $22.99 | metered (Bedrock) |
 | kimi-k2.7-code | 60.68 | 5/5 | 50,764,666 | 251,979 | 49,935,424 | 1,116,643 | 51,016,645 | 56.6m | $27.58 | hardware-derived (p5en.48xlarge) |
 | grok-4.6 | 56.28 | 5/5 | 12,939,964 | 79,518 | 43,136 | 0 | 13,062,618 | 69.5m | $66.71 | metered (Bedrock) |
