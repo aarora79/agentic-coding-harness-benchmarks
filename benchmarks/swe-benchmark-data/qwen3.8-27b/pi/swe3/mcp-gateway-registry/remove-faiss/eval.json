@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 23,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The issue is unusually concrete, naming the factory, route call sites, dependency files, telemetry exception, and testable grep and behavior criteria. Its largest defect is requiring removal of the file-backend startup re-index without specifying how existing file-backed servers and agents, previously indexed only through FaissSearchRepository, are populated into DocumentDB. A reachable database and persistent index do not solve that initial backfill problem, so upgraded file deployments can lose existing search results. No independent task statement was supplied, so any broader intended scope beyond removing FAISS remains unverifiable."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 23,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The LLD provides a detailed, repository-shaped call graph and precise edits for factory.py, main.py, route handlers, telemetry, lock data, tests, and documentation. It is internally contradictory on migration: it establishes that file mode resolves the service-layer repository to FaissSearchRepository, then removes the only startup enumeration of file entities while assuming DocumentDB is already populated. Its single-mock-seam guidance is also incomplete because the same document says services retain self._search_repo, which is not replaced merely by patching factory._search_repo after service construction. The full claimed 88-file patch was not available untruncated for exhaustive confirmation of every cited count and edit."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 14,
+      "total": 68,
+      "notes": "The review identifies concrete issues around the lockfile, deleted patch targets, agent-toggle ordering, telemetry compatibility, rollback, and MongoDB reachability. Its largest failure is approving the design without noticing that existing file-backed entities have no migration or backfill into the newly selected DocumentDB repository. It also endorses factory._search_repo as a universal test seam despite the LLD's evidence that service objects cache self._search_repo. The findings are otherwise prioritized and actionable, but missing the primary upgrade-data failure materially weakens the verdict."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 14,
+      "total": 69,
+      "notes": "The plan has concrete endpoint oracles, toggle assertions, legacy telemetry coverage, dependency and script gates, and live verification steps. It lacks the decisive upgrade test: start with a non-empty pre-upgrade file registry and empty DocumentDB search collection, upgrade, then verify all existing servers, agents, and skills remain searchable. Manual cases M1-M4 test boot and newly registered entities, so they can pass while existing search data has disappeared. The claim that patching factory._search_repo isolates every path is also unsafe for already-constructed services holding their own repository reference."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 11,
+      "total": 59,
+      "notes": "The visible patch comprehensively removes the FAISS package and dependency, redirects the factory, updates the agent toggle, and cleans many direct callers and operational references. The critical defect is in registry/main.py: the old file-backend branch enumerated and indexed every server, agent, and skill, while the replacement only initializes DocumentDB and loads agent state, with no migration or backfill. Consequently an existing file deployment can upgrade successfully yet receive empty or incomplete search results until every entity is modified, contradicting the summary's preserved-behavior claim. The submitted diff was truncated, so its claimed clean application and all 88-file cleanup assertions could not be independently verified."
+    }
+  },
+  "task_score": 66.8,
+  "verdict": "The submission is highly specific and broadly comprehensive, but it misses the critical migration of existing file-backed search data into DocumentDB and therefore implements an unsafe upgrade path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-27T07:07:15.340962Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 432922,
+      "cached_input_tokens": 309225,
+      "cache_write_input_tokens": 107585,
+      "output_tokens": 7866,
+      "reasoning_output_tokens": 6601
+    },
+    "duration_ms": 210257
+  }
+}

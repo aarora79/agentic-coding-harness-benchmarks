@@ -1,0 +1,64 @@
+{
+  "task": "remove-efs-from-terraform-aws-ecs",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 14,
+      "total": 75,
+      "notes": "The issue provides unusually concrete scope and testable acceptance criteria naming storage.tf, ecs-services.tf, outputs, variables, and both deployment scripts. Its largest deficiency is treating destruction of deployed EFS data as out of scope while the proposed terraform apply necessarily destroys that data, and it incorrectly attributes costs to mount targets and NAT-routed NFS traffic. The submitted source context confirms six access points and current auth/mcpgw mounts, but does not establish that historical data is disposable. With no independent task statement and an external mcpgw image, the assertion that no runtime consumer needs EFS remains partly unverifiable."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The LLD is implementation-ready across the principal files and correctly distinguishes the auth image path /app/scopes.yml from the registry path /app/auth_server/scopes.yml. It materially improves on the issue by adding legacy-data inspection, out-of-state attachment checks, an external-image mcpgw smoke test, and staged rollout guidance. Its largest weakness is knowingly deferring codebuild.tf's orphaned scopes-init build and documentation that points to the deleted script; its rollback also recreates infrastructure but cannot recover destroyed EFS data. The exact Terraform destroy sequencing and the external mcpgw filesystem behavior cannot be proven from the supplied repository evidence."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 84,
+      "notes": "The review surfaces concrete, change-specific findings, especially the unverifiable external mcpgw image, legacy EFS data, broken documentation references, orphaned build pipeline, and auth rolling deployment. It checks specific artifacts such as Dockerfile.auth, iam.tf, codebuild.tf, and docs/deployment-modes.md and gives consequences and mitigations rather than generic approvals. Its largest deficiency is declaring the stale deleted-script documentation and orphaned image build resolved merely because they were deferred to a follow-up. Some line-level and deployment-order claims could not be independently verified against the local checkout because repository shell access failed before commands executed."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 19,
+      "total": 67,
+      "notes": "The plan covers static validation, fresh and existing-state plans, negative script behavior, rollout, rollback, legacy-data inspection, and service smoke tests. Several proposed oracles are defective: select(has(\"SCOPES_CONFIG_PATH\")) does not match ECS name/value environment objects, and the existing-state assertion omits ECS service changes required to adopt replacement task definitions. The documented repository routes are /api/agents and /mcpgw/mcp, whereas the plan tests /agents and /mcp, so its principal authorization and mcpgw checks may exercise nonexistent routes.  The scopes-reload case performs no reload, and none of the commands were executed, leaving these failures undiscovered."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 75,
+      "notes": "The diff implements the core design coherently by deleting storage.tf and run-scopes-init-task.sh, removing task volumes and EFS variables/outputs, correcting the auth path, and updating the post-deployment branch. The hunks consistently remove module.efs consumers and follow the existing empty mountPoints and volume pattern described for the registry task. Its largest defect is leaving codebuild.tf building an orphaned scopes-init image and repository documentation pointing to the now-deleted script, while the external mcpgw dependency and destructive data assumptions remain unvalidated. The local sandbox failed before git commands ran, so patch applicability and the claimed zero-reference sweep could not be independently confirmed; the summary's reverse-apply claim alone does not prove applicability to an arbitrary fresh checkout."
+    }
+  },
+  "task_score": 77.0,
+  "verdict": "This is a strong, repository-specific design and mostly coherent patch, but inaccurate test commands and knowingly retained broken or orphaned integration surfaces materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-27T07:03:45.062749Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 251756,
+      "cached_input_tokens": 169460,
+      "cache_write_input_tokens": 50726,
+      "output_tokens": 11576,
+      "reasoning_output_tokens": 9249
+    },
+    "duration_ms": 357404
+  }
+}

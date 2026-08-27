@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 10,
+      "correctness": 3,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 39,
+      "notes": "The issue gives unusually concrete scope, fallback behavior, file targets, and testable acceptance criteria. Its load-bearing AWS model is incorrect: RDS IAM tokens have a fixed 15-minute lifetime, not a configurable 900-43200-second TTL.  It also specifies the nonexistent `rds:GenerateDBAuthToken` permission and cluster-ARN scoping, while AWS requires `rds-db:connect` on a `dbuser` ARN and an IAM-enabled database user.  No independent task statement establishes the invented TTL requirement or chosen startup-only architecture."
+    },
+    "lld": {
+      "completeness": 9,
+      "correctness": 2,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 37,
+      "notes": "The LLD is highly repository-shaped, naming the submitted patch's actual Terraform, Docker, documentation, rotation, and ECS integration points. However, its Python example calls `generate_db_auth_token` with unsupported `DBClusterIdentifier` and `DurationSeconds` arguments instead of the required hostname, port, and username, so its central flow cannot run.  The design also omits creation or migration of a MySQL user using `AWSAuthenticationPlugin`, while proposing an invalid IAM action and incorrectly treating tokens as valid for 12 hours.  Its extensive failover and rollout discussion recognizes the right category of risk but analyzes it using the wrong token lifetime and therefore does not rescue the architecture."
+    },
+    "review": {
+      "completeness": 7,
+      "correctness": 3,
+      "specificity": 17,
+      "risk_awareness": 6,
+      "total": 33,
+      "notes": "The review identifies concrete secondary defects such as missing logging configuration, documentation migration hazards, dependency drift, and startup argument behavior. Its largest deficiency is approving the core design without checking the AWS SDK signature, fixed 15-minute token lifetime, required database-user configuration, or correct `rds-db:connect` authorization.  The security review's claim that IAM cannot scope the database user is contradicted by AWS's required `dbuser:<resource-id>/<username>` resource ARN.  Consequently, the prioritized must-fix list concentrates on observability and documentation while missing defects that make deployment and authentication fail."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 4,
+      "specificity": 18,
+      "risk_awareness": 9,
+      "total": 48,
+      "notes": "The plan is broad and concrete, covering Terraform combinations, fallback compatibility, image wiring, rollback, failure cases, and an AWS end-to-end deployment. Several central oracles and commands are invalid: the AWS CLI command has no `--duration-seconds` option, and an RDS IAM token is a signed connection string rather than a three-segment JWT.  The wrapper no-leak check removes matching trace lines with `grep -v` instead of asserting their absence, so it can pass even when `bash -x` exposes the token. The E2E plan also never provisions an IAM-authenticated MySQL user, so its expected successful IAM login is unsupported by the implementation. "
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 1,
+      "specificity": 16,
+      "risk_awareness": 4,
+      "total": 27,
+      "notes": "The patch is concrete and internally consistent with many named repository contexts, although the claimed local `git apply --check` result could not be independently rerun because the provided shell sandbox failed before command execution. The implementation is nonfunctional: boto3 requires `DBHostname`, `Port`, and `DBUsername`, while the patch supplies `DBClusterIdentifier` and unsupported `DurationSeconds`.  Its task policy uses the nonexistent `rds:GenerateDBAuthToken` action against a cluster ARN instead of `rds-db:connect` against the cluster resource-ID and database-user ARN, and it never creates an `AWSAuthenticationPlugin` user.  The summary's claim of no functional deviation is therefore false, and the startup-only 12-hour mitigation is based on a token that actually expires after 15 minutes. "
+    }
+  },
+  "task_score": 36.8,
+  "verdict": "The submission is detailed and repository-specific, but its central implementation fundamentally misunderstands RDS IAM token generation, authorization, lifetime, and database-user setup, leaving the feature unable to deploy or authenticate.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-27T07:11:09.701744Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 343636,
+      "cached_input_tokens": 254515,
+      "cache_write_input_tokens": 56675,
+      "output_tokens": 9330,
+      "reasoning_output_tokens": 7364
+    },
+    "duration_ms": 234347
+  }
+}
