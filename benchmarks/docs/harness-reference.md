@@ -24,7 +24,7 @@ This creates `benchmarks/.venv` with `pydantic`, `pyyaml`, `requests`, `matplotl
 
 ## The dataset
 
-A dataset is a single YAML file: a metadata header plus a list of tasks. Datasets live in [dataset/](../dataset/); the reference dataset is [dataset/mcp-gateway-registry.yaml](../dataset/mcp-gateway-registry.yaml), whose tasks are drawn from real upstream issues in [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry). Nothing in the harness is specific to a particular repository -- adding a new benchmark dataset is just writing another YAML file in this format.
+A dataset is a single YAML file: a metadata header plus a list of tasks. Datasets live in [dataset/](../dataset/); the reference dataset is [dataset/mcp-gateway-registry.yaml](../dataset/mcp-gateway-registry.yaml), whose tasks are drawn from real upstream issues in [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry). [dataset/mcp-gateway-registry-v2.yaml](../dataset/mcp-gateway-registry-v2.yaml) is a second, larger set over the same project: 15 tasks balanced across low/medium/high, each pinned to the release *before* its upstream fix. Nothing in the harness is specific to a particular repository -- adding a new benchmark dataset is just writing another YAML file in this format.
 
 ### Top-level fields
 
@@ -36,6 +36,7 @@ A dataset is a single YAML file: a metadata header plus a list of tasks. Dataset
 | `description` | str | What the dataset covers and how it is meant to run. |
 | `created` | date | ISO date the dataset was authored (`YYYY-MM-DD`). Optional. |
 | `default_ref` | str | Git ref (tag, branch, or commit) a task clones when it does not set its own `ref`. Pin this for reproducibility. |
+| `output_scope` | str | Folder name results are grouped under, replacing the repository name. Optional; **required when two datasets target the same repository**, or they share a folder and one's `run-summary.json` is rebuilt over the other's tasks. See [Where results land](#where-results-land). |
 | `metrics` | list | The per-run signals the harness is expected to collect. Documentary only; actual values live in run outputs, never in the dataset. |
 | `complexity_levels` | list | The allowed values for a task's `complexity` field. |
 | `tasks` | list | The tasks (see below). |
@@ -105,8 +106,23 @@ task = dataset.task_by_id("add-contributing-guide")
 - Every task's `complexity` is one of the dataset's `complexity_levels`.
 - Task ids are unique.
 - Every task has at least one problem source (`problem_statement` or `problem_issue_url`).
+- `output_scope`, when set, is a single folder name (no slashes).
 
 The loader also resolves each task's `ref` to `default_ref` when the task omits it, so downstream code always sees a concrete ref.
+
+### Where results land
+
+Artifacts are written to:
+
+```
+benchmarks/swe-benchmark-data/<model>/<harness>/<skill>/<scope>/<task>/
+```
+
+`<scope>` is the repository name, unless the dataset sets `output_scope`. Model, harness and skill are each their own level, so a pi run never overwrites a Claude Code one and `/swe3` never overwrites `/swe2`. The scope level exists for the remaining case: **two datasets over the same repository.**
+
+Task ids alone are not enough to keep those apart. `run-summary.json` sits at the *scope* level and [summarize_run.py](../scripts/summarize_run.py) rebuilds it from every task folder it finds there, so two datasets sharing a scope produce one summary averaging both task sets -- silently changing a published mean. `output_scope` is what prevents that; [dataset/mcp-gateway-registry-v2.yaml](../dataset/mcp-gateway-registry-v2.yaml) sets it to `mcp-gateway-registry-v2` for exactly this reason.
+
+Scores from two datasets are **not comparable** even so -- different tasks, refs, and difficulty mix -- so they belong in separate tables, not a merged one.
 
 ### Validating a dataset from the command line
 

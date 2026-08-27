@@ -116,5 +116,68 @@ class LoadDatasetTest(unittest.TestCase):
         self.assertIsNone(minimal.task_by_id("only-task").ground_truth)
 
 
+class OutputScopeTest(unittest.TestCase):
+    """output_scope names the results folder when the repo name is not enough."""
+
+    def test_defaults_to_the_repo_name(self) -> None:
+        dataset = load_dataset(_write(_MINIMAL))
+        self.assertIsNone(dataset.output_scope)
+        self.assertEqual(dataset.scope_for("repo"), "repo")
+
+    def test_overrides_the_repo_name_when_set(self) -> None:
+        text = _MINIMAL.replace(
+            "default_ref: main\n", "default_ref: main\noutput_scope: repo-v2\n"
+        )
+        dataset = load_dataset(_write(text))
+        self.assertEqual(dataset.scope_for("repo"), "repo-v2")
+
+    def test_shipped_datasets_keep_the_repo_name(self) -> None:
+        # v1 must not move: its results are committed and feed the charts.
+        v1 = load_dataset(_SHIPPED_DATASET)
+        self.assertEqual(v1.scope_for("mcp-gateway-registry"), "mcp-gateway-registry")
+
+    def test_v2_gets_its_own_scope(self) -> None:
+        v2 = load_dataset(_SHIPPED_DATASET.with_name("mcp-gateway-registry-v2.yaml"))
+        self.assertEqual(
+            v2.scope_for("mcp-gateway-registry"), "mcp-gateway-registry-v2"
+        )
+
+    def test_rejects_a_path_instead_of_a_folder_name(self) -> None:
+        text = _MINIMAL.replace(
+            "default_ref: main\n", "default_ref: main\noutput_scope: a/b\n"
+        )
+        with self.assertRaisesRegex(DatasetError, "single folder name"):
+            load_dataset(_write(text))
+
+
+class V2DatasetTest(unittest.TestCase):
+    """The v2 dataset's distinguishing properties, asserted rather than assumed."""
+
+    def setUp(self) -> None:
+        self.dataset = load_dataset(
+            _SHIPPED_DATASET.with_name("mcp-gateway-registry-v2.yaml")
+        )
+
+    def test_fifteen_tasks_balanced_across_complexity(self) -> None:
+        counts: dict[str, int] = {}
+        for task in self.dataset.tasks:
+            counts[task.complexity] = counts.get(task.complexity, 0) + 1
+        self.assertEqual(counts, {"low": 5, "medium": 5, "high": 5})
+
+    def test_every_task_pins_its_own_ref(self) -> None:
+        # The point of v2: each task clones the release before its fix, so the
+        # defect is present. A task falling back to default_ref is a mistake.
+        for task in self.dataset.tasks:
+            self.assertIsNotNone(task.ref, f"task '{task.id}' has no explicit ref")
+        refs = {self.dataset.resolved_ref(t) for t in self.dataset.tasks}
+        self.assertGreater(len(refs), 1)
+
+    def test_every_task_records_ground_truth(self) -> None:
+        for task in self.dataset.tasks:
+            self.assertIsNotNone(
+                task.ground_truth, f"task '{task.id}' has no ground_truth"
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

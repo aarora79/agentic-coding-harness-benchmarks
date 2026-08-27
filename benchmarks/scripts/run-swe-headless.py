@@ -2054,18 +2054,24 @@ def _run_claude_streaming(
     return final
 
 
-def _artifact_dir(config: RunnerConfig, task: Task) -> Path:
+def _artifact_dir(config: RunnerConfig, dataset: Dataset, task: Task) -> Path:
     """Return the directory where the skill writes a task's artifacts.
 
-    Layout: ``benchmarks/<output_dir>/<model>/<harness>/<skill>/<repo>/<task>/``.
+    Layout: ``benchmarks/<output_dir>/<model>/<harness>/<skill>/<scope>/<task>/``.
     Model, harness (coding agent), and skill are each their own path level, so
     runs never collide: a pi run never overwrites a Claude Code run, and a swe3
     run never overwrites a swe2 run of the same model. swe2 and swe3 are sibling
     folders under the harness -- they differ materially in token use and accuracy,
     so each is its own dimension rather than a suffix.
 
+    The ``<scope>`` level is the repository name, unless the dataset sets
+    ``output_scope`` -- which two datasets over the *same* repository must do, or
+    they share a folder and the folder-level run-summary.json of one is rebuilt
+    over the other's tasks.
+
     Args:
         config: The runner config.
+        dataset: The loaded dataset, which decides the scope folder.
         task: The task being run.
 
     Returns:
@@ -2078,7 +2084,7 @@ def _artifact_dir(config: RunnerConfig, task: Task) -> Path:
         / config.model_slug
         / config.harness_slug
         / config.skill
-        / _repo_name(task.repo)
+        / dataset.scope_for(_repo_name(task.repo))
         / task.id
     )
 
@@ -2235,6 +2241,7 @@ def _summary_metrics(
 
 def _save_metrics(
     config: RunnerConfig,
+    dataset: Dataset,
     task: Task,
     ref: str,
     metrics: dict[str, Any],
@@ -2261,7 +2268,7 @@ def _save_metrics(
     Returns:
         Path to the written metrics.json.
     """
-    out_dir = _artifact_dir(config, task)
+    out_dir = _artifact_dir(config, dataset, task)
     out_dir.mkdir(parents=True, exist_ok=True)
     produced = [f for f in ARTIFACT_FILENAMES if (out_dir / f).exists()]
     latency = metrics["latency_seconds"] or 0
@@ -2376,7 +2383,7 @@ def _run_task(
             clone_path,
             ref,
             config.model_slug,
-            _artifact_dir(config, task),
+            _artifact_dir(config, dataset, task),
             agent=config.agent,
             skill=config.skill,
             topup_missing=topup_missing,
@@ -2465,14 +2472,15 @@ def _run_task(
                     cmd,
                     env,
                     config.timeout_seconds,
-                    stream_log=_artifact_dir(config, task) / "pi-stream.jsonl",
+                    stream_log=_artifact_dir(config, dataset, task) / "pi-stream.jsonl",
                 )
             elif config.is_omp:
                 result = _run_omp(
                     cmd,
                     env,
                     config.timeout_seconds,
-                    stream_log=_artifact_dir(config, task) / "omp-stream.jsonl",
+                    stream_log=_artifact_dir(config, dataset, task)
+                    / "omp-stream.jsonl",
                 )
             elif config.is_kiro:
                 # kiro-cli streams ANSI text and prints a Credits/Time summary on
@@ -2500,7 +2508,7 @@ def _run_task(
     finally:
         shutil.rmtree(clone_parent, ignore_errors=True)
 
-    metrics_path = _save_metrics(config, task, ref, metrics, vllm_block)
+    metrics_path = _save_metrics(config, dataset, task, ref, metrics, vllm_block)
     out_dir = metrics_path.parent
     produced = [f for f in ARTIFACT_FILENAMES if (out_dir / f).exists()]
     # Completeness is gated on the four DESIGN artifacts plus the implementation
@@ -2602,7 +2610,7 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
             placeholder,
             ref,
             config.model_slug,
-            _artifact_dir(config, task),
+            _artifact_dir(config, dataset, task),
             agent=config.agent,
             skill=config.skill,
         )
@@ -2662,21 +2670,23 @@ def _summary_is_retryable(summary: dict[str, Any]) -> bool:
     return True
 
 
-def _clear_partial_artifacts(config: RunnerConfig, task: Task) -> None:
+def _clear_partial_artifacts(
+    config: RunnerConfig, dataset: Dataset, task: Task
+) -> None:
     """Remove a task's partially-written artifacts before a retry.
 
     A transiently-failed attempt may have left some artifacts (and a
     metrics.json) behind. Clearing them keeps the retry a clean run and prevents
     a stale partial file from masking what the retry actually produced.
     """
-    out_dir = _artifact_dir(config, task)
+    out_dir = _artifact_dir(config, dataset, task)
     for filename in (*ARTIFACT_FILENAMES, "metrics.json"):
         (out_dir / filename).unlink(missing_ok=True)
 
 
-def _missing_artifacts(config: RunnerConfig, task: Task) -> list[str]:
+def _missing_artifacts(config: RunnerConfig, dataset: Dataset, task: Task) -> list[str]:
     """Return the ARTIFACT_FILENAMES not yet present in the task's output dir."""
-    out_dir = _artifact_dir(config, task)
+    out_dir = _artifact_dir(config, dataset, task)
     return [f for f in ARTIFACT_FILENAMES if not (out_dir / f).exists()]
 
 
@@ -2735,7 +2745,7 @@ def _maybe_topup(
         "cache_read_tokens",
         "cache_creation_tokens",
     )
-    base = _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
+    base = _read_json_file(_artifact_dir(config, dataset, task) / "metrics.json") or {}
 
     # The normalized block ("metrics", aliased as "metrics_that_matter") renames
     # cache-write to cache_write_tokens; total_cost_usd lives there too now.
@@ -2756,10 +2766,10 @@ def _maybe_topup(
         # Only design-complete tasks are eligible; a missing design doc is a real
         # failure, not a truncation to top up.
         design_done = all(
-            (_artifact_dir(config, task) / f).exists()
+            (_artifact_dir(config, dataset, task) / f).exists()
             for f in DESIGN_ARTIFACT_FILENAMES
         )
-        missing = _missing_artifacts(config, task)
+        missing = _missing_artifacts(config, dataset, task)
         if not design_done or not missing:
             break
         logger.warning(
@@ -2792,11 +2802,13 @@ def _maybe_topup(
         # This top-up overwrote metrics.json with only its own pass; fold its
         # additive cost into the running totals.
         pass_metrics = (
-            _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
+            _read_json_file(_artifact_dir(config, dataset, task) / "metrics.json") or {}
         )
         for k in additive:
             totals[k] = (totals[k] or 0) + _pass_value(pass_metrics, k)
-        topped_up = [f for f in missing if (_artifact_dir(config, task) / f).exists()]
+        topped_up = [
+            f for f in missing if (_artifact_dir(config, dataset, task) / f).exists()
+        ]
 
     # Record top-up provenance so the run is honestly flagged as assisted, both on
     # the in-memory summary and in the on-disk metrics.json.
@@ -2804,12 +2816,13 @@ def _maybe_topup(
     summary["agent_invocations"] = invocations
     summary["topped_up_artifacts"] = topped_up
     if invocations > 1:
-        _annotate_metrics_topup(config, task, invocations, topped_up, totals)
+        _annotate_metrics_topup(config, dataset, task, invocations, topped_up, totals)
     return summary
 
 
 def _annotate_metrics_topup(
     config: RunnerConfig,
+    dataset: Dataset,
     task: Task,
     invocations: int,
     topped_up: list[str],
@@ -2826,7 +2839,7 @@ def _annotate_metrics_topup(
     the normalized block -- writing only one place would leave the summary showing
     a single pass. Best-effort: a write failure is logged, not fatal.
     """
-    path = _artifact_dir(config, task) / "metrics.json"
+    path = _artifact_dir(config, dataset, task) / "metrics.json"
     record = _read_json_file(path)
     if record is None:
         return
@@ -2906,7 +2919,7 @@ def _run_task_safe(
                 attempt - 1,
                 config.max_retries,
             )
-            _clear_partial_artifacts(config, task)
+            _clear_partial_artifacts(config, dataset, task)
         try:
             summary = _run_task(
                 config,

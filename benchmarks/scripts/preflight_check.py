@@ -121,12 +121,19 @@ def _target_dirs(
     # kiro's managed model names carry dots; dash them so the preflight clears the
     # same dash-style folder the harness will write to (see model_to_slug).
     slug = model_to_slug(model, normalize_dots=(agent == AGENT_KIRO))
-    # Layout: <model>/<harness>/<skill>/<repo>/<task> -- skill is its own level, so
-    # check the exact tree the harness will write to.
+    # Layout: <model>/<harness>/<skill>/<scope>/<task> -- skill is its own level, so
+    # check the exact tree the harness will write to. The scope follows the
+    # dataset (output_scope, else the repo name), matching _artifact_dir.
     harness = HARNESS_SLUGS[agent]
     root = benchmarks_dir / _OUTPUT_DIR
     return [
-        root / slug / harness / skill / repo_name(task.repo) / task.id for task in tasks
+        root
+        / slug
+        / harness
+        / skill
+        / dataset.scope_for(repo_name(task.repo))
+        / task.id
+        for task in tasks
     ]
 
 
