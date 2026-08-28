@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 59,
+      "notes": "The issue provides concrete user stories, exclusions, and testable security, expiry, compatibility, and performance criteria. Its central premise conflicts with the baseline context shown in its own patch: raw access and refresh tokens were already absent from the cookie, while groups and id_token remain. Repository release evidence for #399 describes moving the full session payload into oauth_sessions and reducing the cookie to a session_id, so this token-only design cannot guarantee the under-4096-byte criterion. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) It also requires logout deletion, which the later artifacts explicitly defer, while the asserted token sizes lack supporting measurements."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 22,
+      "risk_awareness": 14,
+      "total": 60,
+      "notes": "The LLD is highly specific about server.py, server_routes.py, MongoDB indexes, encryption, request flow, configuration, and fallback behavior. Its architecture nevertheless leaves the size-driving groups and id_token in the cookie, contrary to the repository's eventual full-session-store solution. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) It also returns records during the TTL monitor delay, deliberately extends expires_at by 300 seconds, defers the issue-required logout deletion, and exposes an otherwise-unused endpoint that trusts arbitrary username input from any accepted internal caller. Exact baseline line positions and dependency claims could not be independently command-checked because the local shell sandbox failed before executing repository commands."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 67,
+      "notes": "The review surfaces concrete concerns about service-versus-user authentication, plaintext internal transport, file-backed deployments, Helm wiring, key rotation, expiry defaults, and fallthrough control flow. Its largest omission is failure to notice that the proposed change does not remove the existing groups or id_token payload responsible for the cookie-size defect. The accepted rate-limit remedy is weak because keying by token_ref permits one attempt against each distinct reference and does not bind an internal caller to an end-user identity. Its claim that all important findings were resolved is contradicted by the deferred logout deletion and the testing artifact's acknowledgement that expired documents remain retrievable."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 53,
+      "notes": "The plan spans encryption, storage failures, owner-scoped queries, compatibility, deployment wiring, rate limiting, and real-token response oracles. The named expired-token test contains no assertion and explicitly concedes that get_tokens returns an expired document until MongoDB removes it, so it cannot verify its stated fallback behavior. The submitted patch adds only encryption and store unit tests, with no automated callback, cookie-size, internal endpoint, internal/tokens, or registry pass-through coverage. Its issuer-based oracle also assumes every IdP access token is a decodable JWT, while OAuth access tokens may be opaque."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 17,
+      "risk_awareness": 7,
+      "total": 35,
+      "notes": "The patch covers encryption, Mongo storage, configuration surfaces, registry pass-through, and focused unit tests, but it does not implement the repository's full server-side session-store behavior. A production-blocking import mismatch exists: server.py imports oauth_token_store as a top-level module, while oauth_token_store.py uses the relative import from .oauth_token_encryption, directly contradicting implementation.md's claim that the patch uses no-leading-dot imports. It also leaves groups and id_token in the cookie, returns access tokens through an expiry value inflated by the TTL buffer, and never invokes delete_tokens on logout despite its own acceptance criteria. Git applicability could not be independently checked because the read-only shell failed during sandbox initialization, but these defects are visible directly in the submitted diff."
+    }
+  },
+  "task_score": 54.8,
+  "verdict": "The submission is detailed and repository-aware in presentation, but its token-only architecture misses the actual cookie-size cause and the patch contains a production import failure plus unsafe expiry behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T04:23:26.886583Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 293219,
+      "cached_input_tokens": 202684,
+      "cache_write_input_tokens": 52037,
+      "output_tokens": 13352,
+      "reasoning_output_tokens": 11613
+    },
+    "duration_ms": 186350
+  }
+}

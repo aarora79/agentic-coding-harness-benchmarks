@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 82,
+      "notes": "The issue clearly defines the fairness and kill-switch problems, with unusually concrete acceptance criteria, exclusions, and named integration points. Its largest weakness is semantic conflict with repository release documentation, which describes reserved-group quarantine, a fail-open availability guardrail, and protection against quarantining admin-group users, while this issue requires blocking admins and later artifacts choose hardcoded fail-closed behavior. ([github.com](https://github.com/agentic-community/mcp-gateway-registry)) The submitted diff context supports paths such as registry/rate_limiting/limiter.py, registry/api/rate_limit_routes.py, and auth_server/server.py, but the issue's backend-failure criterion directly contradicts the LLD. No independent task statement was supplied, and the local shell sandbox failure prevented direct verification of issue #295 and the baseline checkout."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 64,
+      "notes": "The LLD's strongest aspect is its detailed mapping of models, repositories, limiter flow, UI, metrics, rollout, and response semantics to named files and symbols. Its central design nevertheless contradicts the issue by replacing reserved groups and existing definition/membership APIs with a dedicated rate_limit_quarantine collection and five new endpoints, while also changing caller_target from a group-named, dynamically classified axis into target-specific definitions with a caller_group field. The hardcoded fail-closed precheck also violates the issue's stated RATE_LIMIT_FAIL_OPEN behavior and intentionally creates a full data-plane outage during backend failure. Although it discusses that outage candidly, it misses cross-process cache staleness, break-glass recovery after quarantining an administrator, and collision risks in the delimiter-built composite counter subject."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The review identifies concrete defects, notably incorrect exception-axis attribution, the DocumentDB outage blast radius, immutable identifier fields, and out-of-band deletion behavior. Its largest omission is failure to challenge the LLD's fundamental divergence from the issue's reserved-group, existing-API, fail-open requirements. The resolution section even claims the availability acceptance criterion was corrected, while the submitted issue still explicitly says quarantine follows RATE_LIMIT_FAIL_OPEN and per-definition fail_closed policy. It also misses the separate registry/auth-server caches, administrator self-lockout recovery, and composite-key ambiguity, though its recommendations are otherwise specific and actionable."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 55,
+      "notes": "The plan provides strong behavioral oracles across CRUD, enforcement, compatibility, UI, deployment, rollback, and multi-tenant scenarios. Its core commands are internally invalid: it states the default user floor is 20 per minute but expects 60-second definitions with limits of 5, 2, and 10 to succeed, so several primary tests would fail during creation rather than exercise enforcement. It also expects 404/405 for deleting reserved quarantine groups despite the issue requiring 400/409, and it omits direct verification that quarantine performs no counter increment or that backend failure produces the designed outage. Placeholder gateway paths ending in /... are not executable tests, and the RegistryClient constructor and pytest paths could not be independently verified because local repository commands were unavailable."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 18,
+      "risk_awareness": 9,
+      "total": 46,
+      "notes": "The patch is broad and concrete, wiring models, repositories, limiter behavior, routes, client methods, metrics, and UI rather than stopping at a partial backend change. However, it implements a different quarantine system from the issue: a new collection and endpoints instead of reserved groups through existing APIs, hardcoded fail-closed instead of the required existing failure policy, and 404/405 rather than guarded 400/409 deletion behavior. QuarantineRepository sets _seeded permanently after initial creation, so its documented promise to recreate a document deleted later is false; separate repository instances in rate_limiting_config.py and rate_limit_routes.py also mean an admin write cannot immediately invalidate the auth-server's process-local cache. No automated tests accompany this high-risk change, the summary overstates the reseeding behavior, and the sandbox failure prevented independently running git apply --check against the working tree."
+    }
+  },
+  "task_score": 63.0,
+  "verdict": "The submission is detailed and repository-shaped, but its design and patch replace the required reserved-group quarantine with a conflicting, failure-prone subsystem while the core testing plan contains invalid limit values.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T04:17:14.392119Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 336636,
+      "cached_input_tokens": 234833,
+      "cache_write_input_tokens": 60242,
+      "output_tokens": 15593,
+      "reasoning_output_tokens": 13678
+    },
+    "duration_ms": 214092
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 89,
+      "notes": "The issue clearly defines seven gated routes, fail-closed behavior, configuration, redaction, observability, deployment surfaces, and explicit non-goals. Its acceptance criteria are unusually testable, including exact statuses, envelope fields, and negative persistence behavior. The named handlers and paths are consistent with the submitted baseline diff, although no independent task statement establishes whether these seven routes are the complete intended scope. Minor overclaims such as existing deployments being “byte-for-byte unaffected” and limited treatment of malformed but valid JSON keep it below exceptional."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The LLD commits to concrete files, call locations, data models, failure mappings, rollout, and deployment wiring, and it explicitly addresses credentials, overwrite semantics, internal callers, and bypass paths. It is implementation-ready and closely tracks the submitted route and configuration contexts. Its claimed response-size guard does not actually impose a byte limit, and its required `allowed` model conflicts with the documented `{}`-means-allow behavior later implemented through ad hoc parsing. Claims that failures log exactly once and that audit and HTTPX tracing automatically cover denied calls were not demonstrated and are contradicted or unsupported by the patch."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 88,
+      "notes": "The review identifies concrete high-impact defects, especially HTML-200 bypass, plaintext credential egress, reflected gate text, internal-detail leakage, overwrite classification, and service-layer bypasses. Recommendations are prioritized, actionable, and tied to precise design changes rather than generic persona approval. It nevertheless declares every blocker resolved although the implementation still buffers unbounded responses and emits duplicate ERROR logs for several failures. It also misses permissive handling of malformed decisions such as `{\"allowed\":\"false\"}` and does not challenge the brittle source-inspection coverage test."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 73,
+      "notes": "The plan covers all seven routes, allow and failure outcomes, non-persistence oracles, disabled compatibility, redaction, deployment wiring, rollback, and concurrent outage behavior. Most assertions specify exact statuses and response fields rather than merely checking execution. The primary Docker setup points the containerized registry at `localhost:9099`, which refers to the registry container rather than the host reference gate, and the proposed `python -m cli.main server register` command is unsupported by the submitted repository artifacts. It also claims route-level deny and timeout tests were added, but those tests are absent from the patch, while the cross-asset “script” is only a loop printing route names."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 73,
+      "notes": "The patch provides the service and schema modules, inserts calls at all seven named handlers, defaults the feature off, and wires documentation, Compose, Helm, and Terraform while implementing recursive redaction and fail-closed status mapping. The submitted hunks are internally coherent with the cited symbols, but the claimed clean application and byte-compilation could not be independently executed because repository command access failed. Valid JSON with a non-boolean `allowed` value silently allows, no actual response-byte limit implements the promised size guard, and failures are often logged both inside `evaluate_registration` or URL validation and again by `enforce_registration_gate`. Helm’s `default true` expression prevents an explicit false `registrationGateVerifySsl` value from rendering, and the tests do not verify that denial prevents persistence despite the implementation summary claiming route-level coverage."
+    }
+  },
+  "task_score": 81.0,
+  "verdict": "A strong, repository-specific design package with broad implementation coverage, limited chiefly by several fail-closed and operability edge defects plus testing instructions and claims that do not fully match the submitted code.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T08:58:54.342418Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 274704,
+      "cached_input_tokens": 183137,
+      "cache_write_input_tokens": 62134,
+      "output_tokens": 10186,
+      "reasoning_output_tokens": 9022
+    },
+    "duration_ms": 141248
+  }
+}

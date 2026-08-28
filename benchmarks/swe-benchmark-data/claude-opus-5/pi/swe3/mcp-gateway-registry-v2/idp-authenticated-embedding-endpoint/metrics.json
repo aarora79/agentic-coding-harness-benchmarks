@@ -1,0 +1,155 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.28.0",
+  "complexity": "high",
+  "tags": [
+    "semantic-search",
+    "embeddings",
+    "oauth",
+    "authentication",
+    "litellm",
+    "docker",
+    "terraform",
+    "helm",
+    "fixed-in-1.29.0"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 89.3,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 134,
+    "output_tokens": 104866,
+    "cache_read_tokens": 8049670,
+    "cache_write_tokens": 185715,
+    "total_tokens": 8340385,
+    "total_cost_usd": 7.807873750000004,
+    "latency_seconds": 1174.8,
+    "num_turns": 67,
+    "generation_tokens_per_sec": 89.3,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 134,
+  "output_tokens": 104866,
+  "latency_seconds": 1174.8,
+  "num_turns": 67,
+  "total_cost_usd": 7.807873750000004,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 8049670,
+  "cache_creation_tokens": 185715,
+  "run_started_at": "2026-08-28T08:01:10.200106Z",
+  "run_ended_at": "2026-08-28T08:20:45.071613Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 134,
+    "output_tokens": 104866,
+    "cache_read_tokens": 8049670,
+    "cache_write_tokens": 185715,
+    "total_tokens": 8340385,
+    "total_cost_usd": 7.807873750000004,
+    "latency_seconds": 1174.8,
+    "num_turns": 67,
+    "generation_tokens_per_sec": 89.3,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "idp-authenticated-embedding-endpoint",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 19,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 84,
+        "notes": "The issue's strongest aspect is its precise opt-in behavior, explicit non-goals, and testable criteria for caching, concurrency, redaction, deployment surfaces, and compatibility. The submitted patch context corroborates the named LiteLLM factory, configuration, federation-auth precedent, and deployment files. Its largest deficiency is promising reauthentication on the next call without accounting for DocumentDBSearchRepository's process-lifetime _embedding_unavailable latch, which skips subsequent embedding attempts after the first failure. No independent task statement was supplied, so the asserted issue number and some operational-impact claims could not be independently established."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 16,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 78,
+        "notes": "The LLD is unusually implementation-ready, naming concrete constructors, settings, exception contracts, files, secret plumbing, rollout steps, and rejected alternatives. Its integration points correspond closely to the submitted baseline contexts for LiteLLMClient, create_embeddings_client, Settings, and DocumentDBSearchRepository. The central defect is that it both preserves the permanent _embedding_unavailable latch and promises that a call after a 401 or transient IdP failure will obtain a new token; repository documentation confirms recovery otherwise requires a restart. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/design/hybrid-search-architecture.md)) The claimed protection against an oversized refresh buffer is also incomplete because a 0–3600 bound does not prevent the configured buffer exceeding a shorter token lifetime, and mechanical patch application could not be verified because repository shell access was blocked."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 19,
+        "total": 79,
+        "notes": "The review's strongest contribution is identifying concrete defects such as rejected-token caching, refresh stampedes, unsafe expires_in parsing, plaintext token URLs, and response-body logging, then prescribing specific resolutions. Those findings materially improve the revised design and are tied to exact symbols and behavior rather than generic personas. Its largest miss is certifying all blockers as resolved while overlooking that the repository's _embedding_unavailable latch prevents the promised post-401 next-call recovery until process restart. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/design/hybrid-search-architecture.md)) It also accepts the 3600-second upper bound as preventing refresh storms even though tokens may legitimately live for less than the configured buffer."
+      },
+      "testing": {
+        "completeness": 22,
+        "correctness": 12,
+        "specificity": 21,
+        "risk_awareness": 18,
+        "total": 73,
+        "notes": "The strongest portion is the unit-test matrix, which supplies concrete oracles for caching, buffered refresh, single-flight concurrency, malformed responses, secret redaction, per-call credentials, and static-path compatibility. The deployment checks also cover the otherwise easy-to-miss IAM, Helm reserved-name, and Compose surfaces. The principal correctness problem is that its main search exercises use GET /api/search with a flat results array, while repository documentation identifies POST /api/search/semantic and grouped result fields for hybrid search; the configured-mode example also incorrectly expects embeddings_auth_mode to display static. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/design/hybrid-search-architecture.md)) The revocation recovery scenario cannot pass as written because the first embedding failure latches lexical-only mode until restart, and none of the proposed commands were executed."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 74,
+        "notes": "The patch implements nearly every designed surface and the token provider itself has coherent locking, TLS validation, defensive response parsing, scoped secret storage, and focused unit coverage. The diff targets the submitted existing symbols and consistently threads the seven settings from Settings through DocumentDBSearchRepository into LiteLLMClient. Its largest functional defect is that clearing the token after an embedding 401 does not provide production recovery: the surrounding repository latches embeddings unavailable and skips future attempts until restart. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/design/hybrid-search-architecture.md)) The fixed refresh-buffer bound still permits request-per-call storms for short-lived tokens, the summary overstates deployment inertness because Compose and ECS inject new variables and an ECS secret even in static mode, and git apply compatibility could not be mechanically verified due the unavailable shell sandbox."
+      }
+    },
+    "task_score": 77.6,
+    "verdict": "This is strong, repository-specific work, but its claimed automatic recovery from rejected or transiently unavailable credentials is not end-to-end because the existing embedding-failure latch requires a process restart.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-28T08:48:23.470544Z",
+      "repo_ref": "1.28.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 320133,
+        "cached_input_tokens": 204652,
+        "cache_write_input_tokens": 69358,
+        "output_tokens": 11063,
+        "reasoning_output_tokens": 9616
+      },
+      "duration_ms": 166935
+    }
+  }
+}

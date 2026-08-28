@@ -406,7 +406,9 @@ def _plot(
     out_dir.mkdir(parents=True, exist_ok=True)
     code = HARNESS_CODES.get(harness, harness)
     suffix = "-dark" if mode == "dark" else ""
-    out = out_dir / f"complexity-{code}-{skill}-{scope}{suffix}.png"
+    # The model is part of the filename: this chart is per-model, so leaving it
+    # out makes a second model silently overwrite the first one's chart.
+    out = out_dir / f"complexity-{model}-{code}-{skill}-{scope}{suffix}.png"
     fig.tight_layout(rect=(0, 0.03, 1, 0.93))
     fig.savefig(out, facecolor=theme["surface"], bbox_inches="tight")
     plt.close(fig)

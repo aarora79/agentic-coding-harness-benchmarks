@@ -1,0 +1,153 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "v1.0.20",
+  "complexity": "medium",
+  "tags": [
+    "security",
+    "csrf",
+    "authentication",
+    "api",
+    "fastapi",
+    "m2m",
+    "fixed-in-1.0.21"
+  ],
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "model_slug": "claude-sonnet-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 87.8,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 194,
+    "output_tokens": 75102,
+    "cache_read_tokens": 10087257,
+    "cache_write_tokens": 149291,
+    "total_tokens": 10311844,
+    "total_cost_usd": 3.142086900000001,
+    "latency_seconds": 855.4,
+    "num_turns": 97,
+    "generation_tokens_per_sec": 87.8,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 194,
+  "output_tokens": 75102,
+  "latency_seconds": 855.4,
+  "num_turns": 97,
+  "total_cost_usd": 3.142086900000001,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 10087257,
+  "cache_creation_tokens": 149291,
+  "run_started_at": "2026-08-28T01:22:35.369724Z",
+  "run_ended_at": "2026-08-28T01:36:50.851576Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 194,
+    "output_tokens": 75102,
+    "cache_read_tokens": 10087257,
+    "cache_write_tokens": 149291,
+    "total_tokens": 10311844,
+    "total_cost_usd": 3.142086900000001,
+    "latency_seconds": 855.4,
+    "num_turns": 97,
+    "generation_tokens_per_sec": 87.8,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "consistent-csrf-across-toggle-endpoints",
+    "model": "us.anthropic.claude-sonnet-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 87,
+        "notes": "The issue clearly defines both the bearer-client failure and the cookie-authenticated CSRF exposure, with testable criteria for four affected and two unchanged endpoints. The named routes and dependencies agree with the submitted patch, and the v1.0.21 release notes independently confirm the bearer-toggle CSRF defect addressed by PR #894. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) Its main deficiency is treating trusted nginx identity headers as proven bearer authentication without establishing the header-stripping and backend-reachability boundary. No independent task statement was supplied, so the proposed expansion to previously unprotected server and virtual-server toggles cannot be verified against requirements beyond the task identifier and artifacts."
+      },
+      "lld": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 78,
+        "notes": "The LLD is unusually concrete about files, functions, dependency caching, request flows, error behavior, and the exact four route integrations. Its proposed signatures align with the submitted diff contexts for nginx_proxied_auth, verify_csrf_token_flexible, and the four toggle handlers. The largest flaw is the deliberate fail-open behavior when authenticated_via is missing; preserving old test doubles is not a sound reason for a security dependency to silently skip protection on an unexpected context. It also leaves the trusted-header network boundary and existing browser clients' CSRF-header behavior unverified while declaring rollout fully backward compatible and listing no blocking questions."
+      },
+      "review": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 21,
+        "risk_awareness": 21,
+        "total": 78,
+        "notes": "The review identifies real, specific concerns: direct calls bypass FastAPI dependency overrides, a missing marker fails open, trusted proxy headers become a CSRF-bypass boundary, and expected CSRF-warning volume changes. These findings directly concern the proposed csrf.py and dependencies.py control flow rather than generic reviewer role-play. Its largest defect is claiming those concerns were incorporated into a revised LLD even though the submitted LLD lacks the stated network-boundary section, override caveat, and referenced Step 7.5. The assertions about SPA header behavior, nginx stripping, repository-wide grep results, and external monitoring remain unverified, yet the review treats them as resolved."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 77,
+        "notes": "The plan supplies concrete setups, requests, status-code oracles, mutation-call assertions, dependency tests, backward-compatibility checks, and end-to-end bearer and cookie flows. It correctly distinguishes form, query, and JSON payloads and names the repository test modules targeted by the patch. The principal gap is that invalid-token coverage is only described as a repetition after the agent tests and is not concretely carried through every endpoint despite the acceptance criterion requiring it for all four. The prerequisite create_session_cookie symbol is unsupported elsewhere in the submission, the advertised copy-paste E2E registration JSON contains a literal ellipsis, and no test challenges the fail-open marker or trusted-header boundary."
+      },
+      "implementation": {
+        "completeness": 18,
+        "correctness": 15,
+        "specificity": 20,
+        "risk_awareness": 14,
+        "total": 67,
+        "notes": "The production diff internally implements the central design: both nginx_proxied_auth branches add a marker, one conditional CSRF dependency is introduced, and all four target handlers are wired to it. The largest defect is user_context.get(\"authenticated_via\") defaulting to CSRF bypass, which converts an omitted or future unknown authentication source into an unsafe fail-open decision rather than rejecting it or enforcing CSRF. Test coverage also falls short of the stated acceptance criteria: endpoint tests omit invalid-token cases, and the skill bearer test omits authenticated_via entirely, so it exercises the fail-open fallback instead of the explicit bearer branch while implementation.md claims Section 1 was implemented in full. The target paths and symbols are coherent with the artifacts and upstream fix scope, but the claimed baseline commit and clean git-apply result could not be independently verified from the available executable repository tooling."
+      }
+    },
+    "task_score": 77.4,
+    "verdict": "A strong, repository-specific design package with a plausible end-to-end patch, limited most materially by a security-critical fail-open default, unresolved trusted-header assumptions, and incomplete test coverage.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-28T04:00:06.249672Z",
+      "repo_ref": "v1.0.20",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 221955,
+        "cached_input_tokens": 136316,
+        "cache_write_input_tokens": 45821,
+        "output_tokens": 12871,
+        "reasoning_output_tokens": 11551
+      },
+      "duration_ms": 190783
+    }
+  }
+}

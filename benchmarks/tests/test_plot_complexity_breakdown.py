@@ -122,11 +122,11 @@ class RenderTest(unittest.TestCase):
                 scope="repo-v2",
                 out_dir=Path(tmp),
             )
-            self.assertEqual(out.name, "complexity-pi-swe3-repo-v2.png")
+            self.assertEqual(out.name, "complexity-test-model-pi-swe3-repo-v2.png")
             self.assertGreater(out.stat().st_size, 0)
 
     def test_dark_variant_gets_its_own_filename(self) -> None:
-        summary = {"tasks": [_task("a", "low", 70.0, github_issue=80)]}
+        summary = {"model_slug": "m", "tasks": [_task("a", "low", 70.0, github_issue=80)]}
         with tempfile.TemporaryDirectory() as tmp:
             out = plot._plot(
                 summary,
@@ -136,7 +136,7 @@ class RenderTest(unittest.TestCase):
                 scope="repo-v2",
                 out_dir=Path(tmp),
             )
-            self.assertEqual(out.name, "complexity-pi-swe3-repo-v2-dark.png")
+            self.assertEqual(out.name, "complexity-m-pi-swe3-repo-v2-dark.png")
 
 
 class LoadSummaryTest(unittest.TestCase):

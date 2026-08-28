@@ -1,0 +1,152 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "high",
+  "tags": [
+    "rate-limiting",
+    "security",
+    "auth-server",
+    "api",
+    "operations",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 87.7,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 226,
+    "output_tokens": 144760,
+    "cache_read_tokens": 21424522,
+    "cache_write_tokens": 278605,
+    "total_tokens": 21848113,
+    "total_cost_usd": 16.07367225,
+    "latency_seconds": 1649.8,
+    "num_turns": 113,
+    "generation_tokens_per_sec": 87.7,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 226,
+  "output_tokens": 144760,
+  "latency_seconds": 1649.8,
+  "num_turns": 113,
+  "total_cost_usd": 16.07367225,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 21424522,
+  "cache_creation_tokens": 278605,
+  "run_started_at": "2026-08-28T07:33:37.821907Z",
+  "run_ended_at": "2026-08-28T08:01:07.765556Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 226,
+    "output_tokens": 144760,
+    "cache_read_tokens": 21424522,
+    "cache_write_tokens": 278605,
+    "total_tokens": 21848113,
+    "total_cost_usd": 16.07367225,
+    "latency_seconds": 1649.8,
+    "num_turns": 113,
+    "generation_tokens_per_sec": 87.7,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "per-caller-per-target-rate-limits-and-quarantine",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 83,
+        "notes": "The issue is unusually complete and testable, naming concrete axes, response headers, failure policies, management surfaces, exclusions, and acceptance criteria. Its largest flaw is that the promised immediate kill switch conflicts with the proposed TTL-cached membership mechanism, while the raw pipe-delimited composite key is not protected against pipes in identities or target names. The submitted implementation confirms a 30-second membership cache and no nginx change for propagating X-RateLimit-Quarantined, weakening two explicit acceptance claims. No independent task statement was supplied, so the claimed operator demand and reference-issue provenance could not be independently verified."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 10,
+        "specificity": 23,
+        "risk_awareness": 16,
+        "total": 71,
+        "notes": "The LLD is exceptionally concrete about real integration points such as RateLimiter.check, MembershipsRepository, _enforce_rate_limit, registry lifespan, CLI, UI, charts, and metrics. Its central safety arguments are unsound: build_caller_target_subject uses an unescaped pipe, per-document last-known values do not protect previously unseen callers or targets during an outage, and no cross-process cache invalidation makes quarantine non-immediate. The prescribed set_quarantined read-modify-replace flow can lose concurrent group updates, while _groups_for_id directly awaits find_one despite the LLD claiming the 250 ms counter timeout bounds membership failures. The file and symbol contexts appear consistent with the submitted baseline hunks, but git apply verification against the local working tree could not be completed."
+      },
+      "review": {
+        "completeness": 20,
+        "correctness": 13,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 73,
+        "notes": "The review finds several genuine defects, including the frontend caller-only predicate, admin membership bypass, floor omission, counter cardinality, reserved-group filtering, and the blanket exception risk. Its largest error is declaring the pipe separator safe because it cannot occur in axis abbreviations or entity types, although the delimiter separates an unvalidated identity from a target string and either identity or target name may contain a pipe. It also accepts per-document stale caching as protection from transient outages and misses quarantine propagation delay, non-atomic roster updates, the unbounded membership read, and likely nginx header loss. The findings are prioritized and actionable, but several claimed resolutions therefore preserve critical kill-switch weaknesses."
+      },
+      "testing": {
+        "completeness": 19,
+        "correctness": 10,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 67,
+        "notes": "The plan provides concrete HTTP, CLI, UI, deployment, compatibility, outage, and end-to-end scenarios with meaningful status and state oracles. It repeatedly waits 35 seconds before checking quarantine, thereby normalizing behavior that contradicts the issue's immediate-denial requirement, and its no-counter verification reuses SERVER_B after that pair quota was already exhausted. The submitted test_pair_and_caller_gates_stack should fail because equal-window gates retain caller-first order, so the third request increments the caller counter to 3 before the pair gate denies, not the asserted 2. The coverage table also promises test_stale_roster_served_on_error, which is absent from the patch, and there is no frontend build or type-check command."
+      },
+      "implementation": {
+        "completeness": 18,
+        "correctness": 7,
+        "specificity": 21,
+        "risk_awareness": 9,
+        "total": 55,
+        "notes": "The patch spans the expected backend, auth-server, API, CLI, UI, configuration, documentation, observability, and test surfaces and generally follows the existing submitted code contexts. It does not deliver a reliable kill switch: auth-server membership caches delay changes, set_quarantined is a race-prone read-modify-replace, and the per-subject stale snapshot denies unseen identities during outages while potentially preserving an obsolete allow indefinitely. The raw composite encoding permits counter collisions, the added same-window stacking test has an incorrect oracle and should fail, and the patch adds no nginx forwarding needed to expose X-RateLimit-Quarantined to the client. The summary accurately discloses that tests were not run, but overstates one-to-one coverage and the safety of the stale-cache and separator designs."
+      }
+    },
+    "task_score": 69.8,
+    "verdict": "The submission is impressively detailed and broadly integrated, but the implementation's cache propagation, composite-key collision, concurrency, outage, and failing-test defects make the quarantine mechanism unsafe as an absolute kill switch.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-28T08:56:33.080775Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 259577,
+        "cached_input_tokens": 162403,
+        "cache_write_input_tokens": 81481,
+        "output_tokens": 11248,
+        "reasoning_output_tokens": 9965
+      },
+      "duration_ms": 134882
+    }
+  }
+}

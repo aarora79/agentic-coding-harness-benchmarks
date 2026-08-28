@@ -1,0 +1,153 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "v1.0.19",
+  "complexity": "medium",
+  "tags": [
+    "enhancement",
+    "skills",
+    "ui",
+    "react",
+    "api",
+    "ux",
+    "fixed-in-1.0.20"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 80.2,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 144,
+    "output_tokens": 62104,
+    "cache_read_tokens": 6310759,
+    "cache_write_tokens": 129655,
+    "total_tokens": 6502662,
+    "total_cost_usd": 5.519043250000001,
+    "latency_seconds": 774.4,
+    "num_turns": 72,
+    "generation_tokens_per_sec": 80.2,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 144,
+  "output_tokens": 62104,
+  "latency_seconds": 774.4,
+  "num_turns": 72,
+  "total_cost_usd": 5.519043250000001,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 6310759,
+  "cache_creation_tokens": 129655,
+  "run_started_at": "2026-08-28T05:17:47.217250Z",
+  "run_ended_at": "2026-08-28T05:30:41.611966Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 144,
+    "output_tokens": 62104,
+    "cache_read_tokens": 6310759,
+    "cache_write_tokens": 129655,
+    "total_tokens": 6502662,
+    "total_cost_usd": 5.519043250000001,
+    "latency_seconds": 774.4,
+    "num_turns": 72,
+    "generation_tokens_per_sec": 80.2,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "derive-repo-url-from-skill-md",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 85,
+        "notes": "The issue provides unusually concrete behavior, testable acceptance criteria, and disciplined exclusions across parsing, list results, semantic search, and both modals. The submitted baseline diff supports its central claims: SkillInfo lacks repository_url, Dashboard.tsx initializes it to an empty string during editing, and both modal components label the SKILL.md link \"View on GitHub.\" Its largest gap is transition behavior: requiring a non-GitHub parse to leave the field empty conflicts with preserving a prior derived value, and it does not address existing search-index documents for skills that already store repository_url. No independent task statement was supplied, and the repository shell failure prevented verification of related issue #846 and the claimed baseline tag beyond the submitted source contexts."
+      },
+      "lld": {
+        "completeness": 21,
+        "correctness": 19,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 82,
+        "notes": "The design is highly repository-specific, naming derive_repository_url, both SkillInfo construction sites, search metadata paths, frontend transforms, and the edit-mode data-loss path. Its proposed changes align internally with the supplied patch contexts in registry/api/skill_routes.py, registry/services/skill_service.py, Dashboard.tsx, and search_repository.py. The main design defect is treating re-indexing as optional even though existing indexed skills with a stored repository_url cannot satisfy the semantic-modal behavior without it; data.repository_url || prev.repository_url can also retain repo A after parsing a non-GitHub skill B. The claim that the helper never raises is too absolute for malformed values that can make urlparse or hostname processing raise, and local source/line verification was unavailable because commands failed before execution in the managed sandbox."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 87,
+        "notes": "The review identifies concrete, consequential defects rather than merely role-playing approval, including the two SkillInfo mappings, edit-mode clearing, path-only regex matching, missing SemanticSkillHit data, credentials, and legacy search documents. Those findings correspond directly to changes visible in the submitted patch, especially skill_routes.py, skill_service.py, Dashboard.tsx, and useSemanticSearch.ts. Its largest weakness is declaring all blocking issues resolved while accepting stale repository data on a GitHub-to-non-GitHub reparse and treating the required search re-index as optional. It also documents the loose _is_github_hostname risk honestly, although the repository shell failure prevented independent validation of every claimed original symbol and line location."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 19,
+        "total": 78,
+        "notes": "The plan supplies strong input/output tables, concrete API oracles, compatibility checks, edit preservation, SSRF behavior, and separate dashboard and semantic-modal walkthroughs. The unit command and cases closely exercise the submitted derive_repository_url implementation, including raw hosts, enterprise hosts, credentials, schemes, and query removal. It omits the critical GitHub-to-non-GitHub reparse case, tolerates null semantic results for old index documents, and its shell assertion ends with echo FAIL so a failed comparison still returns success. Several integration examples depend on live external URLs, and the exact search route, compose service names, token-file shape, and commands could not be independently confirmed because repository commands were unavailable."
+      },
+      "implementation": {
+        "completeness": 18,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 74,
+        "notes": "The patch implements most of the design end to end: URL derivation, parse response plumbing, both list mappings, search metadata and result plumbing, frontend types, edit preservation, auto-fill, two modal links, and substantial helper tests. The diff contexts and symbols are internally consistent across url_utils.py, skill_service.py, skill_routes.py, search_repository.py, Dashboard.tsx, and the modal components. The largest functional defect is data.repository_url || prev.repository_url, which can silently submit a stale GitHub repository after the user reparses a non-GitHub skill; additionally, existing search documents do not expose already-stored repository URLs until an admitted but merely optional re-index. The helper also retains the acknowledged loose GitHub-host heuristic and does not guarantee its documented never-raise contract for every malformed URL, while git apply --check and independent source validation could not be run because the managed shell failed before executing commands."
+      }
+    },
+    "task_score": 81.2,
+    "verdict": "This is strong, repository-specific work with broad end-to-end coverage, but stale form data and the unrequired semantic-search re-index leave material correctness gaps.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-28T08:41:02.474042Z",
+      "repo_ref": "v1.0.19",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 194610,
+        "cached_input_tokens": 130160,
+        "cache_write_input_tokens": 43842,
+        "output_tokens": 8395,
+        "reasoning_output_tokens": 6881
+      },
+      "duration_ms": 110852
+    }
+  }
+}

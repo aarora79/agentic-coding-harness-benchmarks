@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 66,
+      "notes": "The issue provides unusually concrete acceptance criteria, non-goals, status semantics, storage behavior, and deployment requirements. Its central framing is deficient: it acknowledges that access and refresh tokens are already absent from the cookie, yet leaves the potentially large id_token and groups in place while claiming the cookie becomes bounded. The repository's published fix instead stores username, groups, and encrypted id_token server-side and leaves only a signed session identifier in the cookie.  No independent task statement establishes that exposing IdP refresh tokens through the UI was required, so that major requirement remains artifact-inferred."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 65,
+      "notes": "The LLD is highly specific about real-looking integration points such as oauth2_callback, repository factories, Fernet utilities, TTL indexes, deployment surfaces, and file-backend degradation. Its load-bearing architectural decision is nevertheless wrong for the stated cookie-size objective: validate_session_cookie remains cookie-only and the cookie retains both groups and id_token, so the claimed 0.9–2.6 KB budget is unsupported. The repository's eventual implementation moved the complete OAuth session payload server-side, confirming that token-only storage did not address the full failure mode.  The local shell could not be initialized, so the document's precise baseline line numbers and every named symbol could not be independently verified."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 11,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 65,
+      "notes": "The review identifies concrete defects including repeated PBKDF2 work, login-path storage failures, wrong-owner lookups, raw-reference logging, expiry lag, and cookie-only authorization. Its largest omission is that none of the five reviewers challenges retaining groups and id_token in the cookie, and the SMTS reviewer incorrectly concludes that the design solves the size problem. Several accepted risks are also underweighted, notably blocking database connection time during best-effort login storage and undecryptable records after key rotation. Claims about repository conventions and exact existing behavior could not all be verified locally because command execution failed before accessing the worktree."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 65,
+      "notes": "The plan covers unit, HTTP, expiry, revocation, compatibility, deployment, multi-user, and operational checks with mostly concrete expected statuses and database queries. Important oracles are invalid: deleting a document does not simulate a pre-upgrade cookie, and merely proving that users A and B receive distinct identities would pass even if username scoping were absent. The container cookie-decoding snippets read SESSION from the container environment without passing it through docker compose exec, while several degradation scenarios assert retrieval status without actually testing a new login. No automated callback, auth-server endpoint, registry proxy, logout, or cookie-size regression tests are included in the patch."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 20,
+      "risk_awareness": 13,
+      "total": 52,
+      "notes": "The diff concretely implements encrypted token documents, owner-scoped and expiry-scoped repository operations, retrieval and deletion endpoints, a registry proxy, configuration wiring, and focused repository/encryption tests. It does not implement the core bounded-cookie design because oauth2_callback still serializes groups and id_token, and the admitted absence of frontend wiring means the stated Get JWT Token user outcome is not delivered end to end. Additional defects include Helm's default true expression overriding an explicitly false oauthTokenStoreEnabled value, returning 200 when refresh-token or id-token decryption fails, and incrementing a revocation-success metric even when deletion failed or no repository existed. The supplied diff contexts are plausible, but git apply --check and baseline symbol compatibility could not be independently executed because the local read-only shell failed to initialize."
+    }
+  },
+  "task_score": 62.6,
+  "verdict": "The submission is detailed and security-conscious, but it builds a secondary token-retrieval store while leaving the dominant session-cookie payload server-side migration—and therefore the original size guarantee—incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T09:01:16.030788Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 392165,
+      "cached_input_tokens": 297363,
+      "cache_write_input_tokens": 68249,
+      "output_tokens": 11858,
+      "reasoning_output_tokens": 9450
+    },
+    "duration_ms": 141675
+  }
+}
