@@ -20,8 +20,6 @@ Total spend for the three runs: **$152.50**.
 
 ## By complexity tier
 
-![Score by task and artifact profile, per complexity tier](images/complexity-claude-opus-5-pi-swe3-mcp-gateway-registry-v2.png)
-
 | Tier | haiku-4-5 | sonnet-5 | opus-5 | Spread | opus $/task |
 |---|---:|---:|---:|---:|---:|
 | low | 63.20 | 74.92 | **82.32** | 19.12 | $3.41 |
@@ -32,6 +30,20 @@ Every model scores worst on the high tier, so the difficulty labels are doing re
 
 - **The spread between models is flat across tiers** (19.1 / 18.9 / 21.0). Models do *not* converge on easy work -- see [model-selection-by-complexity.md](model-selection-by-complexity.md), where this is the central finding.
 - **Only opus is monotonic** (82.3 → 78.2 → 73.5). Sonnet scores marginally higher on medium than low, because of `build-docker-images-from-uv-lock` (below).
+
+Per model -- per-task scores banded by tier on the left, mean score per judged artifact on the right. Read the right-hand panels against each other: the three tier lines sit close together through the design stages in every case, and separate at implementation by an amount that shrinks as the model gets stronger -- 39 points low-to-high for haiku, 18 for sonnet, 15 for opus.
+
+**claude-haiku-4-5** -- implementation splits 62 / 55 / 23 by tier, a 39-point collapse and the widest of the three.
+
+![claude-haiku-4-5 by task complexity](images/complexity-claude-haiku-4-5-pi-swe3-mcp-gateway-registry-v2.png)
+
+**claude-sonnet-5** -- the same shape, less than half the collapse: implementation 72 / 70 / 54.
+
+![claude-sonnet-5 by task complexity](images/complexity-claude-sonnet-5-pi-swe3-mcp-gateway-registry-v2.png)
+
+**claude-opus-5** -- the flattest profile, implementation 78 / 70 / 63. The one visible dip is `configurable-mcp-proxy-upstream-timeout` pulling the medium line down.
+
+![claude-opus-5 by task complexity](images/complexity-claude-opus-5-pi-swe3-mcp-gateway-registry-v2.png)
 
 ## Per-task scores, all three models
 
