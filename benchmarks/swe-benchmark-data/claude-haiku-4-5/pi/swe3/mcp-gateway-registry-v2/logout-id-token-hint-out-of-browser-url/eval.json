@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 71,
+      "notes": "The issue clearly defines the WAF and disclosure problems, supplies measurable size-based acceptance criteria, and states useful non-goals. Its proposed flow does not satisfy the central browser-exposure criterion because the design still redirects the browser to the IdP with the recovered id_token_hint. It also requires insecure query-string fallback, so several absolute claims that the token no longer appears in browser history or access logs are overstated. No independent task statement was supplied, and the claimed relationship to issue #1503 could not be independently verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 20,
+      "risk_awareness": 10,
+      "total": 54,
+      "notes": "The LLD is unusually concrete about registry/auth-server integration, request models, cache behavior, configuration, and the two named source files. Its sequence diagram explicitly shows the auth server returning a browser redirect to the IdP after recovering the token, meaning the token remains in a browser-facing Location URL and the primary security goal is not achieved. It also says the call uses the internal auth_server_url but its implementation uses auth_server_external_url, while a per-process cache cannot reliably bridge a registry-originated prepare request and a separately load-balanced browser request. The document acknowledges unauthenticated access and multi-instance storage but incorrectly treats syntactic JWT validation and presumed network placement as sufficient mitigations."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 49,
+      "notes": "The review identifies concrete concerns around the unauthenticated prepare endpoint, bounded cache, mixed-version deployment, and per-instance state. Its largest error is declaring the access-control issue fixed by JWT-format validation, which is not authentication and does not prevent attackers from submitting well-formed synthetic JWTs. The SRE conclusion that stickiness makes the cache safe is unsupported because the prepare request originates from the registry while the retrieval request originates from the browser, and the review misses that the subsequent IdP redirect still exposes id_token_hint. The final unanimous approval therefore contradicts the unresolved security and scaling findings documented earlier in the review."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 53,
+      "notes": "The plan covers happy paths, expiry, fallback, large tokens, mixed versions, configuration, and multi-instance behavior with many concrete commands and expected values. It never inspects the IdP redirect Location for id_token_hint, so it would miss the primary regression, and its new-registry/old-server test merely calls a nonexistent endpoint without exercising logout_handler. Several proposed oracles are invalid: a nonexistent key cannot prove malformed input was not cached, curl output cannot be grepped for server logs, and the cache-eviction examples use malformed placeholder JWTs that validation should reject. The asserted test directories, deployment values, and final uv pytest command could not be independently verified because repository shell inspection was unavailable."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 7,
+      "total": 41,
+      "notes": "The patch connects both named handlers and implements a bounded TTL cache, prepare endpoint, retrieval parameter, and legacy fallback rather than stopping at one side of the flow. It fundamentally shifts rather than removes exposure: oauth2_logout restores id_token_hint before the existing IdP redirect, so the browser still receives a token-bearing URL. The registry POST also uses auth_external_url despite the design's internal-call requirement, and the unauthenticated per-process cache is replayable, not provider-bound, not consumed after retrieval, and unreliable across replicas. The summary incorrectly claims complete goal satisfaction and no deviations; git apply --check and independent import/symbol verification could not be performed because the local command sandbox failed to initialize."
+    }
+  },
+  "task_score": 53.6,
+  "verdict": "The submission is detailed and concrete but is built around an architecture that merely relocates the token to a later browser redirect, leaving the principal exposure and multi-instance reliability problems unresolved.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T14:47:07.416180Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 165217,
+      "cached_input_tokens": 99233,
+      "cache_write_input_tokens": 33487,
+      "output_tokens": 9993,
+      "reasoning_output_tokens": 8597
+    },
+    "duration_ms": 238435
+  }
+}

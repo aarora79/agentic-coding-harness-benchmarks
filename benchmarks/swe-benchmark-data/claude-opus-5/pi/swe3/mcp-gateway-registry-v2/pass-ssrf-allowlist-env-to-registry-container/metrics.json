@@ -1,0 +1,151 @@
+{
+  "task": "pass-ssrf-allowlist-env-to-registry-container",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "docker",
+    "compose",
+    "configuration",
+    "ssrf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 78.6,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 62,
+    "output_tokens": 41236,
+    "cache_read_tokens": 1975226,
+    "cache_write_tokens": 87596,
+    "total_tokens": 2104120,
+    "total_cost_usd": 2.5662979999999997,
+    "latency_seconds": 524.3,
+    "num_turns": 31,
+    "generation_tokens_per_sec": 78.6,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 62,
+  "output_tokens": 41236,
+  "latency_seconds": 524.3,
+  "num_turns": 31,
+  "total_cost_usd": 2.5662979999999997,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1975226,
+  "cache_creation_tokens": 87596,
+  "run_started_at": "2026-08-28T15:59:50.099668Z",
+  "run_ended_at": "2026-08-28T16:08:34.416584Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 62,
+    "output_tokens": 41236,
+    "cache_read_tokens": 1975226,
+    "cache_write_tokens": 87596,
+    "total_tokens": 2104120,
+    "total_cost_usd": 2.5662979999999997,
+    "latency_seconds": 524.3,
+    "num_turns": 31,
+    "generation_tokens_per_sec": 78.6,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "pass-ssrf-allowlist-env-to-registry-container",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 90,
+        "notes": "The issue clearly identifies the two affected compose files, the desired passthrough syntax, testable acceptance criteria, and narrowly bounded non-goals. Its diagnosis is consistent with the submitted diff contexts around `REGISTRY_CONTACT_URL` and with the repository's documented prebuilt deployment path. ([github.com](https://github.com/agentic-community/mcp-gateway-registry)) The largest limitation is that secondary claims such as the exact 405 consequence and every cited line number are not necessary to establish the bug and could not all be independently confirmed. No independent task statement was supplied, so requirement coverage beyond the task identifier and repository evidence remains unverifiable."
+      },
+      "lld": {
+        "completeness": 24,
+        "correctness": 19,
+        "specificity": 23,
+        "risk_awareness": 23,
+        "total": 89,
+        "notes": "The design thoroughly traces the configuration from compose interpolation through `Settings` and `_proxy_allowlist()`, and it addresses defaults, restart behavior, rollout, rollback, security, and deployment surfaces. Its most important defect is internal: the proposed `_is_registry_service()` immediately rejects any name other than `registry`, contradicting the claim that renamed services are detected structurally. The planned insertion anchors match the submitted source hunks in both affected compose files, and the `${VAR:-}` choice preserves the documented empty default. The local repository shell was unavailable for a baseline-wide line-number and symbol audit, leaving some detailed citations and the asserted baseline commit unverified."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 23,
+        "total": 85,
+        "notes": "The review raises concrete issues about vacuous tests, mapping-form environments, metadata protection, restart semantics, and residual cross-compose drift rather than merely approving the design. Its largest flaw is declaring the renamed-service concern resolved even though the revised LLD's helper still contains `if name != \"registry\": return False`. The implementation later corrects that particular inconsistency by removing the early name gate, but that does not make the review's resolution claim accurate. Several operational claims are well reasoned but could not be independently validated against the inaccessible local checkout."
+      },
+      "testing": {
+        "completeness": 22,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 79,
+        "notes": "The plan provides strong behavioral oracles for exact compose entries, unset-variable behavior, container `printenv`, private-target blocking, metadata rejection, and the blocked-to-healthy transition. It incorrectly calls the invariant run three tests while listing four parametrized cases plus the non-vacuity test, and its global non-vacuity assertion does not prove every newly added registry compose service was detected. The `.env` append commands can create duplicate assignments, while the rollback fallback `git reset --hard HEAD` could destroy unrelated working-tree changes. Commands and named test paths were not executed, so their existence and selection behavior remain partly unverified."
+      },
+      "implementation": {
+        "completeness": 21,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 83,
+        "notes": "The patch implements the core change directly by adding both empty-default passthroughs to the submitted podman and prebuilt compose contexts, without altering application semantics. The added test is concrete and checks current registry services, but its automatic-future-coverage claim is overstated: a new service named `registry` with no environment block and an unrecognized image or Dockerfile would be skipped while the global non-vacuity guard still passes. The summary accurately discloses the lack of Python changes and the broader parity work left out, and the diff is internally consistent with the LLD apart from its documented, beneficial detection change. A local `git apply --check` could not be completed because the repository shell sandbox failed, so clean application and the claimed reverse-check result remain unverified."
+      }
+    },
+    "task_score": 85.2,
+    "verdict": "This is a strong, implementation-ready submission whose largest material limitation is that the regression test and review overstate guaranteed detection of future registry compose variants.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-28T17:03:32.458365Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 137246,
+        "cached_input_tokens": 69913,
+        "cache_write_input_tokens": 35301,
+        "output_tokens": 8085,
+        "reasoning_output_tokens": 6734
+      },
+      "duration_ms": 121595
+    }
+  }
+}

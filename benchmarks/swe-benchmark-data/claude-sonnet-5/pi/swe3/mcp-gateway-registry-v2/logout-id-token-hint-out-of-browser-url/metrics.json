@@ -1,0 +1,152 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "low",
+  "tags": [
+    "auth",
+    "oidc",
+    "logout",
+    "security",
+    "waf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "model_slug": "claude-sonnet-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 89.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 122,
+    "output_tokens": 59249,
+    "cache_read_tokens": 4860977,
+    "cache_write_tokens": 112040,
+    "total_tokens": 5032388,
+    "total_cost_usd": 1.8450293999999996,
+    "latency_seconds": 665.7,
+    "num_turns": 61,
+    "generation_tokens_per_sec": 89.0,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 122,
+  "output_tokens": 59249,
+  "latency_seconds": 665.7,
+  "num_turns": 61,
+  "total_cost_usd": 1.8450293999999996,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 4860977,
+  "cache_creation_tokens": 112040,
+  "run_started_at": "2026-08-28T15:18:38.224566Z",
+  "run_ended_at": "2026-08-28T15:29:43.911006Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 122,
+    "output_tokens": 59249,
+    "cache_read_tokens": 4860977,
+    "cache_write_tokens": 112040,
+    "total_tokens": 5032388,
+    "total_cost_usd": 1.8450293999999996,
+    "latency_seconds": 665.7,
+    "num_turns": 61,
+    "generation_tokens_per_sec": 89.0,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "logout-id-token-hint-out-of-browser-url",
+    "model": "us.anthropic.claude-sonnet-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 19,
+        "correctness": 13,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 72,
+        "notes": "The issue clearly identifies `registry/auth/routes.py::logout_handler`, defines testable redirect behavior, and supplies scope, non-goals, dependencies, and operational motivation. Its largest defect is the claim that ticket expiration, resolution failure, or an old auth server can fall back to the original raw-token behavior: once the registry sends only `id_token_hint_ref`, the auth server has no token available for that fallback. The acceptance criteria also conflict because one unconditionally forbids a raw token in the registry redirect while another explicitly requires restoring it during degradation, and the proposed implementation does not provide the requested resolution-failure counter. No independent task statement was supplied, and claims about token sizes and deployment behavior could not be established from that missing evidence."
+      },
+      "lld": {
+        "completeness": 19,
+        "correctness": 13,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 70,
+        "notes": "The LLD is unusually concrete about integration points, naming `logout_handler`, `oauth2_logout`, both session-store modules, collection fields, indexes, configuration, counters, and provider-specific flow. Its central compatibility conclusion is unsound: a new registry sends no literal hint, so an old auth server or a failed ticket lookup silently omits IdP logout rather than reverting to legacy behavior. The proposed collection helper also caches the collection after an index-creation failure and consequently never retries, undermining the TTL guarantee, while the TTL setting accepts zero or negative values without validation. The assertion that all deployment surfaces upgrade both processes atomically is not demonstrated merely by sharing a repository or tag, and published repository material describes registry and auth-server as distinct services and images. "
+      },
+      "review": {
+        "completeness": 20,
+        "correctness": 15,
+        "specificity": 21,
+        "risk_awareness": 20,
+        "total": 76,
+        "notes": "The review's strongest contribution is repeatedly identifying the mixed-version SSO logout regression, its security consequence, the missing auth-server signal, and the collection-caching inconsistency. Its largest deficiency is that the final resolution dismisses the blocking rollout defect using an unsupported inference that one repository and release tag imply an atomic deployment. Byte, Circuit, and Cipher correctly explain that an old auth server ignores `id_token_hint_ref`, but the resolution never introduces a protocol-level mitigation or enforceable deployment guard. It also misses the failed-index retry problem, invalid TTL values, and the absence of provider or session binding on a ticket."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 13,
+        "specificity": 18,
+        "risk_awareness": 17,
+        "total": 65,
+        "notes": "The plan provides meaningful positive and negative oracles for the two redirects, legacy parameters, malformed tokens, ticket replay, store outages, metrics, and staging WAF logs. Its largest contradiction is claiming every fallback preserves pre-change behavior while its mixed-version test explicitly expects the IdP redirect to lose `id_token_hint`, leaving the IdP session intact. Several commands are not directly executable evidence: cookie acquisition contains an ellipsis, the E2E test uses the invented `/api/some-protected-endpoint`, and the old-server test is only pseudocode rather than a defined compatibility harness. It omits concurrent consumption, decrypt failure, invalid TTL, index-creation failure and retry, both-parameter precedence, and comprehensive provider-branch coverage; the asserted test-directory and dependency conventions could not be mechanically verified."
+      },
+      "implementation": {
+        "completeness": 15,
+        "correctness": 13,
+        "specificity": 19,
+        "risk_awareness": 13,
+        "total": 60,
+        "notes": "The patch implements the steady-state ticket path end to end, including encrypted persistence, atomic `find_one_and_delete`, endpoint plumbing, settings, environment documentation, and registry-side counters. Its largest defect is the summary's false claim that resolution failure or an old auth server falls back to raw-token behavior: `routes.py` sends only the reference after successful creation, while `server.py` can fall back only to a separately supplied literal hint. The code also permanently suppresses index retries after caching the collection, permits invalid TTL configuration, lacks an auth-server resolution-failure metric, and includes none of the planned regression tests. The submitted hunk context is internally consistent with the named symbols, but the local sandbox prevented an independent `git apply --check` or source-tree verification, so the claimed baseline applicability remains unverified."
+      }
+    },
+    "task_score": 68.6,
+    "verdict": "The submission offers a detailed and plausible steady-state design, but its unsupported atomic-rollout assumption and impossible resolution-failure fallback leave a material SSO logout regression, compounded by missing implementation tests.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-28T15:36:01.949774Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 219326,
+        "cached_input_tokens": 146673,
+        "cache_write_input_tokens": 41745,
+        "output_tokens": 9397,
+        "reasoning_output_tokens": 7805
+      },
+      "duration_ms": 138990
+    }
+  }
+}
