@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 64,
+      "notes": "The issue clearly identifies both requested behaviors and covers API, CLI, UI, compatibility, infrastructure, and explicit non-goals. Its largest deficiency is that load-bearing acceptance criteria remain unresolved choices: “403 with rate-limit headers or different status” and unspecified fail-open/closed behavior are not testable outcomes, while admin behavior does not resolve caller quarantine. It anchors enforcement at `auth_server/server.py` and names the existing rate-limit storage, but the later patch implements neither CLI nor UI support and does not create two reserved groups as promised. No independent task statement was supplied, so the asserted relationship to issue #1504 and the exact current two-axis behavior could not be independently established from the submission."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 12,
+      "total": 49,
+      "notes": "The strongest aspect is its concrete map of `models.py`, `limiter.py`, repositories, routes, startup, data shapes, and committed composite-key and admin-bypass decisions. The central design is unsound: `RateLimitMembership` is subject-centric, so an empty target quarantine group cannot be seeded, and the implementation’s `seed_quarantine_groups()` consequently does nothing. The LLD also introduces `RATE_LIMIT_QUARANTINE_ENABLED` despite the issue requiring no new deployment configuration, promises immediate enforcement while describing cached eventual consistency of roughly one minute, and provides no implementable CLI or UI design. Claims about existing timeouts, caches, metrics, indexes, deployment manifests, and traffic volume were unsupported by the supplied repository evidence."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 8,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 49,
+      "notes": "The review usefully raises composite-key collisions, auditability, disabling quarantine, query performance, concurrent seeding, observability, and UI gaps. Its largest defect is that it repeatedly calls admin bypass and composite escaping absent or open even though the reviewed LLD already marks both decisions final and supplies helper code and examples. It also misses more consequential flaws visible in the design and patch: impossible empty-group seeding, discarded target entity types, old CRUD bypasses, absent CLI/UI work, and the conflict between immediate quarantine and caching. Several approvals rely on unverified assertions about React components, DocumentDB behavior, configuration tooling, and existing API conventions."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 5,
+      "specificity": 13,
+      "risk_awareness": 12,
+      "total": 44,
+      "notes": "The plan covers independent pairs, escaping, quarantine precedence, admin behavior, compatibility, startup, and incident-response workflows with generally concrete expected statuses and counts. Its main flaw is repository incompatibility: it exercises `/validate?caller=...&target=...` even though its own LLD says identity comes from a validated token and the target is classified by the auth server, so these calls do not demonstrate the real enforcement path. It also tests an unimplemented `RATE_LIMIT_QUARANTINE_ENABLED` setting, expects seeded membership documents from a no-op seed method, and expects 403 semantics that the patch never wires into the HTTP response layer. Store-failure behavior, bypass through existing CRUD endpoints, CLI behavior, and actual UI behavior receive no executable coverage, while many commands contain unauthenticated calls or literal `...` placeholders."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 2,
+      "specificity": 8,
+      "risk_awareness": 4,
+      "total": 19,
+      "notes": "The patch implements fragments of the model, limiter, repositories, and HTTP API, but it does not deliver the design end to end. Concretely, `seed_quarantine_groups()` only logs, target quarantine discards the requested `entity_type`, `list_caller_target_limits()` ignores two of its three lookup arguments, old CRUD deletion guards are absent, and no CLI, UI, settings, metrics, tests, or removal helper are added. The unquarantine-target route deletes its supplied path directly even though the documented client path differs from the stored `target:quarantine:<name>:86400` ID, and caller lookup conflates user and client identities with equal strings. The summary falsely claims completeness, roughly 2,000 changed lines, environment-variable support, metrics, and clean applicability; the displayed diff contains fabricated non-hex index identifiers, and shell sandbox failure prevented an independent `git apply --check` dry run."
+    }
+  },
+  "task_score": 45.0,
+  "verdict": "The artifacts identify the right feature area, but contradictory and unsupported design details culminate in a materially incomplete, internally broken patch that is not safe to merge.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-27T17:58:30.743201Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 234713,
+      "cached_input_tokens": 169047,
+      "cache_write_input_tokens": 45569,
+      "output_tokens": 9977,
+      "reasoning_output_tokens": 8148
+    },
+    "duration_ms": 504295
+  }
+}

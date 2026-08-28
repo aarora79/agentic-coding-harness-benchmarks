@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 82,
+      "notes": "The strongest aspect is the crisp problem statement, explicit exclusions, and acceptance criteria covering refresh, compatibility, secrets, deployment, documentation, and re-indexing. The submitted diff context supports the central claim that `LiteLLMClient` currently relies on a static `api_key`. The largest gap is that “IdP mode selected” is never precisely defined, leaving partial configuration and static-key precedence ambiguous. No independent task statement establishes Issue #1415, the claimed token lifetime, or the complete required scope, so those remain unverifiable."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 56,
+      "notes": "The design is concrete about the token lifecycle, locking, `LiteLLMClient.encode()`, configuration fields, and expected file changes. Its largest defect is internal inconsistency: it promises startup failure but repeatedly chooses warnings and first-call failure, while the implementation only creates the provider when configuration is already complete. It names `AppConfig`, although the patch context shows the real class is `Settings`, and its Helm location conflicts with the repository’s documented `charts/mcp-gateway-registry-stack` structure.  The exact behavior of the claimed `FederationAuthManager` template could not be independently checked because local read-only shell initialization failed."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 20,
+      "total": 67,
+      "notes": "The review’s strongest contribution is identifying concrete concerns around 401 invalidation, concurrent refresh, secret exposure, deployment ambiguity, endpoint validation, and import structure. Its core resolution is weak: mutating process-global provider environment variables around each call is concurrency-unsafe, and inserting `Bearer ` into an API-key variable risks incorrect authorization; LiteLLM’s official embedding material supports supplying an API key directly.  It also misses the design’s fail-fast contradiction and the factory’s silent handling of partial IdP configuration. The final assertion that no regressions exist is unsupported because no implementation or tests had yet verified that conclusion."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 15,
+      "total": 55,
+      "notes": "The plan’s strongest aspect is its breadth across caching, expiry, token errors, concurrent refresh, backward compatibility, deployment, and end-to-end flow. Several central tests lack real oracles: bearer injection and static-key tests merely assert that the embedding mock was called, while semantic search is a `pass` placeholder and the end-to-end test never verifies the credential used. The configuration tests import `AppConfig` despite the patch modifying `Settings`, and the proposed Helm paths disagree with the repository’s documented chart layout.  It also omits tests for concurrent `encode()` environment mutation, environment restoration, double-Bearer behavior, unsupported providers, secret-free logs, and retry-only-once semantics."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 7,
+      "total": 36,
+      "notes": "The patch does implement a token cache, client-credentials request, expiry buffer, factory integration, and one-retry path around the existing `LiteLLMClient` symbols shown in its diff context. Its largest correctness risks are placing `Bearer {token}` into API-key environment variables and mutating those process-global variables without a lock while embedding calls may run concurrently. Partial IdP configuration is silently ignored rather than failing at startup, and the patch omits required tests, deployment surfaces, documentation, re-index guidance, and actual UI masking while the summary misleadingly claims no design deviations. Patch applicability could not be independently dry-run because the provided local shell failed during sandbox initialization, so exact index/context compatibility remains an evidence gap."
+    }
+  },
+  "task_score": 59.2,
+  "verdict": "The submission frames the problem well and offers a substantive review and test outline, but the implementation is incomplete and its process-global bearer injection is technically unsafe and likely incorrect.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-27T17:32:49.450803Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 358713,
+      "cached_input_tokens": 246194,
+      "cache_write_input_tokens": 50331,
+      "output_tokens": 14520,
+      "reasoning_output_tokens": 12648
+    },
+    "duration_ms": 767965
+  }
+}
