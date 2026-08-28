@@ -75,7 +75,9 @@ HARNESS_LABELS = {
 }
 
 # Complexity tiers, in order. The order is the encoding -- do not sort these.
-TIERS = ("low", "medium", "high")
+# "trivial" was added after the first three-model run; a tier with no tasks is
+# dropped at render time, so this list stays valid for older datasets.
+TIERS = ("trivial", "low", "medium", "high")
 
 # The five judged artifacts, in the order the skill produces them, so the profile
 # panel reads left-to-right as the task actually progressed: specify, design,
@@ -86,22 +88,24 @@ ARTIFACT_LABELS = ("Issue spec", "LLD", "Review", "Testing", "Implementation")
 # Ordinal ramp (dataviz reference palette, blue). Validated with
 # `validate_palette.js --ordinal` in both modes: monotone lightness, adjacent
 # delta-L >= 0.06, single hue, and the step nearest the surface clearing 2:1
-# (light end 2.06:1 on light, 2.63:1 on dark). Marks carry the tier; text wears
-# ink tokens only.
+# (light end 2.06:1 on light, 2.63:1 on dark). Re-validated at 4 steps when the
+# trivial tier was added -- the 3-step light ramp's top step had to darken from
+# #b7d3f6 (1.50:1, FAIL) to #86b6ef. Marks carry the tier; text wears ink tokens
+# only.
 _THEME = {
     "light": {
         "surface": "#fcfcfb",
         "ink": "#0b0b0b",
         "muted": "#52514e",
         "grid": "#e6e5e2",
-        "tiers": ("#86b6ef", "#2a78d6", "#104281"),
+        "tiers": ("#86b6ef", "#3987e5", "#1c5cab", "#0d366b"),
     },
     "dark": {
         "surface": "#1a1a19",
         "ink": "#ffffff",
         "muted": "#c3c2b7",
         "grid": "#333330",
-        "tiers": ("#b7d3f6", "#5598e7", "#1c5cab"),
+        "tiers": ("#cde2fb", "#9ec5f4", "#5598e7", "#1c5cab"),
     },
 }
 

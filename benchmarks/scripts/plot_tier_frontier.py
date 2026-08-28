@@ -55,7 +55,7 @@ HARNESS_LABELS = {
     "kiro-cli": "Kiro CLI",
 }
 
-TIERS = ("low", "medium", "high")
+TIERS = ("trivial", "low", "medium", "high")
 # Marker per model, assigned in the order the models are given (ascending cost),
 # so identity is carried by shape as well as position.
 MARKERS = ("o", "s", "^", "D", "v")
@@ -64,20 +64,21 @@ LABEL_PREFIX_TO_DROP = "claude-"
 
 # Same validated ordinal ramp as plot_complexity_breakdown.py -- the two charts
 # describe the same tiers and must not disagree about which blue means "high".
+# 4 steps since the trivial tier was added; re-validated in both modes.
 _THEME = {
     "light": {
         "surface": "#fcfcfb",
         "ink": "#0b0b0b",
         "muted": "#52514e",
         "grid": "#e6e5e2",
-        "tiers": ("#86b6ef", "#2a78d6", "#104281"),
+        "tiers": ("#86b6ef", "#3987e5", "#1c5cab", "#0d366b"),
     },
     "dark": {
         "surface": "#1a1a19",
         "ink": "#ffffff",
         "muted": "#c3c2b7",
         "grid": "#333330",
-        "tiers": ("#b7d3f6", "#5598e7", "#1c5cab"),
+        "tiers": ("#cde2fb", "#9ec5f4", "#5598e7", "#1c5cab"),
     },
 }
 

@@ -26,8 +26,9 @@
 #    shared one ref. The `fixed_in` tag on each task records the release the
 #    upstream fix shipped in.
 #
-# 3. The 15 tasks are balanced 5 low / 5 medium / 5 high so results can be
-#    sliced by complexity, and they span the full surface of the project:
+# 3. The 21 tasks span four complexity tiers (5 trivial / 5 low / 6 medium /
+#    5 high) so results can be sliced by complexity, and they span the full
+#    surface of the project:
 #    Python/FastAPI backend, React frontend, nginx templating, bash setup
 #    scripts, Docker/Compose, Terraform, Helm, and the CLI.
 #
@@ -69,6 +70,13 @@ metrics:
   - num_turns             # LLM calls (turns) the agent made to complete the task
 
 complexity_levels:
+  # "trivial" sits below "low": a change a competent engineer makes without
+  # designing anything -- a docs page, a render condition, two env passthroughs,
+  # a version check. It exists to test whether the gap between models closes
+  # when the work is small enough. On low/medium/high the opus-haiku gap is a
+  # flat 19-21 points, so this tier is where convergence would show up if it
+  # happens at all.
+  - trivial
   - low
   - medium
   - high
@@ -120,10 +128,15 @@ tasks:
         - Adds or updates a test asserting the checkbox starts unchecked.
       reference_url: https://github.com/agentic-community/mcp-gateway-registry/pull/921
 
+  # Re-tiered low -> medium after the first three-model run: haiku, sonnet and
+  # opus all scored it worst-in-tier at low, and in every case the collapse was
+  # the implementation artifact (25 / 31 / 58) while the design artifacts held.
+  # Three independent models failing the same way is a mislabel, not variance --
+  # the task touches two Dockerfiles, the lockfile flow and the build caching.
   - id: build-docker-images-from-uv-lock
     repo: https://github.com/agentic-community/mcp-gateway-registry
     ref: "1.23.0"
-    complexity: low
+    complexity: medium
     tags: [docker, build, uv, dependencies, reproducibility, ci, fixed-in-1.24.0]
     problem_statement: |
       Docker builds do not use the repository's uv lockfiles. docker/Dockerfile.auth
@@ -870,3 +883,246 @@ tasks:
         - Keeps every new setting unset by default so sentence-transformers, static-key LiteLLM, and Bedrock IAM paths are unchanged.
         - Never logs the client secret, masks it in the config UI, validates required settings at startup, and wires the parameters through Docker, Terraform/ECS, Helm, and the parameter reference.
       reference_url: https://github.com/agentic-community/mcp-gateway-registry/pull/1611
+
+  # ---------------------------------------------------------------------------
+  # TRIVIAL (5)
+  #
+  # Added after the first three-model run. Every one is a real closed issue whose
+  # shipped fix is small and self-contained (the largest is one file); tasks whose
+  # merged PR bundled unrelated work were rejected during selection, because
+  # ground_truth then describes more than the issue asks.
+  # ---------------------------------------------------------------------------
+
+  - id: index-demo-videos-in-one-page
+    repo: https://github.com/agentic-community/mcp-gateway-registry
+    ref: "1.24.3"
+    complexity: trivial
+    tags: [docs, markdown, readme, discoverability, fixed-in-1.24.4]
+    problem_statement: |
+      Demo videos for this project are scattered across the README and a dozen
+      individual files under docs/ -- GitHub user-attachment mp4 recordings, a
+      YouTube link, and several Vidcast shares. A visitor who wants to watch a
+      demo has nowhere single to look, and the same video is sometimes linked
+      from two places while others are linked from only one deep page.
+
+      Create a single docs/demo-videos.md that indexes every demo video in the
+      repository in one place, grouped so a reader can find the one they want,
+      and add a prominent link to it from the README. Find the existing video
+      links yourself by scanning the markdown files rather than assuming a list;
+      the point of the page is that it is complete. This is a documentation-only
+      change -- no code, build system, or tests are involved.
+    problem_issue_url: https://github.com/agentic-community/mcp-gateway-registry/issues/1190
+    clarifying_answers: |
+      1. Demo videos are spread across the README and many docs/ pages with no
+         single index, so most of them are effectively undiscoverable.
+      2. New visitors evaluating the project, and existing users looking for a
+         specific walkthrough.
+      3. Markdown only. No deadline.
+      4. Trivial - one new documentation page plus a README link.
+    ground_truth:
+      approach: >-
+        Add a single docs/demo-videos.md listing every demo video found in the
+        repository, grouped by topic, and replace the README's scattered
+        references with one prominent link to that page.
+      expectations:
+        - Scans the markdown tree for existing video links rather than inventing a list.
+        - Creates docs/demo-videos.md as the single index.
+        - Adds a link from README.md pointing at the new page.
+        - Changes no code, and does not break the existing deep links.
+      reference_url: https://github.com/agentic-community/mcp-gateway-registry/pull/1196
+
+  - id: hide-register-button-on-virtual-and-skills-tabs
+    repo: https://github.com/agentic-community/mcp-gateway-registry
+    ref: "v1.0.18"
+    complexity: trivial
+    tags: [ui, react, dashboard, ux, fixed-in-v1.0.19]
+    problem_statement: |
+      In the dashboard, the header "Register" button stays visible when the user
+      is on the Virtual MCP Servers tab or the Agent Skills tab. Both of those
+      tabs already have their own action button ("Add Virtual Server" and "Add
+      Skill"), so the user sees two competing "add" buttons, and the Register one
+      leads to the server/agent registration form that does not apply to the tab
+      they are looking at.
+
+      Make the Register button appear only on the tabs it is relevant to. Find
+      the render condition that currently controls it and narrow it, keeping the
+      button on the tabs where registration IS the right action. Do not remove
+      the button or the registration flow.
+    problem_issue_url: https://github.com/agentic-community/mcp-gateway-registry/issues/793
+    clarifying_answers: |
+      1. The Register button shows on tabs where it does not apply, competing
+         with each tab's own add button and leading to the wrong form.
+      2. Anyone using the registry dashboard.
+      3. React/TypeScript frontend. No deadline.
+      4. Trivial - narrowing one render condition.
+    ground_truth:
+      approach: >-
+        Narrow the Register button's render condition in the dashboard so it is
+        hidden on the skills and virtual tabs as well as discover, leaving it on
+        MCP Servers, Agents and External Registries.
+      expectations:
+        - Locates the render condition gating the Register button.
+        - Excludes the skills and virtual tabs without removing the button entirely.
+        - Leaves the tabs where registration applies unchanged.
+      reference_url: https://github.com/agentic-community/mcp-gateway-registry/pull/794
+
+  - id: pass-ssrf-allowlist-env-to-registry-container
+    repo: https://github.com/agentic-community/mcp-gateway-registry
+    ref: "1.27.1"
+    complexity: trivial
+    tags: [docker, compose, configuration, ssrf, fixed-in-1.28.0]
+    problem_statement: |
+      SSRF_ALLOWED_HOSTS and SSRF_ALLOWED_CIDRS are documented in .env and read
+      by the registry at runtime, but the compose files do not pass either
+      variable into the registry service's environment. On a compose deployment
+      the settings therefore have no effect: the process never sees them.
+
+      The practical consequence is that an internal upstream cannot be
+      allowlisted. Register a server reachable only by a docker-network hostname
+      and its health check reports "url blocked by SSRF guard"; setting
+      SSRF_ALLOWED_HOSTS in .env changes nothing. The only workaround is to hand-
+      edit the compose file.
+
+      Wire the two variables through to the registry service so that setting them
+      in .env takes effect. Check every compose file that starts the registry,
+      not just the default one.
+    problem_issue_url: https://github.com/agentic-community/mcp-gateway-registry/issues/1513
+    clarifying_answers: |
+      1. Two documented SSRF allowlist variables never reach the registry
+         container on compose deployments, so internal upstreams cannot be
+         allowlisted at all.
+      2. Operators running the gateway via docker compose with internal MCP
+         servers behind it.
+      3. Docker Compose YAML. No deadline.
+      4. Trivial - two environment passthroughs, applied to each compose file
+         that runs the registry.
+    ground_truth:
+      approach: >-
+        Add SSRF_ALLOWED_HOSTS and SSRF_ALLOWED_CIDRS to the registry service's
+        environment block in the compose files that start the registry, so the
+        documented .env values reach the process.
+      expectations:
+        - Finds every compose file that runs the registry, not only one.
+        - Passes both variables through, not just SSRF_ALLOWED_HOSTS.
+        - Keeps the existing default behaviour when the variables are unset.
+      reference_url: https://github.com/agentic-community/mcp-gateway-registry/pull/1515
+
+  - id: macos-setup-python-version-precheck
+    repo: https://github.com/agentic-community/mcp-gateway-registry
+    ref: "1.27.1"
+    complexity: trivial
+    tags: [bash, setup, skill, developer-experience, fixed-in-1.28.0]
+    problem_statement: |
+      The macos-setup skill's Phase 1 prerequisite check treats any python3 on
+      PATH as acceptable, but the project requires a newer minimum version
+      (see pyproject.toml). On a machine with an older interpreter, Phase 1
+      reports success and the run continues through several more phases before
+      failing at the dependency-sync step with an error that points at the sync
+      tool rather than at the unmet prerequisite.
+
+      Tighten the Phase 1 check so an interpreter below the project's minimum is
+      reported as a failure at Phase 1, with a message that names the actual
+      requirement. Take the required version from the project's own metadata
+      rather than hard-coding a guess, and keep the existing remediation guidance
+      reachable.
+    problem_issue_url: https://github.com/agentic-community/mcp-gateway-registry/issues/1568
+    clarifying_answers: |
+      1. The prerequisite check only tests that python3 exists, so an unsupported
+         interpreter fails four phases later with a misleading error.
+      2. Developers setting up the project on macOS.
+      3. Bash inside a skill markdown file. No deadline.
+      4. Trivial - tightening one prerequisite check and its message.
+    ground_truth:
+      approach: >-
+        Make the Phase 1 check verify the interpreter actually satisfies the
+        project's minimum Python version rather than merely existing, and fail
+        there with a message naming the requirement.
+      expectations:
+        - Checks the version, not just the presence of python3.
+        - Sources the required version from the project's own metadata.
+        - Fails at Phase 1 with a message that names the real prerequisite.
+      reference_url: https://github.com/agentic-community/mcp-gateway-registry/pull/1580
+
+  - id: portable-env-secret-generation-in-build-script
+    repo: https://github.com/agentic-community/mcp-gateway-registry
+    ref: "1.27.1"
+    complexity: trivial
+    tags: [bash, portability, macos, secrets, setup, fixed-in-1.28.0]
+    problem_statement: |
+      build_and_run.sh generates several required secrets into .env. On macOS and
+      other BSD userlands the generated values are silently discarded: the script
+      uses `sed -i '<expr>' .env` to strip an empty placeholder line before
+      appending the real value, but BSD sed treats the argument after -i as a
+      mandatory backup-suffix, so the command fails. The failure is hidden by
+      `2>/dev/null || true`, the empty placeholder survives, the real value is
+      appended below it, and consumers that take the first assignment read the
+      empty one.
+
+      The script logs that each secret was added while the effective value stays
+      empty, and the auth server then crash-loops on a missing secret.
+
+      Make the secret generation portable so it works on both GNU and BSD
+      userlands. Fix the pattern everywhere it appears, not just the one secret
+      whose failure is most visible, and do not let a failed edit stay silent.
+    problem_issue_url: https://github.com/agentic-community/mcp-gateway-registry/issues/1577
+    clarifying_answers: |
+      1. Non-portable `sed -i` silently no-ops on BSD/macOS, so generated .env
+         secrets stay empty and the auth server crash-loops.
+      2. Anyone running the project's build script on macOS.
+      3. Bash. Must keep working on GNU/Linux. No deadline.
+      4. Trivial - a portability fix to a repeated shell pattern.
+    ground_truth:
+      approach: >-
+        Replace the non-portable in-place sed edits in the secret-generation
+        blocks with an approach that behaves identically on GNU and BSD sed, so
+        the placeholder is removed and the generated value is the effective one.
+      expectations:
+        - Identifies BSD sed's -i backup-suffix behaviour as the cause.
+        - Fixes every affected secret block, not only the crash-visible one.
+        - Keeps the script working on GNU/Linux.
+        - Stops the edit failing silently.
+      reference_url: https://github.com/agentic-community/mcp-gateway-registry/pull/1585
+
+  - id: logout-id-token-hint-out-of-browser-url
+    repo: https://github.com/agentic-community/mcp-gateway-registry
+    ref: "1.27.1"
+    complexity: low
+    tags: [auth, oidc, logout, security, waf, fixed-in-1.28.0]
+    problem_statement: |
+      During OAuth2 logout the registry redirects the browser to the auth server
+      with the full OIDC ID token in the query string as id_token_hint. That JWT
+      is typically 1000-3000+ characters, and routing it through a browser
+      redirect has two consequences.
+
+      First, any WAF or reverse proxy in front of the deployment inspects it:
+      query-string size limits and injection rules commonly reject the request
+      with a 403 before it reaches the auth server, so logout fails -- and it
+      fails silently, because the local session has already been cleared by that
+      point. Second, the token appears in browser history and in proxy, CDN and
+      access logs, which is an information disclosure for a credential that is in
+      the middle of being revoked.
+
+      Change the logout flow so the ID token is not carried in a browser-facing
+      URL, while keeping the RP-initiated logout working against the identity
+      provider (the provider still needs the hint). Keep the change backward
+      compatible for deployments that do not have the new path available.
+    problem_issue_url: https://github.com/agentic-community/mcp-gateway-registry/issues/1503
+    clarifying_answers: |
+      1. The full ID token JWT rides in a browser redirect query string, which
+         WAFs block (silently breaking logout) and which leaks the token into
+         history and logs.
+      2. Operators running the gateway behind a WAF, and any user logging out.
+      3. Python/FastAPI backend plus the auth server. No deadline.
+      4. Low - reworking how one parameter is passed between two services.
+    ground_truth:
+      approach: >-
+        Stop putting id_token_hint in the browser-facing redirect URL; pass the
+        ID token to the auth server out of band (server-side, keyed by session)
+        so the provider still receives its logout hint without the JWT
+        traversing the browser.
+      expectations:
+        - Removes the JWT from the browser-facing query string.
+        - Still supplies id_token_hint to the identity provider's logout endpoint.
+        - Handles the case where the token is unavailable rather than failing logout.
+        - Does not leave the local session cleared while logout then fails.
+      reference_url: https://github.com/agentic-community/mcp-gateway-registry/pull/1545

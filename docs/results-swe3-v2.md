@@ -20,16 +20,16 @@ Total spend for the three runs: **$152.50**.
 
 ## By complexity tier
 
-| Tier | haiku-4-5 | sonnet-5 | opus-5 | Spread | opus $/task |
-|---|---:|---:|---:|---:|---:|
-| low | 63.20 | 74.92 | **82.32** | 19.12 | $3.41 |
-| medium | 59.28 | 76.16 | **78.20** | 18.92 | $5.32 |
-| high | 52.48 | 66.20 | **73.52** | 21.04 | $11.34 |
+| Tier | n | haiku-4-5 | sonnet-5 | opus-5 | Spread | opus $/task |
+|---|---:|---:|---:|---:|---:|---:|
+| low | 4 | 68.30 | 78.50 | **83.75** | 15.45 | $3.24 |
+| medium | 6 | 56.53 | 73.57 | **77.93** | 21.40 | $5.11 |
+| high | 5 | 52.48 | 66.20 | **73.52** | 21.04 | $11.34 |
 
-Every model scores worst on the high tier, so the difficulty labels are doing real work. Two details worth stating rather than smoothing over:
+**All three models are monotonic across tiers**, so the difficulty labels are doing real work. Two details:
 
-- **The spread between models is flat across tiers** (19.1 / 18.9 / 21.0). Models do *not* converge on easy work -- see [model-selection-by-complexity.md](model-selection-by-complexity.md), where this is the central finding.
-- **Only opus is monotonic** (82.3 → 78.2 → 73.5). Sonnet scores marginally higher on medium than low, because of `build-docker-images-from-uv-lock` (below).
+- **The spread narrows on easy work, but only somewhat**: 15.5 points on low against 21.4 and 21.0 on medium and high. Opus still beats haiku by more than fifteen points on the easiest tier, so models do not converge -- but the earlier reading of the spread as perfectly flat was an artifact of a mis-tiered task, corrected below.
+- These numbers **supersede an earlier version of this table** that read 19.1 / 18.9 / 21.0 with only opus monotonic. `build-docker-images-from-uv-lock` was labelled `low` and is now `medium`; it was the widest-spread task in the set, and holding it in the low tier both inflated low's spread and broke sonnet's ordering. See [the re-tier](#the-re-tiered-task).
 
 Per model -- per-task scores banded by tier on the left, mean score per judged artifact on the right. Read the right-hand panels against each other: the three tier lines sit close together through the design stages in every case, and separate at implementation by an amount that shrinks as the model gets stronger -- 39 points low-to-high for haiku, 18 for sonnet, 15 for opus.
 
@@ -97,17 +97,25 @@ Sonnet takes **more turns** than opus (86.7 vs 64.7) and processes **more tokens
 
 Cost is concentrated in a few high-tier tasks. Opus's two most expensive -- `lifecycle-workflow-webhooks` ($17.33, 150 turns) and `per-caller-per-target-rate-limits-and-quarantine` ($16.07, 113 turns) -- are a third of its entire bill, and either one alone costs more than haiku's complete 15-task run ($8.97).
 
-## Two anomalies worth knowing about
+## The re-tiered task
 
-**1. `build-docker-images-from-uv-lock` is mis-tiered.** It is labelled `low`, and all three models score it worst-in-tier: haiku 42.8, sonnet 60.6, opus 76.6. In every case the implementation artifact is the collapse (25 / 31 / 58) while the design artifacts hold up. Three independent models failing the same way is not variance -- the task asks for more than its label implies. **It should be re-tiered to `medium`.** Left as-is for now so this published run matches the dataset it was produced from; the change belongs in a separate commit with a re-run.
+`build-docker-images-from-uv-lock` was labelled `low` in the run that produced these numbers, and all three models scored it worst-in-tier: haiku 42.8, sonnet 60.6, opus 76.6, with the implementation artifact collapsing every time (25 / 31 / 58) while the design artifacts held. Three independent models failing the same way is a mislabel, not variance -- the task touches two Dockerfiles, the lockfile flow and build caching.
 
-**2. `configurable-mcp-proxy-upstream-timeout` is opus's only loss.** Opus scores 66.2 against sonnet's 78.6, and every artifact is depressed (71/68/65/75/52) rather than one bad component -- the signature of a bad run, not a hard task. It costs opus 12 points on that task and drags its medium-tier mean from 81.2 to 78.20, which is the entire reason opus is not monotonic across tiers. **With n=1 per model per task, this is exactly the kind of result that should not be over-read.** A repeat run would settle it.
+**It is now `medium`.** The scores above are unchanged; only the tier assignment moved, so no re-run was needed -- `complexity` is dataset metadata copied into each run record, not a measurement. The committed `metrics.json` files were corrected and the summaries regenerated, which is why every mean above matches the original run exactly while the tier rows differ.
+
+The correction improves the result rather than muddying it: with the task in its right tier, **all three models become monotonic across tiers**, and low's spread drops from 19.1 to 15.5.
+
+## One anomaly worth knowing about
+
+**1. `configurable-mcp-proxy-upstream-timeout` is opus's only loss.** Opus scores 66.2 against sonnet's 78.6, and every artifact is depressed (71/68/65/75/52) rather than one bad component -- the signature of a bad run, not a hard task. It costs opus 12 points on that task and drags its medium-tier mean from 81.2 to 78.20, which is the entire reason opus is not monotonic across tiers. **With n=1 per model per task, this is exactly the kind of result that should not be over-read.** A repeat run would settle it.
 
 ## Why v2 exists
 
 v1 ([results-swe3.md](results-swe3.md)) is 5 tasks at a single ref, with no low-complexity tasks at all (0 low / 3 medium / 2 high). That is too small to separate close models and cannot be sliced by difficulty.
 
-v2 is 15 tasks drawn from real closed upstream issues that shipped in named releases, each pinned to the release **immediately before** its fix, so the defect is genuinely present in the tree the agent clones -- 8 distinct refs across the set. Tasks are balanced 5 low / 5 medium / 5 high and span the project's full surface: FastAPI, React/TypeScript, nginx templating, bash, Docker/Compose, Terraform, Helm and the CLI. Every task records `ground_truth` (how upstream actually fixed it), which is reviewer-facing and never shown to the agent.
+v2 is 21 tasks drawn from real closed upstream issues that shipped in named releases, each pinned to the release **immediately before** its fix, so the defect is genuinely present in the tree the agent clones -- 8 distinct refs across the set. Tasks span four complexity tiers (5 trivial / 5 low / 6 medium / 5 high) and span the project's full surface: FastAPI, React/TypeScript, nginx templating, bash, Docker/Compose, Terraform, Helm and the CLI. Every task records `ground_truth` (how upstream actually fixed it), which is reviewer-facing and never shown to the agent.
+
+A **trivial** tier (5 tasks) was added after this run for the same reason -- to test whether the model gap closes when the work is small enough. Those tasks are in the dataset but not yet in the numbers above.
 
 Two limits to keep attached to any claim made from this data:
 

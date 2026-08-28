@@ -158,11 +158,19 @@ class V2DatasetTest(unittest.TestCase):
             _SHIPPED_DATASET.with_name("mcp-gateway-registry-v2.yaml")
         )
 
-    def test_fifteen_tasks_balanced_across_complexity(self) -> None:
+    def test_every_tier_is_populated(self) -> None:
+        # The tier counts are deliberately NOT asserted exactly: tasks get
+        # re-tiered when a run shows a label was wrong (build-docker-images was
+        # moved low -> medium after three models scored it worst-in-tier), and a
+        # hard-coded 5/5/5 would turn a considered correction into a test break.
+        # What must hold is that all four tiers exist and each has enough tasks
+        # to mean something.
         counts: dict[str, int] = {}
         for task in self.dataset.tasks:
             counts[task.complexity] = counts.get(task.complexity, 0) + 1
-        self.assertEqual(counts, {"low": 5, "medium": 5, "high": 5})
+        self.assertEqual(set(counts), {"trivial", "low", "medium", "high"})
+        for tier, n in counts.items():
+            self.assertGreaterEqual(n, 4, f"tier '{tier}' has only {n} tasks")
 
     def test_every_task_pins_its_own_ref(self) -> None:
         # The point of v2: each task clones the release before its fix, so the
