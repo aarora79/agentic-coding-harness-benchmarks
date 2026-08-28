@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The issue provides unusually concrete acceptance criteria for scan failures, exact-body signatures, filtering, permissions, configuration, metrics, and deployment surfaces. Its named paths and symbols align with the submitted baseline contexts, including registry/services/webhook_service.py and the three scan funnels. Its largest omission is the agent batch registration/update surface, which the other artifacts acknowledge exists and which can undermine the mandate and lifecycle permission. No independent task statement was supplied, so the full intended scope and cited upstream issue could not be independently established."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 79,
+      "notes": "The LLD is highly repository-specific and commits to concrete integration points, payloads, failure semantics, pagination behavior, rollout stages, and deployment files. It correctly identifies difficult details such as Pydantic model_fields_set, scanner-returned failures, exact-byte signing, no-op status writes, and PUT authorization bypasses. However, resolve_initial_status() validates and normalizes explicit server statuses even when enforcement is disabled, contradicting its byte-identical compatibility claim, and the design omits agent batch registration and patch/replace authorization paths despite naming agent_batch_item_processor.py. Its rollback claim that removing the scopes.yml key restores prior behavior is also incorrect while the new code still requires that permission."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The review surfaces real, consequential defects, particularly scanner failures returned as data, PUT authorization bypasses, replay handling, unsigned-mode safety, and the permission rollout break. Findings such as B-1, B-4, C-1, and S-2 include concrete consequences and actionable resolutions rather than generic persona approval. Its largest miss is failing to identify the batch registration/update bypass or the default-off compatibility contradiction in resolve_initial_status(). It therefore overstates that all blockers are resolved, although most individual findings are technically sound."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 73,
+      "notes": "The plan covers functional, negative, compatibility, deployment, security, metric, and end-to-end behavior with specific expected values. Several load-bearing tests are invalid or confounded: the scan-funnel example patches registry.api.server_routes.send_scan_complete_webhook although the patch imports emit_scan_complete, and the purported server PUT test uses POST. The non-admin permission checks operate on assets registered by the admin token, so existing ownership restrictions can produce the same 403 without testing change_lifecycle_status. It also lacks batch-operation coverage, while the reference receiver binding to 127.0.0.1 may be unreachable through host.docker.internal."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 61,
+      "notes": "The patch substantially implements exact-byte HMAC signing, delivery identifiers, scan_complete payloads, metrics, ordinary route filters, status mandates, permissions, documentation, and deployment wiring using real baseline symbols and contexts. The largest defect is that it does not touch agent_batch_item_processor.py or related batch authorization paths, leaving batch registration and patch/replace as likely bypasses for the global mandate and lifecycle permission. Additionally, lifecycle_service.resolve_initial_status() rejects or normalizes explicit server statuses with enforcement off, directly violating the promised byte-identical default behavior. Route-level integration tests for filters, mandates, permissions, and all three scan funnels are absent, and git apply --check could not be independently rerun because the provided read-only shell failed to initialize."
+    }
+  },
+  "task_score": 76.6,
+  "verdict": "A strong and unusually specific design package with substantial implementation, but lifecycle controls remain incomplete around agent batch operations and the default-off server behavior is not actually backward-compatible.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T08:50:30.321394Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 343139,
+      "cached_input_tokens": 250659,
+      "cache_write_input_tokens": 84561,
+      "output_tokens": 10341,
+      "reasoning_output_tokens": 8990
+    },
+    "duration_ms": 126836
+  }
+}

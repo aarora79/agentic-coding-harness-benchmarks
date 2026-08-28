@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 79,
+      "notes": "The issue precisely describes nginx prefix matching, affected request shapes, compatibility goals, exclusions, and testable acceptance criteria. Its named symbols and generated directives are consistent with the submitted diff for `NginxConfigService._create_location_block` and the virtual-server generator. The largest omission is that the proposed exact alias can duplicate an existing exact template location such as `location = /validate`, making nginx configuration validation fail when that registered path is allowed; reserved-path rejection is explicitly deferred. No independent task statement exists, and direct repository verification was unavailable, so startup-convergence and related-route claims remain unconfirmed."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 78,
+      "notes": "The LLD is unusually concrete about files, data flow, proxy URI substitution, internal rewrite semantics, failure handling, virtual servers, rollout, and residual exact-path shadowing. Its implementation plan corresponds closely to the submitted patch and makes most major decisions executable without redesign. However, it identifies the template's exact `/validate` location while proposing an unconditional exact alias for every registered path, overlooking the resulting duplicate-location configuration failure rather than mere shadowing. The assertion that a non-restarted deployment converges on an unsolicited scheduler tick could not be verified against source and is operationally questionable."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 79,
+      "notes": "The review surfaces substantive issues involving degenerate paths, authorization re-entry through `rewrite ... last`, upstream URI changes, version routing, stale configuration, and UX response oracles. Recommendations are prioritized, actionable, and visibly incorporated into the revised design and patch. Its largest miss is the unconditional exact alias collision with existing exact nginx locations; the security review incorrectly classifies all reserved paths as residual exact shadowing and declares the blockers resolved. Direct source inspection was unavailable, so claims about startup scheduling and downstream auth-server parsing could not be independently confirmed."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 72,
+      "notes": "The plan provides concrete unit, HTTP, compatibility, nginx validation, rollout, and UX checks with meaningful expected values, including unauthenticated negative cases and bare-POST behavior. The unit cases closely match the submitted patch and pin the critical trailing-slash, alias, traversal, and upstream-contract behavior. It never registers `/validate` or another existing exact template path and runs `nginx -t`, so it misses the implementation's principal configuration-breaking edge case; the virtual sibling assertion is also partly tautological. The rollback command `git revert --no-commit HEAD` is incorrect for the plan's uncommitted `git apply` workflow, and the exact API payloads, endpoint paths, container name, and tag spelling could not be verified."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 13,
+      "total": 67,
+      "notes": "The diff implements the central design end to end: canonical trailing-slash prefixes, exact internal-rewrite aliases, fail-closed handling for root and traversal paths, equivalent virtual-server changes, and focused unit tests. The edits are internally coherent with the cited symbols and preserve the existing proxy target while improving its substituted URI shape. The major defect is unconditional generation of `location = <path>`: a permitted registration such as `/validate` collides with the template's existing exact location and can make `nginx -t` reject the entire generated configuration. The summary understates this as exact-route shadowing, and direct `git apply --check` plus repository-level test execution could not be performed in the available inspection environment."
+    }
+  },
+  "task_score": 75.0,
+  "verdict": "Strong, highly specific work is materially limited by an unhandled exact-location collision that can prevent nginx configuration reload for allowed reserved paths.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T08:54:18.183568Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 353903,
+      "cached_input_tokens": 279258,
+      "cache_write_input_tokens": 52538,
+      "output_tokens": 10563,
+      "reasoning_output_tokens": 8574
+    },
+    "duration_ms": 227848
+  }
+}

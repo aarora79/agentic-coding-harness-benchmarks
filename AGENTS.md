@@ -506,6 +506,8 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 - [docs/cost-per-task-methodology.md](docs/cost-per-task-methodology.md) -- how a fixed instance price becomes a cost per token and per task, and why the two cost bases are not comparable.
 - [docs/best-harness-selection.md](docs/best-harness-selection.md) -- how the combined cost/quality chart picks one harness per model.
 - [docs/results-swe3.md](docs/results-swe3.md), [docs/results-swe2.md](docs/results-swe2.md) -- published results and their footnotes.
+- [docs/results-swe3-v2.md](docs/results-swe3-v2.md) -- results on the v2 dataset (15 release-sourced tasks, complexity-balanced). **Never merge v2 scores into a v1 table**; the task sets, refs and difficulty mixes differ.
+- [docs/model-selection-by-complexity.md](docs/model-selection-by-complexity.md) -- which model to use for which class of work, derived from the v2 complexity tiers.
 
 When you solve a setup problem that was not written down, **write it down** -- in the model guide if it is model-specific, in the setup doc if it is machine-specific -- and link it here.
 

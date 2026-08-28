@@ -1,0 +1,64 @@
+{
+  "task": "configurable-mcp-proxy-upstream-timeout",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 71,
+      "notes": "The issue provides concrete behavior, defaults, validation, deployment surfaces, testable acceptance criteria, and clear non-goals. Its largest deficiency is missing that registry/core/nginx_service.py reads the setting in the registry process, while the specified deployment wiring supplies the variable only to auth-server. The submitted patch also confirms that Terraform adds it only to ecs_service_auth and Helm only to charts/auth-server, so the promised timeout above 60 seconds is not generally reachable. The independent task statement and referenced external issues were unavailable, so their motivation claims could not be verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The LLD names concrete files, symbols, data flow, rollout steps, failure behavior, and capacity tradeoffs in implementation-ready detail. Its central design is nevertheless incorrect because nginx_service reads registry-process settings, but no registry container, ECS task, or registry Helm value receives the new environment variable. It also states that BaseSettings automatically consumes the environment while promising malformed and sub-floor environment values will reach the helper's fallback, although such values normally fail Settings validation before that helper runs. The file contexts in the diff support most named integration points, but exact line claims and patch applicability could not be independently checked because repository command execution was unavailable."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 65,
+      "notes": "The review finds a real nginx 60-second cap, connect-timeout coupling, resource-exhaustion risk, rollout complexity, and concrete test requirements. Its largest failure is declaring the nginx blocker resolved without noticing that the registry process generating nginx configuration never receives the configured value. It also accepts the malformed-environment fallback even though the newly added BaseSettings field validates that environment value during settings construction. The prioritized findings are otherwise specific and actionable, but the final clearance for implementation is not defensible given the unresolved end-to-end defect."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 75,
+      "notes": "The plan has concrete unit, compatibility, deployment, rollback, and end-to-end scenarios with meaningful status, body, timing, constructor, and generated-config oracles. Its raised-timeout E2E scenario would usefully expose the patch's registry wiring defect, but the stated expectation of proxy_read_timeout 185s is wrong because the registry process remains at its default setting. The malformed and below-floor deployment cases also incorrectly expect startup and helper fallback despite BaseSettings validation, while unit tests manufacture that path by replacing settings with SimpleNamespace. Several commands and paths align with the submitted diff, but their execution and availability could not be independently verified."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 52,
+      "notes": "The patch concretely adds the Settings field, reader, httpx wiring, admin entry, extensive deployment plumbing, documentation, and focused tests. The primary feature remains broken for long configured values because registry/core/nginx_service.py evaluates registry-process settings while the patch injects MCP_PROXY_UPSTREAM_TIMEOUT_SECONDS only into auth-server deployment resources, leaving generated nginx blocks at 60 seconds. Malformed or sub-floor environment values can also fail Settings initialization rather than produce the documented warning, fallback, or clamp, and the tests avoid this production path by substituting an attribute-less settings object. The diff contexts match the described symbols, but git apply --check and test execution could not be independently performed due the unavailable repository execution wrapper."
+    }
+  },
+  "task_score": 66.2,
+  "verdict": "The artifacts are unusually specific and thorough, but they miss the registry-side configuration wiring required for nginx, so the implementation does not deliver the advertised end-to-end timeout above 60 seconds.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T08:27:04.779040Z",
+    "repo_ref": "1.25.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 400446,
+      "cached_input_tokens": 338528,
+      "cache_write_input_tokens": 54423,
+      "output_tokens": 9861,
+      "reasoning_output_tokens": 7771
+    },
+    "duration_ms": 135292
+  }
+}

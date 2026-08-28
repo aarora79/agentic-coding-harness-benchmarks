@@ -1,0 +1,152 @@
+{
+  "task": "honor-cloud-provider-override-in-ui",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.7",
+  "complexity": "low",
+  "tags": [
+    "bug",
+    "telemetry",
+    "api",
+    "ui",
+    "deployment",
+    "fixed-in-1.25.0"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 100.7,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 593,
+    "output_tokens": 25214,
+    "cache_read_tokens": 2413866,
+    "cache_write_tokens": 66201,
+    "total_tokens": 2505874,
+    "total_cost_usd": 0.45080085000000003,
+    "latency_seconds": 250.3,
+    "num_turns": 50,
+    "generation_tokens_per_sec": 100.7,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 593,
+  "output_tokens": 25214,
+  "latency_seconds": 250.3,
+  "num_turns": 50,
+  "total_cost_usd": 0.45080085000000003,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 2413866,
+  "cache_creation_tokens": 66201,
+  "run_started_at": "2026-08-27T15:05:33.402102Z",
+  "run_ended_at": "2026-08-27T15:09:43.729404Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 593,
+    "output_tokens": 25214,
+    "cache_read_tokens": 2413866,
+    "cache_write_tokens": 66201,
+    "total_tokens": 2505874,
+    "total_cost_usd": 0.45080085000000003,
+    "latency_seconds": 250.3,
+    "num_turns": 50,
+    "generation_tokens_per_sec": 100.7,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "honor-cloud-provider-override-in-ui",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 15,
+        "total": 77,
+        "notes": "The issue clearly identifies the endpoint, configuration override, observed misclassification, intended response, testable acceptance criteria, and exclusions. Its largest flaw is claiming unchanged behavior whenever MCP_CLOUD_PROVIDER is unset while also requiring _resolve_cloud(), whose documented operator-hint branch can change both cloud and method without that override. The submitted route context confirms the old handler calls _detect_cloud_provider_with_method(), while the artifacts themselves describe _resolve_cloud() as checking an operator hint before auto-detection. No independent task statement was supplied, and local repository execution failed before the source and issue #1306 could be independently verified."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 15,
+        "specificity": 22,
+        "risk_awareness": 13,
+        "total": 70,
+        "notes": "The LLD gives concrete files, symbols, request flow, response fields, implementation edits, and test cases suitable for this small change. It does not resolve the central compatibility decision: calling _resolve_cloud() introduces operator-hint behavior and possible asynchronous work even when MCP_CLOUD_PROVIDER is unset, contradicting its claim of identical behavior. The submitted patch context says the existing endpoint reads a cached result without additional probes, whereas the LLD explicitly routes through _get_operator_cloud_hint(). Exact Settings validation, hint-cache behavior, and the claimed 60-second TTL could not be independently verified against the inaccessible working tree."
+      },
+      "review": {
+        "completeness": 15,
+        "correctness": 13,
+        "specificity": 16,
+        "risk_awareness": 15,
+        "total": 59,
+        "notes": "The review surfaces relevant concerns about frontend method labels, operator-hint latency, invalid configuration, and release documentation. It nevertheless approves the design without confronting its compatibility contradiction or noticing that the proposed unit tests exercise _resolve_cloud() rather than the changed route. The submitted LLD and patch show that the endpoint changes from raw detection to a resolver containing an operator-hint branch, yet the review repeatedly characterizes this as operationally neutral and identical without an override. Its assertions about a 60-second cache, allowlist enforcement, warning logs, and absence of metadata exposure were not demonstrated and could not be independently verified."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 7,
+        "specificity": 17,
+        "risk_awareness": 12,
+        "total": 54,
+        "notes": "The plan covers override, fallback, authentication, multiple providers, UI behavior, deployment surfaces, and supplies concrete expected JSON values. Several tests are not executable or do not test their stated behavior: the invalid-value test assigns None, and the integration example uses monkeypatch without receiving the fixture and provides no authentication override. The proposed unit tests call _resolve_cloud() directly, so they would pass even if get_telemetry_detection_info() still called the wrong function, while the invented token command, startup command, UI port, and Terraform grep are not grounded in verified repository conventions. Negative and compatibility risks are named, but the proposed oracles fail to cover operator-hint behavior and the actual endpoint integration."
+      },
+      "implementation": {
+        "completeness": 18,
+        "correctness": 15,
+        "specificity": 18,
+        "risk_awareness": 11,
+        "total": 62,
+        "notes": "The route edit directly replaces the raw detector with await _resolve_cloud(), so it implements the primary override behavior and preserves the response keys. Its largest defect is that no-override behavior is not necessarily unchanged because _resolve_cloud() also consults the operator hint, and the retained docstring incorrectly says no additional probes are triggered. The four tests only exercise the resolver, omit the LLD's operator-hint-precedence case and the review's invalid-value test, and their claim to verify endpoint/telemetry agreement is therefore false. The summary incorrectly reports no deviations and complete deployment readiness, while local sandbox failure prevented an independent git apply check against the working tree."
+      }
+    },
+    "task_score": 64.4,
+    "verdict": "The submission identifies and patches the likely core bug, but it fails to reconcile the resolver's additional operator-hint behavior with its backward-compatibility promise and does not test the changed endpoint itself.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-27T17:20:01.476602Z",
+      "repo_ref": "1.24.7",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 98101,
+        "cached_input_tokens": 50037,
+        "cache_write_input_tokens": 25329,
+        "output_tokens": 9190,
+        "reasoning_output_tokens": 7875
+      },
+      "duration_ms": 375298
+    }
+  }
+}

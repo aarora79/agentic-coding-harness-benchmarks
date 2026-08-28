@@ -1,0 +1,153 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "high",
+  "tags": [
+    "authentication",
+    "oauth",
+    "session",
+    "mongodb",
+    "encryption",
+    "auth-server",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 105.3,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 533,
+    "output_tokens": 38133,
+    "cache_read_tokens": 3049808,
+    "cache_write_tokens": 71903,
+    "total_tokens": 3160377,
+    "total_cost_usd": 0.5860575500000003,
+    "latency_seconds": 362.0,
+    "num_turns": 54,
+    "generation_tokens_per_sec": 105.3,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 533,
+  "output_tokens": 38133,
+  "latency_seconds": 362.0,
+  "num_turns": 54,
+  "total_cost_usd": 0.5860575500000003,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 3049808,
+  "cache_creation_tokens": 71903,
+  "run_started_at": "2026-08-27T15:53:06.814396Z",
+  "run_ended_at": "2026-08-27T15:59:08.875472Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 533,
+    "output_tokens": 38133,
+    "cache_read_tokens": 3049808,
+    "cache_write_tokens": 71903,
+    "total_tokens": 3160377,
+    "total_cost_usd": 0.5860575500000003,
+    "latency_seconds": 362.0,
+    "num_turns": 54,
+    "generation_tokens_per_sec": 105.3,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "server-side-oauth-token-storage",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 18,
+        "correctness": 13,
+        "specificity": 20,
+        "risk_awareness": 13,
+        "total": 64,
+        "notes": "The issue clearly states the cookie-size problem, scopes the proposed behavior, and supplies mostly testable acceptance criteria and non-goals. Its largest weakness is committing to access/refresh-token storage, a new retrieval endpoint, and seamless old-cookie compatibility without an independent requirement or verified repository contract. Repository release evidence describes the eventual fix as an opaque session ID backed by an oauth_sessions collection and explicitly says pre-rollout cookies are incompatible, contradicting a central acceptance criterion. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) The claimed token sizes, Get JWT Token behavior, and provider-specific failures could not be independently verified because local repository commands could not launch in the managed sandbox."
+      },
+      "lld": {
+        "completeness": 14,
+        "correctness": 7,
+        "specificity": 12,
+        "risk_awareness": 13,
+        "total": 46,
+        "notes": "The LLD provides concrete data flow, schema, endpoint responses, configuration, rollout phases, and named integration files. It is not implementation-ready: the callback stores reference_token at the session root while the endpoint reads data.reference_token, the integration table says /get_token while the API says /oauth2/tokens, and startup retains a <database_name> placeholder. It also leaves the database choice, logout behavior, cleanup scheduling, and rate limiting as open questions despite those being load-bearing lifecycle and security decisions; repository release evidence shows logout deletion and session-record expiry were integral to the actual solution. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) Claims about Motor, cryptography, validate_session_cookie, and existing async MongoDB patterns could not be fully verified after local shell execution failed."
+      },
+      "review": {
+        "completeness": 17,
+        "correctness": 12,
+        "specificity": 18,
+        "risk_awareness": 19,
+        "total": 66,
+        "notes": "The review's strongest contribution is identifying concrete operational and security gaps including key rotation, missing lookup indexing, MongoDB failure behavior, migration, and ambiguous callback degradation. It nevertheless misses the LLD's root-versus-nested reference_token bug and inconsistent endpoint naming while repeatedly declaring the architecture sound and backward compatible. Several recommendations are technically weak: returning 404 for a database outage hides availability failures, session-cookie validation is authentication rather than 'no authentication,' and application-level HTTPS rejection can misbehave behind TLS termination. The CORS, frontend-call-site, existing-rate-limiter, and infrastructure assumptions remain unverified, while the repository's eventual AES-GCM/HKDF and logout-deletion design supports some concerns but not the prescribed remedies. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md))"
+      },
+      "testing": {
+        "completeness": 15,
+        "correctness": 7,
+        "specificity": 16,
+        "risk_awareness": 12,
+        "total": 50,
+        "notes": "The plan has useful concrete oracles for encryption, ownership scoping, expiry, old sessions, endpoint responses, and degraded storage. Much of the supplied test code is not executable as written: fixtures and imports such as client, app, signer, validate_session_cookie, patch, and URLSafeTimedSerializer are undefined, and an arbitrary serializer secret is not wired into server configuration. The successful endpoint test puts reference_token at the session root while the proposed endpoint reads it under data, and the feature-disabled test accepts either 501 or 404 rather than committing to behavior. It also omits a measured cookie-size assertion, TTL-index deletion, logout/replay behavior, and revocation despite the issue's coverage promise; repository evidence identifies logout record deletion as security-critical. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md))"
+      },
+      "implementation": {
+        "completeness": 1,
+        "correctness": 5,
+        "specificity": 6,
+        "risk_awareness": 5,
+        "total": 17,
+        "notes": "The submitted diff only adds oauth_token_store.py; it contains none of the claimed server.py callback, startup, endpoint, session-cookie, index, configuration, or test changes, so the module is unused and does not implement the feature end to end. The summary falsely reports server.py as modified, claims compound and TTL indexes that are absent, and states there are no LLD deviations despite explicitly leaving the review's security blockers unresolved. Within the module, a generated encryption key is logged in plaintext, ttl_hours is never used, and retrieval collapses missing, expired, decryption-failed, and database-unavailable states into None, making the advertised 404/410/503 contract impossible. Repository evidence shows the completed feature required server-side session integration, unique and TTL indexes, and logout deletion, none of which appears in this patch; a local git apply check could not run because the managed sandbox failed before command execution. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md))"
+      }
+    },
+    "task_score": 48.6,
+    "verdict": "The design package contains substantial concrete thinking, but repository mismatches, unresolved interface contradictions, largely non-runnable tests, and an implementation patch missing every integration change leave the submission incomplete and unsafe to merge.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-27T18:08:44.546494Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 131127,
+        "cached_input_tokens": 74899,
+        "cache_write_input_tokens": 38402,
+        "output_tokens": 7638,
+        "reasoning_output_tokens": 5600
+      },
+      "duration_ms": 258405
+    }
+  }
+}

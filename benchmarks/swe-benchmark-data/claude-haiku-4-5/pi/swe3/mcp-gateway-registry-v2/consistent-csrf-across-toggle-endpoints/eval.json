@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 68,
+      "notes": "The issue clearly identifies the M2M failure, browser threat model, non-goals, affected routes, and testable acceptance criteria. Its largest flaw is demanding identical handling for `/internal/toggle`, even though the submitted source context shows that route uses `validate_internal_auth`, not either stated browser or bearer authentication path. The patch context supports the reported baseline coverage: agent, skill, and `/toggle/{service_path}` use `verify_csrf_token_flexible`, while three other toggles lack it. No independent task statement establishes that all six routes should share one mechanism, and the linked issue and production-failure claims could not be independently verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 19,
+      "risk_awareness": 8,
+      "total": 51,
+      "notes": "The LLD is concrete about real files, functions, dependencies, endpoint signatures, errors, and alternatives. Its critical defect is adding a session-or-`X-Auth-Method` dependency to `/internal/toggle` despite explicitly describing that endpoint as internal and unproxied, so existing internal callers without either value will receive 403. Checking merely for the presence of `X-Auth-Method` also does not validate its value or resolve mixed cookie/header requests, making the claimed authentication classification insufficiently justified. The asserted nginx contract is not demonstrated, and the design overlooks that replacing the server-routes import also affects the non-toggle `edit_server_submit` usage."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 48,
+      "notes": "The review raises concrete concerns about the proxy-header trust contract, form parsing, logging, documentation, and authentication differences. It nevertheless approves the design without catching that the new dependency makes the unproxied internal route require a new header or session cookie, treating a load-bearing compatibility issue as resolved by comments. Its security discussion focuses on nginx mistakenly setting the header rather than examining the code's unconditional bypass for any header value. The claimed resolution that comments were added at every endpoint is contradicted by the submitted patch, which adds no such endpoint comments."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 45,
+      "notes": "The plan covers all named routes, positive and negative cookie cases, M2M workflows, permissions, mixed authentication, and backward compatibility. Several executable examples use the wrong request shape: `toggle_agent` exposes scalar `enabled` as a query parameter, while `toggle_skill` and `toggle_virtual_server` accept Pydantic JSON bodies, yet all are invoked with multipart `-F` data. The supposed bearer tests provide trusted proxy headers without an `Authorization` bearer token, and the internal test accepts either 200 or 403, so neither has a meaningful oracle for the promised behavior. CSRF-token retrieval paths are not established by the supplied source, and the implementation adds none of the unit or integration tests listed in the checklist."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 6,
+      "total": 38,
+      "notes": "The patch concretely adds the dependency and wires the listed toggle functions using source-compatible names and signatures shown in its hunks. It breaks the existing unproxied `internal_toggle_service` path unless callers begin supplying `X-Auth-Method`, while the implementation changes no caller or internal-auth contract to do so. It also silently changes the non-toggle `edit_server_submit` endpoint and adds no tests, contradicting the summary's claims of no deviations, complete scope, and unchanged non-toggle behavior. Repository command execution failed before inspection commands ran, so clean `git apply --check` applicability could not be independently confirmed, although the submitted hunk context is internally coherent."
+    }
+  },
+  "task_score": 50.0,
+  "verdict": "The artifacts are concrete but the implementation is materially unsafe and incomplete because its authentication classification breaks the internal toggle path, expands beyond scope, and is backed by invalid test commands.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-27T16:47:15.527787Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 179959,
+      "cached_input_tokens": 119570,
+      "cache_write_input_tokens": 30582,
+      "output_tokens": 12075,
+      "reasoning_output_tokens": 10424
+    },
+    "duration_ms": 421796
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "task": "portable-env-secret-generation-in-build-script",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "bash",
+    "portability",
+    "macos",
+    "secrets",
+    "setup",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "model_slug": "claude-sonnet-5",
+  "agent": "pi",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": 200000
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 85.7,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 64,
+    "output_tokens": 34286,
+    "cache_read_tokens": 1839572,
+    "cache_write_tokens": 77114,
+    "total_tokens": 1951036,
+    "total_cost_usd": 0.9036874000000003,
+    "latency_seconds": 400.3,
+    "num_turns": 32,
+    "generation_tokens_per_sec": 85.7,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 64,
+  "output_tokens": 34286,
+  "latency_seconds": 400.3,
+  "num_turns": 32,
+  "total_cost_usd": 0.9036874000000003,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1839572,
+  "cache_creation_tokens": 77114,
+  "run_started_at": "2026-08-28T15:11:55.530771Z",
+  "run_ended_at": "2026-08-28T15:18:35.837106Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 64,
+    "output_tokens": 34286,
+    "cache_read_tokens": 1839572,
+    "cache_write_tokens": 77114,
+    "total_tokens": 1951036,
+    "total_cost_usd": 0.9036874000000003,
+    "latency_seconds": 400.3,
+    "num_turns": 32,
+    "generation_tokens_per_sec": 85.7,
+    "sources": {
+      "input_tokens": "pi_api.usage.input",
+      "output_tokens": "pi_api.usage.output",
+      "cache_read_tokens": "pi_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "pi_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "pi_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or pi_api.duration_ms)",
+      "num_turns": "pi_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "portable-env-secret-generation-in-build-script",
+    "model": "us.anthropic.claude-sonnet-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 77,
+        "notes": "The issue provides unusually concrete scope, six named call sites, explicit exclusions, and testable portability and failure-handling acceptance criteria. The submitted patch context corroborates the five static sed pairs and dynamic METRICS_API_KEY site. Its largest flaw is overstated impact: sourcing a shell file processes later assignments last, so the assertion that source .env selects the first empty assignment is incorrect, while the claimed auth-server crash loop is unsupported. No independent task statement establishes that operational consequence or the exact intended scope beyond the mutually consistent artifacts."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 23,
+        "risk_awareness": 15,
+        "total": 74,
+        "notes": "The design is implementation-ready in structure, particularly its exact call-site mapping and set -e-safe handling of grep exit status 1 via `grep ... || rc=$?`. The proposed helper correctly distinguishes grep failures and uses the existing handle_error path. However, replacing .env with a mktemp file silently changes its mode to typically 0600, and a failed mv leaves a temporary copy containing all existing secrets; neither conflicts with the claimed unchanged Linux behavior nor cleanup risk are addressed. The claim that mktemp is POSIX-standard is false, and the asserted line numbers and no-cd invariant could not be independently verified from the worktree."
+      },
+      "review": {
+        "completeness": 17,
+        "correctness": 15,
+        "specificity": 19,
+        "risk_awareness": 15,
+        "total": 66,
+        "notes": "The review identifies concrete concerns around set -e, BSD testing, relative paths, and interpolated regular expressions rather than merely approving the design. It nevertheless misses the helper's file-mode change and secret-bearing temporary-file leak on mv failure, which are more material than its requested documentation comments. Its security resolution is also incorrect: translating lowercase letters and hyphens does not remove regex metacharacters such as a period, so ENV_VAR_NAME is not proven regex-safe by the cited tr command. Claims that an empty marker secret necessarily bypasses a guard and that the auth service crash-loops remain unverified."
+      },
+      "testing": {
+        "completeness": 14,
+        "correctness": 9,
+        "specificity": 16,
+        "risk_awareness": 13,
+        "total": 52,
+        "notes": "The plan supplies useful seeded .env fixtures and explicit expected content for empty, quoted-empty, populated, and appended-secret cases. Its principal harness is broken: after the patch inserts 37 lines near line 14, `sed -n \"1,45p\" build_and_run.sh` truncates remove_matching_lines before its closing brace, so tests 1.2, 1.5, and 3.1 cannot source the helper. The sed-absence commands only report the last grep status, the expected helper-reference count is inconsistent, the GNU comparison is non-executable pseudocode, and chmod 500 may not fail under root. Dynamic-token behavior, grep and mv failures, file-mode preservation, and leftover-temp cleanup receive no effective coverage, while the claimed git-apply verification was not independently demonstrated."
+      },
+      "implementation": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 15,
+        "total": 75,
+        "notes": "The patch implements the designed helper and replaces all five static sed pairs plus the dynamic METRICS_API_KEY call, with correct handling of grep's valid exit status 1 under set -e. Its surrounding contexts, variable names, and +47/-11 summary are internally consistent with the submitted baseline diff. The largest defects are that mktemp-plus-mv changes .env permissions, an mv failure leaves a 0600 temporary file containing the complete secret-bearing environment, and the dynamic-call comment incorrectly guarantees regex safety. Patch applicability and the stated baseline commit could not be independently checked because repository command execution was unavailable, so the clean-apply claim remains unverified rather than scored as false."
+      }
+    },
+    "task_score": 68.8,
+    "verdict": "The submission is specific and largely functional, but it is not merge-ready because the core test harness cannot source the new helper and the replacement strategy introduces unaddressed .env metadata and secret-temp-file risks.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-28T15:42:44.292920Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 107247,
+        "cached_input_tokens": 57054,
+        "cache_write_input_tokens": 28838,
+        "output_tokens": 9576,
+        "reasoning_output_tokens": 8370
+      },
+      "duration_ms": 104725
+    }
+  }
+}

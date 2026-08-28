@@ -54,6 +54,22 @@ def _config(**overrides: object) -> RunnerConfig:
     return RunnerConfig.model_validate(data)
 
 
+def _ds(**overrides: object) -> Dataset:
+    """Build a one-task Dataset matching _task(), for the scope-aware helpers."""
+    data: dict[str, object] = {
+        "schema_version": "1.0",
+        "name": "d",
+        "title": "D",
+        "description": "test",
+        "default_ref": "1.24.4",
+        "metrics": ["input_tokens", "output_tokens", "num_turns"],
+        "complexity_levels": ["low", "medium", "high"],
+        "tasks": [_task().model_dump()],
+    }
+    data.update(overrides)
+    return Dataset.model_validate(data)
+
+
 class RepoNameTest(unittest.TestCase):
     def test_derives_basename(self) -> None:
         self.assertEqual(
@@ -255,7 +271,7 @@ class AnnotateMetricsTopupTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             cfg = _config(output_dir=tmp, model="m")
-            art = harness._artifact_dir(cfg, _task())
+            art = harness._artifact_dir(cfg, _ds(), _task())
             art.mkdir(parents=True)
             # A metrics.json holding only the LAST (top-up) pass's numbers, with the
             # cache-write rename (cache_write_tokens) inside metrics_that_matter.
@@ -289,7 +305,9 @@ class AnnotateMetricsTopupTest(unittest.TestCase):
                 "cache_read_tokens": 64490345,
                 "cache_creation_tokens": 500,
             }
-            harness._annotate_metrics_topup(cfg, _task(), 2, ["patch.diff"], totals)
+            harness._annotate_metrics_topup(
+                cfg, _ds(), _task(), 2, ["patch.diff"], totals
+            )
             rec = json.loads((art / "metrics.json").read_text(encoding="utf-8"))
             # Top-level: cost + cache summed (cost is read from here by summarize).
             self.assertAlmostEqual(rec["total_cost_usd"], 56.78)
@@ -329,12 +347,12 @@ class MissingArtifactsTest(unittest.TestCase):
         # so _artifact_dir lands under the tmp tree regardless of the repo root.
         with tempfile.TemporaryDirectory() as tmp:
             cfg = _config(output_dir=tmp, model="m")
-            art = harness._artifact_dir(cfg, _task())
+            art = harness._artifact_dir(cfg, _ds(), _task())
             art.mkdir(parents=True)
             # Design done, implementation missing (the common pi truncation).
             for f in harness.DESIGN_ARTIFACT_FILENAMES:
                 (art / f).write_text("x", encoding="utf-8")
-            missing = harness._missing_artifacts(cfg, _task())
+            missing = harness._missing_artifacts(cfg, _ds(), _task())
             self.assertEqual(missing, ["patch.diff", "implementation.md"])
 
 
@@ -473,7 +491,9 @@ class ArtifactDirTest(unittest.TestCase):
     def test_path_follows_model_harness_skill_convention(self) -> None:
         # Layout: <output>/<model>/<harness>/<skill>/<repo>/<task> -- skill (default
         # swe3) is its own level between harness and repo.
-        path = harness._artifact_dir(_config(output_dir="swe-benchmark-data"), _task())
+        path = harness._artifact_dir(
+            _config(output_dir="swe-benchmark-data"), _ds(), _task()
+        )
         self.assertEqual(
             path.parts[-6:],
             (
@@ -488,11 +508,31 @@ class ArtifactDirTest(unittest.TestCase):
 
     def test_swe2_lands_in_its_own_level(self) -> None:
         path = harness._artifact_dir(
-            _config(output_dir="swe-benchmark-data", skill="swe2"), _task()
+            _config(output_dir="swe-benchmark-data", skill="swe2"), _ds(), _task()
         )
         self.assertEqual(
             path.parts[-3:], ("swe2", "mcp-gateway-registry", "remove-faiss")
         )
+
+    def test_output_scope_replaces_the_repo_level(self) -> None:
+        # Two datasets over the SAME repo must not share a scope folder: the
+        # folder-level run-summary.json would be rebuilt over both task sets.
+        path = harness._artifact_dir(
+            _config(output_dir="swe-benchmark-data"),
+            _ds(output_scope="mcp-gateway-registry-v2"),
+            _task(),
+        )
+        self.assertEqual(
+            path.parts[-3:], ("swe3", "mcp-gateway-registry-v2", "remove-faiss")
+        )
+
+    def test_repo_level_is_unchanged_without_output_scope(self) -> None:
+        # Every existing dataset leaves output_scope unset, so no committed
+        # result path may move.
+        default = harness._artifact_dir(
+            _config(output_dir="swe-benchmark-data"), _ds(), _task()
+        )
+        self.assertEqual(default.parts[-2], "mcp-gateway-registry")
 
 
 class BuildClaudeCmdTest(unittest.TestCase):

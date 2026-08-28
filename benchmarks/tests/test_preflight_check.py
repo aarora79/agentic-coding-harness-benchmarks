@@ -88,6 +88,24 @@ class TargetDirsTest(unittest.TestCase):
             str(swe2[0]).endswith("qwen3-coder-30b/claude-code/swe2/my-repo/task-one")
         )
 
+    def test_output_scope_replaces_the_repo_level(self) -> None:
+        # A second dataset over the same repo must clear its OWN folder, never
+        # the first dataset's committed results.
+        scoped = _SCRIPTS_DIR.parent / "dataset" / "_preflight_test_v2.yaml"
+        scoped.write_text(
+            _DATASET.replace(
+                "default_ref: main\n", "default_ref: main\noutput_scope: my-repo-v2\n"
+            ),
+            encoding="utf-8",
+        )
+        try:
+            dirs = pf._target_dirs(str(scoped), "qwen3-coder-30b", agent="pi")
+            self.assertTrue(
+                str(dirs[0]).endswith("qwen3-coder-30b/pi/swe3/my-repo-v2/task-one")
+            )
+        finally:
+            scoped.unlink(missing_ok=True)
+
 
 class ExistingTest(unittest.TestCase):
     def test_only_folders_with_artifacts_count(self) -> None:

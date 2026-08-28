@@ -32,6 +32,7 @@ def _write_task(
     turns: int = 20,
     agent_invocations: int = 1,
     topped_up_artifacts: list[str] | None = None,
+    ref: str = "1.2.3",
 ) -> None:
     """Create a task folder with metrics.json, artifacts, and optional eval.json."""
     d = scope_dir / task
@@ -40,7 +41,7 @@ def _write_task(
         (d / name).write_text(f"# {name}\nbody\n", encoding="utf-8")
     metrics: dict[str, Any] = {
         "task": task,
-        "ref": "1.2.3",
+        "ref": ref,
         "model": "test-model",
         "model_slug": "test-model",
         "agent": "claude",
@@ -216,6 +217,42 @@ class SummarizeRunTest(unittest.TestCase):
             scope.mkdir(parents=True)
             with self.assertRaises(SystemExit):
                 summarize._summarize(scope, run_date=None)
+
+
+class RefsTest(unittest.TestCase):
+    """A dataset may pin a different ref per task; the summary must say so."""
+
+    def test_single_ref_run_reports_that_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scope = Path(tmp) / "m" / "claude-code" / "swe3" / "repo"
+            _write_task(scope, "task-a", score=60.0)
+            _write_task(scope, "task-b", score=50.0)
+            s = summarize._summarize(scope, run_date=None)
+            self.assertEqual(s["ref"], "1.2.3")
+            self.assertEqual(s["refs"], ["1.2.3"])
+            self.assertIn("ref 1.2.3", summarize._render_markdown(s))
+
+    def test_multi_ref_run_has_no_single_ref(self) -> None:
+        # Reporting the first task's ref would describe only 1 of N clones.
+        with tempfile.TemporaryDirectory() as tmp:
+            scope = Path(tmp) / "m" / "pi" / "swe3" / "repo-v2"
+            _write_task(scope, "task-a", score=60.0, ref="1.23.0")
+            _write_task(scope, "task-b", score=50.0, ref="1.27.1")
+            s = summarize._summarize(scope, run_date=None)
+            self.assertIsNone(s["ref"])
+            self.assertEqual(s["refs"], ["1.23.0", "1.27.1"])
+            self.assertIn("2 refs: 1.23.0, 1.27.1", summarize._render_markdown(s))
+
+    def test_each_task_row_carries_its_own_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scope = Path(tmp) / "m" / "pi" / "swe3" / "repo-v2"
+            _write_task(scope, "task-a", score=60.0, ref="1.23.0")
+            _write_task(scope, "task-b", score=50.0, ref="1.27.1")
+            rows = {
+                r["task"]: r["ref"]
+                for r in summarize._summarize(scope, run_date=None)["tasks"]
+            }
+            self.assertEqual(rows, {"task-a": "1.23.0", "task-b": "1.27.1"})
 
 
 if __name__ == "__main__":

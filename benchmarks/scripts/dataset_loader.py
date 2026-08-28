@@ -89,6 +89,7 @@ class Dataset(BaseModel):
     title: str
     description: str
     default_ref: str
+    output_scope: str | None = None
     metrics: list[str] = Field(min_length=1)
     complexity_levels: list[str] = Field(min_length=1)
     tasks: list[Task] = Field(min_length=1)
@@ -101,6 +102,19 @@ class Dataset(BaseModel):
         if value is None:
             return None
         return str(value)
+
+    @field_validator("output_scope")
+    @classmethod
+    def _validate_output_scope(cls, value: str | None) -> str | None:
+        """Keep output_scope usable as a single folder name."""
+        if value is None:
+            return None
+        if not value or value != value.strip() or "/" in value or value in {".", ".."}:
+            raise ValueError(
+                f"output_scope '{value}' must be a single folder name "
+                "(no slashes, no surrounding whitespace)"
+            )
+        return value
 
     @model_validator(mode="after")
     def _validate_cross_field(self) -> Dataset:
@@ -148,6 +162,24 @@ class Dataset(BaseModel):
     def resolved_ref(self, task: Task) -> str:
         """Return the git ref to clone for a task (its own ref or the default)."""
         return task.ref or self.default_ref
+
+    def scope_for(self, repo_name: str) -> str:
+        """Return the folder name results are grouped under for ``repo_name``.
+
+        Results live at ``<model>/<harness>/<skill>/<scope>/<task>/``. The scope
+        defaults to the repository name, which is right until two datasets target
+        the *same* repository: they would then share a folder, and the
+        folder-level ``run-summary.json`` of one would be rebuilt over the other's
+        tasks. ``output_scope`` gives such a dataset its own folder.
+
+        Args:
+            repo_name: The repository basename the task clones, used as the
+                default when the dataset sets no ``output_scope``.
+
+        Returns:
+            The scope folder name.
+        """
+        return self.output_scope or repo_name
 
 
 def load_dataset(path: str | Path) -> Dataset:

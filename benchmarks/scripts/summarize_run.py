@@ -91,6 +91,10 @@ def _task_row(task_dir: Path) -> dict[str, Any] | None:
     return {
         "task": task_dir.name,
         "complexity": metrics.get("complexity"),
+        # The tag this task cloned. Recorded per task because a dataset may pin a
+        # different ref per task (v2-style, each task at the release before its
+        # fix), so a single run-level ref would not describe the run.
+        "ref": metrics.get("ref"),
         "artifacts_produced": produced,
         "artifacts_expected": len(ARTIFACT_FILENAMES),
         "num_turns": mm.get("num_turns"),
@@ -172,6 +176,7 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
     # noise, not provenance worth committing.
     judge = dict((first.get("evaluation") or {}).get("judge") or {})
     judge.pop("repo_root", None)
+    refs = sorted({r["ref"] for r in rows if r.get("ref")})
     scored = [r for r in rows if not r["failed"]]
     failed = [r for r in rows if r["failed"]]
     mean_score = (
@@ -191,7 +196,11 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
         "skill": first.get("skill") or folder.parent.name,
         "scope": folder.name,
         "provider": first.get("provider"),
-        "ref": first.get("ref"),
+        # One ref when every task cloned the same tag (the common case), else
+        # None -- a multi-ref dataset has no single run-level ref, and reporting
+        # the first task's would be wrong. "refs" always lists what was cloned.
+        "ref": refs[0] if len(refs) == 1 else None,
+        "refs": refs,
         "serving": first.get("serving"),
         "judge": judge or None,
         "num_tasks": len(rows),
@@ -205,6 +214,24 @@ def _summarize(folder: Path, run_date: str | None) -> dict[str, Any]:
     if run_date:
         summary["run_date"] = run_date
     return summary
+
+
+def _refs_phrase(summary: dict[str, Any]) -> str:
+    """Describe the ref(s) a run cloned, for the summary header line.
+
+    Args:
+        summary: The summary dict, carrying "ref" and "refs".
+
+    Returns:
+        ``ref 1.24.4`` for a single-ref run, or ``8 refs: ...`` when the dataset
+        pins a different tag per task.
+    """
+    refs = summary.get("refs") or ([summary["ref"]] if summary.get("ref") else [])
+    if not refs:
+        return "ref unknown"
+    if len(refs) == 1:
+        return f"ref {refs[0]}"
+    return f"{len(refs)} refs: {', '.join(refs)}"
 
 
 def _render_markdown(summary: dict[str, Any]) -> str:
@@ -231,7 +258,7 @@ def _render_markdown(summary: dict[str, Any]) -> str:
         f"- Agent (harness): {s.get('agent')}",
         f"- Skill: {s.get('skill')}",
         f"- Provider: {s['provider']}",
-        f"- Dataset scope: {s['scope']} ({s['num_tasks']} tasks, ref {s['ref']})",
+        f"- Dataset scope: {s['scope']} ({s['num_tasks']} tasks, {_refs_phrase(s)})",
         f"- Serving: {serving_line}",
     ]
     if s.get("run_date"):

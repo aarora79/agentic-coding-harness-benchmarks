@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 72,
+      "notes": "The issue provides concrete symptoms, testable acceptance criteria, explicit exclusions, and names `_create_location_block` as the change point. Its largest error is claiming a short `/a` location can defeat longer locations such as `/api/health`; nginx selects the longest matching prefix, so those named guarded routes are not hijacked by `/a`. It also incorrectly suggests authenticated requests pass through untouched, although a selected generated location still determines proxy routing. No independent task statement exists, and the startup/reload migration claims could not be independently verified because repository shell access failed before commands executed."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 73,
+      "notes": "The LLD is unusually concrete about `_create_location_block`, placeholder substitution, normalization behavior, rollout, and the exact generated directives. Its largest deficiency is failing to resolve the acknowledged `/a` versus `/a/` normalization collision: both produce identical locations that can make `nginx -t` reject the regenerated configuration, directly weakening the promised migration-free rollout. The claimed review resolution instead cites an open question about `/a` versus `/a/b`, which is a different case, and the design repeats the incorrect nginx-precedence claim concerning longer guarded routes. Exact metrics, startup behavior, validator semantics, and referenced source locations could not be independently verified due the unavailable repository shell."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 21,
+      "total": 79,
+      "notes": "The review's strongest contribution is identifying the concrete duplicate-location failure created when distinct registered strings normalize to the same nginx path, together with its operational consequence. It also raises useful 301 caching, deployment-verification, and redirect-security considerations. However, it declares the blocking collision concern resolved when the submitted LLD does not actually document that exact collision, and it misses the erroneous claim that `/a` defeats longer `/api/health` locations. Path uniqueness and the asserted last-known-good behavior remain explicitly unverified rather than established."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 65,
+      "notes": "The plan covers generated text, redirect behavior, root handling, client subpaths, deployment checks, rollback, and an end-to-end lifecycle with concrete expected outcomes. Its central regression test hard-codes `location_string = \"/a/\"` and applies Python `startswith`, so it does not exercise nginx location selection or derive the tested prefix from the generated configuration. The `/api/health` pre-fix expectation is incorrect when a longer matching location exists, while exact 401 responses, container names, config paths, and an admin toggle endpoint are not repository-verified. It also omits the highest-risk full-config test for two registrations such as `/a` and `/a/` normalizing into duplicate locations."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 60,
+      "notes": "The diff implements the described helper, exact redirect, trailing-slash prefix, and focused unit assertions at the submitted `_create_location_block` and test-file contexts. Its largest defect is knowingly collapsing `/a` and `/a/` into duplicate exact and prefix locations without detection, migration handling, or a full-render regression test, potentially preventing the corrected configuration from being promoted. Several tests assert independent string constants rather than actual nginx behavior, and comments preserve the inaccurate `/api/health` hijack explanation. The summary also claims `git apply --check` was verified while later stating no command was run; repository applicability could not be independently confirmed because the read-only shell failed before execution."
+    }
+  },
+  "task_score": 69.8,
+  "verdict": "The submission is detailed and largely targets a real prefix-boundary defect, but unresolved normalization collisions, inaccurate nginx-precedence reasoning, and weak behavior-level tests materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-28T04:13:40.289836Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 279937,
+      "cached_input_tokens": 229055,
+      "cache_write_input_tokens": 37605,
+      "output_tokens": 8018,
+      "reasoning_output_tokens": 6030
+    },
+    "duration_ms": 98074
+  }
+}

@@ -66,6 +66,8 @@ To show what the harness produces, we ran it against [agentic-community/mcp-gate
 **claude-opus-5** tops quality (75.7/100). The best open-weight result is a near tie -- **glm-5.2** at 70.8 and **qwen3.8-27b** at 70.3 -- but they cost very different things to get: glm-5.2 is a 744B MoE on 8x H200 at $5.98/task, qwen3.8-27b a 27B dense model on a **single L40S** at $3.49/task. Both sit on the frontier. The full story -- task-by-task tables, per-model leaderboard, hardware, footnotes, the cost methodology, and the model-tier buying guidance -- is split by skill:
 
 - **[Results -- /swe3 (single-agent)](docs/results-swe3.md)** -- the primary results view (pi harness), 16 models.
+- **[Results -- /swe3 on the v2 dataset](docs/results-swe3-v2.md)** -- a second, larger dataset: 15 release-sourced tasks balanced across low/medium/high complexity, 3 models. Separate scores, not comparable with the above.
+- **[Which model for which task?](docs/model-selection-by-complexity.md)** -- the buying decision the v2 complexity split makes possible: what a model upgrade actually buys, per difficulty tier.
 - **[Results -- /swe2 (multi-agent)](docs/results-swe2.md)** -- the multi-agent skill (Claude Code harness), 14 models.
 - **[Cross-harness comparison (/swe3)](docs/agentic-coding-swe-comparison-swe3.md)** -- Claude Code vs pi on the same models: per-metric win tallies and the model-tier buying guidance (which model for which job, and which harness).
 
