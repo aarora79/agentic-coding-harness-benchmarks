@@ -1491,3 +1491,30 @@ class TestMultiInvocationCostAccounting(unittest.TestCase):
             rec = json.loads(metrics_path.read_text(encoding="utf-8"))
             self.assertEqual(rec["input_tokens"], 42)
             self.assertNotIn("agent_invocations", rec)
+
+
+class TestOmpMaxTime(unittest.TestCase):
+    """omp has no turn cap, so a runaway generation loop needs a wall-clock cap.
+
+    Without one, a model that finishes the work and then keeps emitting tokens
+    runs until the harness timeout and then burns a retry, costing hours on a
+    task whose artifacts were already complete.
+    """
+
+    def test_max_time_flag_is_passed(self) -> None:
+        cmd = harness._build_omp_cmd(
+            _config(agent_max_time_seconds=1800), "do the thing"
+        )
+        self.assertIn("--max-time=1800", cmd)
+
+    def test_zero_disables_the_flag(self) -> None:
+        cmd = harness._build_omp_cmd(_config(agent_max_time_seconds=0), "do it")
+        self.assertFalse([a for a in cmd if a.startswith("--max-time")])
+
+    def test_prompt_stays_positional_after_the_separator(self) -> None:
+        """The cap must not displace the trailing "--" that ends option parsing."""
+        cmd = harness._build_omp_cmd(_config(agent_max_time_seconds=600), "PROMPT")
+        # The final argument is the inlined SKILL.md followed by the prompt.
+        self.assertTrue(cmd[-1].endswith("PROMPT"))
+        self.assertEqual(cmd[-2], "--")
+        self.assertLess(cmd.index("--max-time=600"), cmd.index("--"))
