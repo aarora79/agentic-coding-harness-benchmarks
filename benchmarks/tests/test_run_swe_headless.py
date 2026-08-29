@@ -8,6 +8,7 @@ git-clone paths are not exercised here.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -1336,3 +1337,157 @@ class TestCheckTokenAccounting(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMultiInvocationCostAccounting(unittest.TestCase):
+    """A task's recorded cost must be the sum of every agent invocation.
+
+    A transient retry throws away the failed attempt's artifacts, but that
+    attempt still burned real tokens, turns and wall-clock. Recording only the
+    successful pass understates the task's true cost by roughly the number of
+    attempts it took -- which matters because cost per task is the headline
+    number this repo publishes.
+    """
+
+    def test_pass_value_prefers_normalized_block(self) -> None:
+        record = {
+            "input_tokens": 111,
+            "metrics_that_matter": {"input_tokens": 222},
+        }
+        self.assertEqual(harness._pass_cost_value(record, "input_tokens"), 222)
+
+    def test_pass_value_falls_back_to_top_level(self) -> None:
+        record = {"input_tokens": 111}
+        self.assertEqual(harness._pass_cost_value(record, "input_tokens"), 111)
+
+    def test_pass_value_is_zero_when_absent(self) -> None:
+        self.assertEqual(harness._pass_cost_value({}, "input_tokens"), 0)
+
+    def test_pass_value_reads_renamed_cache_write(self) -> None:
+        record = {"metrics": {"cache_write_tokens": 77}}
+        self.assertEqual(harness._pass_cost_value(record, "cache_creation_tokens"), 77)
+
+    def test_fold_sums_across_passes(self) -> None:
+        totals: dict[str, object] = {}
+        harness._fold_pass_into_totals(totals, {"input_tokens": 100, "num_turns": 3})
+        harness._fold_pass_into_totals(totals, {"input_tokens": 50, "num_turns": 4})
+        self.assertEqual(totals["input_tokens"], 150)
+        self.assertEqual(totals["num_turns"], 7)
+
+    def test_write_cost_totals_updates_both_views(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "metrics.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "input_tokens": 10,
+                        "metrics_that_matter": {
+                            "input_tokens": 10,
+                            "cache_write_tokens": 1,
+                            "total_tokens": 11,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            totals = {"input_tokens": 30, "cache_creation_tokens": 5}
+            harness._write_cost_totals(path, totals, 2, context="test")
+            rec = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(rec["input_tokens"], 30)
+            self.assertEqual(rec["metrics_that_matter"]["input_tokens"], 30)
+            # The cache-write rename is honored inside the normalized block.
+            self.assertEqual(rec["metrics_that_matter"]["cache_write_tokens"], 5)
+            # total_tokens is derived, so it is recomputed from the summed parts.
+            self.assertNotEqual(rec["metrics_that_matter"]["total_tokens"], 11)
+            self.assertEqual(rec["agent_invocations"], 2)
+
+    def test_write_cost_totals_is_noop_without_a_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "metrics.json"
+            harness._write_cost_totals(missing, {"input_tokens": 1}, 2, context="t")
+            self.assertFalse(missing.exists())
+
+    def test_retry_records_the_sum_of_both_attempts(self) -> None:
+        """Regression: a retried task reported only its final pass's cost.
+
+        The first attempt wrote six artifacts to a sibling folder (a dataset
+        with an output_scope), scored 0/6, and was retried. Its ~2.1M input
+        tokens vanished from metrics.json, halving the reported cost.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = _config(output_dir=tmp, max_retries=1, max_topups=0)
+            art = harness._artifact_dir(cfg, _ds(), _task())
+            art.mkdir(parents=True, exist_ok=True)
+            metrics_path = art / "metrics.json"
+
+            attempts = {"n": 0}
+
+            def _fake_run_task(*args: object, **kwargs: object) -> dict[str, object]:
+                attempts["n"] += 1
+                first = attempts["n"] == 1
+                metrics_path.write_text(
+                    json.dumps(
+                        {
+                            "input_tokens": 2_000_000 if first else 3_000_000,
+                            "output_tokens": 1_000 if first else 2_000,
+                            "num_turns": 37 if first else 56,
+                            "latency_seconds": 100.0 if first else 120.0,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                # The first attempt produced no artifacts the harness can see.
+                return {
+                    "task": _task().id,
+                    "ok": not first,
+                    "artifacts": 0 if first else 6,
+                }
+
+            with mock.patch.object(harness, "_run_task", _fake_run_task):
+                harness._run_task_safe(
+                    cfg,
+                    _ds(),
+                    _task(),
+                    stream=False,
+                    concurrent=False,
+                    position=1,
+                    total=1,
+                )
+
+            rec = json.loads(metrics_path.read_text(encoding="utf-8"))
+            self.assertEqual(attempts["n"], 2, "the task should have retried once")
+            # Both attempts, not just the successful one.
+            self.assertEqual(rec["input_tokens"], 5_000_000)
+            self.assertEqual(rec["output_tokens"], 3_000)
+            self.assertEqual(rec["num_turns"], 93)
+            self.assertAlmostEqual(rec["latency_seconds"], 220.0)
+            self.assertEqual(rec["agent_invocations"], 2)
+
+    def test_single_attempt_cost_is_left_untouched(self) -> None:
+        """A task that succeeds first time must not be rewritten or annotated."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = _config(output_dir=tmp, max_retries=1, max_topups=0)
+            art = harness._artifact_dir(cfg, _ds(), _task())
+            art.mkdir(parents=True, exist_ok=True)
+            metrics_path = art / "metrics.json"
+
+            def _fake_run_task(*args: object, **kwargs: object) -> dict[str, object]:
+                metrics_path.write_text(
+                    json.dumps({"input_tokens": 42, "num_turns": 7}), encoding="utf-8"
+                )
+                return {"task": _task().id, "ok": True, "artifacts": 6}
+
+            with mock.patch.object(harness, "_run_task", _fake_run_task):
+                harness._run_task_safe(
+                    cfg,
+                    _ds(),
+                    _task(),
+                    stream=False,
+                    concurrent=False,
+                    position=1,
+                    total=1,
+                )
+
+            rec = json.loads(metrics_path.read_text(encoding="utf-8"))
+            self.assertEqual(rec["input_tokens"], 42)
+            self.assertNotIn("agent_invocations", rec)

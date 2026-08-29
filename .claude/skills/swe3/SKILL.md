@@ -49,7 +49,7 @@ The `repo:` path may be a checkout the caller already cloned (including a tempor
 
 1. **Gather Requirements** - Detect the active model and confirm it; ask for the GitHub URL; ask for tag-vs-main; confirm the task; locate or clone the target repo with user approval
 2. **Quick Codebase Review** - Explore the codebase to understand structure
-3. **Create Benchmark Folder** - Create `benchmarks/swe-benchmark-data/{model-name}/{harness-name}/{repo-name}/{problem-name}/` directory. `{harness-name}` is the coding agent producing the run -- `claude-code` when you (Claude Code) run this skill, `pi` for a pi run. When the harness passes an `artifacts_dir:`, use it VERBATIM (it already encodes the right harness); otherwise default `{harness-name}` to `claude-code`.
+3. **Create Benchmark Folder** - If the harness passed an `artifacts_dir:`, that path IS the folder: use it VERBATIM and derive nothing. Only when no `artifacts_dir:` was given, build `benchmarks/swe-benchmark-data/{model-name}/{harness-name}/{repo-name}/{problem-name}/` yourself, where `{harness-name}` is the coding agent producing the run (`claude-code` when you run this skill, `pi` for a pi run).
 4. **Write GitHub Issue** - Create `github-issue.md` with the issue specification
 5. **Deep Codebase Analysis** - Thoroughly explore relevant code
 6. **Write Low-Level Design** - Create `lld.md` with technical details
@@ -206,7 +206,9 @@ This quick review takes 5-10 minutes and helps you ask better clarifying questio
 
 ## Step 3: Create Benchmark Folder
 
-All artifacts live under a top-level `benchmarks/` directory. Within it, every run gets its own `{model-name}/{harness-name}/{repo-name}/{problem-name}/` subfolder. Grouping by model first keeps each model's full set of results together; the `{harness-name}` level (e.g. `claude-code`, `pi`) then keeps runs of the same model by different coding agents from overwriting each other, while still letting models be compared on the same `{repo-name}/{problem-name}` across sibling folders.
+All artifacts live under a top-level `benchmarks/` directory. Within it, every run gets its own `{model-name}/{harness-name}/{scope}/{problem-name}/` subfolder. Grouping by model first keeps each model's full set of results together; the `{harness-name}` level (e.g. `claude-code`, `pi`) then keeps runs of the same model by different coding agents from overwriting each other, while still letting models be compared on the same `{scope}/{problem-name}` across sibling folders.
+
+> **`{scope}` is NOT always the repository name, which is why a derived path is unsafe.** It defaults to the repo name, but a dataset that sets `output_scope` overrides it, so that two datasets over the *same* repository do not share a results folder (for example `mcp-gateway-registry-v2` rather than `mcp-gateway-registry`). You cannot infer that value from the repo URL -- only the caller knows it. If the harness passed `artifacts_dir:` and you build a path from `{repo-name}` instead, the six artifacts land in a sibling folder the harness never looks at: it scores the task **0/6 despite every file being written successfully**, throws the work away, and re-runs the whole task. Use `artifacts_dir:` verbatim whenever it is given.
 
 > **CRITICAL - write to the ABSOLUTE artifact path, never the bare relative string.** The `benchmarks/swe-benchmark-data/...` paths shown throughout this skill are written relative to the repository root for readability. Your working directory is often already inside `benchmarks/` (the harness runs there), so if you pass a bare relative path like `benchmarks/swe-benchmark-data/{model}/...` to Write/Edit it resolves against the cwd and doubles to `benchmarks/benchmarks/swe-benchmark-data/...` -- the files land in the wrong place, the run scores 0/4 artifacts despite "File created successfully", and the work is lost.
 >
