@@ -21,6 +21,10 @@
 
 Kimi-K2.7-Code on 8×H200 (p5en.48xlarge). Requires `--trust-remote-code` and benefits from `CUDA_HOME` set for DeepGemm JIT.
 
+> **Verified on this repo's p5en.48xlarge node (2026-08):** the "Serve it" block below is correct as-is, but the DLAMI here has **no `/usr/local/cuda`** (nvcc lives at `/opt/pytorch/cuda`) and `ninja` exists only inside the vLLM venv, so the DeepGemm JIT cannot link. Export the environment from [`.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md`](../../../.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md) (Fixes 1+2) **before** running either command below, or the server fails at engine init with `cannot find -lcudart`. Unlike GLM-5.2, Kimi does **not** need the `libnvrtc.so` symlink (Fix 3), so Fixes 1+2 are enough. The `/usr/local/cuda` exports in the raw command and in "Tuning notes" assume a different DLAMI layout and do not apply to this node -- the venv also lives on the NVMe here (`/opt/dlami/nvme/vllm-env`), not `$HOME`, because the 29 GB root disk cannot hold torch plus the CUDA wheels.
+>
+> [`benchmarks/scripts/run-multi-model-benchmark.sh`](../../../benchmarks/scripts/run-multi-model-benchmark.sh) applies all of this itself (`_apply_p5en_cuda_env`), so a run driven through that script needs none of these exports by hand.
+
 ```bash
 MODEL="moonshotai/Kimi-K2.7-Code" \
 SERVED_NAME="kimi-k2.7-code" \
@@ -78,6 +82,8 @@ If disk fills during download:
 rm -rf ~/.cache/huggingface/hub/models--zai-org--GLM-5.2-FP8
 ```
 
+Check `HF_HOME` before running that: on this repo's p5en node the cache is on the ephemeral NVMe (`/opt/dlami/nvme/hf-cache/hub/...`), not under `$HOME`, so the command above frees nothing there. Evicting GLM-5.2 also costs a ~750 GB re-download if a later run needs it — on a 27 TB NVMe both models fit, so only evict when the volume is genuinely full.
+
 ## Quantization
 
 Kimi-K2.7-Code uses `compressed-tensors` format (Marlin WNA16 MoE backend). vLLM detects this automatically — no `--quantization` flag needed. The log should show:
@@ -97,7 +103,7 @@ Uses the `kimi_k2` tool parser. Tool calls are returned as structured `tool_use`
 ## Tuning notes
 
 - **Slow tokenizer warning:** Expected — Kimi K2 uses a custom tokenizer without a fast Rust implementation. Does not affect inference speed, only tokenization of prompts.
-- **DeepGemm:** Same as GLM-5.2 — needs `CUDA_HOME` pointing at nvcc. Ensure `ninja` is installed in the venv.
+- **DeepGemm:** Same as GLM-5.2 — needs `CUDA_HOME` pointing at a real `bin/nvcc`, and `ninja` on PATH from the vLLM venv (`vllm-install.sh` installs it there, and `vllm-serve.sh` does not add that directory itself). On this repo's p5en node `CUDA_HOME` is `/opt/pytorch/cuda`, not `/usr/local/cuda` — see the callout under "Serve it".
 - **HF_TOKEN:** Strongly recommended for faster downloads. Without it, the 1TB download is rate-limited.
 - **Startup time:** First boot downloads ~1TB + weight loading + torch.compile. Allow 20-30 minutes. Subsequent boots (weights cached): ~8-10 minutes.
 - **Attention backend:** Uses `FLASH_ATTN_MLA` (Multi-head Latent Attention) — same efficient attention as DeepSeek V3 family.
