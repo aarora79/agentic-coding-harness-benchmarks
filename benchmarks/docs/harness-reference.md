@@ -328,6 +328,29 @@ cd benchmarks
 ./scripts/run-swe-benchmark.sh --dataset dataset/hello-world.yaml --dry-run
 ```
 
+### Running several models in one batch
+
+`run-e2e-benchmark.sh` runs one model. Benchmarking a dataset usually means running the same thing for three or five models with hours of waiting between each, so [run-benchmark-batch.sh](../scripts/run-benchmark-batch.sh) wraps it in the loop:
+
+```bash
+./scripts/run-benchmark-batch.sh --provider bedrock \
+    --dataset dataset/mcp-gateway-registry-v2.yaml \
+    --models 'us.anthropic.claude-sonnet-5[1m],us.anthropic.claude-opus-5[1m]'
+```
+
+Models run **sequentially, never in parallel** -- on a self-hosted endpoint they would otherwise contend for the same GPU and each other's KV cache, making both the latency and the `vllm_prometheus` block meaningless; on Bedrock they would race for one account's throughput quota. A model that fails does not stop the rest, and every exit code is echoed so a partial batch is diagnosable afterwards.
+
+`--tasks a,b,c` scopes the batch to a subset, which is what you want after adding tasks to a dataset that has already been run: the existing task folders are neither re-run nor (thanks to the judge's `--no-overwrite`) re-judged, and `summarize_run.py` still rebuilds each summary over the full set.
+
+A batch runs for hours or days, so detach it:
+
+```bash
+LOG="logs/batch-$(date -u +%Y%m%dT%H%M%SZ).log"
+setsid nohup ./scripts/run-benchmark-batch.sh ... > "$LOG" 2>&1 < /dev/null &
+```
+
+`setsid` plus a redirect to a file is what makes the run outlive the SSH session: the process ends up with no controlling terminal, so no `SIGHUP` can reach it, and its output goes to disk rather than a pipe that dies with the connection.
+
 ### Running tasks concurrently
 
 The harness runs tasks serially by default (`concurrency: 1`). Set `concurrency` in the config (or `--concurrency N` on the CLI) to run several tasks at once through a thread pool of that width. Each task clones into its own temporary directory, writes to a distinct artifact directory, and runs `claude -p` as an independent subprocess, so the work parallelizes cleanly and wall-clock time drops roughly linearly with the pool width (bounded by the endpoint's own throughput). `--stream` is disabled under concurrency because interleaved event traces from several tasks are unreadable.
