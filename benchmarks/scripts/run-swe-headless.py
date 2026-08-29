@@ -68,6 +68,25 @@ IMPLEMENTATION_ARTIFACT_FILENAMES = ("patch.diff", "implementation.md")
 ARTIFACT_FILENAMES = DESIGN_ARTIFACT_FILENAMES + IMPLEMENTATION_ARTIFACT_FILENAMES
 GIT_CLONE_TIMEOUT_SECONDS = 300
 
+# A task's true cost is the sum of ALL its agent invocations -- every transient
+# retry and every top-up, not just the pass that happened to succeed. Each
+# _run_task call overwrites metrics.json with only that pass's numbers, so these
+# fields are accumulated across passes and the sums restored. Money and cache
+# tokens belong here as much as turns and tokens: for a retried or topped-up run
+# they are just as real and just as additive, and omitting them undercounts both
+# the cost and the tokens-processed total.
+ADDITIVE_COST_FIELDS = (
+    "input_tokens",
+    "output_tokens",
+    "num_turns",
+    "latency_seconds",
+    "total_cost_usd",
+    "cache_read_tokens",
+    "cache_creation_tokens",
+)
+# The normalized block renames cache-write; everything else keeps its name.
+MM_BLOCK_KEY = {"cache_creation_tokens": "cache_write_tokens"}
+
 # Sanity floor for output tokens per turn, used to catch a token-accounting bug at
 # run time rather than in PR review. An agent that edits files emits hundreds of
 # output tokens per turn (measured: ~370-730 across claude-code and pi). A value in
@@ -2690,6 +2709,100 @@ def _missing_artifacts(config: RunnerConfig, dataset: Dataset, task: Task) -> li
     return [f for f in ARTIFACT_FILENAMES if not (out_dir / f).exists()]
 
 
+def _pass_cost_value(record: dict[str, Any], key: str) -> float:
+    """Read one additive cost field from a single pass's metrics record.
+
+    Args:
+        record: A parsed metrics.json (or an in-memory summary) for one pass.
+        key: A member of :data:`ADDITIVE_COST_FIELDS`.
+
+    Returns:
+        The field's value, or 0 when the pass did not report it. The normalized
+        block is preferred over the top-level mirror because it is what
+        ``summarize_run`` reads.
+    """
+    block = record.get("metrics") or record.get("metrics_that_matter") or {}
+    val = block.get(MM_BLOCK_KEY.get(key, key))
+    if val is None:
+        val = record.get(key)
+    return val or 0
+
+
+def _fold_pass_into_totals(
+    totals: dict[str, Any],
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    """Add one pass's additive cost fields into a running total.
+
+    Args:
+        totals: The running totals, keyed by :data:`ADDITIVE_COST_FIELDS`.
+        record: The pass to fold in.
+
+    Returns:
+        The same ``totals`` dict, mutated.
+    """
+    for key in ADDITIVE_COST_FIELDS:
+        totals[key] = (totals.get(key) or 0) + _pass_cost_value(record, key)
+    return totals
+
+
+def _write_cost_totals(
+    path: Path,
+    totals: dict[str, Any],
+    invocations: int,
+    context: str,
+    topped_up: list[str] | None = None,
+) -> None:
+    """Restore summed multi-invocation cost into a task's metrics.json.
+
+    The final pass left metrics.json holding only its own numbers. This writes
+    the summed additive fields to the top-level fields AND to the normalized
+    block ("metrics", plus its "metrics_that_matter" alias), because
+    ``summarize_run`` reads the normalized block -- writing only one place would
+    leave the summary showing a single pass. Best-effort: a write failure is
+    logged, not fatal.
+
+    Args:
+        path: The task's metrics.json.
+        totals: Summed additive fields across every agent invocation.
+        invocations: How many agent invocations the task actually took.
+        context: Label for the token-accounting trace.
+        topped_up: Artifacts produced by a top-up pass, when any.
+    """
+    record = _read_json_file(path)
+    if record is None:
+        return
+    record.update(totals)
+    for block_name in ("metrics", "metrics_that_matter"):
+        block = record.get(block_name)
+        if not isinstance(block, dict):
+            continue
+        for key, value in totals.items():
+            target = MM_BLOCK_KEY.get(key, key)
+            if target in block:
+                block[target] = value
+        # total_tokens is derived, not additive; recompute it from the summed
+        # parts so the partition-vs-additive rule (issue #136) is applied
+        # consistently and does not ~2x double-count self-hosted partition runs.
+        if "total_tokens" in block:
+            block["total_tokens"] = compute_total_tokens_processed(
+                totals.get("input_tokens") or 0,
+                totals.get("output_tokens") or 0,
+                totals.get("cache_read_tokens") or 0,
+                totals.get("cache_creation_tokens") or 0,
+                context=f"{context}/{block_name}",
+            )
+    record["agent_invocations"] = invocations
+    if topped_up is not None:
+        record["topped_up_artifacts"] = topped_up
+    try:
+        path.write_text(
+            json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8"
+        )
+    except OSError:
+        logger.warning("could not write summed cost totals to %s", path)
+
+
 def _maybe_topup(
     config: RunnerConfig,
     dataset: Dataset,
@@ -2727,39 +2840,12 @@ def _maybe_topup(
     """
     invocations = summary.get("attempts", 1)
     topped_up: list[str] = []
-    # A task's true cost is the sum of ALL its agent invocations. Each _run_task
-    # call overwrites metrics.json with only that pass's numbers, so accumulate the
-    # additive cost fields across the main run and every top-up and restore the
-    # summed values at the end. This MUST include the money (total_cost_usd) and
-    # the cache tokens (cache_read/creation) -- for a topped-up Bedrock task those
-    # are as real and as additive as turns/tokens; leaving them out undercounts the
-    # cost and the tokens-processed total. The fields live in metrics_that_matter
-    # (which summarize_run reads) and are mirrored top-level, so we read from the
-    # nested block and write the sums back to both. Seed from the main run.
-    additive = (
-        "input_tokens",
-        "output_tokens",
-        "num_turns",
-        "latency_seconds",
-        "total_cost_usd",
-        "cache_read_tokens",
-        "cache_creation_tokens",
-    )
+    # Seed the running cost from what is already on disk. That record ALREADY
+    # holds the sum across any transient retries (_run_task_with_retries folded
+    # them in before we were called), so top-ups accumulate on top of it rather
+    # than restarting the count. See ADDITIVE_COST_FIELDS for why these fields.
     base = _read_json_file(_artifact_dir(config, dataset, task) / "metrics.json") or {}
-
-    # The normalized block ("metrics", aliased as "metrics_that_matter") renames
-    # cache-write to cache_write_tokens; total_cost_usd lives there too now.
-    _MM_KEY = {"cache_creation_tokens": "cache_write_tokens"}
-
-    def _pass_value(record: dict[str, Any], key: str) -> float:
-        """Read an additive field from a pass, preferring the normalized block."""
-        block = record.get("metrics") or record.get("metrics_that_matter") or {}
-        val = block.get(_MM_KEY.get(key, key))
-        if val is None:
-            val = record.get(key)
-        return val or 0
-
-    totals = {k: _pass_value(base, k) for k in additive}
+    totals = {k: _pass_cost_value(base, k) for k in ADDITIVE_COST_FIELDS}
     for topup in range(1, config.max_topups + 1):
         if summary.get("ok"):
             break
@@ -2804,8 +2890,7 @@ def _maybe_topup(
         pass_metrics = (
             _read_json_file(_artifact_dir(config, dataset, task) / "metrics.json") or {}
         )
-        for k in additive:
-            totals[k] = (totals[k] or 0) + _pass_value(pass_metrics, k)
+        _fold_pass_into_totals(totals, pass_metrics)
         topped_up = [
             f for f in missing if (_artifact_dir(config, dataset, task) / f).exists()
         ]
@@ -2828,54 +2913,27 @@ def _annotate_metrics_topup(
     topped_up: list[str],
     totals: dict[str, Any],
 ) -> None:
-    """Record top-up provenance + summed cost into the task's metrics.json.
+    """Record top-up provenance and summed cost into the task's metrics.json.
 
-    The final top-up left metrics.json holding only its own pass. Restore the
-    additive fields -- tokens, turns, latency, total_cost_usd, and cache tokens --
-    to the sum across all agent invocations (the task's true cost) and record how
-    many invocations it took and which artifacts were topped up. The summed values
-    are written to the top-level fields AND to the normalized block ("metrics",
-    plus its "metrics_that_matter" alias), because summarize_run reads them from
-    the normalized block -- writing only one place would leave the summary showing
-    a single pass. Best-effort: a write failure is logged, not fatal.
+    Thin wrapper over :func:`_write_cost_totals` that also records which
+    artifacts a top-up produced, so a completed-but-assisted run stays
+    distinguishable from a clean one.
+
+    Args:
+        config: The runner config.
+        dataset: The loaded dataset.
+        task: The task whose metrics.json to annotate.
+        invocations: Total agent invocations across retries and top-ups.
+        topped_up: Artifacts produced by a top-up pass.
+        totals: Summed additive cost fields across every invocation.
     """
-    path = _artifact_dir(config, dataset, task) / "metrics.json"
-    record = _read_json_file(path)
-    if record is None:
-        return
-    # Top-level copy.
-    record.update(totals)
-    # Normalized block(s): "metrics" is canonical, "metrics_that_matter" the alias.
-    # The block renames cache-write to cache_write_tokens; recompute total_tokens.
-    mm_key = {"cache_creation_tokens": "cache_write_tokens"}
-    for block_name in ("metrics", "metrics_that_matter"):
-        block = record.get(block_name)
-        if not isinstance(block, dict):
-            continue
-        for k, v in totals.items():
-            target = mm_key.get(k, k)
-            if target in block:
-                block[target] = v
-        # total_tokens is derived, not in `additive`; recompute from the summed
-        # parts via compute_total_tokens_processed so the partition-vs-additive
-        # rule (issue #136) is applied consistently and does not ~2x double-count
-        # self-hosted partition runs.
-        if "total_tokens" in block:
-            block["total_tokens"] = compute_total_tokens_processed(
-                totals.get("input_tokens") or 0,
-                totals.get("output_tokens") or 0,
-                totals.get("cache_read_tokens") or 0,
-                totals.get("cache_creation_tokens") or 0,
-                context=f"run-swe-headless:_annotate_metrics_topup/{block_name}",
-            )
-    record["agent_invocations"] = invocations
-    record["topped_up_artifacts"] = topped_up
-    try:
-        path.write_text(
-            json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8"
-        )
-    except OSError:
-        logger.warning("[task=%s] could not annotate metrics.json top-up", task.id)
+    _write_cost_totals(
+        _artifact_dir(config, dataset, task) / "metrics.json",
+        totals,
+        invocations,
+        context="run-swe-headless:_annotate_metrics_topup",
+        topped_up=topped_up,
+    )
 
 
 def _read_json_file(path: Path) -> dict[str, Any] | None:
@@ -2909,6 +2967,13 @@ def _run_task_safe(
     """
     attempts = config.max_retries + 1
     last: dict[str, Any] = {"task": task.id, "ok": False, "artifacts": 0}
+    # Cost carried over from attempts that were discarded. A failed attempt still
+    # burned real tokens, turns and wall-clock on the GPU, so dropping it would
+    # understate the task's true cost by roughly the number of attempts it took.
+    # _clear_partial_artifacts deletes metrics.json, so each attempt is folded in
+    # BEFORE the wipe; the sum is restored onto the final record after the loop.
+    carried: dict[str, Any] = {}
+    metrics_path = _artifact_dir(config, dataset, task) / "metrics.json"
     for attempt in range(1, attempts + 1):
         if attempt > 1:
             logger.warning(
@@ -2919,6 +2984,9 @@ def _run_task_safe(
                 attempt - 1,
                 config.max_retries,
             )
+            prior = _read_json_file(metrics_path)
+            if prior is not None:
+                _fold_pass_into_totals(carried, prior)
             _clear_partial_artifacts(config, dataset, task)
         try:
             summary = _run_task(
@@ -2954,6 +3022,20 @@ def _run_task_safe(
             total,
             attempts,
         )
+    # Fold the discarded attempts back in so metrics.json reports what the task
+    # actually cost, not just its final pass. Done before any top-up, which seeds
+    # its own running total from this record.
+    if carried:
+        totals = _fold_pass_into_totals(
+            dict(carried), _read_json_file(metrics_path) or {}
+        )
+        _write_cost_totals(
+            metrics_path,
+            totals,
+            last.get("attempts", attempts),
+            context="run-swe-headless:_run_task_safe",
+        )
+
     # Outer completion loop: if the task is design-complete but missing the
     # implementation artifacts, try focused top-ups to finish it (see _maybe_topup).
     if not last.get("ok") and config.max_topups > 0:
