@@ -14,6 +14,19 @@ This repository benchmarks how well LLMs perform real agentic coding tasks with 
 
 The harness drives the full flow: pre-flight checks, running the benchmark over a dataset, and scoring the resulting artifacts with a judge.
 
+### First step on a new machine
+
+Before running or debugging a benchmark on a box you have not used before, run the **`setup-machine` skill** -- it is the first step of onboarding this repo onto new hardware:
+
+```bash
+.claude/skills/setup-machine/setup-machine.sh --check     # report only, install nothing
+.claude/skills/setup-machine/setup-machine.sh --install --git-name "..." --git-email "..."
+```
+
+It inspects the instance, names every missing dependency and why the repo needs it, installs them, and prints a summary. The GPU stack (vLLM, nvtop, nvitop) is included only when a GPU is actually present, and on a box with a small root disk the vLLM venv and its caches are placed on the large ephemeral NVMe. Full details: [.claude/skills/setup-machine/SKILL.md](.claude/skills/setup-machine/SKILL.md).
+
+`--check` on its own is also the fast answer to "why is `uv` / `claude` / `codex` not found". Installing the CLIs does **not** wire them to Bedrock -- that is a separate step ([benchmarks/docs/agent-cli-bedrock-setup.md](benchmarks/docs/agent-cli-bedrock-setup.md)).
+
 ## Agent behavior
 
 ### Do not explore proactively
@@ -54,7 +67,7 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │   │   ├── runner_config.py      # RunnerConfig Pydantic model (config source of truth)
 │   │   ├── codex_judge.py        # scores artifacts (the judge)
 │   │   └── plot_*.py             # result charts
-│   ├── tests/                    # pytest suite for the harness
+│   ├── tests/                    # unittest suite for the harness
 │   └── docs/                     # harness-specific docs
 ├── self-hosted/                  # vLLM self-hosting path on EC2 (Path 3)
 │   └── vllm/                     # its own uv project
@@ -64,9 +77,9 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │       ├── config/               # serving config
 │       ├── models/               # model docs
 │       ├── pricing.json          # instance pricing for cost derivation
-│       └── tests/                # pytest suite
+│       └── tests/                # unittest suite
 ├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
-├── .claude/skills/               # repo skills (benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check)
+├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check)
 └── .github/                      # CI workflows and repo metadata
 ```
 
@@ -93,10 +106,10 @@ uv run bandit -r src/
 uv run mypy src/
 
 # Tests
-uv run pytest
+uv run python -m unittest discover -s tests
 
 # All checks in one line
-uv run ruff check --fix . && uv run ruff format . && uv run bandit -r src/ && uv run mypy src/ && uv run pytest
+uv run ruff check --fix . && uv run ruff format . && uv run bandit -r src/ && uv run mypy src/ && uv run python -m unittest discover -s tests
 ```
 
 After editing a single Python file, run `uv run python -m py_compile <filename>`, then `uv run ruff format <filename>`, then `uv run ruff check --fix <filename>`. After editing a shell script, run `bash -n <filename>`.
@@ -246,20 +259,23 @@ def process_data(data: dict) -> dict:
 
 ## Testing
 
-- Use `pytest` as the primary framework, with `pytest-cov` for coverage.
+- Use the standard library's `unittest` as the test framework. Both projects' suites are `unittest`, and [.github/workflows/test.yml](.github/workflows/test.yml) runs them with `uv run python -m unittest discover -s tests`. Neither project declares `pytest`, so `uv run pytest` fails on a correctly set-up machine -- do not reach for it, and do not add it without agreeing the dependency first.
 - Follow the AAA pattern (Arrange, Act, Assert); one assertion per test where possible.
-- Use descriptive test names, fixtures for shared data, and mock external dependencies.
+- Use descriptive test names, `setUp`/helper methods for shared fixtures, and `unittest.mock` for external dependencies.
 - Test both happy paths and error cases.
 - Run the full test suite before submitting a PR and after major features or refactors. A PR with failing tests should never be merged.
 
 ```python
-class TestFeatureName:
+import unittest
+
+
+class TestFeatureName(unittest.TestCase):
     def test_happy_path(self):
         result = function_under_test({"key": "value"})
-        assert result["status"] == "success"
+        self.assertEqual(result["status"], "success")
 
     def test_error_handling(self):
-        with pytest.raises(ValueError, match="Invalid input"):
+        with self.assertRaisesRegex(ValueError, "Invalid input"):
             function_under_test(None)
 ```
 
@@ -487,6 +503,7 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 
 **Machine setup -- do this before any benchmark run:**
 
+- [.claude/skills/setup-machine/SKILL.md](.claude/skills/setup-machine/SKILL.md) -- the `setup-machine` skill: inspects the instance, reports every missing dependency, and installs it (adding vLLM, nvtop and nvitop only when a GPU is present). Start here on a fresh box; `setup-machine.sh --check` alone is a fast answer to "why is `uv` / `claude` / `codex` not found".
 - [benchmarks/docs/agent-cli-bedrock-setup.md](benchmarks/docs/agent-cli-bedrock-setup.md) -- wiring `codex` (the judge) and `claude` to Amazon Bedrock. **Working AWS credentials are not sufficient**: an unconfigured `codex` ignores them and 401s against `api.openai.com`, so prove it with a real call before starting a long run.
 - [docs/kiro-cli-setup.md](docs/kiro-cli-setup.md) -- kiro-cli's own sign-in and its credit-based cost basis.
 
