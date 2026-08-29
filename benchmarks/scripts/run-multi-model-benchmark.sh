@@ -62,12 +62,17 @@ LOG="$SCRATCH/multi-model-benchmark.log"
 #     fit their KV cache at 0.90 and abort at engine init.
 #   - reasoning_parser: without it a thinking model's reasoning tokens leak into
 #     the response text, which corrupts the artifacts the judge then scores.
-#   - extra_args: --trust-remote-code is REQUIRED by kimi, glm-5.2, minimax and
-#     qwen3-coder-480b. vllm-serve.sh does NOT add it automatically (an earlier
-#     version of this comment claimed it did); without it those four fail to load.
+#   - extra_args: --trust-remote-code is REQUIRED by kimi, glm-5.2, glm-5.3,
+#     minimax and qwen3-coder-480b. vllm-serve.sh does NOT add it automatically
+#     (an earlier version of this comment claimed it did); without it those five
+#     fail to load. glm-5.3 carries more: vllm-serve.sh has no env var for the
+#     KV-cache dtype or the speculative config, so its FP8 KV cache and 5-token
+#     MTP drafting (both from the official vLLM recipe) ride in extra_args too.
+#     Multi-word values are safe here: vllm-serve.sh splits them with `read -ra`
+#     into an argv array, never eval.
 #
 # --trust-remote-code makes vLLM execute Python that ships inside the HF repo, in
-# this process, at load time. It is accepted here only because those four
+# this process, at load time. It is accepted here only because those five
 # architectures cannot load without it -- so treat the repo IDs above as part of
 # the trust boundary: keep them pinned to the official vendor org, and do not add
 # the flag to a row that does not genuinely need it or repoint a row at a fork.
@@ -81,6 +86,7 @@ REGISTRY=(
   "qwen3-coder-480b|Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8|200000|qwen3_coder|4|p5en.48xl|0.95||--trust-remote-code"
   "kimi-k2.7-code|moonshotai/Kimi-K2.7-Code|131072|kimi_k2|8|p5en.48xl|0.90|kimi_k2|--trust-remote-code"
   "glm-5.2|zai-org/GLM-5.2-FP8|300000|glm47|8|p5en.48xl|0.95|glm47|--trust-remote-code"
+  "glm-5.3|zai-org/GLM-5.3|300000|glm47|8|p5en.48xl|0.95|glm47|--trust-remote-code --kv-cache-dtype fp8 --speculative-config.method mtp --speculative-config.num_speculative_tokens 5"
   "deepseek-v3.2|deepseek-ai/DeepSeek-V3.2|131072|deepseek_v32|8|p5en.48xl|0.90||"
   "devstral-2-123b|mistralai/Devstral-2-123B-Instruct-2512|262144|mistral|4|p5en.48xl|0.90||"
 )
@@ -122,10 +128,13 @@ Fit key:
                qwen3-32b. They are served one at a time (swapped), so any subset
                works on a single 4xL40S box.
   p5en.48xl -- needs 8xH200. minimax-m2.5, qwen3-coder-480b and devstral-2-123b use
-               TP=4 (half the box); kimi-k2.7-code, glm-5.2 and deepseek-v3.2 use
-               TP=8 (whole box). All are served one at a time here, so group any
-               p5en models together on an 8xH200 node. There is no 4xH200 instance
-               type, so the TP=4 models still require a whole p5en.
+               TP=4 (half the box); kimi-k2.7-code, glm-5.2, glm-5.3 and
+               deepseek-v3.2 use TP=8 (whole box). All are served one at a time
+               here, so group any p5en models together on an 8xH200 node. There is
+               no 4xH200 instance type, so the TP=4 models still require a whole
+               p5en. glm-5.2 and glm-5.3 are ~750 GB each and cannot be resident
+               together, which is fine -- this script swaps them.
+               glm-5.3 additionally needs vLLM >= 0.28.0 and transformers >= 5.15.
   g6e.48xl  -- qwen3-coder-next needs 8xL40S (384 GB) for a >=200K window; on a
                4xL40S it only fits ~16K and every agentic task fails on turn 1.
 
