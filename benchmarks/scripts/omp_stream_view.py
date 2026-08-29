@@ -11,8 +11,16 @@ announced with their arguments, tool results are summarized, and each turn ends
 with its token usage. It follows the file by default, so it can be pointed at a
 task that is still running.
 
+``--latest`` follows the whole *run*, not one file. A benchmark run walks 21 tasks
+per model and then swaps to the next model, writing a fresh stream file each time,
+so pinning to one path means re-running this command a hundred-odd times. Instead
+it drains the current file, notices when a newer stream appears, prints a banner
+naming the new model and task, and carries on -- start it once and leave it up for
+the whole run. It also waits rather than exiting if no stream exists yet, so it can
+be started before the first task begins.
+
 Usage:
-    # Follow the task that is running now
+    # Follow the run: every task of every model, hopping automatically
     uv run scripts/omp_stream_view.py --latest
 
     # A specific task, from the beginning, without following
@@ -21,6 +29,9 @@ Usage:
 
     # Only what the model did, not what it said
     uv run scripts/omp_stream_view.py --latest --tools-only
+
+    # Pin to one task even while it is live: pass the path instead of --latest
+    uv run scripts/omp_stream_view.py .../omp-stream.jsonl
 
     # Also works as a filter
     tail -f .../omp-stream.jsonl | uv run scripts/omp_stream_view.py -
@@ -48,46 +59,116 @@ ARGS_PREVIEW_CHARS = 220
 RESULT_PREVIEW_CHARS = 400
 # Poll interval when following a file that has not grown yet.
 FOLLOW_POLL_SECONDS = 0.4
+# How often --latest re-checks for a newer stream file. Only ever paid while the
+# current file is idle, and a full rescan of the artifact tree is ~35 ms, so this
+# costs nothing next to the task it is watching.
+RESCAN_SECONDS = 2.0
 
 
-def _latest_stream(data_dir: Path) -> Path:
-    """Return the most recently modified omp stream under ``data_dir``.
+def _latest_stream(data_dir: Path) -> Path | None:
+    """Return the most recently modified omp/pi stream under ``data_dir``.
 
     Args:
         data_dir: The swe-benchmark-data root to search.
 
     Returns:
-        Path to the newest ``omp-stream.jsonl``.
-
-    Raises:
-        SystemExit: If no stream file exists yet.
+        Path to the newest stream file, or None if none exists yet.
     """
     found = [f for name in STREAM_FILENAMES for f in data_dir.rglob(name)]
-    streams = sorted(found, key=lambda p: p.stat().st_mtime, reverse=True)
-    if not streams:
-        raise SystemExit(
-            f"no {' or '.join(STREAM_FILENAMES)} under {data_dir} -- "
-            "is an omp or pi run in progress?"
-        )
-    return streams[0]
+    if not found:
+        return None
+
+    # stat() can race a file being written; treat an unreadable one as oldest
+    # rather than crashing a viewer that is meant to run unattended for hours.
+    def _mtime(p: Path) -> float:
+        try:
+            return p.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    return max(found, key=_mtime)
 
 
-def _follow(path: Path) -> Iterator[str]:
-    """Yield lines from ``path`` forever, waiting when it stops growing.
+def _stream_label(path: Path, data_dir: Path) -> str:
+    """Describe a stream file as ``model/harness/skill/scope :: task``.
+
+    Falls back to the bare path when it does not sit at the expected depth, so an
+    older or hand-placed artifact layout still gets a readable banner.
+    """
+    try:
+        parts = path.relative_to(data_dir).parts
+    except ValueError:
+        return str(path)
+    if len(parts) < 2:
+        return str(path)
+    return f"{'/'.join(parts[:-2])} :: {parts[-2]}"
+
+
+def _follow(path: Path, data_dir: Path | None = None) -> Iterator[str]:
+    """Yield complete lines from ``path``, waiting when it stops growing.
+
+    Only whole lines are yielded. ``readline`` at EOF hands back whatever has been
+    flushed so far, which for a live writer is routinely half a line; yielding that
+    split a single event into two fragments that both failed to parse and were
+    silently dropped by the renderer. Partial reads are buffered until the newline
+    arrives instead.
 
     Args:
         path: The file to follow.
+        data_dir: When given, stop once a NEWER stream appears under this root and
+            ``path`` has been drained to EOF -- this is what lets --latest hop from
+            one task to the next. When None, follow ``path`` forever.
 
     Yields:
-        Each line as it is appended.
+        Each complete line as it is appended.
     """
     with path.open("r", encoding="utf-8") as fh:
+        pending = ""
+        last_scan = time.monotonic()
         while True:
-            line = fh.readline()
-            if line:
-                yield line
+            chunk = fh.readline()
+            if chunk:
+                pending += chunk
+                if pending.endswith("\n"):
+                    yield pending
+                    pending = ""
                 continue
+            # Idle: the file is drained, so this is the only safe point at which to
+            # hand over to a newer task -- no event is left half-read behind us.
+            if data_dir is not None and time.monotonic() - last_scan >= RESCAN_SECONDS:
+                last_scan = time.monotonic()
+                newest = _latest_stream(data_dir)
+                if newest is not None and newest.resolve() != path.resolve():
+                    return
             time.sleep(FOLLOW_POLL_SECONDS)
+
+
+def _follow_run(data_dir: Path, out: TextIO, tools_only: bool) -> None:
+    """Render every stream under ``data_dir`` in turn, newest first, forever.
+
+    Waits for a stream to exist, renders it until a newer one shows up, announces
+    the handover, and repeats. Each file gets its own render call so the turn
+    counter restarts per task rather than climbing across the whole run.
+    """
+    current: Path | None = None
+    waiting = False
+    while True:
+        path = _latest_stream(data_dir)
+        if path is None:
+            if not waiting:
+                print(
+                    f"# waiting for {' or '.join(STREAM_FILENAMES)} under {data_dir} ...",
+                    file=sys.stderr,
+                )
+                waiting = True
+            time.sleep(RESCAN_SECONDS)
+            continue
+        waiting = False
+        if path != current:
+            print(f"\n# {_stream_label(path, data_dir)}", file=sys.stderr)
+            print(f"# {path}", file=sys.stderr)
+            current = path
+        _render(_follow(path, data_dir), out, tools_only)
 
 
 def _preview(value: Any, limit: int) -> str:
@@ -213,8 +294,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--latest",
         action="store_true",
-        help="Use the most recently modified omp-stream.jsonl under --data-dir "
-        "(the task running now).",
+        help="Follow the run: start at the most recently modified stream under "
+        "--data-dir and hop to each new task and model as they start, so the "
+        "command does not need restarting. Waits if no stream exists yet. "
+        "With --no-follow, renders just the newest one and exits.",
     )
     parser.add_argument(
         "--data-dir",
@@ -242,10 +325,27 @@ def main() -> None:
         _render(iter(sys.stdin), sys.stdout, args.tools_only)
         return
 
+    data_dir = args.data_dir.expanduser().resolve()
+
+    # --latest while following is a whole-run view, not a single file, so it owns
+    # its own loop over successive streams.
+    if args.latest and not args.stream and not args.no_follow:
+        try:
+            _follow_run(data_dir, sys.stdout, args.tools_only)
+        except KeyboardInterrupt:
+            print("\n(stopped)", file=sys.stderr)
+        return
+
     if args.stream:
         path = Path(args.stream).expanduser()
     elif args.latest:
-        path = _latest_stream(args.data_dir.expanduser().resolve())
+        latest = _latest_stream(data_dir)
+        if latest is None:
+            raise SystemExit(
+                f"no {' or '.join(STREAM_FILENAMES)} under {data_dir} -- "
+                "is an omp or pi run in progress?"
+            )
+        path = latest
     else:
         raise SystemExit("pass a stream path, '-' for stdin, or --latest")
     if not path.is_file():
