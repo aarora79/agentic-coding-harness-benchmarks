@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 49,
+      "notes": "The issue provides unusually concrete acceptance criteria, exclusions, and compatibility expectations. Its central diagnosis is wrong: repository documentation defines Get JWT Token as producing a gateway self-signed HS256 token, while the shipped #399 fix moved the complete session payload, including encrypted id_token, behind an opaque session_id. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/auth.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) The proposed cookie still contains id_token and groups, so it cannot guarantee the stated size limit and changes an established token contract without justification. No independent task statement was supplied, and local source inspection was unavailable because the execution sandbox failed before launching commands."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 4,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 49,
+      "notes": "The LLD is highly concrete about files, schemas, indexes, endpoint behavior, configuration, and rollout. Its refresh design is internally broken: OAuthTokenStore.get_tokens returns None as soon as expires_at passes, so _retrieve_or_refresh can never receive an expired record and execute the promised refresh path. It also retains id_token and groups in the cookie and redirects Get JWT Token away from the repository's documented self-signed-token behavior; the actual #399 solution instead stores the full session server-side. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/auth.md)) Exact baseline line contexts and patch applicability could not be verified locally due the shell sandbox failure."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 52,
+      "notes": "The review identifies several real concerns, including stable encryption keys, scoped lookups, expiry defaults, TTL preservation, caching, and deployment wiring. It misses the design's fatal expired-token control-flow contradiction and the larger mismatch with the repository's full server-side session solution, yet concludes that no critical findings remain. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) Its frontend assertion that returning an IdP token improves Get JWT Token conflicts with the documented gateway-issued self-signed-token contract, and its claim that all deployment wiring is implemented is contradicted by the submitted patch's missing Terraform encryption-key secret and Helm values edits. Local verification of the cited frontend files and exact baseline symbols was unavailable."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 47,
+      "notes": "The plan names meaningful negative cases, compatibility checks, concrete status codes, storage scoping, revocation, and deployment surfaces. Several proposed oracles and commands are invalid: it awaits the synchronous get_oauth_token_store getter, expects validate_session_cookie to return a valid field despite the LLD describing a decoded session dictionary, and treats an IdP JWT as the required Get JWT Token result contrary to repository documentation. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/auth.md)) The patch also omits most of the endpoint, internal-token, legacy-session, refresh-failure, and header tests that the plan labels mandatory. Commands requiring a real interactive OAuth login and the claimed full deployment wiring could not be validated locally."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 15,
+      "risk_awareness": 6,
+      "total": 29,
+      "notes": "The diff is concrete and touches callback, storage, registry propagation, logout, configuration, and unit-test surfaces. It does not solve the repository's actual cookie-size defect because session_data still includes id_token and groups, whereas the shipped #399 fix stores the entire session payload behind an opaque session_id. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) Refresh is nonfunctional because get_tokens hides expired records, and replace_tokens erases the existing refresh token when an IdP omits a rotated token; the patch also lacks most promised tests and does not wire the encryption key into Terraform. The claimed git apply --check result and exact source-context applicability could not be independently verified because local command execution failed before launch."
+    }
+  },
+  "task_score": 45.2,
+  "verdict": "The submission is detailed and repository-shaped, but it implements the wrong session boundary and contains a fatal refresh-path bug, leaving the core cookie-size and token-lifecycle requirements unsatisfied.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T20:42:34.217179Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 307951,
+      "cached_input_tokens": 237718,
+      "cache_write_input_tokens": 50475,
+      "output_tokens": 8235,
+      "reasoning_output_tokens": 5953
+    },
+    "duration_ms": 85889
+  }
+}

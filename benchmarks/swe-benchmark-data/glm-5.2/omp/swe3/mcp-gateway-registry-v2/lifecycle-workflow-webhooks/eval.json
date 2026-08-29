@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 79,
+      "notes": "The issue provides unusually concrete, testable criteria for webhook signing, scan outcomes, filtering, status enforcement, permissions, metrics, configuration, and documentation. Its named routes and services align with the submitted patch context, and the non-goals clearly bound retries and lifecycle-transition events. The largest gap is limiting the permission requirement to server/agent PATCH while their PUT handlers can also change status; it also omits the existing update webhook from its claim covering all outbound events. No independent task statement was supplied, so the full requirement set cannot be verified beyond the task identifier, tags, and internally consistent artifacts."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 78,
+      "notes": "The LLD is concrete about files, route symbols, data flow, exact-byte HMAC signing, pagination behavior, status resolution, and permission checks, including the server/agent PUT bypass found during review. Its strongest decision is serializing once and posting those same bytes through httpx, which makes consumer signature verification deterministic. The largest deficiency is deployment security: it promises AWS Secrets Manager and secretKeyRef handling without designing the required integration, while the patch passes the Terraform value directly into ECS environment variables; forwarding scan error_message also does not substantiate the promised sanitization. Exact source-model field parity and repository conventions could not be independently verified because repository shell inspection failed in the provided sandbox."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 84,
+      "notes": "The review identifies real design defects rather than merely approving the proposal, notably the server/agent PUT permission bypass, endpoint-specific error codes, unsigned-production risk, replay handling, and skill permission scoping. The PUT finding directly changed the LLD and addresses a material privilege-escalation path visible in update_server_endpoint and update_agent. Its largest weakness is declaring findings resolved without validating the resulting implementation: the patch still exposes the Terraform secret as an ECS environment value, and the LLD rollout sequence still conflicts with the review's consumer-first recommendation. It also does not challenge whether error_message is safe webhook content or detect the later implementation's unrelated response-shape regression."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 17,
+      "risk_awareness": 17,
+      "total": 65,
+      "notes": "The plan covers all feature areas and includes a meaningful raw-body HMAC oracle using hmac.compare_digest, plus negative, compatibility, deployment, and end-to-end cases. It supplies concrete expected status codes and payload values for several server scenarios. Its largest correctness defect is expecting registration then scan_complete in order despite the design explicitly declaring ordering undefined; its Terraform test expects Secrets Manager wiring that the patch does not implement, and its rollback claim ignores that lifecycle permission enforcement remains active. Agent, skill, unsafe-scan, and PUT examples rely on placeholders rather than executable fixtures, while the checklist claims unit tests are added although the implementation contains none."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 20,
+      "risk_awareness": 11,
+      "total": 61,
+      "notes": "The patch broadly implements the requested surfaces, and the shared _post_webhook correctly signs the same serialized bytes passed as httpx content while isolating metric failures. Material defects remain: agent_routes.py removes path from the successful registration response without explanation, and ecs-services.tf places registration_webhook_signing_secret directly in an ECS environment entry despite the summary claiming Secrets Manager handling. The skill status mandate runs after check_registration_gate, the unsafe skill webhook is scheduled before disable/tag state settles, and _scan_summary forwards error_message without demonstrated sanitization. No tests were added, the summary omits these deviations, and git apply --check could not be independently completed because the provided command sandbox failed to initialize."
+    }
+  },
+  "task_score": 73.4,
+  "verdict": "The submission has strong, specific design and review work, but the implementation contains material secret-handling, ordering, policy-integration, and unrelated-regression defects.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T20:27:23.799577Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 401875,
+      "cached_input_tokens": 323488,
+      "cache_write_input_tokens": 66668,
+      "output_tokens": 10956,
+      "reasoning_output_tokens": 9207
+    },
+    "duration_ms": 123416
+  }
+}
