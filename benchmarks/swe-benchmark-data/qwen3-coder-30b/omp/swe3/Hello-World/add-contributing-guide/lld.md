@@ -27,7 +27,7 @@ The repository currently has only a README file and no guidance for contributors
 ### Goals
 - [ ] Provide clear contribution guidelines for newcomers
 - [ ] Explain the issue filing process
-- [ ] Explain the pull request submission process  
+- [ ] Explain the pull request submission process
 - [ ] Outline basic contribution expectations
 - [ ] Follow standard open-source conventions
 
@@ -176,14 +176,14 @@ This is a documentation-only change, so testing involves verifying:
 
 ### Alternative 1: Add contribution information to README
 **Description:** Include contribution guidelines directly in the README file
-**Pros / Cons:** 
+**Pros / Cons:**
 - Pro: Keeps everything in one file
 - Con: Makes README longer and potentially less focused
 **Why Rejected:** Standard practice is to keep contribution guidelines in a separate CONTRIBUTING.md file for better discoverability and clarity
 
 ### Alternative 2: Include extensive code style documentation
 **Description:** Add comprehensive code style and formatting rules
-**Pros / Cons:** 
+**Pros / Cons:**
 - Pro: Comprehensive guidance
 - Con: Overcomplicates the contribution guide
 **Why Rejected:** This is outside the scope of this task and should be handled separately
