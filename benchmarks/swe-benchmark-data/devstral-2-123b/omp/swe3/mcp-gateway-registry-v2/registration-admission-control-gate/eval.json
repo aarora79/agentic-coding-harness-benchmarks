@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 78,
+      "notes": "The issue clearly defines pre-persistence enforcement, three asset types, updates, fail-closed behavior, defaults, and testable outcomes. Its largest gap is security-contract detail: arbitrary webhook URLs, credential storage, sensitive payload handling, response limits, and safe treatment of untrusted denial messages are unresolved. The documented agent route is /api/agents/register, whereas the proposed contract repeatedly uses /agents/register. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/a2a.md)) No independent task statement was supplied, so the asserted requirement for every listed deployment surface cannot be fully verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 46,
+      "notes": "The LLD names concrete configuration, route, audit, and deployment components and gives a useful initial webhook data flow. Its largest defect is that the proposed route code raises a denial HTTPException inside a try whose broad except Exception converts it to a 500, while update handling is left as 'similar' and route-level enforcement permits unexamined registration paths to bypass the gate. It also logs unsanitized full payloads, uses request.state.get despite Starlette State conventions, references the wrong /agents path, and names charts/registry/values.yaml even though repository release instructions use charts/mcp-gateway-registry-stack. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/a2a.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.17.md)) Claims that the listed service and audit integrations follow existing patterns could not all be independently verified."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 13,
+      "risk_awareness": 16,
+      "total": 52,
+      "notes": "The security section identifies material risks including SSRF, secret management, response validation, and unsafe logging, which is the review's strongest contribution. It misses more immediate design defects such as swallowed 403 responses, incomplete update coverage, route bypasses, and the incompatible 200-response contract. Several generic recommendations such as caching, rate limiting, retries, and a circuit breaker are declared critical without explaining admission-policy correctness or latency tradeoffs. The claimed resolutions are only stubs, contradict the LLD's no-new-dependencies statement, and are absent from the submitted implementation."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 4,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 34,
+      "notes": "The plan attempts allow, deny, disabled, unreachable-gate, deployment, and update scenarios across the three asset types. Its largest deficiency is the lack of executable oracles: most curl commands neither assert status and body nor prove denied records were not persisted, so they could appear successful with a broken gate. It relies on unestablished /api/config and /auth/token APIs, nonexistent helper modules and setup scripts, and /agents/register instead of the documented /api/agents/register route. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/a2a.md)) Update-denial, timeout, malformed-response, unexpected-status, authentication, concurrency, and real Helm/Terraform rendering coverage are missing, while the fail-open test contradicts the issue's mandatory fail-closed posture."
+    },
+    "implementation": {
+      "completeness": 2,
+      "correctness": 7,
+      "specificity": 9,
+      "risk_awareness": 4,
+      "total": 22,
+      "notes": "The submitted diff only adds six settings to registry/core/config.py and corresponding entries to .env.example; it contains none of the claimed gate service, route interception, tests, update handling, audit integration, or deployment wiring. This directly contradicts the summary's six-file table and claim of a complete implementation, and the summary separately admits that required update operations were deferred. The visible configuration is concrete and safely disabled by default, but auth_type and endpoint lack validation, the credential is a plain string, and configurable fail-open behavior conflicts with the issue. A local git apply dry-run was unavailable because repository command execution failed before commands launched, so applicability beyond the submitted context could not be independently confirmed."
+    }
+  },
+  "task_score": 46.4,
+  "verdict": "The issue provides a solid behavioral starting point, but the design and tests contain major correctness gaps and the submitted patch implements only configuration while materially overstating completion.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T11:56:12.027138Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 431706,
+      "cached_input_tokens": 300781,
+      "cache_write_input_tokens": 41510,
+      "output_tokens": 14152,
+      "reasoning_output_tokens": 11981
+    },
+    "duration_ms": 213565
+  }
+}

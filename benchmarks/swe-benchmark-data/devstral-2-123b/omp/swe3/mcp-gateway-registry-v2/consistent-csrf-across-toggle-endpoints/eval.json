@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 16,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 66,
+      "notes": "The issue clearly distinguishes bearer-token and session-cookie behavior, names the affected routes, and provides mostly testable acceptance criteria. Its largest defect is scope inconsistency: it repeatedly says six toggle endpoints but enumerates four user-facing routes plus one internal route. The submitted diff supports the four user-facing route names and the unchanged internal route, but not a sixth endpoint. No independent task statement was supplied, and the asserted relationship to issue #891 could not be verified."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 10,
+      "total": 50,
+      "notes": "The LLD is concrete about files, route functions, dependency changes, and expected status behavior. Its central design equates absence of a session cookie with bearer authentication instead of deriving the authenticated scheme, and it simultaneously describes enhanced_auth as session-only while proposing that the enhanced_auth server route support bearer clients. The proposed code also relies on settings.session_cookie_name without establishing that this setting exists. Logging is promised to include request path and authentication method, but neither the design code nor submitted patch implements that context."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 7,
+      "specificity": 8,
+      "risk_awareness": 10,
+      "total": 35,
+      "notes": "The review at least raises deployment monitoring, rollback, audit logging, and error-case coverage. It misses the load-bearing authentication-classification decision and the contradiction between the claimed session-only enhanced_auth dependency and bearer support for the server route. Its resolution section falsely states that request IDs, timestamps, metrics, malformed-cookie handling, and missing-auth handling were added, while the submitted patch contains none of them. Several findings, such as partially valid CSRF tokens, remain generic and provide no concrete corrective design."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 14,
+      "risk_awareness": 11,
+      "total": 45,
+      "notes": "The plan covers bearer, valid-session, missing-CSRF, invalid-CSRF, compatibility, and multi-resource workflows with concrete HTTP expectations. Several commands do not match the submitted route signatures: session agent tests send enabled as form data although the diff shows an unannotated bool parameter, while the successful bearer case supplies it as a query parameter. Registration JSON is single-quoted, so shell variables such as $TEST_AGENT_PATH will not expand, and injecting X-User/X-Scopes directly does not prove that a bearer token was authenticated. It also lacks invalid-auth and mixed-cookie-plus-bearer cases, persistent-state oracles, and actual unit or integration test definitions."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 6,
+      "total": 41,
+      "notes": "The patch is focused and updates the four named user-facing routes plus a shared conditional CSRF dependency. Under the LLD's own claim that enhanced_auth is session-only, changing only the server route's CSRF dependency cannot make that route usable by bearer clients, and the helper never verifies that a cookie-less request actually used bearer authentication. The summary claims no deviations and comprehensive audit handling, but the patch adds no tests, request identifiers, authentication-method context, metrics, or malformed-cookie handling. The clean-application claim and settings.session_cookie_name symbol could not be independently verified because local repository commands failed before execution."
+    }
+  },
+  "task_score": 47.4,
+  "verdict": "The submission identifies the intended CSRF behavior and names plausible integration points, but its authentication-mode decision is insufficiently grounded and the implementation overclaims completeness without resolving key design contradictions or adding reliable tests.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T10:59:32.434978Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 276750,
+      "cached_input_tokens": 203497,
+      "cache_write_input_tokens": 37989,
+      "output_tokens": 10927,
+      "reasoning_output_tokens": 8974
+    },
+    "duration_ms": 224956
+  }
+}
