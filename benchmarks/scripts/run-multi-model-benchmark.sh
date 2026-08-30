@@ -30,7 +30,12 @@ set -uo pipefail
 #                         omp (oh-my-pi), or kiro
 #   --skill NAME          SWE skill: swe3 (default, single-agent) or swe2 (multi-agent)
 #   --no-detach           run in the foreground (do not self-detach)
-#   --skip-judge          run the harness only; score later
+#   --judge-mode MODE     when to score: inline (default, judge after each model,
+#                         GPU idle while it runs), async (judge in the background
+#                         while the NEXT model generates -- the judge is a Bedrock
+#                         call and uses no GPU, so the two overlap for free), or
+#                         skip (harness only; score later)
+#   --skip-judge          deprecated alias for --judge-mode skip
 #
 # Models are REQUIRED. If none are given the script fails loudly and prints the
 # full catalog (see below) with which models fit which machine.
@@ -85,8 +90,18 @@ DOLLARS_PER_HOUR="0"
 AGENT="claude"
 SKILL="swe3"
 DETACH=1
-SKIP_JUDGE=""
+JUDGE_MODE="inline"
 MODELS=()
+
+# Background judge jobs launched by --judge-mode async, as "pid:model-slug".
+JUDGE_PIDS=()
+# How many judge jobs may run at once. Keep this at 1: codex_judge.py's
+# _ensure_checkout is check-then-act with no locking, and every model in a batch
+# judges the SAME dataset, so two concurrent judges resolve to the same
+# /tmp/swe-judge-repos checkout and can clone over (or rmtree) each other. One
+# in-flight job is enough to hide judging behind the next model's generation,
+# which takes hours. Raising this REQUIRES a lock in codex_judge.py first.
+JUDGE_MAX_PARALLEL=1
 
 info() { printf '\033[0;36m[info]\033[0m  %s\n' "$1"; }
 die()  { printf '\033[0;31m[FAIL]\033[0m  %s\n' "$1" >&2; exit 1; }
@@ -133,8 +148,9 @@ while [[ $# -gt 0 ]]; do
     --agent)            AGENT="${2:?}"; shift 2 ;;
     --skill)            SKILL="${2:?}"; shift 2 ;;
     --no-detach)        DETACH=0; shift ;;
-    --skip-judge)       SKIP_JUDGE="--skip-judge"; shift ;;
-    -h|--help)          sed -n '4,37p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; print_catalog; exit 0 ;;
+    --judge-mode)       JUDGE_MODE="${2:?}"; shift 2 ;;
+    --skip-judge)       JUDGE_MODE="skip"; shift ;;
+    -h|--help)          sed -n '4,42p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; print_catalog; exit 0 ;;
     -*)                 die "unknown flag: $1 (see --help)" ;;
     *)                  MODELS+=("$1"); shift ;;
   esac
@@ -149,6 +165,28 @@ case "$SKILL" in
   swe2|swe3) ;;
   *) die "invalid --skill '$SKILL'. Must be one of: swe2, swe3." ;;
 esac
+case "$JUDGE_MODE" in
+  inline|async|skip) ;;
+  *) die "invalid --judge-mode '$JUDGE_MODE'. Must be one of: inline, async, skip." ;;
+esac
+
+# In async mode the e2e script is told to skip the judge, which also skips ITS
+# codex pre-flight -- so a missing or misconfigured codex would surface hours
+# later, inside a background job, in a scratchpad log. Prove the judge here
+# instead. Working AWS credentials are NOT sufficient: an unconfigured codex
+# ignores them and 401s against api.openai.com (see
+# benchmarks/docs/agent-cli-bedrock-setup.md).
+if [[ "$JUDGE_MODE" == "async" ]]; then
+  command -v codex >/dev/null 2>&1 \
+    || die "codex CLI not found on PATH, but --judge-mode async needs it to score each model. Install codex, or use --judge-mode skip."
+  timeout 120 codex exec --sandbox read-only --skip-git-repo-check "Reply with exactly: JUDGE OK" >/dev/null 2>&1 \
+    || die "codex is installed but a test call failed. It must be wired to Amazon Bedrock before a long run (see benchmarks/docs/agent-cli-bedrock-setup.md). Re-run with --judge-mode skip to score later."
+fi
+
+# The e2e script judges inline unless told not to. async does its own judging in
+# the background, so the inline pass must be suppressed there too.
+E2E_SKIP_JUDGE=""
+[[ "$JUDGE_MODE" != "inline" ]] && E2E_SKIP_JUDGE="--skip-judge"
 
 # --- Fail loudly if no models, or an unknown model, was given ----------------
 if [[ ${#MODELS[@]} -eq 0 ]]; then
@@ -167,7 +205,7 @@ done
 # --- Self-detach so a session teardown cannot kill a multi-hour run ----------
 if [[ "$DETACH" == "1" && -z "${MMB_DETACHED:-}" ]]; then
   MMB_DETACHED=1 setsid nohup "$0" --no-detach \
-    ${SKIP_JUDGE:+--skip-judge} --dataset "$DATASET" --agent "$AGENT" --skill "$SKILL" \
+    --judge-mode "$JUDGE_MODE" --dataset "$DATASET" --agent "$AGENT" --skill "$SKILL" \
     --dollars-per-hour "$DOLLARS_PER_HOUR" "${MODELS[@]}" \
     >>"$SCRATCH/multi-model-benchmark.nohup.log" 2>&1 &
   echo "detached multi-model benchmark (pid $!)."
@@ -210,6 +248,80 @@ stop_all_vllm() {
   done
 }
 
+# --- Judging, summarizing and committing one model ---------------------------
+# Split out so --judge-mode async can run the whole tail (judge -> summarize ->
+# commit) in the background while the next model generates. The commit MUST stay
+# inside that unit: committing before the judge finishes writes a run-summary.json
+# with num_scored 0, which is what every downstream report and chart reads.
+
+_commit_run() {  # $1 model-slug, $2 target dir relative to benchmarks/
+  local slug="$1" target="$2"
+  # flock because a background judge job can overlap with the main loop's own git
+  # usage (the stray-file cleanup below), and with a future higher parallelism.
+  # Note the async path commits while the NEXT model is generating into this same
+  # working tree. That is safe for what the harness writes (its six large
+  # artifacts are gitignored, and each model owns its own folder), but a
+  # pull --rebase here does touch tracked files, so keep the lock and keep the
+  # committed set narrow.
+  ( flock 9
+    cd "$REPO_ROOT" || exit 1
+    git add "benchmarks/$target/run-summary.json" "benchmarks/$target/run-summary.md" \
+            "benchmarks/$target"/*/metrics.json "benchmarks/$target"/*/eval.json 2>/dev/null
+    git diff --cached --quiet || git commit -q -m "$slug ($AGENT, $SKILL): benchmark run on $SCOPE (implementation + judge scores)"
+    git pull --rebase -q 2>/dev/null; git push -q 2>/dev/null
+  ) 9>"$SCRATCH/.git.lock"
+}
+
+summarize_and_commit() {  # $1 model-slug, $2 target -- inline/skip path
+  local slug="$1" target="$2"
+  say "  summarizing $slug ..."
+  ( cd "$BENCH_DIR" && uv run python scripts/summarize_run.py \
+      --folder "$target" --run-date "$(date -u +%Y-%m-%d)" \
+      >>"$SCRATCH/e2e-$slug.log" 2>&1 ) || say "  WARN summarize failed for $slug"
+  _commit_run "$slug" "$target" && say "  committed+pushed $slug run" \
+    || say "  WARN commit failed for $slug"
+}
+
+judge_and_commit() {  # $1 model-slug, $2 target -- async path, runs backgrounded
+  local slug="$1" target="$2"
+  # Distinct exit codes so the end-of-run report names the stage that failed.
+  ( cd "$BENCH_DIR/scripts" && uv run python codex_judge.py --recursive --no-overwrite \
+      --folder "../$target" ) || return 1
+  ( cd "$BENCH_DIR" && uv run python scripts/summarize_run.py \
+      --folder "$target" --run-date "$(date -u +%Y-%m-%d)" ) || return 2
+  _commit_run "$slug" "$target" || return 3
+  return 0
+}
+
+_judges_running() {  # -> count of live background judge jobs
+  local entry running=0
+  [ "${#JUDGE_PIDS[@]}" -eq 0 ] && { echo 0; return 0; }
+  for entry in "${JUDGE_PIDS[@]}"; do
+    kill -0 "${entry%%:*}" 2>/dev/null && running=$((running + 1))
+  done
+  echo "$running"
+}
+
+_wait_for_judge_slot() {
+  # Counts tracked PIDs rather than `jobs -rp`, which would also match the
+  # backgrounded vllm-serve subshell and deadlock while a model is serving.
+  while [ "$(_judges_running)" -ge "$JUDGE_MAX_PARALLEL" ]; do
+    say "  waiting for a judge slot (${JUDGE_MAX_PARALLEL} in flight) ..."
+    sleep 30
+  done
+}
+
+_kill_judges() {
+  local entry
+  [ "${#JUDGE_PIDS[@]}" -eq 0 ] && return 0
+  for entry in "${JUDGE_PIDS[@]}"; do kill "${entry%%:*}" 2>/dev/null || true; done
+}
+
+# A half-judged model with no summary is worse than an unjudged one, because
+# codex_judge.py --no-overwrite makes the resume non-obvious. Stop cleanly and
+# say so rather than orphaning jobs against a torn-down environment.
+trap '_kill_judges; say "interrupted -- background judging stopped"; exit 130' INT TERM
+
 say "=== START multi-model benchmark: ${MODELS[*]} (dataset=$SCOPE) ==="
 command -v uv >/dev/null 2>&1 || die "uv not on PATH"
 
@@ -244,8 +356,9 @@ for want in "${MODELS[@]}"; do
   ( cd "$VLLM_DIR/scripts" && ./vllm-metrics.sh start >/dev/null 2>&1 || true )
 
   say "  running e2e benchmark for $SLUG ..."
+  # shellcheck disable=SC2086 -- E2E_SKIP_JUDGE is a single flag or empty.
   ( cd "$BENCH_DIR" && ./scripts/run-e2e-benchmark.sh --agent "$AGENT" --skill "$SKILL" --provider vllm --model "$SLUG" \
-      --dataset "$DATASET" --yes $SKIP_JUDGE >"$SCRATCH/e2e-$SLUG.log" 2>&1 )
+      --dataset "$DATASET" --yes $E2E_SKIP_JUDGE >"$SCRATCH/e2e-$SLUG.log" 2>&1 )
   say "  e2e done for $SLUG (exit $?)"
 
   ( cd "$VLLM_DIR/scripts" && ./vllm-metrics.sh stop >/dev/null 2>&1 || true )
@@ -255,19 +368,18 @@ for want in "${MODELS[@]}"; do
        "$VLLM_DIR/benchmark-output/vllm-metrics_${SLUG}_${SCOPE}_${TS}.duckdb" 2>/dev/null || true
 
   TARGET="swe-benchmark-data/$SLUG/$HARNESS_SLUG/$SKILL/$SCOPE"
-  say "  summarizing $SLUG ..."
-  ( cd "$BENCH_DIR" && uv run python scripts/summarize_run.py \
-      --folder "$TARGET" --run-date "$(date -u +%Y-%m-%d)" \
-      >>"$SCRATCH/e2e-$SLUG.log" 2>&1 ) || say "  WARN summarize failed for $SLUG"
-
-  # Commit the run-summary plus the now-tracked per-task metrics.json/eval.json
-  # (the six large artifacts stay gitignored).
-  ( cd "$REPO_ROOT"
-    git add "benchmarks/$TARGET/run-summary.json" "benchmarks/$TARGET/run-summary.md" \
-            "benchmarks/$TARGET"/*/metrics.json "benchmarks/$TARGET"/*/eval.json 2>/dev/null
-    git diff --cached --quiet || git commit -q -m "$SLUG ($AGENT, $SKILL): benchmark run on $SCOPE (implementation + judge scores)"
-    git pull --rebase -q 2>/dev/null; git push -q 2>/dev/null
-  ) && say "  committed+pushed $SLUG run" || say "  WARN commit failed for $SLUG"
+  # Commit covers the run-summary plus the now-tracked per-task
+  # metrics.json/eval.json (the six large artifacts stay gitignored).
+  if [[ "$JUDGE_MODE" == "async" ]]; then
+    # The judge is a Bedrock call per task and touches no GPU, so it overlaps
+    # with the next model's generation instead of leaving the GPUs idle.
+    _wait_for_judge_slot
+    judge_and_commit "$SLUG" "$TARGET" >>"$SCRATCH/judge-$SLUG.log" 2>&1 &
+    JUDGE_PIDS+=("$!:$SLUG")
+    say "  judging $SLUG in the background (pid $!); the next model starts now"
+  else
+    summarize_and_commit "$SLUG" "$TARGET"
+  fi
 
   # Remove any stray untracked root-level .md files a /swe2 task may have misplaced.
   ( cd "$REPO_ROOT" && for f in $(git ls-files --others --exclude-standard -- '*.md' | grep -vE '/'); do
@@ -275,4 +387,32 @@ for want in "${MODELS[@]}"; do
 
   say "===== DONE: $SLUG ====="
 done
+
+# Every background judge must finish before the run reports completion --
+# otherwise the log says ALL DONE while scoring is still in flight, and a failed
+# job is never surfaced at all.
+if [ "${#JUDGE_PIDS[@]}" -gt 0 ]; then
+  say "waiting for ${#JUDGE_PIDS[@]} background judge job(s) ..."
+  JUDGE_FAILED=()
+  for entry in "${JUDGE_PIDS[@]}"; do
+    pid="${entry%%:*}"; slug="${entry#*:}"
+    if wait "$pid"; then
+      say "  judged+committed $slug"
+    else
+      rc=$?
+      case "$rc" in
+        1) stage="judge" ;;
+        2) stage="summarize" ;;
+        3) stage="commit" ;;
+        *) stage="unknown (exit $rc)" ;;
+      esac
+      JUDGE_FAILED+=("$slug ($stage)")
+      say "  WARN $stage FAILED for $slug -- see $SCRATCH/judge-$slug.log"
+    fi
+  done
+  if [ "${#JUDGE_FAILED[@]}" -gt 0 ]; then
+    say "=== ALL DONE: ${MODELS[*]} -- but judging FAILED for: ${JUDGE_FAILED[*]} ==="
+    exit 1
+  fi
+fi
 say "=== ALL DONE: ${MODELS[*]} ==="
