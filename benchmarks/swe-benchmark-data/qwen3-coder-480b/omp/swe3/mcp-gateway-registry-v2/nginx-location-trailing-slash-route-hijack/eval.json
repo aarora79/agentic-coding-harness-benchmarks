@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 19,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The issue clearly defines the prefix-collision problem with concrete `/a`, `/api`, `/name/mcp`, and unauthenticated-request examples. Its acceptance criteria cover route isolation, client compatibility, bare-path behavior, tests, and existing configurations. The largest weakness is that “behaves sensibly” and “continues to work” do not specify an exact status, redirect target, or configuration lifecycle that can be tested. No independent task statement was supplied, so requirements beyond the task identifier and internally consistent artifacts could not be verified."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 58,
+      "notes": "The LLD identifies a concrete target, `registry/core/nginx_service.py::_create_location_block`, and supplies implementation-level normalization behavior, alternatives, tests, and rollback discussion. Its largest defect is the unrelated, overbroad validation: checks for any `..` or `/.` reject legitimate paths such as `/foo..bar` and `/.well-known`, creating a compatibility regression. It also leaves bare `/name` behavior implicit, assumes a particular `proxy_pass` URI-rewrite form, and does not define when existing generated configurations are regenerated. The historical source blob and claimed line numbers could not be independently read because local shell execution failed before startup, so those repository claims remain unverified."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 9,
+      "specificity": 10,
+      "risk_awareness": 11,
+      "total": 41,
+      "notes": "The review at least identifies root-path handling, rollback, endpoint compatibility, and input validation as areas requiring attention. Its largest deficiency is that substantive findings are struck through and every technical reviewer approves based on assertions in the revised LLD rather than demonstrated resolution. It misses the helper’s false-positive validation, the undecided bare-path response, and the absence of a concrete existing-configuration transition, while introducing weakly grounded SSRF and frontend-framework concerns. The approval that `/name/mcp` is preserved is not supported by inspection of the actual generated `proxy_pass` settings."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 9,
+      "risk_awareness": 10,
+      "total": 38,
+      "notes": "The strongest portion provides exact normalization outputs and explicit invalid-path exceptions. The central location-generation test and end-to-end test are only commented concepts containing `pass`, while curl checks use vague oracles such as “valid MCP response” and never assert the bare-path status or `Location` header. The E2E expectation that `/application` should route to a server registered at `/api` is incorrect under the proposed isolation semantics. The constructor usage, `generate_config()` command, integration-test path, and nginx configuration filename could not be verified against the historical repository source."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 13,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 51,
+      "notes": "The patch directly implements the core trailing-slash transformation in the submitted `_create_location_block` context and preserves `/` specially. Its largest defect is the unnecessary substring-based security validation, which rejects legitimate existing URL paths while failing to constitute robust URI validation; no tests or explicit bare-path handling accompany the change. The summary’s claims of no deviations and no omitted follow-ups conflict with the acceptance criterion requiring tests and with its admission that verification was not executed. Patch applicability and surrounding callers could not be independently confirmed because the read-only shell sandbox failed before command execution and the historical source blob was unavailable."
+    }
+  },
+  "task_score": 52.6,
+  "verdict": "The submission identifies and implements the likely core routing fix, but overbroad validation, unresolved compatibility behavior, largely non-executable tests, and an insufficiently critical review leave material merge risk.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:32:48.690719Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 169827,
+      "cached_input_tokens": 112736,
+      "cache_write_input_tokens": 27101,
+      "output_tokens": 10581,
+      "reasoning_output_tokens": 8365
+    },
+    "duration_ms": 111643
+  }
+}

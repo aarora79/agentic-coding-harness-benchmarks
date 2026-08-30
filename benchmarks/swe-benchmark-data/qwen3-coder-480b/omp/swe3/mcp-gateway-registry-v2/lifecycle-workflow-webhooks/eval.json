@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 79,
+      "notes": "The issue clearly defines five externally observable changes, applies them to all three asset types, and supplies useful non-goals. Its largest gap is underspecifying the mandated initial-status value and webhook delivery semantics such as retries or failure handling. The scan_complete event, exact-body HMAC requirement, status filter, permission split, metrics, and documentation criteria are concrete enough to test. No independent task statement was supplied, so requirement coverage beyond the identifier and internally consistent artifacts cannot be verified."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 9,
+      "total": 42,
+      "notes": "The design names concrete route, scanner, configuration, and webhook integration points and gives implementable-looking examples. Its largest deficiency is that several load-bearing decisions are wrong or missing: the boolean configuration requires an explicit status instead of enforcing one mandated value, skill status filtering is omitted, and permission registration plus metrics implementation are unspecified. The proposed HMAC signs a separate json.dumps serialization rather than the exact bytes sent through httpx's json parameter, while parameters named status shadow the imported HTTP status module. Delivery guarantees, scan-failure emission, compatibility of changing timestamps from ISO strings to integers, and secret-misconfiguration behavior remain unresolved."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 7,
+      "specificity": 8,
+      "risk_awareness": 12,
+      "total": 36,
+      "notes": "The strongest review content identifies concrete operational concerns around retries, dead-letter handling, idempotency, secret rotation, webhook volume, and downstream protection. Its largest deficiency is approving the design without detecting its critical exact-body signing flaw, initial-status semantic contradiction, missing skill filter, absent permission provisioning, or missing metrics implementation. The frontend recommendations also conflict with the issue's explicit UI non-goal, while the claimed replay protection exists only as consumer guidance rather than registry-side validation. The conclusion that all critical findings were addressed is unsupported by the reviewed LLD."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 6,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 33,
+      "notes": "The plan covers several useful positive, negative, compatibility, deployment, and end-to-end scenarios with concrete curl commands. Its largest deficiency is that webhook checks are comments rather than executable oracles, and the HMAC script verifies no captured raw body or header. It treats an agent health request as a scan trigger without support from the design or patch, omits scan-failure events, metrics, skill filtering, mismatched mandated statuses, and agent/skill permission-denial coverage. The checklist nevertheless marks unexecuted sections as passed, contradicting both the absent assertions and implementation summary."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 1,
+      "specificity": 6,
+      "risk_awareness": 1,
+      "total": 13,
+      "notes": "The patch does not implement the design end to end and is unusable as submitted. In server_routes.py it introduces an unmatched closing parenthesis, places both server registration validations inside docstrings, and shadows the imported status module; webhook_service.py removes the timeout assignment while still constructing AsyncClient(timeout=timeout). The HMAC covers a separately serialized string rather than exact transmitted bytes, existing timestamp format changes incompatibly, scanner error returns are removed, and failure-path webhooks are never sent. The summary falsely claims no omissions despite absent documentation, metrics, agent initial-status enforcement, skill filtering, deployment wiring, and permission provisioning; an environment shell failure prevented an independent git apply --check, but these defects are explicit in the submitted diff."
+    }
+  },
+  "task_score": 40.6,
+  "verdict": "The issue is strong, but the design misses critical protocol details and the submitted implementation contains syntax, runtime, compatibility, and major scope-completeness failures.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:26:53.736375Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 266691,
+      "cached_input_tokens": 194936,
+      "cache_write_input_tokens": 37870,
+      "output_tokens": 10436,
+      "reasoning_output_tokens": 8391
+    },
+    "duration_ms": 146591
+  }
+}

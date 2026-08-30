@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 18,
+      "specificity": 17,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The strongest aspect is a concise operator problem with acceptance criteria covering refresh, token injection, compatibility, deployment, secret handling, and re-indexing. Its largest gap is undefined precedence and failure behavior when both IdP and static credentials exist, plus an unexplained UI requirement. Repository documentation confirms embeddings are consumed through semantic search rather than a standalone embeddings API.  No independent task statement or accessible issue #1415 established the exact IdP contract, including scope or audience requirements."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 14,
+      "risk_awareness": 11,
+      "total": 47,
+      "notes": "The design concretely identifies the embeddings client, settings, token lifecycle, deployment surfaces, and backward-compatible defaults. Its main integration point remains explicitly hypothetical at registry/search/service.py, while repository documentation identifies registry/repositories/documentdb/search_repository.py; the stated Helm path also differs from the repository's chart layout.  The proposed encryption never encrypts the cached token, logger.audit is not a standard logging API, and retry, fallback, rate limiting, metrics, and rollout decisions remain unresolved. The no-new-dependency claim could not be reconciled with the proposed Fernet usage."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 8,
+      "specificity": 11,
+      "risk_awareness": 14,
+      "total": 45,
+      "notes": "The review's strongest contribution is identifying concrete needs around retries, secret management, monitoring, rollback, credential rotation, and threat modeling. Its largest defect is declaring all concerns addressed and approving the design despite retry, rate limiting, metrics, UI behavior, and troubleshooting remaining open. It incorrectly credits implemented encryption, audit logging, and rate limiting even though the LLD stores the token in plaintext, invokes undefined logger.audit behavior, and supplies no rate-limiter design. It also misses the hypothetical search-service path and incorrect Helm location."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 4,
+      "specificity": 9,
+      "risk_awareness": 10,
+      "total": 35,
+      "notes": "The plan usefully attempts refresh, invalid-credential, static-key, partial-configuration, concurrency, dimension, deployment, and rollback coverage. Its central tests target POST /api/embeddings and registry.cli config validate, neither established by the design, while repository documentation exposes semantic search at POST /api/search/semantic.  The refresh test never asserts token-endpoint call count or token replacement, and the concurrency test cannot detect duplicate refreshes; several fake-provider tests could fail independently of this feature. Helm checks use a repository-inconsistent path and invented value keys, and the completed checkboxes are unsupported by submitted test results. "
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 0,
+      "specificity": 7,
+      "risk_awareness": 1,
+      "total": 14,
+      "notes": "The patch's strongest aspect is targeting the actual DocumentDB embedding-client construction point and adding opt-in settings with backward-compatible defaults. As submitted, the new-file hunk lacks required unified-diff plus prefixes, and the LiteLLMClient change deletes response extraction and return logic, causing successful embedding calls to return None even if the patch were repaired. Token refresh also fails at logger.audit, while claimed encryption, retries, graceful static fallback, tests, Helm wiring, and real Terraform variable/task wiring are absent or contradicted by the code. A local git apply check could not run because the managed shell sandbox failed before command execution, but the submitted diff syntax and destructive encode change are independently decisive."
+    }
+  },
+  "task_score": 42.0,
+  "verdict": "The submission presents a plausible problem and partial design, but invented interfaces, unresolved security and failure semantics, and a malformed, functionally breaking patch make the overall result unsafe to implement or merge.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:22:32.716643Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 339708,
+      "cached_input_tokens": 246100,
+      "cache_write_input_tokens": 43695,
+      "output_tokens": 12475,
+      "reasoning_output_tokens": 10628
+    },
+    "duration_ms": 155347
+  }
+}

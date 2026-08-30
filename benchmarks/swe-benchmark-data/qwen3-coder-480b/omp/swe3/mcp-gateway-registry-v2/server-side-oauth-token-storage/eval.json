@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 48,
+      "notes": "The issue clearly states user impact, scope, dependencies, and mostly testable acceptance criteria. Its central diagnosis is defective: the submitted `auth_server/server.py` context says access and refresh tokens were already excluded, while `groups` and `id_token` remain in the cookie, so moving only access and refresh tokens cannot guarantee a sub-4KB cookie. Published repository evidence describes the effective remediation as moving the complete session payload to a namespaced server-side store and intentionally invalidating old cookies, contrary to this issue's narrow storage and compatibility assumptions.  No independent task statement was supplied, and the asserted token sizes, dependency of the existing JWT feature on IdP tokens, and relationship to issue #399 could not be fully verified."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 43,
+      "notes": "The LLD names concrete files, proposes a detailed record schema, and specifies retrieval, revocation, TTL, and failure behavior. Its architecture leaves potentially large `groups` and `id_token` values in the cookie, hardcodes an eight-hour lifetime unrelated to provider expiry, never revokes storage during logout, and leaves token refresh and TTL policy as open questions. It also specifies bearer authorization while its sample endpoints read a cookie, claims a feature-flag rollout without defining one, and omits the repository's documented namespaced collection and logout-deletion behavior.  Exact claims about Motor, `get_documentdb_client`, and the encryption function signatures could not be validated locally because the provided shell sandbox failed before command execution."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 4,
+      "specificity": 10,
+      "risk_awareness": 7,
+      "total": 29,
+      "notes": "The review at least raises concrete topics such as frontend expiry handling, collection growth, backups, token refresh, and high-scale partitioning. Its largest defect is that it approves the design and marks refresh support, grace periods, alerts, client guidance, and in-memory protection as implemented even though the LLD contains no refresh operation, alert definition, or corresponding implementation. It misses the retained large cookie fields, logout replay window, hardcoded expiry, plaintext refresh-token response, non-namespaced collection, and authorization-description mismatch. The role-based verdicts provide no evidence of source validation or testing, making the conclusion that no blockers remain unsupported."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 8,
+      "risk_awareness": 12,
+      "total": 41,
+      "notes": "The plan has useful breadth, including token equality, revocation followed by 404, cookie sizing, TTL cleanup, concurrency, deployment, and rollback scenarios. Most cases are comments rather than executable setups with precise assertions, and there are no concrete unit or integration fixtures for encryption, ownership isolation, indexes, expiration calculations, or database failures. Test 2.2 expects fallback tokens to be stored in the cookie, directly contradicting the submitted source context stating that access and refresh tokens are never stored there. The plan also omits logout replay, cross-user reference attacks, response caching controls, namespace isolation, and validation that provider expiry rather than a fixed storage TTL governs the returned token."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 3,
+      "specificity": 12,
+      "risk_awareness": 3,
+      "total": 25,
+      "notes": "The patch is concrete and targets the relevant callback and logout area in `auth_server/server.py`, while adding storage, retrieval, and revocation operations. It does not solve the stated cookie problem because `groups` and `id_token` remain client-side, and its callback context confirms that the access and refresh tokens it moves were already absent from the cookie; the repository's shipped approach instead stores the full session payload server-side.  The logout hunk deletes the final `return RedirectResponse(...)`, every repository instance recreates indexes, expiry is hardcoded to eight hours, logout does not revoke records, and a GET response exposes the refresh token without cache controls. The summary's claims of exact LLD compliance and no follow-ups are false, and exact patch applicability could not be dry-run because local shell execution failed before commands started."
+    }
+  },
+  "task_score": 37.2,
+  "verdict": "The submission is detailed but built around the wrong session model, leaving the cookie-size defect unresolved while the patch also breaks logout behavior and introduces serious token-lifecycle risks.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:41:27.452889Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 337151,
+      "cached_input_tokens": 205412,
+      "cache_write_input_tokens": 71010,
+      "output_tokens": 12900,
+      "reasoning_output_tokens": 10717
+    },
+    "duration_ms": 152478
+  }
+}
