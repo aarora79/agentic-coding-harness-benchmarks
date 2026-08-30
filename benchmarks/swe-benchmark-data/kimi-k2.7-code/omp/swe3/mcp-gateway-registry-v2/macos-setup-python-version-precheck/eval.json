@@ -1,0 +1,64 @@
+{
+  "task": "macos-setup-python-version-precheck",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 82,
+      "notes": "The issue provides six testable acceptance criteria, explicit exclusions, and covers the important pre-clone invocation path. Repository evidence confirms that Phase 1 merely checks `python3 --version`, while the setup guide requires Python 3.14+, grounding the central problem.  Its largest gap is requiring metadata-driven future version bumps while preserving a hard-coded `brew install python@3.14` remedy, without defining behavior when metadata is unavailable or comes from a different release. No independent task statement was supplied, and the claims about issue #1568 and the precise later `uv sync` failure were not verifiable."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 69,
+      "notes": "The LLD is strongly grounded in the real skill, phase ordering, installation-directory flow, and existing remediation table.  It concretely specifies lookup order, timeout values, fallback behavior, output tokens, and relevant files. The largest design defect is accepting any `./pyproject.toml`, which may belong to an unrelated working directory; the extraction example also calls `open(path)` without defining how `path` reaches the script, leaving a critical invocation detail unresolved. It recognizes network, cleanup, parsing, and tag-versus-main risks, but accepts a `main` fetch and hard-coded fallback that can disagree with the release being installed."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The review identifies concrete concerns around network timeouts, empty downloads, temporary-file cleanup, input validation, fallback visibility, and tag-versus-main compatibility. Its strongest finding is that fetching `main` can reject an interpreter valid for the release being installed, which is a real compatibility risk in the documented remote invocation flow.  The backend review incorrectly says `>=\\s*` requires a space after `>=`, and the overall approval misses the unsafe preference for an unrelated current-directory `pyproject.toml`. Several persona sections add little scrutiny, while the claim that the raw fetch introduces no new attack surface is too absolute."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 47,
+      "notes": "The plan supplies concrete commands and exact oracles for basic extraction, comparison, message content, remediation preservation, and remote retrieval. Its largest deficiency is that nearly every test exercises a copied snippet rather than the actual modified Phase 1 block, so it would not detect the patch's broken Python invocation. The missing-Python test either cannot start its outer `python3` harness or finds the same `/usr/bin/python3`, while the suffix test expects `3.14.1a1` to parse even though `int('1a1')` raises. It also omits integrated checks for metadata failure, timeout behavior, temporary-file cleanup, unrelated working-directory metadata, and tag-versus-main mismatch."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 4,
+      "specificity": 17,
+      "risk_awareness": 8,
+      "total": 39,
+      "notes": "The hunk targets the real Phase 1 Python check and preserves the surrounding checks and remediation structure.  However, `python3 \"$PYPROJECT_FILE\" <<'PYEOF'` executes the TOML file as Python instead of executing the heredoc with the file path as an argument; it needed the equivalent of `python3 - \"$PYPROJECT_FILE\"`, so metadata extraction normally fails and the implementation silently relies on hard-coded `3.14`. The patch also trusts an arbitrary current-directory `pyproject.toml`, fetches `main` rather than the installed release, and installs a malformed cleanup trap whose escaped quotes become part of the filename. The summary's claims that metadata is read and that there are no LLD deviations are therefore inaccurate, although timeout, non-empty-download, fallback-warning, and user-facing version reporting logic are present."
+    }
+  },
+  "task_score": 61.0,
+  "verdict": "The design package is specific and mostly repository-aware, but the implementation fails its core metadata-reading requirement because it invokes Python incorrectly, and the testing plan would not catch that defect.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T07:41:22.860506Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 270324,
+      "cached_input_tokens": 165720,
+      "cache_write_input_tokens": 34262,
+      "output_tokens": 11090,
+      "reasoning_output_tokens": 8910
+    },
+    "duration_ms": 121666
+  }
+}

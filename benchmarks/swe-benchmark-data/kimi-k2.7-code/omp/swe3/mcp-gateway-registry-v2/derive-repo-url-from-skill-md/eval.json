@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 85,
+      "notes": "The issue clearly defines URL shapes, UI behavior, compatibility expectations, non-goals, and testable acceptance criteria. Its strongest aspect is preserving manually entered repository URLs when derivation returns null. It names concrete APIs and models, including `POST /api/skills/parse-skill-md` and `SkillCard.repository_url`, but those repository claims could not be independently verified because the local command runner failed before execution. It does not address heuristic hostname false positives or stale semantic-search indexes, leaving limited risk coverage."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The LLD provides unusually concrete file-level integration guidance across parsing, listings, search indexing, frontend mapping, and modal rendering. It contradicts itself by initially saying `SkillInfo` already includes `repository_url` and later requiring that field to be added, and it claims three search-result builders while the submitted patch changes only two. The proposed `_derive_repository_url()` logic, `Dashboard.tsx` state update, and reindexing requirement are decision-ready and internally coherent. Rollback and the exact reindex mechanism remain unspecified, and repository symbols could not be independently verified due the unavailable command runner."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 19,
+      "total": 69,
+      "notes": "The review identifies concrete risks around hostname heuristics, raw URL variants, empty values, and stale search-index documents, with prioritized resolutions. Its largest deficiency is claiming all resolutions were incorporated when the LLD and patch still use plain truthiness rather than the promised `skill.repository_url?.trim()`, and the claimed test addition is absent from the patch. The assertion that URL parsing is “SSRF-safe” is insufficiently supported, while its statements about `_is_github_hostname()` and auth routing conflict with the LLD’s `GITHUB_EXTRA_HOSTS` explanation. Exact repository behavior could not be independently checked because shell inspection was blocked."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 60,
+      "notes": "The plan covers API, compatibility, UX, type-checking, linting, and an end-to-end registration flow with several exact expected values. Its central Enterprise and non-GitHub API tests use fictitious or unavailable hosts even though `_parse_skill_md_content()` fetches the supplied URL before constructing the derived result, so those tests need mocks or reachable fixtures. The stated unit test is under root `tests/unit/utils/`, but the command first runs `cd registry` and then discovers `tests`, so it would not execute that file; `has(\"repository_url\")` also fails to verify the mapped value. The existence of `npm run typecheck` and the submitted endpoint/request shapes could not be independently verified because repository commands were unavailable."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 16,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 64,
+      "notes": "The patch implements the main data path from `_derive_repository_url()` through the parse/list/search responses into form state and both modal components. Its largest defect is that `implementation.md` claims a new `tests/unit/utils/test_url_utils.py`, but no test-file diff exists; it also claims three search-result builders while only two corresponding `search_repository.py` hunks are present. Concrete changes such as preserving `prev.repository_url`, adding `SkillInfo.repository_url`, and conditionally rendering `View Repo` are internally consistent, although whitespace normalization is overstated. Patch applicability, existing imports, and surrounding source conventions could not be independently verified because the local sandbox failed before `git apply --check` or file reads could run."
+    }
+  },
+  "task_score": 71.6,
+  "verdict": "The submission is detailed and mostly implementation-oriented, but unexecutable key tests, an omitted claimed test file, and unresolved cross-artifact inconsistencies materially reduce confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T07:23:30.697840Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 255059,
+      "cached_input_tokens": 204699,
+      "cache_write_input_tokens": 38598,
+      "output_tokens": 11177,
+      "reasoning_output_tokens": 8763
+    },
+    "duration_ms": 134646
+  }
+}
