@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "glm-5.3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 85,
+      "notes": "The issue clearly identifies six routes, the shared CSRF dependency, testable cookie and token behavior, and explicit non-goals. Its largest defect is claiming the endpoints authenticate similarly even though its own table shows enhanced-auth, proxied-auth, and internal-JWT variants; a bearer client cannot successfully use the enhanced-auth-only route. The referenced route names and dependency changes align with the submitted source diff. No independent task statement was supplied, so broader requirement coverage cannot be verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 91,
+      "notes": "The LLD commits to a concrete policy, names the affected functions and route signatures, addresses inherited consumers, and supplies implementation-ready tests and rollout guidance. Its strongest decision is keying enforcement on the configured session cookie while preserving authentication as a separate dependency. The proposed edits correspond precisely to verify_csrf_token_flexible, internal_toggle_service, toggle_service_api, and toggle_virtual_server in the supplied diff. The main limitation is that its safety invariant depends on ingress and authentication architecture that it documents but cannot enforce within this change."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 90,
+      "notes": "The review finds concrete issues rather than merely approving the design, including form parsing interaction, dual-credential requests, authentication invariants, logging changes, and global dependency consumers. It prioritizes findings and records specific resolutions that subsequently appear in the LLD and patch. The form-token, unauthenticated-request, and dual-credential tests in the diff substantiate those resolutions. Its largest gap is limited scrutiny of whether changing logout, edit, and ANS behavior through the shared dependency warrants additional consumer-specific regression tests."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 76,
+      "notes": "The plan covers dependency, route, browser, bearer, compatibility, deployment, rollback, and attack-simulation levels with many concrete expected states. Several manual tests have weak oracles: skill and virtual-server commands discard response bodies while allowing business-rule 403 responses, so they cannot reliably distinguish those from the CSRF regression. The cookie-without-token matrix omits the internal toggle, valid-token coverage is not exercised across all six routes, and token expiry is not specifically tested. The targeted pytest paths agree with the submitted patch, but some setup commands and payloads could not be independently verified."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 87,
+      "notes": "The patch implements the selected policy end to end: it changes verify_csrf_token_flexible, wires the three uncovered routes, documents the invariant, and adds focused dependency and route tests. The diff contexts and symbols are internally consistent with the baseline source shown, and the implementation follows the LLD without an unexplained deviation. The largest limitation is incomplete route-level proof: internal and skill toggle wiring are not exercised, while several bearer tests simulate authentication by overriding it. An independent git apply check and source-tree inspection could not be completed because the read-only shell failed during sandbox initialization, so the claimed baseline hash and clean applicability remain unverified rather than contradicted."
+    }
+  },
+  "task_score": 85.8,
+  "verdict": "This is a strong, implementation-ready submission whose main limitation is uneven test-oracle quality and incomplete runtime coverage of all six toggle routes.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T23:42:01.567664Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 323657,
+      "cached_input_tokens": 235862,
+      "cache_write_input_tokens": 47062,
+      "output_tokens": 11470,
+      "reasoning_output_tokens": 9571
+    },
+    "duration_ms": 191069
+  }
+}

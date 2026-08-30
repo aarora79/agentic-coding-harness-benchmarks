@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "glm-5.3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 83,
+      "notes": "The issue precisely describes nginx prefix matching, preserves bare-path POST compatibility, and supplies concrete, testable acceptance criteria for `_create_location_block` and `_generate_virtual_server_blocks`. The submitted diff context is consistent with its central claim that `registry/core/nginx_service.py` previously used `location_path = path` and rendered virtual locations without a trailing slash. Its largest gap is claiming upgrades require no operator action while the later LLD acknowledges that existing reserved-path registrations can create duplicate exact locations and block regeneration. No independent task statement was supplied, and local worktree inspection was unavailable because the read-only command sandbox failed before execution, so issue-number and repository-lifecycle claims could not be independently confirmed."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 87,
+      "notes": "The LLD is implementation-ready in its treatment of nginx matching, effective `proxy_pass` URI changes, bare-path compatibility, virtual servers, rollout, validation, and rollback. Its named changes correspond closely to the submitted patch at the server render loop, `_generate_virtual_server_blocks`, and `_create_location_block`, and it explicitly recognizes duplicate exact-location and legacy-row risks. The largest design defect is the proposed first-wins deduplication before proxy-URL and health eligibility checks, which can suppress a viable legacy duplicate when the first entry is unusable; the pathological root-path behavior is also only deferred to `nginx -t`. Auth-server normalization, template-location, scheduler, and metrics claims could not be independently checked against the inaccessible worktree."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 85,
+      "notes": "The review finds two concrete deployment hazards—legacy normalized duplicates and collisions with template exact locations—and turns them into specific design, test, and runbook actions. It also usefully challenges bare-path UX, body drift, configuration growth, rollback, and collision-oriented test oracles rather than merely approving the design. Its main miss is accepting the dedupe placement without noticing that an unhealthy or unconfigured first row can hide a healthy duplicate, and its assertion that logged-in hijacked GETs reach an MCP upstream conflicts with its own description of a POST-only proxy route. Several claimed source verifications are precise but could not be independently confirmed because repository shell access failed."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 78,
+      "notes": "The plan has strong behavioral oracles for exact and slash-terminated locations, sibling-prefix isolation, bare-path POST compatibility, authentication behavior, virtual routing, deployment convergence, and rollback. The proposed unit tests concretely extract location lines and check duplicated auth and rate-limit bodies instead of merely asserting that rendering succeeded. Coverage omits the acknowledged reserved-path collision and tests legacy deduplication only with two equivalent healthy entries, so it would miss the implementation's first-wins suppression case; several E2E expectations also depend on server-specific protocol and transport behavior. The existence of `api/test-mcp-client.sh`, exact config path, and complete pytest command compatibility could not be verified against the local repository."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 80,
+      "notes": "The patch implements the central fix end to end: both regular and virtual servers receive an exact bare-path location and slash-terminated prefix sharing one rendered body, with focused regression tests and an honest implementation summary. Static inspection shows the new prefix preserves nginx URI replacement semantics, the exact twin preserves bare-path proxying, and trailing slashes are collapsed with `rstrip(\"/\")`. The largest defect is adding a normalized path to `seen_location_paths` before checking `proxy_pass_url` or health, making arbitrary dictionary order decide which legacy duplicate survives; the acknowledged reserved exact-location collision can also block all subsequent config regeneration. I could not independently run `git apply --check` or compare the preimage with the working tree because every read-only shell invocation failed during sandbox initialization, so patch applicability remains an evidence gap rather than a demonstrated defect."
+    }
+  },
+  "task_score": 82.6,
+  "verdict": "This is a strong, implementation-oriented submission that likely fixes the core route hijack, but first-wins legacy deduplication and acknowledged reserved-location collisions leave meaningful upgrade and regeneration edge cases unresolved.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T00:17:06.609461Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 304493,
+      "cached_input_tokens": 216054,
+      "cache_write_input_tokens": 49789,
+      "output_tokens": 14095,
+      "reasoning_output_tokens": 11994
+    },
+    "duration_ms": 290136
+  }
+}

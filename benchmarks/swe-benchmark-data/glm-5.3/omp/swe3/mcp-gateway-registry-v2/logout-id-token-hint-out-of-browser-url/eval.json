@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "glm-5.3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 83,
+      "notes": "The issue provides unusually testable acceptance criteria, explicit exclusions, compatibility behavior, and concrete integration points such as `registry/auth/routes.py::logout_handler`. Its strongest aspect is distinguishing the browser-facing hop from the IdP-facing hop while covering replay, expiry, provider binding, observability, and deployment configuration. Its statement that OIDC requires `id_token_hint` as a query parameter is overstated: the specification describes the hint as recommended and permits GET or POST requests.  No independent task statement establishes the proposed ticket architecture, WAF prevalence, or cited issue numbers, and local repository verification was unavailable because the command sandbox failed before execution."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 12,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The LLD is highly concrete about data flow, document shape, failure semantics, rollout order, metrics, and named files, and it supplies enough detail to implement the proposed architecture. It correctly chooses atomic `find_one_and_delete`, encrypted payloads, hashed ticket keys, provider binding, TTL cleanup, and legacy compatibility. Its exact code design has material defects: encryption occurs outside the promised never-raise boundary, malformed short or non-base64url tickets still reach the database, and BSON datetimes are normally decoded as naive UTC while the proposed expiry comparison uses an aware datetime.  The prescribed Helm expression also uses `default true`, which treats explicit `false` as empty and defeats the documented rollback setting. "
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The review is substantive rather than ceremonial, with concrete findings on input bounds, rollout ordering, residual ticket exposure, metric labels, Cognito consumption, and corrupt payload classification. Its strongest contribution is converting the oversized-input finding into an actionable pre-store guard and synchronizing the resulting observability contract. The largest deficiency is that no reviewer catches the unsafe database datetime comparison, encryption outside the exception boundary, incomplete malformed-ticket validation, or the Helm false-override bug, yet the synthesis declares every finding resolved. Those misses materially weaken the approval verdict because they affect the primary runtime path and the advertised rollback mechanism."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 67,
+      "notes": "The plan covers unit, endpoint, compatibility, deployment, UX, and end-to-end levels with specific redirects and ticket-consumption oracles. It directly tests the central behavior that the first browser-facing URL lacks the JWT while the subsequent IdP redirect retains the hint. It omits real BSON serialization coverage, encryption-failure behavior, malformed tickets within 128 characters, Okta, the deliberate Cognito ticket burn, and an explicit Helm `false` rendering test; consequently it would miss the principal implementation defects. The oversized-ticket `urllib` example follows redirects by default, the Docker command checks only the default compose file, and grepping the Helm output would not detect that `default true` overrides explicit false. "
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 7,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 57,
+      "notes": "The patch implements the proposed flow across the registry, auth server, store, settings, metrics, deployment files, documentation, and three focused test modules. The largest defect is `document[\"expires_at\"] <= datetime.now(UTC)`: unless the shared client explicitly enables timezone-aware BSON decoding, PyMongo returns a naive UTC datetime and this valid-ticket path raises instead of gracefully consuming the ticket.  Additional concrete defects are `encrypt_id_token` executing outside the create function's try block, malformed short tickets reaching `find_one_and_delete`, and Helm's `default true` preventing `logoutTicketEnabled: false` from taking effect.  The summary also duplicates one test-file row and omits `test_meters.py`, while its clean-apply claim could not be independently checked because local shell commands were blocked before execution."
+    }
+  },
+  "task_score": 71.2,
+  "verdict": "The submission is exceptionally detailed and largely coherent, but the implementation contains a likely core ticket-redemption failure plus incomplete validation and a broken Helm rollback override.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T00:08:30.442966Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 476779,
+      "cached_input_tokens": 377693,
+      "cache_write_input_tokens": 63900,
+      "output_tokens": 13680,
+      "reasoning_output_tokens": 11192
+    },
+    "duration_ms": 281584
+  }
+}
