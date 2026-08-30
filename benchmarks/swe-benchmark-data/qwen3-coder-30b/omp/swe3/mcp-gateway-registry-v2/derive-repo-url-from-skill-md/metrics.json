@@ -222,5 +222,69 @@
         }
       }
     }
+  },
+  "evaluation": {
+    "task": "derive-repo-url-from-skill-md",
+    "model": "qwen3-coder-30b",
+    "scores": {
+      "github_issue": {
+        "completeness": 19,
+        "correctness": 20,
+        "specificity": 21,
+        "risk_awareness": 15,
+        "total": 75,
+        "notes": "The issue clearly defines the two user-visible behaviors, exact supported URL forms, conditional link behavior, and explicit non-goals. The submitted source context confirms the existing translate_skill_url dependency and the SkillCard label \"View on GitHub.\" Its largest gap is that no acceptance criterion explicitly requires Parse to populate the registration field or defines whether an existing manual value is overwritten. The relevance and contents of related issue #846 could not be verified from the supplied evidence."
+      },
+      "lld": {
+        "completeness": 12,
+        "correctness": 6,
+        "specificity": 14,
+        "risk_awareness": 9,
+        "total": 41,
+        "notes": "The LLD names relevant files and real symbols including translate_skill_url, _parse_skill_md_content, SkillCard, and the Skill interface. Its central algorithm is incorrect: for org/repo/blob/branch, \"blob\" is path_parts[2], not [3], and for org/repo/refs/heads, \"refs\" is likewise [2], so both required examples return None. It also omits a concrete registration-form integration point, incorrectly lists the existing url_utils.py as a new file, and provides only generic rollout and failure guidance. The stated GitHub Enterprise goal is contradicted by exact hostname branches for only github.com and raw.githubusercontent.com."
+      },
+      "review": {
+        "completeness": 9,
+        "correctness": 5,
+        "specificity": 7,
+        "risk_awareness": 8,
+        "total": 29,
+        "notes": "The reviewers consistently request edge-case tests and recognize URL-pattern handling as the main risk. They fail to identify the deterministic path-index error in the displayed design and incorrectly describe its list-based parsing as regex-based. Performance, load-testing, and SSRF commentary is disproportionate because the proposed derivation is local string parsing and the derived URL is not fetched. Every reviewer approves with no blocker despite the proposed function failing both acceptance-criterion URL formats."
+      },
+      "testing": {
+        "completeness": 12,
+        "correctness": 5,
+        "specificity": 11,
+        "risk_awareness": 8,
+        "total": 36,
+        "notes": "The plan supplies concrete repository_url oracles for both supported GitHub forms and the non-GitHub case, plus basic UI and compatibility coverage. The non-GitHub test expects 200 from an inaccessible example.com document even though the design says inaccessible URLs are errors, and no CLI contract supports the proposed python -m registry.api.skill_routes command. The example SKILL.md location and its exact metadata are not established, making the principal curl expectations non-reproducible. It lacks concrete unit-test files and assertions, the UI case where View Repo must be hidden, and meaningful regression checks for existing fields."
+      },
+      "implementation": {
+        "completeness": 4,
+        "correctness": 0,
+        "specificity": 5,
+        "risk_awareness": 1,
+        "total": 10,
+        "notes": "The patch nominally targets the utility, parsing service, frontend type, semantic-search type, and detail card, but it does not produce a working implementation. It removes logging.basicConfig( while leaving its keyword arguments, imports url_utils from the wrong services-relative path, removes the result dictionary closure, and leaves invalid TSX after deleting the copy button opening and handler. The derivation function also tests the wrong path indexes, while the Skill type change silently deletes version and author. The summary's claims of exact conformance and no follow-ups are false; local applyability could not be independently checked because repository commands failed before launch, but the visible patched code is non-compilable on its face."
+      }
+    },
+    "task_score": 38.2,
+    "verdict": "The issue is reasonably well specified, but the flawed core design escaped review and culminated in a syntactically broken patch that cannot implement either required URL format.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-30T14:56:29.528628Z",
+      "repo_ref": "v1.0.19",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 152605,
+        "cached_input_tokens": 99281,
+        "cache_write_input_tokens": 27189,
+        "output_tokens": 10357,
+        "reasoning_output_tokens": 8633
+      },
+      "duration_ms": 111572
+    }
   }
 }

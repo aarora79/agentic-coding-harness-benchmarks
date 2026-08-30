@@ -222,5 +222,69 @@
         }
       }
     }
+  },
+  "evaluation": {
+    "task": "configurable-mcp-proxy-upstream-timeout",
+    "model": "qwen3-coder-30b",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 20,
+        "specificity": 21,
+        "risk_awareness": 16,
+        "total": 79,
+        "notes": "The issue clearly defines the timeout problem, preserves the 30-second default, and supplies testable criteria for configuration, validation, documentation, UI, and deployment wiring. Its scope and non-goals are unusually clear, and the submitted patch context corroborates relevant names such as `auth_server/server.py` and `mcp_proxy_max_body_bytes`. The largest gap is that the minimum remains phrased as “e.g., 1 second,” while deployment coverage does not precisely enumerate ECS, Compose, and Helm surfaces. No independent task statement exists, and local execution failure prevented independent confirmation of the exact 30-second source location and issue #1320."
+      },
+      "lld": {
+        "completeness": 13,
+        "correctness": 11,
+        "specificity": 14,
+        "risk_awareness": 11,
+        "total": 49,
+        "notes": "The design commits to a concrete Pydantic field, helper behavior, default, minimum, and `httpx.AsyncClient` integration point. However, its repository mapping is internally inconsistent: it alternates between `terraform/variables.tf` and `terraform/aws-ecs/variables.tf`, and between `terraform/modules/mcp-gateway` and `terraform/aws-ecs/modules/mcp-gateway`. It promises timeout-value logging and comprehensive deployment wiring without implementation steps for those claims, while its chosen setting is global despite rejecting a supposedly global alternative as less flexible. Resource exhaustion from unbounded values is left as an open question, and the rollout plan provides no real validation or rollback procedure."
+      },
+      "review": {
+        "completeness": 9,
+        "correctness": 9,
+        "specificity": 8,
+        "risk_awareness": 10,
+        "total": 36,
+        "notes": "The SRE section usefully identifies longer connection occupancy and recommends a maximum timeout and monitoring. The review nevertheless misses the LLD's conflicting Terraform paths, unsupported observability claims, incomplete Helm wiring, and contradiction over whether the setting is global. Most recommendations merely say to verify implementation, and the security approval overlooks the availability risk created by arbitrarily long requests. Its approving verdict is therefore insufficiently supported by concrete repository or interface analysis."
+      },
+      "testing": {
+        "completeness": 11,
+        "correctness": 6,
+        "specificity": 7,
+        "risk_awareness": 8,
+        "total": 32,
+        "notes": "The plan at least covers default, custom, timeout-exceeded, rollback, UI, and deployment scenarios. Its central override command is invalid because `MCP_PROXY_UPSTREAM_TIMEOUT_SECONDS=60 curl ...` configures the curl process rather than the already-running auth server, and expected results such as “200 or 504” are not meaningful oracles. No controlled delayed upstream, elapsed-time bounds, malformed-value case, below-minimum case, or concrete unit-test symbol is specified; `tests/unit/` also conflicts with the LLD's `tests/auth_server/unit/test_server.py`. Docker, Terraform, and Helm commands remain placeholders that could pass without proving runtime propagation."
+      },
+      "implementation": {
+        "completeness": 4,
+        "correctness": 0,
+        "specificity": 4,
+        "risk_awareness": 1,
+        "total": 9,
+        "notes": "The patch does not implement the design and is structurally unusable: `registry/core/config.py` contains duplicated fields and unmatched declarations, while both Terraform variable files nest and duplicate variable blocks. In `auth_server/server.py` it creates an empty duplicate `_read_mcp_proxy_max_body_bytes` function and inserts a new client statement inside `except HTTPException` instead of replacing the existing hardcoded client construction, producing invalid Python. It also replaces rather than preserves the existing max-body documentation, UI entry, and Terraform wiring, duplicates `.env.example` entries, adds no tests, and supplies no ECS environment or Helm change. The summary acknowledges the patch may need fixing but simultaneously claims complete compatibility and all deployment surfaces, and local sandbox failure prevented an independent `git apply --check`."
+      }
+    },
+    "task_score": 41.0,
+    "verdict": "The issue is strong, but the design and validation artifacts miss concrete inconsistencies and the submitted implementation is syntactically broken, incomplete, and contradicted by its summary.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-30T14:48:13.072025Z",
+      "repo_ref": "1.25.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 258078,
+        "cached_input_tokens": 148505,
+        "cache_write_input_tokens": 32965,
+        "output_tokens": 8505,
+        "reasoning_output_tokens": 6242
+      },
+      "duration_ms": 94474
+    }
   }
 }

@@ -222,5 +222,69 @@
         }
       }
     }
+  },
+  "evaluation": {
+    "task": "nginx-location-trailing-slash-route-hijack",
+    "model": "qwen3-coder-30b",
+    "scores": {
+      "github_issue": {
+        "completeness": 18,
+        "correctness": 18,
+        "specificity": 17,
+        "risk_awareness": 14,
+        "total": 67,
+        "notes": "The issue clearly explains the `/a` versus `/api`, `/auth`, and `/about` prefix collision and identifies affected MCP endpoints. Its largest weakness is that “behave sensibly” for `GET /name` and handling existing deployments are not defined as observable outcomes. The submitted `registry/core/nginx_service.py` hunk supports the claim that location paths are generated directly and carry transport/auth settings. No independent task statement was supplied, and related issue `#1501` could not be corroborated from the available evidence."
+      },
+      "lld": {
+        "completeness": 13,
+        "correctness": 14,
+        "specificity": 17,
+        "risk_awareness": 10,
+        "total": 54,
+        "notes": "The LLD commits to a concrete change in `NginxConfigService._create_location_block` and specifies behavior for empty, root, already-suffixed, and unsuffixed paths. It does not resolve the bare `/name` behavior, configuration regeneration/reload lifecycle, or required regression tests, despite estimating zero new tests. The proposed normalization matches the submitted source hunk, but the exact-match alternative is dismissed without noting that it would not serve descendant endpoints such as `/name/mcp`. Claims of complete backward compatibility, MongoDB data flow, and operational rollout compatibility are asserted rather than demonstrated."
+      },
+      "review": {
+        "completeness": 12,
+        "correctness": 11,
+        "specificity": 11,
+        "risk_awareness": 13,
+        "total": 47,
+        "notes": "The review usefully identifies root-path handling, double normalization, MCP endpoint compatibility, existing configuration rollout, and multi-instance deployment concerns. Its largest deficiency is that five repetitive approvals do not resolve those concerns or challenge the LLD’s missing tests and undefined bare-path behavior. The security section incorrectly frames the described failure as unauthorized access or sensitive-route exposure when the documented symptom is unintended authentication enforcement and denial of expected routing. Assertions that the design follows repository patterns, is readily reversible, and is already well implemented are unsupported by concrete repository evidence."
+      },
+      "testing": {
+        "completeness": 12,
+        "correctness": 6,
+        "specificity": 9,
+        "risk_awareness": 10,
+        "total": 37,
+        "notes": "The plan covers unsuffixed, suffixed, root, collision, SPA, API, and MCP endpoint cases and names expected generated location strings. Its commands rely on an unverified `POST /api/servers` schema, port `8080`, and `python -m registry.core.nginx_service --generate-config`, none of which is established by the artifacts or patch. Oracles such as `200 OK or appropriate response` are non-testable, and the acceptance-critical bare `GET /name` behavior is never exercised. Marking deployment, reload, and rollback checks inapplicable ignores that the changed output must be regenerated and consumed by nginx."
+      },
+      "implementation": {
+        "completeness": 12,
+        "correctness": 17,
+        "specificity": 18,
+        "risk_awareness": 8,
+        "total": 55,
+        "notes": "The patch directly changes `registry/core/nginx_service.py` so nonempty unsuffixed paths gain `/`, while `/` and already-suffixed paths remain unchanged, which implements the central routing fix. It supplies no regression tests or explicit existing-configuration regeneration behavior, despite both being acceptance concerns. The summary reports `+10 / -3` although the shown diff is `+7 / -3`, claims no LLD deviation despite not adding normalization-specific logging, and inconsistently labels verification unexecuted while saying the patch was tested. The local execution sandbox prevented an independent `git apply --check`, so the asserted baseline commit and clean application could not be verified and were not independently penalized."
+      }
+    },
+    "task_score": 52.0,
+    "verdict": "The core normalization patch is plausible and focused, but the surrounding design and review leave key behavior unresolved and the testing artifact is largely ungrounded, with no regression tests included in the implementation.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-30T15:13:28.954999Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 226600,
+        "cached_input_tokens": 145989,
+        "cache_write_input_tokens": 27858,
+        "output_tokens": 9770,
+        "reasoning_output_tokens": 7680
+      },
+      "duration_ms": 128922
+    }
   }
 }

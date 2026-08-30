@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 18,
+      "specificity": 17,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The issue clearly covers five related capabilities, all three asset types, motivation, and a lifecycle-transition non-goal. Its acceptance criteria remain underspecified: they do not define the signature header and byte format, valid statuses, permission identifier, failure payload, or precise mandate behavior. Concrete evidence includes the polling endpoint `GET /api/servers/{path}/security-scan` and the explicit distinction between metadata editing and lifecycle promotion. Because no independent task statement was supplied, completeness beyond the task identifier and internally consistent artifacts cannot be verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 40,
+      "notes": "The LLD names route, configuration, webhook, and scanner integration points and attempts to address deployment and observability. It leaves the load-bearing permission mechanism, exact signed-byte serialization, scan-result contract, filtering layer, and compatibility migration undecided, while contradicting the issue by rejecting an omitted mandated status instead of forcing the configured default. It also lists `registry/services/webhook_service.py` and `registry/core/config.py` as new files after describing them as existing, places a signature in the event model despite specifying a header, and incorrectly claims HMAC computation can be cached. Claims such as new `status_filter` service parameters and analogous agent and skill scan hooks are not substantiated by existing signatures or concrete implementation guidance."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 7,
+      "specificity": 7,
+      "risk_awareness": 9,
+      "total": 31,
+      "notes": "The review at least raises webhook delivery reliability, secret rotation, status validation, backward compatibility, and a possible scan-completion race. Its largest deficiency is that every reviewer approves a design whose central permission API, event payload, exact-body signing procedure, and rollout behavior remain unresolved. The security section recommends constant-time signature comparison and verification logging even though this registry is the signer rather than the consumer, while the backend section simultaneously endorses fire-and-forget delivery and requests retries. Assertions that the approach is optimal, the security is well implemented, and localization work is needed are unsupported by repository-specific evidence."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 5,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 35,
+      "notes": "The plan spans functional, compatibility, deployment, rollback, and nominal end-to-end scenarios with several concrete expected statuses. Its commands cannot configure a running service: prefixing `REGISTRATION_MANDATE_STATUS=true` or `WEBHOOK_SECRET=...` to `curl` only changes the client process, and `WEBHOOK_SECRET` does not match the proposed `WEBHOOK_SIGNING_SECRET`. The HMAC test supplies no receiver that captures exact bytes and headers, the lifecycle permission test defines neither permitted nor denied identities, and `sleep 2` is not a reliable asynchronous oracle. Agent and skill scan, mandate, and permission coverage, invalid-status cases, failed-scan payloads, retry behavior, and repository-grounded fixtures are missing."
+    },
+    "implementation": {
+      "completeness": 3,
+      "correctness": 0,
+      "specificity": 4,
+      "risk_awareness": 1,
+      "total": 8,
+      "notes": "The submitted diff is not an applicable end-to-end implementation: each list-route hunk replaces one `user_context` parameter while retaining another identical parameter as context, presupposing invalid duplicate parameters in the baseline. Added route and scanner bodies contain literal placeholder comments, the sole lifecycle permission check is `pass` for servers, and no agent or skill scan-complete or patch-permission implementation exists. The webhook code signs a separately serialized string without ensuring those exact bytes are transmitted, and the server event passes `server_entry` rather than the promised full `scan_result`. The summary's claims that every feature is implemented for all asset types and that nothing remains are directly contradicted by the patch."
+    }
+  },
+  "task_score": 36.6,
+  "verdict": "The submission identifies the intended feature set reasonably well, but the design leaves critical interfaces unresolved and the implementation is a non-applicable placeholder patch that does not deliver the claimed behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T15:07:21.177559Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 147289,
+      "cached_input_tokens": 102616,
+      "cache_write_input_tokens": 30657,
+      "output_tokens": 7555,
+      "reasoning_output_tokens": 5717
+    },
+    "duration_ms": 88072
+  }
+}

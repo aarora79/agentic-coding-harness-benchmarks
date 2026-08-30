@@ -222,5 +222,69 @@
         }
       }
     }
+  },
+  "evaluation": {
+    "task": "build-docker-images-from-uv-lock",
+    "model": "qwen3-coder-30b",
+    "scores": {
+      "github_issue": {
+        "completeness": 17,
+        "correctness": 13,
+        "specificity": 17,
+        "risk_awareness": 12,
+        "total": 59,
+        "notes": "The issue clearly identifies dependency re-resolution, proposes lock generation, frozen synchronization, and CI validation, and explicitly excludes application and base-image changes. Its strongest detail is the naming of auth_server and three server projects, but those repository claims could not be independently verified because local command execution failed. “Images build and run exactly as before” lacks a concrete behavioral or dependency-version oracle. It also does not define how the generic server image selects the correct project lockfile."
+      },
+      "lld": {
+        "completeness": 11,
+        "correctness": 7,
+        "specificity": 12,
+        "risk_awareness": 9,
+        "total": 39,
+        "notes": "The LLD names Dockerfiles, project directories, commands, and proposed file changes, giving it more substance than a generic design. Its generic MCP-server proposal copies an unqualified uv.lock despite acknowledging that Dockerfile.mcp-server must support arbitrary SERVER_DIR values, leaving the critical lockfile-selection mechanism unresolved. The component diagram says Docker builds run uv lock, contradicting the frozen-lock implementation, while the CI file remains undecided and root and metrics-service coverage are left as open questions. Exact source contexts and line claims could not be verified locally."
+      },
+      "review": {
+        "completeness": 9,
+        "correctness": 8,
+        "specificity": 7,
+        "risk_awareness": 9,
+        "total": 33,
+        "notes": "The review considers backend, CI, runtime-image, and supply-chain concerns, which is its strongest coverage. Most findings are generic requests to verify that things work, with no concrete consequence, priority, or corrective design. It misses visible LLD defects such as the unqualified lockfile copy for SERVER_DIR, contradictory lock generation during builds, and unresolved project coverage, yet reports zero blockers. Claims about frontend impact and sensitive data in lockfiles are not tied to evidence in the submission or verified repository behavior."
+      },
+      "testing": {
+        "completeness": 12,
+        "correctness": 8,
+        "specificity": 11,
+        "risk_awareness": 12,
+        "total": 43,
+        "notes": "The plan provides concrete Docker build and uv lock commands and at least calls for invalid-or-missing-lock CI failures. The directory sequence is incorrect: after entering servers/example-server, cd ../servers/fininfo resolves to a duplicated servers path, so the stated validation procedure cannot complete. Build success does not prove locked versions were used, the lockfile count can pass with the wrong paths, and the health, entrypoint, and dependency-preservation checks have no commands or expected values. The identical-image assertion is also a stronger reproducibility claim than dependency locking alone establishes."
+      },
+      "implementation": {
+        "completeness": 4,
+        "correctness": 3,
+        "specificity": 6,
+        "risk_awareness": 3,
+        "total": 16,
+        "notes": "The visible patch adds a concrete validation workflow and begins an auth_server lockfile, but it is truncated mid-file and contains none of the claimed Dockerfile changes or remaining lockfiles. The summary is demonstrably inaccurate: it reports 32 workflow lines and 113 auth lock lines, while the displayed hunks declare 54 and 1439 lines respectively. Therefore the submitted diff is not a complete applicable unified patch and cannot establish that Docker images use the correct project-specific locks or still run as before. git apply --check and source-context validation were unavailable because repository commands could not launch in the provided sandbox."
+      }
+    },
+    "task_score": 38.0,
+    "verdict": "The submission has a reasonably scoped issue but the design leaves critical lockfile wiring unresolved, the review and tests do not catch it, and the implementation artifact is truncated and internally misreported.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-30T14:44:56.278454Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 843065,
+        "cached_input_tokens": 691684,
+        "cache_write_input_tokens": 118988,
+        "output_tokens": 9130,
+        "reasoning_output_tokens": 7231
+      },
+      "duration_ms": 122456
+    }
   }
 }

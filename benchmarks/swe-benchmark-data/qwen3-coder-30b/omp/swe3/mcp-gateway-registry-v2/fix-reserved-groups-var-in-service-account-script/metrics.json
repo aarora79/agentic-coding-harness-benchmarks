@@ -221,5 +221,69 @@
         }
       }
     }
+  },
+  "evaluation": {
+    "task": "fix-reserved-groups-var-in-service-account-script",
+    "model": "qwen3-coder-30b",
+    "scores": {
+      "github_issue": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 20,
+        "risk_awareness": 14,
+        "total": 72,
+        "notes": "The issue clearly identifies both affected scripts, the observable nonzero exit, explicit non-goals, and mostly testable outcomes. Its causal explanation is imprecise: Bash ignores assignments to the special GROUPS array, and the later membership verification fails rather than the assignment itself necessarily failing under set -e. “All existing functionality is preserved” and “no bash reserved variables” lack defined verification boundaries, while exact-name matching and false-positive risks are omitted. Related issue #1570 and the precise original requirement could not be verified because no independent task statement was supplied."
+      },
+      "lld": {
+        "completeness": 17,
+        "correctness": 14,
+        "specificity": 17,
+        "risk_awareness": 11,
+        "total": 59,
+        "notes": "The LLD grounds the change in the two real-looking setup paths, the verify_setup flow, and specific line areas, while correctly proposing a non-reserved scalar variable. Its largest gap is that “properly iterate through all groups” never commits to matching semantics; the implementation merely feeds multiline text to grep and still permits substring or regular-expression matches. The documented agent invocation omits the repository-documented --group argument, and the claimed KEYCLOAK_ADMIN_URL and Bash 3.2 requirements are not substantiated. It also lacks meaningful HTTP/jq failure handling, rollback guidance, and a concrete compatibility validation despite substantial generic sections."
+      },
+      "review": {
+        "completeness": 11,
+        "correctness": 11,
+        "specificity": 10,
+        "risk_awareness": 9,
+        "total": 41,
+        "notes": "The review usefully calls out multi-group behavior, Bash-version compatibility, and quoting around grep. Its security analysis reverses the actual symptom by claiming failed setups could appear successful, while the described bug makes successful setup verification appear failed. The SMTS assertion that the change is “tested” contradicts implementation.md, which explicitly says verification was not executed. Most reviewer sections approve generically and miss exact-match false positives, command validity, failure-path behavior, and the LLD’s unsupported compatibility claims."
+      },
+      "testing": {
+        "completeness": 9,
+        "correctness": 6,
+        "specificity": 8,
+        "risk_awareness": 5,
+        "total": 28,
+        "notes": "The plan at least exercises both scripts and names the primary exit-code expectation. The agent commands omit the documented required --group argument, and the stated KEYCLOAK_ADMIN_URL configuration conflicts with repository documentation using KEYCLOAK_URL. The supposed multi-group tests neither provision multiple groups nor assert the expected target membership, while piping execution into grep can conceal the script’s exit status. There are no negative cases, exact-match checks, static checks for GROUPS assignment, cleanup or idempotency coverage, and the claim that rollback is unnecessary because the fix is additive is incorrect."
+      },
+      "implementation": {
+        "completeness": 22,
+        "correctness": 20,
+        "specificity": 21,
+        "risk_awareness": 14,
+        "total": 77,
+        "notes": "The patch consistently renames GROUPS to USER_GROUPS in both submitted verify_setup hunks and updates the corresponding output and membership checks, implementing the central fix end to end. Capturing jq’s multiline output in a normal scalar makes every returned name visible to grep, but grep -q \"$TARGET_GROUP\" still treats the target as a regular expression and accepts substring matches rather than exact group names. The extra blank lines are harmless, though the summary overstates completion despite no verification and supplies a nonportable absolute patch path plus an unverifiable baseline commit. Local git apply checking and exact source-context confirmation were unavailable because the read-only command sandbox failed before command execution."
+      }
+    },
+    "task_score": 55.4,
+    "verdict": "The submission contains a likely correct minimal code fix and a solid issue outline, but the LLD, review, and especially testing plan contain unsupported commands, weak oracles, and insufficient analysis of exact group matching and failure behavior.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-30T14:58:35.620688Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 211097,
+        "cached_input_tokens": 136191,
+        "cache_write_input_tokens": 26757,
+        "output_tokens": 10624,
+        "reasoning_output_tokens": 8839
+      },
+      "duration_ms": 126080
+    }
   }
 }
