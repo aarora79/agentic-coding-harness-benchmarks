@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The issue clearly defines the prefix-collision problem, exact generated directive, explicit exclusions, and testable compatibility criteria. Its largest correctness defect is claiming authenticated hijacked requests pass through transparently; authentication success does not prevent nginx from selecting and proxying through the wrong location. The submitted patch context supports the named `_create_location_block` target and the cited test file. No independent task statement establishes the intended bare-path behavior, and duplicate normalized paths such as `/a` and `/a/` are not considered."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 72,
+      "notes": "The design commits to a precise rendering-only normalization in `registry/core/nginx_service.py` and gives concrete integration points, alternatives, rollout behavior, and test changes. It misses the material case where separately stored `/server` and `/server/` registrations normalize into duplicate nginx locations, potentially invalidating configuration. The submitted diff corroborates the `location_path = path` code context and existing transport test names. Claims about A2A lines, SPA fallback, hashing, reload behavior, and path validation could not be independently verified because repository shell commands were rejected before execution."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The review usefully identifies normalized-path duplication, path-validation uncertainty, bare-path behavior, and specific affected tests. Its largest defect is the security section's assertion that the fix only protects unauthenticated requests; trailing-slash location scoping prevents route hijacking regardless of authentication state. The named transport tests align with hunks present in the submitted patch. The review approves without resolving its highest-impact duplicate-location concern and presents debounce, last-good fallback, SPA, and ServerInfo behavior as facts without verified evidence."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 63,
+      "notes": "The plan covers direct generation, transport integration, compatibility paths, configuration validation, and the principal `/a` collision examples with concrete expected strings. Several purported routing tests only evaluate constant Python `startswith` expressions, while the root-path oracle permits the double-slash defect it claims to reject. The implementation reproduces these weaknesses, including the tautological `not double_slash or single_slash` assertion. The full-config example is incomplete pseudocode, and there is no executable nginx-level test for bare-path fallback, duplicate normalized registrations, path injection, or actual sibling routing."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 75,
+      "notes": "The patch directly implements idempotent trailing-slash normalization and updates the four existing transport assertions, so the primary requested behavior is addressed end to end within the generator. The submitted hunk context is internally consistent with `_create_location_block` and the existing test functions, and the change preserves subpath matching such as `/mcp/a/mcp`. Its largest risk is unhandled canonical duplication between `/a` and `/a/`, while the added collision tests mostly assert literals and the root test has no effective negative oracle. The summary overstates exact LLD conformance and confirmed validation, and independent `git apply --check` verification was unavailable because the execution sandbox rejected all commands before running them."
+    }
+  },
+  "task_score": 71.6,
+  "verdict": "The submission contains a sound, focused core fix, but unresolved normalized-path collisions, incorrect authenticated-routing analysis, and weak pseudo-routing tests materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:09:41.628756Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 288771,
+      "cached_input_tokens": 226082,
+      "cache_write_input_tokens": 35412,
+      "output_tokens": 11941,
+      "reasoning_output_tokens": 9614
+    },
+    "duration_ms": 155805
+  }
+}

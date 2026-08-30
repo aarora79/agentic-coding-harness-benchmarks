@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 73,
+      "notes": "The issue provides unusually concrete endpoint coverage, configuration requirements, fail-closed behavior, defaults, and non-goals. Its named route handlers align with the symbols and contexts shown in the submitted patch. The largest gap is security and failure-contract coverage: it does not require credential redaction or define malformed responses, unexpected statuses, invalid configuration, or retry semantics. No independent task statement was supplied, and the claims about existing audit logging and automatic docker-compose wiring could not be independently verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 6,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 57,
+      "notes": "The LLD identifies concrete files, handlers, persistence calls, configuration fields, rollout stages, and eight integration points. Its proposed deny path is critically incorrect: call_admission_gate returns a tuple for denial while handlers test gate_decision == \"deny\", allowing a denied operation to reach persistence. It also duplicates AdmissionControlError, promises credential sanitization without specifying it, constructs HTTPX Timeout incompletely, and catches Timeout as though it were an exception class. Exact line references, docker-compose passthrough, and the claimed audit behavior could not be independently verified."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 73,
+      "notes": "The review finds several real, specific defects, especially credential exposure, tuple-based results, malformed JSON handling, retry latency, and connection management. Its resolution section is contradicted by the artifacts: the LLD still contains tuple handling, while the patch retains inline imports, has no route helper, and converts malformed 200 JSON into an implicit allow. The circuit-breaker suggestion that could permit registrations conflicts with the explicit fail-closed requirement, and the insistence that 502 is categorically superior to 503 is overstated. Claims about React error handling and exact credential fields were not independently verifiable from accessible repository source."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 6,
+      "specificity": 16,
+      "risk_awareness": 17,
+      "total": 56,
+      "notes": "The plan covers all asset types, disabled-mode compatibility, denial, timeout, retries, configuration, credential redaction, and persistence outcomes. Its shared fixture is unusable because handle assigns fail_next without declaring it global, causing an UnboundLocalError, and it records neither calls nor payloads needed by multiple assertions. It also tests /api/servers/internal/register while the issue, LLD, and patch identify /api/internal/register, and several oracles are ambiguous such as \"200 OK or 303 See Other.\" Malformed 200 responses, unexpected statuses, missing endpoint configuration, and process restarts after environment changes are not adequately tested."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 3,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 44,
+      "notes": "The patch structurally covers the expected route handlers before persistence, adds off-by-default settings, documents environment variables, and strips several top-level credential fields. Its enabled path is effectively broken because HTTPX Timeout is constructed with only connect and read rather than a default or all four timeout dimensions, and Timeout is incorrectly included in an exception tuple, defeating timeout retries. It also treats malformed 200 JSON as allow, maps configuration and unexpected-status failures to policy denial, leaves AdmissionControlError unused, exposes exception text to clients, and adds no automated tests. The diff contexts appear internally consistent with the named symbols, but an independent git apply check against the working tree could not be completed."
+    }
+  },
+  "task_score": 60.6,
+  "verdict": "The submission is comprehensive and repository-shaped, but its core gate implementation cannot reliably execute and can fail open on malformed successful responses, while the LLD and review resolutions remain materially inconsistent.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:18:11.670791Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 293515,
+      "cached_input_tokens": 221011,
+      "cache_write_input_tokens": 44986,
+      "output_tokens": 11621,
+      "reasoning_output_tokens": 9776
+    },
+    "duration_ms": 133482
+  }
+}
