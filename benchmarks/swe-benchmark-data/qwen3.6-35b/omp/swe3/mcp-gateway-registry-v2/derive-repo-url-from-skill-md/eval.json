@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 77,
+      "notes": "The issue provides unusually testable behavior for blob URLs, raw URLs, editable auto-fill, both modal variants, and the no-repository fallback. Its integration points are corroborated by the submitted diff contexts for parse_skill_md, Dashboard.handleParseSkillMd, SkillCard, and SemanticSkillHit. The largest gap is that GitHub Enterprise raw-host normalization is not defined precisely, while the proposed dependency on a broad hostname helper conflicts with the requirement to reject non-GitHub hosts. The independent task statement is absent, so the expanded modal scope cannot be verified beyond the repository tags and internally consistent artifacts."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 12,
+      "total": 65,
+      "notes": "The LLD is strongly grounded in concrete files and symbols, including registry/utils/url_utils.py, _parse_skill_md_content, parse_skill_md, and both modal components. Its central algorithm is incorrect for required raw URLs: it constructs the result using parsed.hostname, producing raw.githubusercontent.com/org/repo instead of github.com/org/repo, with the same problem for raw enterprise subdomains. It also knowingly accepts any hostname containing \"github\" and does not address stale form values or repository-only semantic hits whose skill_md_url is absent. Claims about existing INFO logging and the complete storage path could not be independently verified because the local command sandbox failed before repository reads."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 8,
+      "total": 44,
+      "notes": "The review raises concrete points about permissive path regexes, missing unit tests, link presentation, and the broad enterprise-host heuristic. Its largest failure is approving the backend algorithm without noticing that every matching raw URL returns the raw-content hostname rather than the repository hostname required by the issue and testing table. The security review further presents the substring-based _is_github_hostname check as a reliable boundary even though names such as my-github-app.com can satisfy it. Consequently, the no-blocker verdict is not defensible, and the claimed full-result INFO logging remains unverified."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 63,
+      "notes": "The unit-test matrix has concrete inputs and outputs and would expose the implementation's public and enterprise raw-host defects if implemented. However, the endpoint raw test uses /main/... while the stated supported contract and function require /refs/heads/main/..., and the shared example points to README.md rather than SKILL.md. The plan supplies no repository test-file location or executable unit-test command and omits false-positive hostnames containing \"github\", stale repository values after a non-GitHub parse, and a repository URL paired with a missing skill URL. Several placeholder or ancillary API commands, especially the semantic-search and existing-skill checks, could not be verified against the repository because local shell execution was unavailable."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 8,
+      "total": 50,
+      "notes": "The patch covers every named layer and uses focused changes to the parse result, route response, form state, TypeScript types, and both modal implementations. The core raw-URL behavior is wrong: derive_repository_url returns https://raw.githubusercontent.com/org/repo for the required public raw shape rather than https://github.com/org/repo, and likewise fails to remove the raw enterprise prefix. It also accepts unrelated hosts containing \"github\", can render View Skill with an undefined href when a semantic hit has only repository_url, and adds no regression tests while the summary still claims complete raw support. The diff contexts are internally coherent, but the asserted clean application and exact surrounding-source compatibility could not be independently confirmed because git apply --check was blocked by the repository sandbox's loopback namespace failure."
+    }
+  },
+  "task_score": 59.8,
+  "verdict": "The submission is concrete and broadly scoped, but the design, review, and implementation all miss a core hostname-normalization error that breaks the required raw-URL behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T15:50:25.232647Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 235367,
+      "cached_input_tokens": 171386,
+      "cache_write_input_tokens": 31436,
+      "output_tokens": 10593,
+      "reasoning_output_tokens": 8845
+    },
+    "duration_ms": 133548
+  }
+}

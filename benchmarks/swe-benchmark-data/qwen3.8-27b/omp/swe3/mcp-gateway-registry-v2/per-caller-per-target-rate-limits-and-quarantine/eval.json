@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 88,
+      "notes": "The issue provides unusually concrete behavior, scope exclusions, response semantics, administration rules, and testable acceptance criteria for both features. Its named integration points are corroborated by the patch contexts for `RateLimiter.check()`, `auth_server/server.py::_enforce_rate_limit`, and the DocumentDB repositories. The largest gap is that the promised fast or immediate kill switch does not define an acceptable propagation delay despite the existing 30-second caches. No independent task statement was supplied, so the broader product requirement and exact intended release scope cannot be verified beyond the identifier and artifacts."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 74,
+      "notes": "The LLD thoroughly maps the change across enforcement, storage, API, CLI, UI, deployment, observability, rollback, and testing, and its revised caller-target identity design avoids the original definition-ID collision. Many file and symbol claims match the visible repository contexts, including `AXIS_ABBREVIATION`, `RateLimiter.check()`, the membership repositories, and nginx's throttle-marker behavior. However, its exact designs contain material errors: `QuarantineGroup` is declared as a dataclass but later used with `model_dump()`, `RateLimitDecision.headers()` would suppress headers for every denied throttle, and `$setOnInsert: {groups: []}` conflicts with `$addToSet` on the same MongoDB path. It also incorrectly states Terraform wires only the master switch, while the patch's baseline context already contains the other rate-limit variables."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 79,
+      "notes": "The review performs real adversarial work, notably finding the draft caller-target ID collision, the conditional-delete race, stale UI state, admin-bypass residual risk, and propagation latency. Its recommendations are concrete and tied to real symbols such as `RateLimitDefinition.build_id()`, `_Gate`, and `remove_group_from()`. The largest deficiency is that it declares the revised LLD ready while missing the fatal MongoDB update-path conflict and the incorrect `headers()` condition, and it endorses the false Terraform premise. Its claimed shared-hook resolution also lacks the shared provider or cache needed to make separate React hook invocations share state."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 76,
+      "notes": "The plan covers unit, API, data-plane, compatibility, UI, deployment, metrics, failure-mode, and real-store testing with strong behavioral oracles such as no counter consumption and distinct 403/429 headers. It directly targets important edge cases including admin bypass, per-identity counters, reserved names, and fail-open versus fail-closed behavior. Several executable examples do not match the repository: it uses `PUT /api/rate-limits/definitions` and `/api/rate-limits/status` with `target_entity_type` and `target_name`, while the patch uses `/api/rate-limits/{definition_id}`, `/api/rate-limits-status`, `entity_type`, and `name`. Exporting `RATE_LIMITING_ENABLED` after starting Compose does not configure running containers, and the claimed compatibility behavior that generic membership surfaces exclude server/agent records conflicts with extending the shared membership model and `list_all()`."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 56,
+      "notes": "The visible patch broadly implements the third-axis model, per-identity gate key, pre-counter quarantine ordering, response branch, management surfaces, deployment wiring, documentation, and focused tests. The largest defect is `MembershipsRepository.add_group_to()`: combining `$setOnInsert` and `$addToSet` on `groups` in one MongoDB update creates a path conflict, so the dedicated quarantine-add operation cannot work against the real store. The submitted integration test would not catch this and is itself incorrect because it writes through real repositories but constructs `RateLimiter` with `_FixedGroupDefs` and `_FixedMemberships`, so its quarantine assertions fail when the test actually runs; separate `useQuarantineGroups()` calls also do not provide the cross-component shared state claimed by the design. The patch artifact was truncated and the local read-only shell could not be launched by the sandbox, so applicability, omitted hunks, and the reported test totals could not be independently verified."
+    }
+  },
+  "task_score": 74.6,
+  "verdict": "The submission has strong, highly specific design coverage, but the implementation's broken MongoDB quarantine-add operation and invalid real-store test prevent the central kill-switch workflow from being production-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T17:02:09.469447Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 599878,
+      "cached_input_tokens": 496311,
+      "cache_write_input_tokens": 101662,
+      "output_tokens": 10802,
+      "reasoning_output_tokens": 9059
+    },
+    "duration_ms": 133327
+  }
+}

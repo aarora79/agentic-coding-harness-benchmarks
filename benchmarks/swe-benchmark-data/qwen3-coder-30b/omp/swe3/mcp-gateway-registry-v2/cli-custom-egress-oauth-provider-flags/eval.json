@@ -1,0 +1,64 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 77,
+      "notes": "The issue clearly identifies the CLI/API parity gap and names all five required flags. Its scope, non-goals, error text, and test requirement make the core behavior actionable. The largest gap is weak compatibility and validation criteria, especially preservation of existing arguments such as `--target-audience` and exact required-versus-optional field behavior. No independent task statement was supplied, so the Salesforce motivation and related issue claim could not be verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 61,
+      "notes": "The design names concrete integration points including `cmd_egress_configure`, `RegistryClient.configure_egress_auth`, `EgressConfigRequest`, and the five request fields. It gives implementable parser choices and forwarding behavior, but its file-change list omits the tests promised elsewhere. It inconsistently says fields are conditionally sent while the proposed call is unconditional, leaves token-style validation as both a decision and an open question, and recommends logging all parameters despite `client_secret`. The validity of `python -m registry_management` from the repository root remains unestablished while the named implementation file is under `api/`."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 11,
+      "specificity": 9,
+      "risk_awareness": 8,
+      "total": 38,
+      "notes": "The review usefully identifies token-auth-style validation and custom-URL handling as areas needing decisions. Most reviewer sections are generic approvals and do not materially stress the actual data flow or compatibility contract. It misses the LLD's potentially sensitive all-parameter logging, unresolved conditional forwarding, test-file omission, and need to preserve `--target-audience`. Recommendations for sanitization and mandatory HTTPS are unsupported by a cited repository validation rule and are not converted into actionable design changes."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 13,
+      "risk_awareness": 13,
+      "total": 50,
+      "notes": "The plan covers all five flags, missing URLs, invalid choices, help output, non-custom providers, and an existing `--target-audience` invocation that would expose the submitted regression. However, argparse rejects an invalid `choices` value with exit status 2, not the asserted status 1. Most response oracles merely say “valid response,” and the plan supplies no concrete unit-test location, mocked client assertion, or exact payload comparison proving every field was forwarded. The module invocation, API endpoint, authentication environment variables, and expected successful configurations are not grounded sufficiently to ensure the commands run unchanged in this repository."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 17,
+      "risk_awareness": 1,
+      "total": 29,
+      "notes": "The patch narrowly adds all five parser flags, forwards their values from `cmd_egress_configure`, and constrains token-auth style to the two designed values. Its fatal defect is that the parser hunk replaces the existing `--target-audience` argument while the handler still reads `args.target_audience`, leaving the namespace without that attribute and breaking `egress-configure` before the client call. It also adds no unit tests despite the issue's acceptance criterion, while the summary incorrectly reports zero deletions and claims complete backward compatibility and no deviations. Exact `git apply --check` verification was unavailable because the read-only shell sandbox could not initialize, but the parser/handler contradiction is explicit within the submitted diff."
+    }
+  },
+  "task_score": 51.0,
+  "verdict": "The artifacts identify the intended CLI parity change reasonably well, but shallow review and testing allowed a fatal implementation regression that removes `--target-audience` and can break the entire command.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:46:38.585857Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 176738,
+      "cached_input_tokens": 100208,
+      "cache_write_input_tokens": 27056,
+      "output_tokens": 9271,
+      "reasoning_output_tokens": 7493
+    },
+    "duration_ms": 102295
+  }
+}

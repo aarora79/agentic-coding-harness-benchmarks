@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 72,
+      "notes": "The issue clearly defines both capabilities, reserved group names, enforcement ordering, admin-bypass intent, exclusions, and testable acceptance criteria. Its largest gap is that group initialization, deletion semantics, identity composition, and UI/CLI compatibility are asserted without defining the required integration behavior. The submitted source context supports the named RateLimiter, DocumentDB backend, membership storage, and /validate integration points. No independent task statement was supplied, so broader requirements cannot be verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 16,
+      "risk_awareness": 8,
+      "total": 44,
+      "notes": "The LLD provides concrete files, helper names, query structure, cache keys, gate construction, and response semantics. Its largest defect is an unresolved contradiction: the architecture and Step 3 require fail-closed quarantine, while Error Handling and the embedded code require fail-open behavior. The proposed target lookup passes target_name in the client_id position of get_groups_for, and the undeletable-group safeguard names MembershipsRepository while the implementation instead changes DefinitionsRepository; no startup-seeding design is provided. UI/CLI compatibility, observability, key encoding, rollback, and cardinality mitigation remain unverified or superficial."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 14,
+      "specificity": 16,
+      "risk_awareness": 17,
+      "total": 62,
+      "notes": "The review identifies concrete concerns including fail-closed availability impact, cache-key collisions, composite-counter cardinality, reserved-group protection, and distinct denial errors. Its largest deficiency is that it misses the LLD's existing fail-open/fail-closed contradiction and does not challenge the target-membership lookup or absent startup seeding. The patch also exposes risks the review missed, including a zero-window quarantine gate and repeated membership lookups. The claim that existing UI and CLI support the new axis transparently is not substantiated by inspected frontend or CLI evidence."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 9,
+      "total": 42,
+      "notes": "The plan covers pair isolation, both quarantine forms, admin behavior, legacy axes, removal from quarantine, and explicit status/error oracles. Its primary flaw is that the executable examples attempt to control user, target, and is_admin through /validate query parameters, while the supplied server context says those values come from validated authentication and target classification. Direct calls to AUTH_SERVER cannot demonstrate nginx's 429 rewriting, and the API routes, payloads, .admin-token convention, and X-RateLimit-Throttled value are not verified. It also omits backend-failure, reserved-group seeding/deletion, counter expiry, concurrency, malformed composite-key, and repeated-membership-query tests."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 1,
+      "specificity": 13,
+      "risk_awareness": 3,
+      "total": 25,
+      "notes": "The patch concretely attempts the new axis, generalized definition lookup, quarantine decisions, error codes, and model additions. However, auth_server/server.py indents the replacement raise HTTPException one level deeper than its surrounding if block, producing an unexpected-indentation syntax failure. Even after that is fixed, quarantine constructs a gate with window_seconds=0 for reset logic designed around a minimum of one second, target lookup supplies target_name as the client_id argument rather than an explicit target subject, and no startup seeding is implemented. The summary incorrectly claims no deviations or follow-ups despite implementing fail-open behavior contrary to the issue's fail-closed criterion and omitting tests, UI/CLI verification, and effective reserved-group lifecycle protection."
+    }
+  },
+  "task_score": 49.0,
+  "verdict": "The submission has a strong problem statement and several useful design/review details, but the implementation is unusable as submitted and the quarantine design remains internally inconsistent and incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:36:43.443050Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 275316,
+      "cached_input_tokens": 200409,
+      "cache_write_input_tokens": 41055,
+      "output_tokens": 11514,
+      "reasoning_output_tokens": 9660
+    },
+    "duration_ms": 138035
+  }
+}

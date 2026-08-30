@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 7,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 59,
+      "notes": "The issue provides concrete user stories, exclusions, dependencies, and mostly testable acceptance criteria. Its central diagnosis is contradicted by the submitted baseline diff: the legacy flag stores only token timing metadata, while `id_token` remains in the cookie, so moving access and refresh tokens cannot resolve the demonstrated cookie problem. Repository release notes for the fix describe moving the complete session payload server-side rather than introducing this token-retrieval design. No independent task statement was supplied, so broader product requirements could not be verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 5,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 51,
+      "notes": "The LLD is unusually concrete about `auth_server/server.py`, storage operations, endpoint behavior, failure handling, and rollout. Its core reference design is unsound: `token_ref_id` is never used for lookup, tokens are keyed only by username, `id_token` remains in the cookie, and no registry caller is added for the new endpoint. The proposed TTL field is an integer even though MongoDB TTL indexes require a BSON date, and expiration follows the access-token lifetime, prematurely deleting any longer-lived refresh token. It also contradicts itself on first-versus-last-provider wins, namespace-aware collection naming, 501 behavior, masking usernames, and whether domain separation protects tokens after `SECRET_KEY` compromise."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 16,
+      "risk_awareness": 11,
+      "total": 48,
+      "notes": "The review provides prioritized, actionable findings across backend, operations, security, and maintainability perspectives. It correctly rejects a base64 encryption fallback and notices response-model and provider-overwrite concerns, but misses the unused reference ID, invalid TTL representation, retained large `id_token`, absent registry integration, and multi-session logout behavior. Several findings are technically wrong: knowing `SECRET_KEY` still permits deterministic derivation of the prefixed Fernet key, and the access-token TTL deletes refresh tokens too early rather than retaining them too long. The review therefore gives approval-level verdicts without identifying the design's critical-path failures."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 52,
+      "notes": "The plan covers login, retrieval, logout, compatibility, deployment, provider replacement, and TTL behavior with concrete expected statuses and payloads. Many procedures are not executable tests: fake OAuth codes cannot complete a callback, unsetting `SECRET_KEY` does not affect an already-running process, and the startup command treats `auth_server.server` as though it accepted Uvicorn flags. The TTL test inserts an integer timestamp and expects MongoDB TTL deletion, directly encoding the implementation defect, while the alleged pre-change compatibility test creates a new post-change session. It also lacks focused unit tests for encryption, corrupted ciphertext, namespace selection, concurrent sessions, and verification that stored values are genuinely encrypted."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 0,
+      "specificity": 14,
+      "risk_awareness": 1,
+      "total": 21,
+      "notes": "The patch touches the intended callback, endpoint, logout, startup, and storage module, but it does not produce a usable application. In `lifespan`, it deletes both `await _build_static_token_map()` and the required `yield`, so FastAPI startup cannot enter the async context manager; it also silently removes the 500 raise from `reload_scopes`. The new endpoint calls `get_tokens` without importing it, uses a nonfunctional integer TTL field, leaves `id_token` in the cookie, ignores `token_ref_id`, and adds no registry-side caller. The summary incorrectly claims exact and complete implementation, and local `git apply --check` could not be independently rerun because the managed shell sandbox failed before executing commands."
+    }
+  },
+  "task_score": 46.2,
+  "verdict": "The submission is detailed and concrete, but its central design targets the wrong cookie data and the implementation contains fatal startup and endpoint defects.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:20:03.781061Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 256872,
+      "cached_input_tokens": 184905,
+      "cache_write_input_tokens": 44877,
+      "output_tokens": 10196,
+      "reasoning_output_tokens": 8072
+    },
+    "duration_ms": 112098
+  }
+}

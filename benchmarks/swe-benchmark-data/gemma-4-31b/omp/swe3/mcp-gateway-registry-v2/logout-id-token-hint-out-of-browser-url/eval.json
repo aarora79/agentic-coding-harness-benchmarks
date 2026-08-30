@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 71,
+      "notes": "The issue clearly defines the WAF failure, token exposure, desired two-hop behavior, backward compatibility, session invalidation, and non-goals. Repository documentation supports the use of an opaque cookie and server-side session containing the encrypted ID token.  The largest deficiency is claiming no dependencies despite requiring compatible deployment order and cookie scope; the documented cookie-domain default is empty.  No independent task statement was supplied, and the final browser redirect still contains the hint, so the broad browser-history disclosure claim is not fully resolved."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 59,
+      "notes": "The LLD names concrete files, endpoints, session operations, metrics, and a sensible auth-server-first rollout. Its largest correctness gap is provider behavior: the existing Cognito branch explicitly omits `id_token_hint`, while the design assumes every final IdP redirect requires it. It also leaves session-ID recovery, missing logout URLs, store failures, and failed redirects without a reliable cleanup decision, and omits updating documentation that currently identifies the Registry as the metric source.  Exact helper return shapes and patch line references could not be independently verified because the local command runner failed during sandbox initialization."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 14,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 60,
+      "notes": "The review's strongest work is identifying delayed-invalidation risk, cookie-domain dependence, exact cookie-deletion scope, and observability migration. Those concerns are material because repository documentation permits host-only cookies by default and describes deleting the session record before clearing the cookie.  Its largest deficiency is approving the design while dismissing an active-session failure path as negligible and failing to require a fallback when the auth-server redirect, store lookup, or provider logout URL fails. It also misses Cognito's provider-specific behavior and overstates elimination of browser-history leakage even though the final redirect retains the token."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 59,
+      "notes": "The plan provides concrete oracles for the first redirect, final token value, session invalidation, legacy compatibility, rollout ordering, and cookie scope. Its largest weakness is that it alternates between `/logout` and unverified `/api/auth/logout` and `/api/auth/me` paths, while the curl procedure observes only the first response and cannot prove auth-server cleanup or the final IdP redirect. The missing-session expectation is asserted as universal OIDC behavior without provider-specific repository evidence. It lacks automated repository test commands and cases for malformed query hints with valid cookies, store or deletion failures, absent provider logout URLs, and Cognito."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 7,
+      "total": 37,
+      "notes": "The patch targets the intended registry route, auth-server logout handler, and metric definitions, and it removes the token from the first redirect. A critical runtime defect leaves `session_cookie` undefined whenever a legacy `id_token_hint` is supplied, so the later `if session_cookie` breaks the promised backward-compatible path. It also appends `id_token_hint` to the existing Cognito branch that explicitly did not support it, returns before cleanup when no provider logout URL exists, and uses an empty cookie domain despite host-only cookies being the documented default.  No regression tests or documentation changes are included, the summary incorrectly reports no follow-ups, and patch applicability plus helper return shapes could not be verified because the read-only shell sandbox failed before commands executed."
+    }
+  },
+  "task_score": 57.2,
+  "verdict": "The submission presents a coherent design direction, but the implementation contains backward-compatibility, provider-specific, and session-cleanup defects that make it unsafe to merge.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:29:36.207472Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 299487,
+      "cached_input_tokens": 191944,
+      "cache_write_input_tokens": 34329,
+      "output_tokens": 14016,
+      "reasoning_output_tokens": 12059
+    },
+    "duration_ms": 167514
+  }
+}

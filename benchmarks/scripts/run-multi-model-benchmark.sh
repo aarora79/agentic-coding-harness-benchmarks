@@ -26,7 +26,8 @@ set -uo pipefail
 # Options (with defaults):
 #   --dataset PATH        dataset YAML relative to benchmarks/ (mcp-gateway-registry)
 #   --dollars-per-hour N  instance $/hr, recorded in the summary (0 = unset)
-#   --agent NAME          coding agent that runs each task: claude (default), pi, or kiro
+#   --agent NAME          coding agent that runs each task: claude (default), pi,
+#                         omp (oh-my-pi), or kiro
 #   --skill NAME          SWE skill: swe3 (default, single-agent) or swe2 (multi-agent)
 #   --no-detach           run in the foreground (do not self-detach)
 #   --skip-judge          run the harness only; score later
@@ -45,23 +46,38 @@ LOG="$SCRATCH/multi-model-benchmark.log"
 
 # --- Model registry ----------------------------------------------------------
 # One row per known model:
-#   served_name | HF repo | max_model_len | tool_parser | tp | fits (see key)
+#   served_name | HF repo | max_model_len | tool_parser | tp | fits | extra_env
 # fits: "g6e.12xl" = runs on 4xL40S (this repo's default 184 GB node);
 #       "p5en.48xl" = needs 8xH200 (or half of it at TP=4);
 #       "g6e.48xl"  = needs 8xL40S (does not fit 4xL40S at a usable window).
-# Extra serve flags (trust-remote-code, max_num_seqs) come from the model doc;
-# vllm-serve.sh applies trust-remote-code automatically where required.
+# extra_env: optional, space-separated KEY=VALUE pairs exported into the
+# vllm-serve.sh environment for model-specific knobs the other columns cannot
+# express (ROPE_SCALING, MAX_NUM_SEQS, EXTRA_ARGS). The field is word-split, so
+# each VALUE must contain no spaces (use the --flag=value form) and no glob
+# characters (* ? [), which the split would expand against the working dir.
+# Never put a secret here (HF_TOKEN and friends): serve output is teed to a log
+# under .scratchpad/. Export those in the environment instead.
+# Other serve flags (trust-remote-code) come from the model doc; vllm-serve.sh
+# applies trust-remote-code automatically where required.
 REGISTRY=(
-  "qwen3-coder-30b|Qwen/Qwen3-Coder-30B-A3B-Instruct|200000|qwen3_coder|4|g6e.12xl"
-  "qwen3.6-35b|Qwen/Qwen3.6-35B-A3B|200000|qwen3_coder|4|g6e.12xl"
-  "gemma-4-31b|google/gemma-4-31B-it|200000|gemma4|4|g6e.12xl"
-  "qwen3-32b|Qwen/Qwen3-32B|32768|hermes|4|g6e.12xl"
-  "qwen3-coder-next|Qwen/Qwen3-Coder-Next|16384|qwen3_coder|4|g6e.48xl"
-  "minimax-m2.5|MiniMaxAI/MiniMax-M2.5|196608|minimax_m2|4|p5en.48xl"
-  "qwen3-coder-480b|Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8|200000|qwen3_coder|4|p5en.48xl"
-  "kimi-k2.7-code|moonshotai/Kimi-K2.7-Code|131072|kimi_k2|8|p5en.48xl"
-  "glm-5.2|zai-org/GLM-5.2-FP8|300000|glm47|8|p5en.48xl"
-  "devstral-2-123b|mistralai/Devstral-2-123B-Instruct-2512|262144|mistral|8|p5en.48xl"
+  "qwen3-coder-30b|Qwen/Qwen3-Coder-30B-A3B-Instruct|200000|qwen3_coder|4|g6e.12xl|"
+  "qwen3.6-35b|Qwen/Qwen3.6-35B-A3B|200000|qwen3_coder|4|g6e.12xl|"
+  "gemma-4-31b|google/gemma-4-31B-it|200000|gemma4|4|g6e.12xl|"
+  # Qwen3.8-27B is served here as BF16 at TP=4 (~56 GB over 4 GPUs), not the FP8
+  # single-GPU config in its model doc -- BF16 matches how every other model on
+  # this node is benchmarked. MAX_NUM_SEQS caps decode sequences to the hybrid
+  # model's Mamba state-cache pool, and the patched chat template accepts the
+  # reasoning_effort value agents send (the stock one 500s on it).
+  "qwen3.8-27b|Qwen/Qwen3.8-27B|200000|qwen3_coder|4|g6e.12xl|MAX_NUM_SEQS=32 EXTRA_ARGS=--chat-template=$VLLM_DIR/config/qwen3.8-27b-chat-template.jinja"
+  # Qwen3-32B is 32768-native, below the 64000 agentic floor enforced below, so
+  # it needs YaRN (factor 4 -> 131072) to be benchmarkable at all.
+  "qwen3-32b|Qwen/Qwen3-32B|131072|hermes|4|g6e.12xl|ROPE_SCALING={\"rope_type\":\"yarn\",\"factor\":4.0,\"original_max_position_embeddings\":32768}"
+  "qwen3-coder-next|Qwen/Qwen3-Coder-Next|16384|qwen3_coder|4|g6e.48xl|MAX_NUM_SEQS=128"
+  "minimax-m2.5|MiniMaxAI/MiniMax-M2.5|196608|minimax_m2|4|p5en.48xl|"
+  "qwen3-coder-480b|Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8|200000|qwen3_coder|4|p5en.48xl|"
+  "kimi-k2.7-code|moonshotai/Kimi-K2.7-Code|131072|kimi_k2|8|p5en.48xl|"
+  "glm-5.2|zai-org/GLM-5.2-FP8|300000|glm47|8|p5en.48xl|"
+  "devstral-2-123b|mistralai/Devstral-2-123B-Instruct-2512|262144|mistral|8|p5en.48xl|"
 )
 
 DATASET="dataset/mcp-gateway-registry.yaml"
@@ -84,9 +100,9 @@ _registry_row() {  # $1 served-name -> prints the row, or nothing
 
 print_catalog() {
   echo "Known models (served-name -- HF repo -- window -- fits):" >&2
-  local m name repo win parser tp fits
+  local m name repo win parser tp fits extra_env
   for m in "${REGISTRY[@]}"; do
-    IFS='|' read -r name repo win parser tp fits <<< "$m"
+    IFS='|' read -r name repo win parser tp fits extra_env <<< "$m"
     printf '  %-18s %-45s %8s  %s\n' "$name" "$repo" "$win" "$fits" >&2
   done
   cat >&2 <<'EOF'
@@ -94,8 +110,8 @@ print_catalog() {
 Fit key:
   g6e.12xl  -- runs on 4xL40S (184 GB), this repo's default node. Combine these
                freely in one invocation: qwen3-coder-30b qwen3.6-35b gemma-4-31b
-               qwen3-32b. They are served one at a time (swapped), so any subset
-               works on a single 4xL40S box.
+               qwen3.8-27b qwen3-32b. They are served one at a time (swapped), so
+               any subset works on a single 4xL40S box.
   p5en.48xl -- needs 8xH200. minimax-m2.5 and qwen3-coder-480b use TP=4 (half the
                box); kimi-k2.7-code and glm-5.2 use TP=8 (whole box). All are
                served one at a time here, so group any p5en models together on
@@ -126,8 +142,8 @@ done
 
 # --- Validate the agent + skill ---------------------------------------------
 case "$AGENT" in
-  claude|pi|kiro) ;;
-  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi, kiro." ;;
+  claude|pi|omp|kiro) ;;
+  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi, omp, kiro." ;;
 esac
 case "$SKILL" in
   swe2|swe3) ;;
@@ -198,7 +214,7 @@ say "=== START multi-model benchmark: ${MODELS[*]} (dataset=$SCOPE) ==="
 command -v uv >/dev/null 2>&1 || die "uv not on PATH"
 
 for want in "${MODELS[@]}"; do
-  IFS='|' read -r SLUG REPO MML PARSER TP FITS <<< "$(_registry_row "$want")"
+  IFS='|' read -r SLUG REPO MML PARSER TP FITS EXTRA_ENV <<< "$(_registry_row "$want")"
   say "===== MODEL: $SLUG (fits: $FITS) ====="
 
   # Serve unless already serving this exact model.
@@ -209,8 +225,10 @@ for want in "${MODELS[@]}"; do
     say "  stopping current model + freeing GPUs"
     stop_all_vllm
     say "  serving $SLUG ($REPO, tp=$TP, mml=$MML, parser=$PARSER)"
-    ( cd "$VLLM_DIR/scripts" && MODEL="$REPO" SERVED_NAME="$SLUG" TP="$TP" PORT=8000 \
-        MAX_MODEL_LEN="$MML" GPU_MEM_UTIL=0.90 TOOL_PARSER="$PARSER" \
+    # shellcheck disable=SC2086 -- EXTRA_ENV is deliberately word-split into
+    # separate KEY=VALUE arguments for env; its values contain no spaces.
+    ( cd "$VLLM_DIR/scripts" && env MODEL="$REPO" SERVED_NAME="$SLUG" TP="$TP" PORT=8000 \
+        MAX_MODEL_LEN="$MML" GPU_MEM_UTIL=0.90 TOOL_PARSER="$PARSER" $EXTRA_ENV \
         ./vllm-serve.sh >"$SCRATCH/serve-$SLUG.log" 2>&1 ) &
     sleep 20
   fi

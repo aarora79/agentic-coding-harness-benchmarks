@@ -722,7 +722,7 @@ def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
     # positional INPUT -- essential here because the inlined SKILL.md begins with
     # "---" (YAML frontmatter), which omp would otherwise reject as an unknown
     # flag, exactly as kiro-cli does (see _build_kiro_cmd).
-    return [
+    cmd = [
         "omp",
         "-p",
         "--mode",
@@ -731,9 +731,17 @@ def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
         "--auto-approve",
         "--model",
         model,
-        "--",
-        full_prompt,
     ]
+    # omp has no turn cap, so a model that finishes the work and then loops --
+    # emitting tokens without ever ending its turn -- would run until the
+    # harness's own timeout_seconds and then burn a retry on an already-complete
+    # task. --max-time makes omp stop itself first, which also lets the harness
+    # collect whatever the run produced instead of killing it mid-write.
+    if config.agent_max_time_seconds:
+        cmd += [f"--max-time={config.agent_max_time_seconds}"]
+    # A trailing "--" ends option parsing so the prompt is always the positional
+    # INPUT (see the note above).
+    return [*cmd, "--", full_prompt]
 
 
 def _run_omp(
@@ -2439,8 +2447,16 @@ def _run_task(
                 _write_omp_config(config, omp_agent_dir)
             cmd = _build_omp_cmd(config, prompt)
             env = _build_omp_env(config, omp_agent_dir)
+            omp_cap = (
+                f"max-time {config.agent_max_time_seconds}s"
+                if config.agent_max_time_seconds
+                else "no time cap"
+            )
             logger.info(
-                "  %s Running omp -p %s (agent=omp, no turn cap)...", label, run_kind
+                "  %s Running omp -p %s (agent=omp, no turn cap, %s)...",
+                label,
+                run_kind,
+                omp_cap,
             )
         elif config.is_kiro:
             # kiro-cli uses its own global sign-in (~/.kiro); there is no per-run

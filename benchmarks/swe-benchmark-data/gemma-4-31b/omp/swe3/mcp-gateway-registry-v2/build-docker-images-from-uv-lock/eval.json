@@ -1,0 +1,64 @@
+{
+  "task": "build-docker-images-from-uv-lock",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 9,
+      "total": 60,
+      "notes": "The issue clearly scopes the affected image types, names concrete Dockerfiles and project roots, and supplies mostly testable acceptance criteria. Its largest defect is the claim that `uv sync --frozen` fails for an outdated lockfile; uv documents that frozen mode uses the lockfile without checking its freshness, whereas `--locked` performs that validation.  The proposed CI `uv lock --check` gate partially mitigates this, but direct Docker builds would not exhibit the promised fail-loud behavior. No independent task statement exists, and the exact set of image-producing server roots and related issue `#1022` could not be verified from the available baseline evidence."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 9,
+      "total": 53,
+      "notes": "The LLD gives concrete file-level changes, copy ordering, CI traversal logic, and a rollout sequence rather than a generic architecture. Its central failure-handling decision is incorrect because `uv sync --frozen` does not reject a stale lockfile, invalidating the stated Docker failure behavior.  The proposed MCP conditional also fails open when `pyproject.toml` exists without `uv.lock`, producing an image with dependencies silently omitted rather than stopping the build. The submitted patch was truncated and local shell inspection failed before execution, so the claimed source staging, virtual-environment layout, line contexts, and exhaustive server list could not be fully verified."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 9,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 36,
+      "notes": "The review identifies one relevant concern—excluding development dependencies—and discusses layer caching and the shared MCP Dockerfiles. Its largest deficiency is that it approves the load-bearing design without detecting that frozen mode skips lock freshness validation or that the MCP conditional silently skips installation when a lockfile is absent.  The recommendation to add `--no-dev` is also stale because every LLD replacement snippet already includes that flag, while the security discussion overstates lockfiles as a dependency-confusion control. Claims that the frontend stage and all runtime behavior remain unaffected could not be verified against the truncated Dockerfile diff."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 48,
+      "notes": "The plan provides concrete build commands, mutation steps, exit-code expectations, and a valid positive/negative exercise for `uv lock --check`. Its principal negative Docker test has the wrong oracle: changing `pyproject.toml` should not make `uv sync --frozen` reject the stale lockfile because frozen mode deliberately skips that check.  It tests only one generic MCP image, omits the CPU and light Dockerfiles, and declares runtime compatibility inapplicable despite the acceptance criterion requiring unchanged functionality. The `docker run ... ls /app/uv.lock` invocation and image build prerequisites could not be checked against the actual entrypoints and required build arguments."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 56,
+      "notes": "The visible patch adds a lock-check workflow and generated lockfile, while the summary accounts for all named Dockerfiles and four project lockfiles, so it appears to cover the intended surfaces. It does not fully implement the promised stale-manifest failure behavior because every Docker build uses `uv sync --frozen` rather than `--locked`; the MCP design additionally skips dependency installation if `uv.lock` is absent.  The workflow's explicit `uv lock --check` loop is a useful CI safeguard, but the summary's claims of no deviations and no follow-ups overlook these behavioral gaps and the absence of runtime verification. Because the supplied diff was truncated at 200000 characters and repository commands could not execute due the sandbox failure, Dockerfile hunk applicability, source-layout compatibility, generated lockfile consistency, and the stated baseline commit remain materially unverified."
+    }
+  },
+  "task_score": 50.6,
+  "verdict": "The submission is concrete and broadly scoped, but its central use of `uv sync --frozen` does not provide the stale-lock failure semantics promised throughout the issue, design, tests, and implementation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T13:52:10.246140Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 966703,
+      "cached_input_tokens": 803386,
+      "cache_write_input_tokens": 121720,
+      "output_tokens": 10173,
+      "reasoning_output_tokens": 7958
+    },
+    "duration_ms": 155948
+  }
+}
