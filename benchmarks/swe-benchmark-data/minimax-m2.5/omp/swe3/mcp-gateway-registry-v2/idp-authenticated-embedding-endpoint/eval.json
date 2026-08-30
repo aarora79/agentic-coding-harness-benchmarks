@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 81,
+      "notes": "The issue clearly defines the token-expiry problem, opt-in behavior, deployment surfaces, non-goals, and testable acceptance criteria. The baseline diff corroborates the existing static API-key path in registry/embeddings/client.py and the named configuration surfaces. Its largest gap is underspecified IdP failure behavior and token-request variants such as scopes or audience. No independent task statement was supplied, so the authority of issue #1415 remains unverifiable."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The LLD is concrete about registry/embeddings/client.py, registry/core/config.py, configuration names, token caching, and LiteLLM api_key injection. Its critical defect is claiming SearchRepository needs no change while adding new factory arguments without identifying how Settings values reach that factory. It also incorrectly claims an embedding 401 will cause refresh on the next call, although the proposed provider retains any locally valid cached token. Runtime rotation, static-key fallback, startup validation, sanitized endpoint logging, and Helm wiring are described inconsistently or without an operational integration path."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 16,
+      "risk_awareness": 17,
+      "total": 60,
+      "notes": "The review raises specific concerns about fallback behavior, optional infrastructure secrets, custom CAs, endpoint logging, singleton testability, and runtime reconfiguration. It misses the most consequential design flaw: no identified caller passes the new IdP settings into create_embeddings_client(). Several conclusions contradict the reviewed LLD, including simultaneously saying configure() resolved rotation and asserting no reconfiguration mechanism exists. The security blockers concerning plaintext secrets in memory are overstated, while the final verdict remains internally inconsistent about whether those blockers were resolved."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 49,
+      "notes": "The plan supplies concrete token-cache, refresh, factory, masking, validation, and shape oracles rather than merely checking that code runs. However, it imports CONFIG_FIELDS even though the submitted source context names CONFIG_GROUPS, and it patches registry.embeddings.client.embedding despite embedding being imported locally inside encode(). The fallback test mocks _set_api_key_env and then expects that mocked method to mutate the environment, so it cannot reliably pass. Backward compatibility is incorrectly declared not applicable, and there is no concurrency, secret-log, actual settings-to-factory wiring, revoked-token 401, or meaningful ECS/Helm test."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 8,
+      "specificity": 12,
+      "risk_awareness": 8,
+      "total": 37,
+      "notes": "The patch implements a usable core token cache and per-call LiteLLM api_key injection, and it masks the new client secret in registry/api/config_routes.py. Its largest defect is that it adds IdP parameters to create_embeddings_client() but modifies no caller to supply the new Settings values, leaving application-level activation unsupported by the diff. It also omits required startup validation, Terraform/ECS, Helm, documentation, re-index guidance, and tests while the summary first claims no LLD deviations and later admits those deviations. The provider logs unsanitized endpoint URLs, permits unsafe partial configuration and fallback, does not invalidate a rejected cached token, and the claimed clean application to commit 75a39fb347778c4654a2a81ad7e7b0baf9280b2b could not be independently verified."
+    }
+  },
+  "task_score": 57.0,
+  "verdict": "The submission has a strong issue and a detailed design foundation, but the implementation is incomplete end to end because configuration never demonstrably reaches the new provider and multiple explicit acceptance criteria are deferred.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T13:41:33.203563Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 413166,
+      "cached_input_tokens": 324448,
+      "cache_write_input_tokens": 45853,
+      "output_tokens": 14349,
+      "reasoning_output_tokens": 11930
+    },
+    "duration_ms": 155583
+  }
+}

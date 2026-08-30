@@ -1,0 +1,64 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 83,
+      "notes": "The issue clearly identifies the five missing flags, exact desired behavior, testable acceptance criteria, and explicit exclusions. The submitted diff context supports the named `egress-configure` command, `configure_egress_auth` client method, and existing egress-auth endpoint path. Its largest gap is that the React UI parity claim and quoted server error could not be independently verified because the repository shell failed before executing read-only commands. It addresses edit compatibility and enum validation, but does not explicitly identify preservation of existing `client_id`, `scopes`, and `target_audience` behavior as a regression risk."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The design provides concrete file-level integration points, method signatures, request-body rules, CLI definitions, and examples that preserve the existing parameters in its proposed code. The named `api/registry_management.py` and `api/registry_client.py` symbols agree with the submitted diff context. Its largest weakness is treating omitted-body fields as sufficient proof that persisted edit values remain intact without examining the endpoint's update semantics. Claims about SSRF validation, resource validation, response contents, route schemas, and existing logging could not be independently verified after local repository execution failed."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 14,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 43,
+      "notes": "The review at least discusses the exact enum choices, conditional request-body construction, documentation, and server-side URL validation. Its dominant deficiency is unanimous approval with effectively no design challenge, especially around whether omitted fields are preserved by the server and which existing client arguments must remain invariant. It never elevates preservation of `client_id`, `scopes`, and `target_audience`, an omission that the implementation subsequently violates. Assertions that security is already correct, compatibility is guaranteed, and no attack surface is introduced were not supported with repository evidence."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 60,
+      "notes": "The plan spans CLI parsing, request construction, backward compatibility, edit behavior, invalid URLs, and an end-to-end custom-provider flow. Its largest weakness is that the client tests are placeholders and several shell expectations merely say the command works or avoids an argparse error rather than asserting an exact request or stored state. In particular, the backward-compatibility client test checks only for a `TypeError`, so it would not catch the submitted patch dropping `client_id`, while no oracle confirms continued forwarding of `scopes` or `target_audience`. The proposed `tests/unit/api/` paths and commands could not be verified against the repository because the read-only shell was unavailable."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 4,
+      "total": 39,
+      "notes": "The patch concretely adds all five parser options, client parameters, conditional body fields, and handler forwarding for the new custom values. However, it simultaneously deletes `body[\"client_id\"] = client_id` from `RegistryClient.configure_egress_auth` and replaces existing handler forwarding of `scopes` and `target_audience`, causing material regressions in both existing and custom OAuth configurations. This directly contradicts the LLD snippets and acceptance intent, and no unit tests are included to catch it. The summary is inaccurate in reporting zero deletions and no deviations; its clean-apply and syntax claims could not be independently checked because every local shell command failed before execution."
+    }
+  },
+  "task_score": 61.0,
+  "verdict": "The design artifacts define the intended small CLI extension reasonably well, but the implementation introduces severe regressions by dropping three existing request fields and falsely reports that it matches the design.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T13:21:07.981843Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 239686,
+      "cached_input_tokens": 150925,
+      "cache_write_input_tokens": 27599,
+      "output_tokens": 10422,
+      "reasoning_output_tokens": 8362
+    },
+    "duration_ms": 114613
+  }
+}

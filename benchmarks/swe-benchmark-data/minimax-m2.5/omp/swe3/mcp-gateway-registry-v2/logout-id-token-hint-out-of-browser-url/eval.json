@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 55,
+      "notes": "The issue clearly states the WAF and disclosure concerns, dependencies, non-goals, and testable desired outcomes. Its central solution is internally inconsistent: it requires no browser-facing token while also requiring fallback to the original token-bearing URL. The proposed flow also assumes an auth server can complete browser SSO logout server-side without defining a viable mechanism, and the implementation later returns a token-bearing URL to the browser. The SSRF label, token-size claims, WAF behavior, and linked issue could not be independently established from the supplied task context."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 5,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 49,
+      "notes": "The LLD names concrete files, settings, endpoints, rollout order, fallback behavior, and provider-specific integration points. Its load-bearing design is invalid: the endpoint returns a logout URL containing id_token_hint and the registry redirects the browser to that URL, directly contradicting the diagrams and security goal. It also directs the server-to-server call through auth_server_external_url rather than the existing auth_server_url, leaves endpoint authentication undecided, and claims fallback can be monitored despite specifying no fallback metric. Exact line references and claims about deployment documentation could not be independently verified because repository command execution was unavailable."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 16,
+      "total": 56,
+      "notes": "The review identifies concrete concerns about request-body logging, endpoint authentication, fallback observability, request validation, deployment ordering, and mixed-version fleets. It nevertheless misses the decisive defect: the returned IdP URL still contains id_token_hint and is sent to RedirectResponse, so the claimed security outcome is not achieved. Pixel's URL-length question points toward this problem, while Cipher incorrectly declares the core issue resolved and the summary reports zero blockers despite calling body logging critical. Assertions that network isolation is sufficient or present are unsupported, particularly because the design calls the external auth-server URL."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 11,
+      "total": 47,
+      "notes": "The plan spans functional, compatibility, provider, configuration, browser, and failure scenarios with several concrete expected statuses and states. Its primary oracle is ineffective because curl -s -L does not display redirect Location headers, so grep can pass even after a token-bearing redirect. Test 1.2 explicitly expects the returned logout_url to contain id_token_hint, exposing the contradiction, while the fallback simulation merely disables the feature and the URL-length metric expectation conflicts with the internal path. The unit tests remain placeholders, and the proposed /api/config 401 check and test-file paths are not grounded by independently verified repository evidence."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 14,
+      "risk_awareness": 5,
+      "total": 27,
+      "notes": "The patch is concrete and touches the anticipated configuration, registry logout handler, auth-server route, and environment documentation. It does not implement the core requirement: oauth2_logout_internal constructs a URL containing id_token_hint, returns it, and logout_handler immediately redirects the browser to that same URL. Additional defects include using auth_server_external_url for the backend call, unauthenticated token handling, weak redirect validation that can accept arbitrary absolute URLs when configuration is absent, and no fallback for malformed successful JSON responses. The summary's claims that the IdP logout occurs server-side, that there are no deviations, and that implementation is complete are false; patch applicability against the working tree could not be independently confirmed because repository command execution failed before running."
+    }
+  },
+  "task_score": 46.8,
+  "verdict": "The submission is detailed and concrete, but its central architecture and patch still place id_token_hint in a browser redirect, so it fails the task's primary security requirement.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T13:47:58.703875Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 192882,
+      "cached_input_tokens": 130774,
+      "cache_write_input_tokens": 34394,
+      "output_tokens": 9988,
+      "reasoning_output_tokens": 8128
+    },
+    "duration_ms": 110100
+  }
+}

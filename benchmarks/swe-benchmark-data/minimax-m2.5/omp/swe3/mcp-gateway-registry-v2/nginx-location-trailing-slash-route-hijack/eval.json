@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 77,
+      "notes": "The issue clearly identifies the prefix collision, affected unauthenticated behavior, preserved MCP subpaths, non-goals, and concrete examples such as `/a` versus `/api`. Its bare-path acceptance criterion is incorrect: an nginx prefix location ending in `/` and handled by `proxy_pass` normally redirects the slashless URI with 301 rather than returning 404.  That error weakens an otherwise testable contract and leaves rollout of already-generated configurations unaddressed. No independent task statement was supplied, and repository access failed at sandbox initialization, so the asserted issue number and exact source location could not be independently verified."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 67,
+      "notes": "The design commits to a precise transformation, `path.rstrip('/') + '/'`, names `_create_location_block` and its test file, and discusses input normalization and deployment. The submitted patch context corroborates the described `location_path = path` integration point, but the design incorrectly predicts a 404 for `/name`; nginx documents an automatic 301 for this proxy-location pattern.  It also claims an nginx reload will regenerate stale configuration, although reload normally only rereads the existing generated file, and its discussion of `^~` as providing exact-match behavior is inaccurate. Exact line numbers, test names, and the claimed automatic regeneration lifecycle could not be independently checked because repository commands could not start."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 13,
+      "specificity": 16,
+      "risk_awareness": 16,
+      "total": 60,
+      "notes": "The review surfaces useful concrete concerns about stale deployed configuration, slash-normalization coverage, documentation, and the user experience of the bare path. Its largest deficiency is approving the design without resolving the incorrect 404 expectation or the unsupported assertion that reload regenerates configuration; nginx instead documents a 301 redirect for the relevant slash-terminated proxy location.  Circuit explicitly asks how regeneration is forced and Sage requests two normalization tests, yet the summary leaves both non-blocking and the submitted implementation includes neither tests nor an operator mechanism. Repository-specific claims about existing regeneration behavior and documentation could not be independently verified."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 10,
+      "total": 48,
+      "notes": "The plan provides concrete normalization inputs, expected location strings, existing-test updates, commands, and an `nginx -t` deployment check. It omits the decisive real-nginx routing test, so it would not detect that slashless `/name` receives nginx's documented 301 rather than the promised 404.  Several oracles are weak or contradictory: the MCP test only finds the base proxy URL rather than exercising `/mcp`, the SSE expectation and assertion differ, and checking `{{ROOT_PATH}}//` would not detect `/test//`. The hard-coded checkout path is nonportable, the proposed tests are absent from the patch, and their fixture compatibility and node identifiers could not be verified against the inaccessible repository."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 18,
+      "specificity": 19,
+      "risk_awareness": 11,
+      "total": 63,
+      "notes": "The patch directly implements the core route-isolation change by normalizing `location_path`, and its focused comment accurately explains the sibling-prefix collision it prevents. It does not implement the LLD's required test updates, while the summary incorrectly states there are no deviations or follow-ups despite touching only `registry/core/nginx_service.py`. The change also cannot satisfy the issue's bare-path 404 criterion because nginx normally redirects that request with 301 for a slash-terminated proxy location.  The hunk is internally consistent with the submitted source context, but actual applicability, the stated baseline commit, surrounding validation, and repository formatting conventions could not be independently verified because every read-only shell invocation failed before execution."
+    }
+  },
+  "task_score": 63.0,
+  "verdict": "The submission identifies and implements the core one-line routing fix, but incorrect nginx bare-path semantics, unresolved configuration regeneration, weak tests, and an implementation that omits its promised coverage materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T13:51:56.987848Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 228244,
+      "cached_input_tokens": 167212,
+      "cache_write_input_tokens": 32672,
+      "output_tokens": 10695,
+      "reasoning_output_tokens": 8319
+    },
+    "duration_ms": 125275
+  }
+}
