@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 9,
+      "total": 51,
+      "notes": "The issue provides clear scope, non-goals, motivation, and mostly testable acceptance criteria. Its central premise is unsupported: the existing `/internal/tokens` flow generates a self-signed JWT, while the proposed endpoint exposes IdP access and refresh tokens and is not the route used by the UI. Keeping `id_token`, groups, and other metadata in `auth_server/server.py` also makes the promised sub-1KB cookie impossible to guarantee. It does not address refresh-token exposure, logout cleanup, provider-token compatibility, or the evidence gap caused by the absent independent task statement."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 52,
+      "notes": "The LLD names concrete repository files and covers storage, encryption, concurrency, rollout, observability, and recovery in substantial detail. Critical technical decisions are wrong or unfinished: MongoDB absolute TTL values are modeled as integer timestamps rather than BSON dates, refresh integration explicitly assumes an unverified provider API, and changing `/internal/tokens` from self-signed JWTs to IdP tokens risks incompatible issuer and audience semantics. The endpoint example cannot perform its later ownership check because retrieval omits the stored username, and the losing refresh-lock path can return stale tokens after a fixed 0.5-second wait. Claims about cookie size, existing encryption infrastructure, provider refresh support, and deployment surfaces were not adequately established from the repository."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 16,
+      "total": 55,
+      "notes": "The review identifies concrete concerns around refresh races, ownership validation, key rotation, monitoring, and operational recovery, with prioritized recommendations. Its largest defect is that it repeatedly claims the LLD lacks concurrency control, ownership checks, metrics, disaster recovery, UI contracts, and cookie-splitting analysis even though the submitted LLD contains dedicated sections for them. It also misses more fundamental defects visible in the design and patch, including the integer TTL field, unchanged UI token route, retained `id_token` cookie payload, and invalid collection truth testing. The review appropriately questions whether provider classes expose refresh support rather than asserting that unverified API as fact."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 59,
+      "notes": "The plan supplies concrete setup, requests, database-state checks, response values, concurrency coverage, and deployment checks. It incorrectly marks backward compatibility as not applicable despite explicitly changing token-generation semantics, and it tests UI behavior and refresh logic that the patch never wires or implements. Encryption testing only checks ciphertext inequality, while ownership mismatch, revoked-provider responses, malformed keys, corrupted ciphertext, database outages, logout cleanup, and leakage controls are absent. The proposed `uv run pytest tests/` command and new test paths could not be locally verified because the managed shell failed before command execution, and the patch itself adds no tests."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 2,
+      "specificity": 10,
+      "risk_awareness": 4,
+      "total": 21,
+      "notes": "The patch targets relevant `auth_server/server.py` integration points and candidly lists some omissions, but it leaves `/internal/tokens` and `/api/tokens/generate` unchanged and adds only an uncalled `/internal/oauth-tokens` route. `expires_at_ttl` is stored as an integer although MongoDB absolute TTL indexes require a BSON date, and `if not collection` is invalid for Motor/PyMongo collection objects, so indexing, storage, and retrieval can fail before performing work. The callback retains `id_token` and other potentially large session data, lacks ownership validation, and exposes refresh tokens through a GET response, leaving the principal size and security goals unmet. The summary falsely claims refresh-method stubs and working UI retrieval despite no refresh method, caller wiring, or tests in the diff; exact patch applicability could not be dry-run because the read-only shell sandbox failed to launch."
+    }
+  },
+  "task_score": 47.6,
+  "verdict": "The submission is detailed and concrete, but it solves the wrong token path and the implementation is nonfunctional at critical MongoDB, TTL, cookie-size, and UI integration points.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T20:55:26.385669Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 345078,
+      "cached_input_tokens": 197134,
+      "cache_write_input_tokens": 77740,
+      "output_tokens": 12391,
+      "reasoning_output_tokens": 10603
+    },
+    "duration_ms": 158729
+  }
+}

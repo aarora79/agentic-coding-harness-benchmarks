@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The issue clearly defines blocking admission checks, affected asset classes, configuration, compatibility, failure behavior, tests, and explicit non-goals. Its scope aligns with the repository roadmap entry for issue #809.  The largest gaps are an underspecified authentication contract and vague criteria such as “comprehensive logging” and wiring through “Docker, Helm, etc.” It recognizes fail-closed availability risk and preserves existing deployments by default, but does not discuss latency, sensitive payload exposure, secret handling, or rollback."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 54,
+      "notes": "The design is broad and concrete, covering models, route integration, configuration, deployment, observability, rollout, and security tradeoffs. Its largest deficiency is that the supplied design code is internally broken: the validator requires an HMAC secret even when the feature is disabled, the client treats a required 403 denial as a 502, and its catch-all converts raised HTTPException denials into 502 responses. Repository grounding is also unreliable: it names registry/core/settings.py despite using settings from core/config.py, and charts/registry conflicts with documented chart layouts near this release line.  It identifies realistic risks, but adds out-of-scope health checks and circuit breaking without resolving client lifecycle, concurrency, endpoint-path, response-authentication, or secret-exposure concerns."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 15,
+      "risk_awareness": 15,
+      "total": 55,
+      "notes": "The review’s strongest contribution is its concrete coverage of latency, single-point-of-failure behavior, payload exposure, authentication, observability, and rollout concerns from several relevant perspectives. It misses the design’s most consequential defects: unconditional default HMAC validation, incompatible 403 handling, catch-all exception conversion, and per-request circuit-breaker state. Several conclusions are incorrect, including that an httpx timeout provides SSRF protection and that request HMAC signing establishes mutual authentication. The recommendations are actionable but poorly prioritized, and the claim that all critical concerns are resolved is unsupported by the revised LLD."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 14,
+      "total": 49,
+      "notes": "The plan covers allow, deny, timeout, unreachable, compatibility, security, circuit-breaker, health-check, and deployment scenarios across the three asset classes. Its largest flaw is executability: it changes environment variables after the registry is running despite explicitly excluding dynamic reconfiguration, relies on an unimplemented custom mock API, uses placeholders, and supplies the invalid URL http://localhost:9999-nonexistent. Some payloads conflict with the documented agent shape, which represents tags as a list, and several security/configuration sections merely set variables or call the mock without verifying registry behavior.  Most importantly, denial and failure cases do not query storage to prove that no asset was persisted, so they miss the central regression oracle."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 2,
+      "specificity": 12,
+      "risk_awareness": 6,
+      "total": 25,
+      "notes": "The patch concretely adds configuration, gate models, a client, and checks around the real agent registration API surface.  It is not end-to-end: the summary admits server and skill routes, deployment surfaces, configuration API changes, and all tests remain pending, despite claiming the feature was implemented for all asset classes. More seriously, default startup fails because the validator requires an HMAC secret while the disabled default still selects HMAC, and check_registration catches its own HTTPException denials under except Exception; direct gate 403 responses are likewise converted to 502. Per-request GateClient construction resets circuit-breaker and health-cache state, while local git apply --check could not be executed because the sandbox failed before process launch, leaving mechanical applicability independently unverified."
+    }
+  },
+  "task_score": 52.0,
+  "verdict": "The submission has a strong issue and wide-ranging design intent, but the implementation is incomplete and contains startup and denial-path defects that make the admission gate unusable as submitted.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T20:52:47.645387Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 350189,
+      "cached_input_tokens": 233057,
+      "cache_write_input_tokens": 43547,
+      "output_tokens": 13030,
+      "reasoning_output_tokens": 11153
+    },
+    "duration_ms": 156477
+  }
+}

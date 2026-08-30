@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 70,
+      "notes": "The issue clearly defines the WAF failure, relevant configuration, scope, non-goals, and mostly testable acceptance criteria. Its largest defect is contradiction: it requires the token never appear in browser-facing URLs and browser history while preserving both an IdP URL containing the token and a legacy fallback containing it. The submitted patch confirms the named internal and external auth-server URLs are central to the proposed flow. No independent task statement was supplied, and the claimed support expectations for all four IdPs could not be independently established."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 61,
+      "notes": "The LLD gives concrete data flow and targets the same `registry/auth/routes.py` logout integration represented in the patch. Major decisions remain contradictory: the feature flag defaults both true and false, a boolean flag cannot perform the proposed percentage rollout, and the optional mechanisms are treated as rollout prerequisites. Its circuit breaker permits unrestricted HALF_OPEN requests and ignores non-exception failures, while `_validate_idp_redirect_url` uses unsafe substring matching and cannot support arbitrary Keycloak domains reliably. Claims about existing fallback, tracing, metrics, and trusted-host patterns could not all be independently verified against the repository."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 16,
+      "risk_awareness": 16,
+      "total": 60,
+      "notes": "The review identifies relevant latency, pooling, internal-network, forwarded-header, logging, and observability concerns with actionable recommendations. It misses the central fallback-versus-no-token contradiction and declares flawed measures such as substring URL validation and the circuit breaker fully resolved. It also claims fallback preserves logout during a complete auth-server outage, although redirecting the browser to that unavailable service does not provide that guarantee. Several resolutions, including existing nginx rate limiting and POST CSRF behavior, are asserted without verifiable repository evidence."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 7,
+      "specificity": 12,
+      "risk_awareness": 16,
+      "total": 54,
+      "notes": "The plan spans functional, provider, failure, security, performance, observability, and deployment scenarios. Several core tests cannot prove their stated behavior: the WAF curl lacks redirect following, while the token-redaction command captures client output rather than service logs and may capture the final IdP URL containing the token. Much of the plan tests components omitted by the implementation, including the feature flag, circuit breaker, shared pool, redirect validator, tracing, and new metrics. Exact log messages, POST logout CSRF behavior, test paths, and operational commands are unsupported or left as manual placeholders rather than executable tests with reliable oracles."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 59,
+      "notes": "The patch implements the core happy path in `logout_handler`: it calls the internal auth-server URL, forwards host and protocol context, consumes the redirect location, and retains the legacy fallback. It logs the first 100 characters of the returned IdP URL, which can expose token material and directly contradicts the summary's claim that no sensitive data is logged; it also accepts any returned Location without validation. A redirect response lacking Location causes `idp_redirect_url[:100]` to raise before the null check, although the broad exception handler converts that error into fallback behavior. The summary honestly lists several LLD omissions, but patch applicability and surrounding imports/symbols could not be independently checked because repository command execution was unavailable."
+    }
+  },
+  "task_score": 60.8,
+  "verdict": "The submission presents a feasible core logout change, but contradictory security requirements, an overcomplicated and flawed design, largely non-executable testing, and token-bearing URL logging materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T20:39:51.717563Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 288430,
+      "cached_input_tokens": 211823,
+      "cache_write_input_tokens": 38655,
+      "output_tokens": 11732,
+      "reasoning_output_tokens": 10076
+    },
+    "duration_ms": 133186
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 77,
+      "notes": "The issue clearly defines five flags, affected layers, testable acceptance criteria, and explicit non-goals. The supplied diff context corroborates the named CLI command and RegistryClient integration point. Its largest flaw is asserting that omitting fields preserves stored values without reconciling server defaults or the requirement that both custom URLs be present. No independent task statement exists, and repository shell access failed before execution, so the UI, schema, list_providers, and issue-number claims could not be independently verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The LLD provides concrete file names, method signatures, request fields, parser definitions, and implementation sequencing for the happy path. Its central design is inconsistent: mandatory client-side validation of both URLs prevents the promised one-field partial update, while the document itself acknowledges that server model defaults may clear omitted values. It recognizes URL, SSRF, compatibility, documentation, and parameter-growth concerns but defers the unresolved persistence behavior that governs a stated acceptance criterion. The proposed validation module also changes from registry.utils.url_validation in the design to registry.utils.url_guard in the patch, and the unavailable repository shell prevented independent API verification."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "The review identifies concrete concerns including server defaults, parameter growth, URL validation, documentation, and repeated configuration. Its largest deficiency is detecting possible destructive overwrite behavior but accepting it as UI-consistent without resolving the issue's explicit preservation requirement, then declaring zero blockers. The idempotency recommendation is also too weak because repeating mocked successful calls cannot establish stable persisted state. Claims about validation utilities, encryption, UI behavior, and server enums could not be independently checked because repository commands failed at sandbox initialization."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 61,
+      "notes": "The plan covers CLI parsing, happy and negative paths, compatibility, persistence, help output, and supplies concrete commands and value-level assertions. Test 1.1.6 is incompatible with the proposed implementation because it omits custom_token_url while client validation requires both URLs before every custom-provider call. It incorrectly treats RegistryClient unit testing as unnecessary even though conditional request-body serialization is a primary change, and its HTTP metadata-address case would be rejected by client HTTPS validation before testing server-side SSRF defenses. The Docker services, environment variables, and CLI setup commands could not be verified against the repository due the shell sandbox failure."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 49,
+      "notes": "The diff implements the basic happy-path pipeline by adding five parser flags, forwarding them through cmd_egress_configure, and conditionally serializing them in RegistryClient.configure_egress_auth. It is internally inconsistent: validation rejects the partial-update test that supplies only custom_authorize_url, while the non-custom-provider test expects custom fields to become None even though the implementation forwards the supplied URLs unchanged. The tests import create_parser without adding that symbol in the patch and never directly verify RegistryClient request-body construction, while the mocked idempotency test proves no persisted-state property. The summary consequently overstates compatibility and test coverage, and patch applicability plus the validate_url API could not be independently confirmed because read-only shell execution failed before reaching Git."
+    }
+  },
+  "task_score": 64.6,
+  "verdict": "The submission is concrete and largely captures the happy-path change, but unresolved partial-update semantics and internally failing or ineffective tests make the implementation unsafe to merge as submitted.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T20:14:08.957390Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 284314,
+      "cached_input_tokens": 220654,
+      "cache_write_input_tokens": 38118,
+      "output_tokens": 9610,
+      "reasoning_output_tokens": 7392
+    },
+    "duration_ms": 117575
+  }
+}

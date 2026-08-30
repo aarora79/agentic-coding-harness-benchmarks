@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The issue clearly identifies affected route families, authentication modes, expected behavior, exclusions, and testable 403-versus-success outcomes. Its largest flaw is treating the internal toggle, which uses validate_internal_auth, as though it should follow the same browser-session CSRF rule. The submitted source contexts support the agent, skill, server, and virtual-server route names and their inconsistent dependencies. With no independent task statement, claims that every registration pipeline is broken and that exactly six endpoints require identical coverage remain partly unverified."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 70,
+      "notes": "The LLD is unusually concrete about files, dependency callables, endpoint signatures, authentication flow, and proposed helper behavior. Its most serious error is claiming existing overrides of verify_csrf_token_flexible will continue working after routes switch to a different callable; FastAPI dependency overrides are keyed by the actual dependency object. The proposed refactor also changes verify_csrf_token_flexible error precedence by checking the session before extracting the token, contradicting its backward-compatibility claim. It recognizes proxy-header trust and mixed authentication but leaves the nginx verification and rollout protections unresolved while inconsistently describing the UI step as both required and optional."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 62,
+      "notes": "The review surfaces concrete concerns about cookie-based flow detection, trusted proxy headers, duplicated CSRF logic, mixed authentication, and observability. Its largest deficiency is declaring every blocker resolved when the promised nginx checklist is absent and the security must-fix is reduced to warning-only logging. The backend assertion that old dependency overrides will still cover routes using verify_csrf_token_if_session is technically incorrect, and the summary rewrites two NEEDS REVISION verdicts as approvals. It also misses the refactor's changed error ordering and the implementation's lack of test updates."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 11,
+      "risk_awareness": 10,
+      "total": 41,
+      "notes": "The plan usefully distinguishes bearer and session flows and gives explicit status and error-message oracles for several cases. However, its agent curl sends enabled as form data while the submitted route signature declares enabled as a plain bool, so the request is likely parsed incorrectly; skill and virtual-server routes accept request models but receive only a vague instruction to repeat that pattern. The proposed test files are not tied to the cited existing route-test location, the internal toggle is omitted, and backward compatibility is incorrectly marked not applicable. It lacks concrete dependency-unit tests, proxy-header spoofing coverage, mixed-authentication cases, and verification that legacy dependency behavior remains unchanged."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 9,
+      "total": 55,
+      "notes": "The patch coherently adds a conditional dependency and wires it into the five browser/API toggle functions shown in the diff; the official v1.0.21 release notes independently confirm an agent/skill bearer-token CSRF fix associated with PR #894.  Its largest defect is shipping a security-sensitive dependency replacement without any test changes, despite known route tests overriding the old callable. Refactoring verify_csrf_token_flexible changes missing-token versus missing-session error precedence, while the summary incorrectly claims unchanged behavior and says all six endpoints use the new dependency even though the internal toggle is untouched. The claimed clean application and py_compile execution are not demonstrated by the artifact, and minor import/spacing convention issues remain."
+    }
+  },
+  "task_score": 60.6,
+  "verdict": "The submission presents a concrete and mostly coherent design, but inaccurate test assumptions, false compatibility claims, and an untested implementation materially weaken confidence in the security change.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T20:20:50.218698Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 271482,
+      "cached_input_tokens": 169239,
+      "cache_write_input_tokens": 37053,
+      "output_tokens": 12118,
+      "reasoning_output_tokens": 10054
+    },
+    "duration_ms": 134708
+  }
+}

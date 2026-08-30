@@ -1,0 +1,64 @@
+{
+  "task": "hide-register-button-on-virtual-and-skills-tabs",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The issue clearly defines the two target tabs, preserves the registration flow, and supplies testable visibility criteria and non-goals. Its largest defect is the Discover criterion: it says Register should remain visible, while the supplied source context shows the existing condition already hides it with `viewFilter !== 'discover'`. The External Registries preservation criterion is appropriately conservative and is later contradicted by the LLD and implementation. Issue #793 and the claimed button destinations could not be independently verified because repository shell commands failed before execution."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 18,
+      "risk_awareness": 5,
+      "total": 43,
+      "notes": "The LLD names `frontend/src/pages/Dashboard.tsx`, the `viewFilter` values, navigation behavior, and a concrete implementation approach. Its critical error is treating the outer `viewFilter !== 'discover'` expression as the Register-only condition, although the submitted diff context shows that expression wraps the entire Search Bar and Refresh Button fragment. It also says Discover and External Registries should retain Register in its goals, then designs a helper that excludes both. The design never recognizes the resulting sibling-control regression, so its detailed rollout and alternatives do not mitigate the principal risk."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 9,
+      "specificity": 15,
+      "risk_awareness": 12,
+      "total": 51,
+      "notes": "The review raises concrete questions about External Registries, permissions, accessibility, and test coverage rather than offering only approval. However, every reviewer misses that the proposed condition controls the complete search/refresh fragment, which is the design's largest functional defect. The resolution then declares the unresolved external-tab behavior and implementation fully addressed, despite contradicting the issue acceptance criteria. Suggestions such as adding PropTypes to this TypeScript component and treating a helper extraction as a blocker are lower-value than inspecting the actual render boundary."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 54,
+      "notes": "The plan provides a useful per-tab visibility matrix, navigation oracle, permission scenario, accessibility checks, and regression checks for search and refresh behavior. Its invalid-input unit case expects `false`, but the implemented exclusion-list helper returns `true` for an unknown value. The example automation is not directly implementable because `shouldShowRegisterButton` is nested and unexported, while the shown `initialViewFilter` Dashboard prop is not established by the supplied component signature. Jest, Playwright, `npm test`, and `uv run python -m registry` are presented without verified repository support, and declaring backward compatibility inapplicable overlooks the changed External Registries behavior."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 4,
+      "specificity": 16,
+      "risk_awareness": 4,
+      "total": 34,
+      "notes": "The focused patch does alter `frontend/src/pages/Dashboard.tsx` so the intended Virtual and Skills views fail the new visibility predicate. Critically, the changed condition surrounds the entire fragment labeled `Search Bar and Refresh Button`, so those sibling controls and associated content are removed on every excluded tab rather than hiding only Register. It additionally hides Register on External Registries, contradicting the issue's preservation criterion, while the summary inaccurately reports no deviations or omitted work. The patch's applicability, commit identity, and compilation could not be independently checked because the read-only shell failed during sandbox initialization."
+    }
+  },
+  "task_score": 51.8,
+  "verdict": "The submission frames and tests the UX requirement reasonably well, but its design and patch change the wrong render boundary, hiding unrelated header controls and introducing an unsupported External Registries behavior change.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T20:28:18.358613Z",
+    "repo_ref": "v1.0.18",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 251523,
+      "cached_input_tokens": 188862,
+      "cache_write_input_tokens": 29305,
+      "output_tokens": 9730,
+      "reasoning_output_tokens": 7569
+    },
+    "duration_ms": 105235
+  }
+}
