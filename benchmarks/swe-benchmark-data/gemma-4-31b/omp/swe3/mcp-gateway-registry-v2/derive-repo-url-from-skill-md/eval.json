@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 80,
+      "notes": "The issue clearly covers backend derivation, form auto-fill, editable state, both display surfaces, and explicit non-goals. Its acceptance criteria specify observable behavior for `/parse-skill-md`, `repository_url`, and conditional \"View Repo\" rendering. The largest omission is the behavior when parsing a non-GitHub URL after a repository value was previously entered or auto-filled. No independent task statement was supplied, and the asserted relationship to issue #846 could not be verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 67,
+      "notes": "The design identifies concrete integration points including `registry/utils/url_utils.py`, `_parse_skill_md_content`, `handleParseSkillMd`, `SkillCard`, and `SemanticSearchResults`. Its helper algorithm and frontend state update are implementation-ready and correspond to the submitted diff contexts. However, `data.repository_url || prev.repository_url` preserves a stale repository value for a subsequent non-GitHub URL, conflicting with the intended empty or unguessed result. It also omits malformed-input cases, enterprise-host configuration constraints, response-schema compatibility, and a committed policy for overwriting manually entered values."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 12,
+      "specificity": 14,
+      "risk_awareness": 13,
+      "total": 52,
+      "notes": "The review raises relevant concerns about conditional rendering, untrusted outbound links, manual-value overwriting, and enterprise raw-host mapping. It fails to identify the concrete stale-state bug created by preserving `prev.repository_url` for a non-GitHub parse and does not challenge the absence of implementation tests. Its main backend recommendation to replace a `raw.` prefix with `re.sub` is already present in the LLD, as is `rel=\"noopener noreferrer\"`, making those findings internally stale. The broadly approving verdict is therefore insufficiently supported despite one nominal approved-with-changes result."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 13,
+      "risk_awareness": 9,
+      "total": 44,
+      "notes": "The plan provides a useful URL-shape matrix with exact expected repository roots and includes API, UI, compatibility, and end-to-end levels. Its enterprise cases use placeholder hosts while expecting `success: true`, even though the described endpoint fetches and parses the referenced SKILL.md, so those are not executable fixtures as written. It omits the critical transition from an auto-filled GitHub value to a non-GitHub URL, the hidden-`View Repo` negative case, malformed URLs, and concrete unit-test locations or mocks. The submitted request syntax could not be independently verified, and `uv run pytest` alone does not compensate for the missing test implementation details."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 19,
+      "risk_awareness": 9,
+      "total": 61,
+      "notes": "The patch addresses every requested runtime surface: URL derivation, parse-response enrichment, form state, the `Skill` type, and both link-rendering components. The helper uses `_is_github_hostname`, handles the specified blob and `refs/heads` raw shapes, and the new links retain `noopener noreferrer`. The largest functional defect is that `repository_url: data.repository_url || prev.repository_url` leaves an old auto-derived value in place when a later non-GitHub URL produces no repository, contrary to the intended behavior. No tests are added despite the testing plan requiring unit coverage, the summary incorrectly reports no follow-ups, and exact `git apply --check` verification was unavailable because the read-only shell failed before command execution."
+    }
+  },
+  "task_score": 60.8,
+  "verdict": "The submission is well-scoped and mostly coherent, but its implementation preserves stale repository URLs for non-GitHub parses and its testing plan would not reliably catch that regression.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:07:54.328954Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 191292,
+      "cached_input_tokens": 122048,
+      "cache_write_input_tokens": 32603,
+      "output_tokens": 12644,
+      "reasoning_output_tokens": 10560
+    },
+    "duration_ms": 148349
+  }
+}

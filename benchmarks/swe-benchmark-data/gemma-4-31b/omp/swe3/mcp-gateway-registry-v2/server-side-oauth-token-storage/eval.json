@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 73,
+      "notes": "The issue clearly defines the cookie-size failure and gives testable criteria for encrypted storage, opaque references, TTL cleanup, cookie-only validation, and non-OAuth compatibility. Its largest gap is lifecycle scope: logout deletion, key rotation, database unavailability, migration behavior, and rollback are not addressed. The proposed integration is consistent with the submitted auth_server/server.py callback and mcp_gateway_session evidence. No independent task statement was supplied, so the exact required endpoint contract and token set could not be verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 63,
+      "notes": "The LLD is concrete about auth_server/server.py, oauth2_callback, token_ref generation, the MongoDB query binding, encryption, and TTL indexing. Its API promises expires_in although the data model stores only expires_at, and expiring the whole document at access-token expiry can prematurely discard a longer-lived refresh token. The existing lifespan context shown by the patch loads SCOPES_CONFIG and builds the static-token map, but the design never explicitly requires preserving those startup responsibilities. Key rotation, delayed TTL deletion, logout cleanup, multiple-session semantics, and a rollback path remain materially underdesigned."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 15,
+      "risk_awareness": 16,
+      "total": 55,
+      "notes": "The review's strongest findings are the encryption-key rotation impact, MongoDB outage behavior, and endpoint latency monitoring. Its claimed critical user-binding correction was already present in the LLD's retrieval sequence and get_tokens(token_ref, user_id) design, while UUID and upsert were also already specified. Replacing token_ref inside a signed cookie cannot exercise the proposed binding unless the cookie is re-signed, and binding does not protect against theft of the complete valid cookie. The review misses the expires_in model mismatch, refresh-token TTL semantics, and the need to preserve existing lifespan initialization."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 60,
+      "notes": "The plan provides concrete success, missing-session, compatibility, encryption-key, TTL-index, cookie-size, and end-to-end scenarios with useful response or state oracles. The token-reference hijacking test is invalid as written because manually editing a signed session cookie should fail signature validation with 401 rather than reach the database binding check and return 404. The UI scenario contradicts the issue's explicit exclusion of client changes, and uv run pytest tests/ does not identify where the new automated tests belong. It also lacks a reliable assertion that normal validation performs zero database reads, while immediate expiry checks ignore MongoDB TTL monitor delay."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 0,
+      "specificity": 8,
+      "risk_awareness": 3,
+      "total": 16,
+      "notes": "The patch attempts the principal components, but it is unusable: auth_server/server.py places an unexpectedly indented try block immediately after registry_session assignment and removes get_auth_provider while retaining calls to it. It also deletes existing lifespan initialization, registers get_oauth_tokens under both /config and /oauth2/tokens, leaves get_auth_config undecorated, and converts raised HTTPException instances into 500 responses. token_store.py hides database and decryption failures as token misses, does not filter expires_at, lacks the designed unique token_ref index, and allows TTL-index initialization failure without failing startup. The summary's no-deviations claim is false because the endpoint returns expires_at instead of expires_in and omits planned metrics, tests, and deployment configuration; git apply --check could not be executed because the repository shell sandbox failed before command launch."
+    }
+  },
+  "task_score": 53.4,
+  "verdict": "The design artifacts provide a useful but internally inconsistent foundation, while the syntactically and behaviorally broken patch is the largest material limitation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:42:53.560671Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 219270,
+      "cached_input_tokens": 169081,
+      "cache_write_input_tokens": 32818,
+      "output_tokens": 11161,
+      "reasoning_output_tokens": 8890
+    },
+    "duration_ms": 118997
+  }
+}
