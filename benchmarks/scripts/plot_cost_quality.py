@@ -636,7 +636,7 @@ def _label_offsets(
 
 
 _DEFAULT_COST_BASIS_NOTE = (
-    "Self-hosted cost basis: g6e = 3-year RI rate; p5en = on-demand x 35% "
+    "Self-hosted cost basis: g6e = 3-year commitment rate; p5en = on-demand x 35% "
     "placeholder discount (pay 65%) -- configurable in self-hosted/vllm/pricing.json."
 )
 

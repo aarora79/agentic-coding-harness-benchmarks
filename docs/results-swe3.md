@@ -11,12 +11,12 @@ The headline numbers below are the **pi** harness (the single-agent shape a deve
 Two **non-comparable** cost bases share the cost column:
 
 - **metered (Bedrock)** -- a hosted API's real per-token bill, summed over the run. Benefits from Bedrock prompt caching.
-- **hardware-derived (self-hosted)** -- a rented GPU has no per-token bill, so cost is the model's blended `$/token` (instance `$/hr / measured tokens/sec` from the throughput sweep) times the tokens the run processed. Configurable pricing: p5en on-demand with a 0.35 placeholder discount (pay 65%), g6e 3-year Reserved Instance.
+- **hardware-derived (self-hosted)** -- a rented GPU has no per-token bill, so cost is the model's blended `$/token` (instance `$/hr / measured tokens/sec` from the throughput sweep) times the tokens the run processed. Configurable pricing: p5en on-demand with a 0.35 placeholder discount (pay 65%), g6e 3-year commitment rate.
 
 Compare **within** a hosting basis; treat cross-hosting dollars as order-of-magnitude, not exact. Full treatment: [cost-per-task-methodology.md](cost-per-task-methodology.md).
 
 > [!IMPORTANT]
-> **The p5en 35% discount is a PLACEHOLDER.** Self-hosted rates are configurable in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json): g6e uses its **3-year RI rate**; p5en uses **on-demand with a 0.35 placeholder `discount`** (35% off = pay 65% -> $41.14/hr). Set your own committed/negotiated discount there and every self-hosted cost rescales linearly.
+> **The p5en 35% discount is a PLACEHOLDER.** Self-hosted rates are configurable in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json): g6e uses its **3-year commitment rate**; p5en uses **on-demand with a 0.35 placeholder `discount`** (35% off = pay 65% -> $41.14/hr). Set your own committed/negotiated discount there and every self-hosted cost rescales linearly.
 
 ## The tasks
 
@@ -125,7 +125,7 @@ Its quality run used a **200K context window**; the throughput/cost sweep for th
 - **8x H200 (`p5en.48xlarge`):** glm-5.2, kimi-k2.7-code, nemotron-ultra-550b, deepseek-v3.2, qwen3-coder-480b (TP=4), devstral-2-123b (TP=4).
 - **`g6e.12xlarge` (4x L40S):** qwen3.6-35b, minimax-m2.5, gemma-4-31b, qwen3-coder-30b.
 
-All self-hosted via vLLM. Per-model serving guides: [self-hosted/vllm/models/](../self-hosted/vllm/models/). Instance rates: [self-hosted/vllm/pricing.json](../self-hosted/vllm/pricing.json) (us-east-1; p5en on-demand with a 0.35 placeholder `discount` = pay 65% -> $41.14/hr, g6e 3-year RI $4.533/hr; both configurable).
+All self-hosted via vLLM. Per-model serving guides: [self-hosted/vllm/models/](../self-hosted/vllm/models/). Instance rates: [self-hosted/vllm/pricing.json](../self-hosted/vllm/pricing.json) (us-east-1; p5en on-demand with a 0.35 placeholder `discount` = pay 65% -> $41.14/hr, g6e 3-year commitment rate $4.533/hr; both configurable).
 
 ## Reproduce
 
