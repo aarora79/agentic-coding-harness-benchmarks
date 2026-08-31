@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 90,
+      "notes": "The issue provides unusually testable behavior, seven explicit route boundaries, configuration defaults, security requirements, and disciplined non-goals. The submitted diff contains corresponding handler and persistence anchors in the agent, server, and skill route modules. Its largest defect is inconsistency: it says malformed responses fail closed while later artifacts allow an empty or unparseable 200, and its claim that existing agent and skill scanners use a pre-persist window is contradicted by the review. No independent task statement exists, and local repository access failed before execution, so baseline and route claims could not all be independently verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The LLD names concrete files, handlers, persistence calls, deployment surfaces, response contracts, lifecycle handling, and rollback behavior. Its largest flaw is a load-bearing placement contradiction: it promises effective payloads after local validation, but places the skill-create gate before `service.register_skill(... validate_url=True)` and agent gates before route-level transformation and model construction. Security treatment is otherwise strong, particularly recursive redaction, fixed non-leaking 503 responses, shared-client shutdown, and explicit residual risks. Claims about exact source line counts, audit middleware behavior, and repository-wide conventions could not be fully verified because the local shell sandbox failed."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 84,
+      "notes": "The review identifies concrete defects with consequences, especially credential exfiltration, per-call clients, ECS wiring asymmetry, response leakage, and configuration fail-open behavior. The patch visibly implements several resulting recommendations through `_redact`, a reused `AsyncClient`, fixed caller-facing errors, and two ECS environment blocks. Its largest deficiency is declaring every blocker resolved while missing the pre-validation/raw-payload placement and the conflicting malformed-200 contract. The unrevised LLD draft was not submitted, so claims about what the review originally discovered versus what was already present are unverifiable."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 78,
+      "notes": "The plan has strong state-based oracles for all seven routes, denial, outages, redaction, authorization ordering, deployment wiring, rollback, and backward compatibility. It contradicts itself by saying malformed bodies block while specifying that an empty 200 allows, and its skill allow-path uses an example URL not established as valid despite `validate_url=True`. The submitted route tests also realize less than the plan claims: unavailable coverage is not parametrized across all seven paths, and no allow-ordering or disabled-route matrix is implemented. Test commands and referenced pre-existing test paths could not be executed or fully verified because repository shell access was unavailable."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 73,
+      "notes": "The patch implements the central service, typed envelope, five settings, seven route calls, recursive redaction, shutdown, documentation, deployment wiring, and substantial tests. Its largest correctness defect is that agent and skill calls occur before important local validation and normalization, so the gate can see raw or partial data and can replace an established validation response with a gate 403 or 503. It also treats malformed or empty 200 bodies as allow despite the issue's fail-closed wording, provides incomplete route-test coverage, and adds Helm existing-secret settings without visible workload wiring to consume that external secret. The claimed baseline commit and clean `git apply --check` could not be independently verified because the read-only shell sandbox failed before running commands."
+    }
+  },
+  "task_score": 81.8,
+  "verdict": "Strong, highly specific work with broad end-to-end coverage, materially limited by incorrect gate placement before local validation and unresolved contract and verification inconsistencies.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T16:24:34.294574Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 519622,
+      "cached_input_tokens": 405903,
+      "cache_write_input_tokens": 79932,
+      "output_tokens": 12998,
+      "reasoning_output_tokens": 10685
+    },
+    "duration_ms": 282350
+  }
+}

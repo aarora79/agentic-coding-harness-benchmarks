@@ -1,0 +1,153 @@
+{
+  "task": "configurable-mcp-proxy-upstream-timeout",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.25.0",
+  "complexity": "medium",
+  "tags": [
+    "enhancement",
+    "config",
+    "auth-server",
+    "httpx",
+    "proxy",
+    "timeouts",
+    "fixed-in-1.26.0"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 77.5,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 20606,
+    "output_tokens": 89994,
+    "cache_read_tokens": 12841713,
+    "cache_write_tokens": 215197,
+    "total_tokens": 13167510,
+    "total_cost_usd": 10.118717749999998,
+    "latency_seconds": 1161.9,
+    "num_turns": 73,
+    "generation_tokens_per_sec": 77.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 20606,
+  "output_tokens": 89994,
+  "latency_seconds": 1161.9,
+  "num_turns": 73,
+  "total_cost_usd": 10.118717749999998,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 12841713,
+  "cache_creation_tokens": 215197,
+  "run_started_at": "2026-08-31T08:34:43.709754Z",
+  "run_ended_at": "2026-08-31T08:54:05.583771Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 20606,
+    "output_tokens": 89994,
+    "cache_read_tokens": 12841713,
+    "cache_write_tokens": 215197,
+    "total_tokens": 13167510,
+    "total_cost_usd": 10.118717749999998,
+    "latency_seconds": 1161.9,
+    "num_turns": 73,
+    "generation_tokens_per_sec": 77.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "configurable-mcp-proxy-upstream-timeout",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 19,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 86,
+        "notes": "The issue precisely identifies the hardcoded AsyncClient timeout, affected proxy path, deployment surfaces, compatibility target, and testable acceptance criteria. The submitted baseline hunk corroborates auth_server/server.py using timeout=30.0 and preserving the existing 504 detail. Its largest weakness is describing the scalar httpx timeout as a strict total-duration ceiling and claiming byte-for-byte default behavior despite adding nginx timeout directives that can alter edge-case timing. No independent task statement was supplied, and issue-number history could not be independently verified."
+      },
+      "lld": {
+        "completeness": 24,
+        "correctness": 16,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 82,
+        "notes": "The LLD is unusually concrete about real files, symbols, configuration surfaces, rollout, observability, and nginx interaction. Its proposed changes align closely with the submitted source hunks for Settings, mcp_proxy, NginxConfigService, Helm, Compose, and Terraform. However, the settings-first helper makes its environment fallback largely unreachable once BaseSettings owns a defaulted field, so malformed deployment environment values can fail model construction before the promised warning and fallback; it also inserts nginx limits into common_settings rather than proving they apply only to the auth-server proxy branch. The design additionally treats httpx and nginx inactivity timeouts as total deadlines, weakening its guarantees about resource bounds and which component always returns the 504."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 78,
+        "notes": "The review finds substantive defects rather than merely approving the design, notably the missing upper bound, nginx's separate timeout, registry-side configuration propagation, and load-balancer limits. Its resolutions are prioritized and map to concrete fields, helpers, tests, and deployment files. It misses the BaseSettings precedence contradiction, the unconditional common_settings scope, and the fact that timeout activity can continue beyond the nominal scalar budget, while incorrectly presenting the ceiling as a complete slow-resource bound. Repository issue-history claims and the assertion that direct-to-8888 is unsupported were not independently verifiable."
+      },
+      "testing": {
+        "completeness": 22,
+        "correctness": 15,
+        "specificity": 21,
+        "risk_awareness": 18,
+        "total": 76,
+        "notes": "The plan spans focused unit tests, real route-level httpx assertions, nginx generation, compatibility, deployment rendering, rollback, and end-to-end long-call behavior with concrete expected values. The proposed unit tests meaningfully assert 30.0, 120.0, 35s, 305s, and the unchanged 504 body rather than merely checking execution. Its largest defect is accepting either clamping or startup ValidationError for an out-of-range environment value, which does not pin the issue's promised behavior, while the fallback tests artificially remove the Settings attribute instead of exercising normal configuration loading. It also omits a regression oracle for direct-transport locations and uses inconsistent authentication examples for /api/config between the LLD and testing plan."
+      },
+      "implementation": {
+        "completeness": 22,
+        "correctness": 14,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 74,
+        "notes": "The patch implements the designed field, resolver, AsyncClient wiring, logging, admin exposure, nginx generation, deployment surfaces, documentation, and targeted tests rather than stopping at the call-site replacement. The auth_server/server.py hunk concretely removes timeout=30.0, passes the resolved value, and preserves the existing JSON 504 detail. The main defects are that malformed environment values can be rejected during Settings construction before the advertised fallback, and that timeout directives are added unconditionally to nginx common_settings, potentially changing direct-transport behavior without a regression test; inactivity semantics also invalidate the claim that the auth-server always times out first. The local sandbox failed before command execution, so git apply --check and independent source inspection were unavailable; applicability is therefore not independently verified, although the submitted paths and hunk contexts are internally consistent."
+      }
+    },
+    "task_score": 79.2,
+    "verdict": "The submission is highly detailed and largely end-to-end, but configuration-precedence semantics and overbroad nginx timeout insertion leave material correctness and regression risks.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-31T13:53:40.700366Z",
+      "repo_ref": "1.25.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 372683,
+        "cached_input_tokens": 300964,
+        "cache_write_input_tokens": 58726,
+        "output_tokens": 8901,
+        "reasoning_output_tokens": 6720
+      },
+      "duration_ms": 126885
+    }
+  }
+}

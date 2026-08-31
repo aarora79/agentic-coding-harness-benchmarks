@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The issue provides unusually concrete acceptance criteria covering encrypted storage, owner-scoped retrieval, expiry, revocation, compatibility, deployment surfaces, and the database-free authentication path. Its strongest evidence is the direct mapping to `oauth2_callback`, `validate_session_cookie`, `get_user_session_data`, and `POST /api/tokens/generate`, all of which are reflected in the submitted patch contexts. The largest weakness is the absent independent task statement, so requirements such as restoring the sidebar's provider-token display cannot be externally confirmed. It also says \"three new configuration parameters\" while defining four, a minor but testable scope inconsistency."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 82,
+      "notes": "The LLD is strongly grounded in named repository files and commits precise decisions for models, repository interfaces, endpoint behavior, encryption, expiry, deployment, and rollback. Its strongest technical work is the user-scoped hashed reference plus read-time expiry gate and naive-BSON datetime normalization. The major flaw is its concurrency claim: `delete_many({username})` followed by insertion under a fresh hashed `_id` is non-atomic, so concurrent logins can both insert and violate the promised one-record-per-user invariant. It also claims token-store failures cannot break login or logout without specifying bounded database timeouts, leaving those request paths vulnerable to long infrastructure stalls."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The review surfaces concrete, consequential defects including timezone comparison failure, eventual TTL deletion, missing retrieval auditing, cacheability, logout revocation, and cross-service key agreement. Its dispositions are specific and visibly propagated into the LLD and patch, rather than merely recording reviewer personas or generic approval. The largest miss is that Byte endorses delete-before-insert and Sage accepts the scaling story without noticing that concurrent logins can leave multiple documents because the operations and differing `_id` values are not atomic. It also does not challenge the unbounded latency introduced by awaiting the token database during login and logout."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 82,
+      "notes": "The plan supplies concrete setup, actions, status codes, response fields, database state checks, deployment checks, compatibility cases, and lifecycle oracles across unit, HTTP, UX, and end-to-end levels. It directly tests important negative behavior such as cross-user lookup, stale TTL records, key rotation, revocation, 503 handling, and plaintext absence. Its largest gap is concurrency: sequential re-login coverage cannot detect the non-atomic delete-and-insert race in the repository design. The stated cookie regression is also unreliable as implemented because itsdangerous conditionally compresses highly repetitive payloads, while the patch uses thousands of repeated characters and may therefore fail its expected oversized assertion. "
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 71,
+      "notes": "The patch implements the central flow across `auth_server/server.py`, a new encrypted DocumentDB repository, `/api/auth/oauth-tokens`, logout revocation, frontend retrieval, configuration surfaces, and focused tests. The largest correctness defect is the non-atomic `delete_many` then `replace_one` sequence, which permits concurrent logins to retain multiple live records despite the summary's one-record-per-user guarantee. The submitted cookie tests use compressible repeated-character token bodies, and the route tests cover the registry dependency but not the promised auth-server `validate_session_cookie` database-access invariant; the settings test also references `settings.session_max_age_seconds` without adding that field in this patch. Exact forward applicability could not be independently confirmed because the provided local shell sandbox failed before `git apply --check`, although the unified-diff contexts are internally coherent."
+    }
+  },
+  "task_score": 81.2,
+  "verdict": "The submission is detailed and largely implementation-ready, but its claimed single-record concurrency guarantee is incorrect and the implementation includes unreliable or incomplete regression tests.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T16:28:27.108105Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 539854,
+      "cached_input_tokens": 439287,
+      "cache_write_input_tokens": 82012,
+      "output_tokens": 11051,
+      "reasoning_output_tokens": 8662
+    },
+    "duration_ms": 226734
+  }
+}

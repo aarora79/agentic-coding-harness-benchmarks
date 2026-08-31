@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 84,
+      "notes": "The issue provides unusually concrete behavior, compatibility requirements, exclusions, and testable acceptance criteria, including bare-path POST preservation and reserved-route handling. It correctly identifies the generated location in registry/core/nginx_service.py and the auth_request consequence. Its largest correctness defect is claiming /a hijacks /api/servers even though the LLD itself says the longer static /api/ location wins nginx prefix selection. No independent task statement or upstream issue contents were supplied, so issue numbers and the exact reported production behavior remain unverifiable."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 24,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The LLD names concrete integration points such as _create_location_block, _generate_transport_location_blocks, build_per_server_resource_url, the nginx templates, and the validation/reload path. Its internal-rewrite design and duplicate-location guard address the central routing and POST-compatibility risks in implementation-ready detail. The major gap is its claim that unsafe legacy paths retain prior behavior: the proposed code still changes every prefix to a normalized trailing-slash form while withholding the exact helper, potentially breaking bare requests, and it never proves that the helper regex covers every currently accepted path. The live-config grep for ROOT_PATH is also inconsistent with the documented placeholder replacement, while scheduler timing and related issue claims could not be independently verified."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 86,
+      "notes": "The review performs real adversarial analysis and produces actionable changes, notably the sanitized comment stub, rewrite interpolation guard, preflight check, and reserved-set drift test. Findings cite concrete symbols and consequences rather than merely assigning approving personas. It nevertheless misses the unsafe-legacy bare-path regression, the mismatch between the rewrite allowlist and documented registration validation, and the contradiction concerning /api/servers precedence. Its final assertion that every blocker is resolved therefore overstates the revised design's readiness."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 77,
+      "notes": "The plan covers unit, compatibility, browser, deployment, rollback, and end-to-end cases with concrete requests and expected states. Several oracles are defective: the primary curl discards the body while requiring result.tools, the generated-location simulator ignores competing static locations, and the SSE expectation permits an unspecified upstream status. The grep intended to exclude ^~ locations does not exclude the caret, and the drift test exercises only the HTTPS template despite claiming coverage of both shipped configurations. The plan is extensive but unexecuted, and several registration endpoint shapes and deployment commands remain unverified."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 71,
+      "notes": "The supplied diff targets the cited generator symbols and implements the core trailing-slash prefix, exact internal rewrite, reserved-segment guard, inert stub, and focused unit tests consistently with the revised LLD. Its largest defect is that _NGINX_LOCATION_PATH_SAFE suppresses the exact helper for unsafe or otherwise non-allowlisted paths while _nginx_location_prefix still changes their location, contradicting the promise that legacy behavior is unchanged and potentially converting a working bare POST into a redirect. The reserved drift test reads only docker/nginx_rev_proxy_http_and_https.conf, and the tests explicitly accept omission of the helper without asserting backward-compatible bare-path behavior. The summary admits the project tests and nginx validation were not executed; local shell startup was unavailable, so git-apply applicability and surrounding source compatibility could not be independently confirmed and are treated as an evidence gap rather than an additional defect."
+    }
+  },
+  "task_score": 80.4,
+  "verdict": "The submission is highly specific and catches the central nginx routing hazard, but the implementation needs revision for legacy and non-allowlisted bare-path compatibility and for several inaccurate test oracles.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T16:03:57.328982Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 485017,
+      "cached_input_tokens": 395067,
+      "cache_write_input_tokens": 69136,
+      "output_tokens": 12358,
+      "reasoning_output_tokens": 10376
+    },
+    "duration_ms": 306238
+  }
+}

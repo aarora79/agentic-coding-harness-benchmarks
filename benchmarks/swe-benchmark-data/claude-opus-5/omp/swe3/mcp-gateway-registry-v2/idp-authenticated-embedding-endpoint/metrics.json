@@ -1,0 +1,155 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.28.0",
+  "complexity": "high",
+  "tags": [
+    "semantic-search",
+    "embeddings",
+    "oauth",
+    "authentication",
+    "litellm",
+    "docker",
+    "terraform",
+    "helm",
+    "fixed-in-1.29.0"
+  ],
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "model_slug": "claude-opus-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 76.4,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 25453,
+    "output_tokens": 118214,
+    "cache_read_tokens": 26314426,
+    "cache_write_tokens": 297292,
+    "total_tokens": 26755385,
+    "total_cost_usd": 18.097903,
+    "latency_seconds": 1547.6,
+    "num_turns": 113,
+    "generation_tokens_per_sec": 76.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 25453,
+  "output_tokens": 118214,
+  "latency_seconds": 1547.6,
+  "num_turns": 113,
+  "total_cost_usd": 18.097903,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 26314426,
+  "cache_creation_tokens": 297292,
+  "run_started_at": "2026-08-31T11:25:32.772494Z",
+  "run_ended_at": "2026-08-31T11:51:20.375964Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 25453,
+    "output_tokens": 118214,
+    "cache_read_tokens": 26314426,
+    "cache_write_tokens": 297292,
+    "total_tokens": 26755385,
+    "total_cost_usd": 18.097903,
+    "latency_seconds": 1547.6,
+    "num_turns": 113,
+    "generation_tokens_per_sec": 76.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "idp-authenticated-embedding-endpoint",
+    "model": "us.anthropic.claude-opus-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 85,
+        "notes": "The issue is unusually concrete: it defines opt-in behavior, concurrency, retry bounds, validation, deployment surfaces, non-goals, and testable acceptance criteria. Its repository claims align with the supplied contexts for LiteLLMClient, FederationAuthManager, and search_repository._get_embedding_model. The largest deficiency is that it requires the secret to never appear in an export while later artifacts preserve the existing explicitly confirmed sensitive-export path, and it overlooks permanent _embedding_unavailable latching after a transient token-endpoint failure. No independent task statement was supplied, so the candidate-defined scope cannot be verified beyond the task identifier and repository evidence."
+      },
+      "lld": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 16,
+        "total": 77,
+        "notes": "The LLD is highly repository-specific, naming real integration points such as registry/embeddings/client.py, Settings.__init__, config_routes.CONFIG_GROUPS, and the ECS secret and IAM blocks. It makes clear decisions about token caching, TLS validation, bounded retries, compatibility, deployment, and rollback. Its largest design flaw is that clear_token() and get_token() are separate operations after a 401, so concurrent rejected calls can each clear a newly refreshed token and stampede the IdP; it also explicitly allows token failures to reach _embed_texts() and latch _embedding_unavailable without a recovery strategy. The asserted LiteLLM api_key-to-bearer behavior is not validated end-to-end, and the security analysis misses the entrypoint's unredacted token-URL logging and Terraform secret-state lifecycle."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 78,
+        "notes": "The review identifies many concrete repository-level defects, including the missing ECS IAM grant, the misleading entrypoint warning, TLS enforcement, expires_in coercion, and None-on-token-failure semantics. Recommendations are prioritized and tied to specific design changes rather than generic reviewer approval. Its claim that all blocking issues are resolved is too strong because it misses the concurrent 401 refresh race, permanent embedding-disable latch after transient IdP failure, Terraform's not-configured secret bypass, and unredacted entrypoint URL. It also accepts the privileged sensitive-export behavior without reconciling it with the issue's absolute no-export acceptance criterion."
+      },
+      "testing": {
+        "completeness": 21,
+        "correctness": 14,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 74,
+        "notes": "The unit plan has strong, concrete oracles for caching, buffered refresh, failure propagation, secret logging, per-call injection, bounded retry, startup validation, and compatibility. The supplied tests exercise the principal classes and retain the existing embeddings suite unchanged. The E2E harness is not executable as described: ACCEPT and STATE live inside separate stub processes with no control or inspection endpoint, so the plan cannot force revocation, count token requests, or prove the initial Authorization header. It also omits concurrent-401 coverage, expects a no-change Terraform plan despite unconditional new task-definition environment entries, and does not establish that the named search endpoints and config raw_value oracle match the repository."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 15,
+        "specificity": 22,
+        "risk_awareness": 14,
+        "total": 71,
+        "notes": "The patch implements the nominal flow end to end across Settings, LiteLLMClient, search_repository, tests, documentation, Compose, Terraform, Helm, and config masking, and its hunks use the expected repository symbols and conventions. The largest code defect is the non-atomic 401 path: concurrent callers can repeatedly clear and remint tokens, violating the promised single-flight behavior; transient token acquisition errors can also trigger the existing permanent _embedding_unavailable latch. Terraform substitutes not-configured when IdP mode is enabled without a client secret, bypassing application fail-fast validation, while the entrypoint logs EMBEDDINGS_IDP_TOKEN_URL without redact_url and the summary overstates unchanged/default behavior. The local sandbox could not execute git apply --check, so forward applicability and test execution remain independently unverified despite coherent submitted hunk context."
+      }
+    },
+    "task_score": 77.0,
+    "verdict": "This is a strong, repository-aware submission whose largest limitation is that its concurrency and failure-lifecycle design does not actually guarantee resilient single-flight token refresh in production.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-31T15:33:19.603614Z",
+      "repo_ref": "1.28.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 519651,
+        "cached_input_tokens": 424378,
+        "cache_write_input_tokens": 78385,
+        "output_tokens": 12687,
+        "reasoning_output_tokens": 10900
+      },
+      "duration_ms": 377431
+    }
+  }
+}

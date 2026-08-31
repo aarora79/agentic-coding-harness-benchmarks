@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 80,
+      "notes": "The issue provides unusually concrete scope, compatibility cases, exclusions, and testable acceptance criteria. Its cited logout flow aligns with the submitted diff context around registry/auth/routes.py and auth_server/server.py. The largest flaw is an unresolved contradiction: logout_hint_id remains in an edge-visible browser query string while the criteria require that it never be logged, and the final IdP redirect still carries the ID token through the browser. No independent task statement exists, and the exact baseline line references could not be independently rechecked."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The LLD commits to concrete interfaces, storage semantics, mixed-version behavior, metrics, rollout, and named repository integration points. Its design correctly calls for HINT_ID_BYTES = 32, atomic find_one_and_delete, read-time expiry enforcement, and validation at both trust boundaries. Its largest gap is that index-creation failure is treated as recoverable without addressing indefinite retention when the TTL index is absent; it also promises log hygiene without specifying edge query-string redaction. Claims about nginx exposure, Helm reserved names, and pristine baseline applicability could not be independently verified."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 78,
+      "notes": "The review finds several real, actionable defects, especially TTL-sweep lag, unbounded request bodies, read-after-write behavior, and database-query/header validation. Those findings map directly to concrete proposed symbols such as consume_logout_hint, LogoutHintRequest, and _create_logout_hint. Its largest weakness is declaring security finding C3 resolved even though the design deliberately places the bearer handle in an edge-visible URL and introduces no access-log redaction; it also misses the TTL-index initialization failure mode. Assertions that every blocker is resolved and that /internal/* is unreachable were not independently verifiable."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 74,
+      "notes": "The plan has strong behavior-level oracles for URL shape, compatibility, expiry, concurrency, encryption, metrics, WAF regression, and IdP-session termination. Several tests cannot work in the written sequence: section 1.2.1 consumes HINT_ID before 1.2.2 expects its first use to succeed, and section 1.3.1 deletes the session before 1.3.2 reuses the same cookie. Stopping the shared MongoDB in section 2.5 also prevents registry session resolution rather than isolating a hint-store outage, while the rollback exec command does not persist the environment change. The listed commands and endpoints could not be executed independently, so their repository compatibility remains unverified."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 3,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 51,
+      "notes": "The patch broadly covers the designed code, configuration, metrics, documentation, and unit-test surfaces, but the core feature is nonfunctional. In auth_server/logout_hint_store.py, generate_hint_id() calls secrets.token_hex(HINT_ID_BYTES), yet HINT_ID_BYTES is never defined, causing every creation attempt and its new tests to fail; the endpoint therefore returns 500 and the registry always falls back to the legacy token URL. Additionally, a failed index creation caches _collection while leaving _indexes_created false, so indexes are never retried and encrypted hints may persist indefinitely without the TTL index. The summary honestly states tests were not run, but its claimed git apply --check result could not be independently reproduced."
+    }
+  },
+  "task_score": 73.2,
+  "verdict": "The design package is detailed and repository-shaped, but the undefined HINT_ID_BYTES makes the submitted implementation’s core back-channel path unusable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T15:51:08.467393Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 448377,
+      "cached_input_tokens": 360325,
+      "cache_write_input_tokens": 70829,
+      "output_tokens": 10491,
+      "reasoning_output_tokens": 8667
+    },
+    "duration_ms": 260341
+  }
+}
