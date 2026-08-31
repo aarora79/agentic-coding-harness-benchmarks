@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 87,
+      "notes": "The issue's strongest aspect is its unusually concrete acceptance contract across webhook payloads, list filtering, registration policy, permissions, observability, documentation, and deployment surfaces. It names real baseline symbols such as `LifecycleStatus`, `webhook_service.py`, the three scan hooks, and the server and agent PUT/PATCH endpoints represented in the patch. Its largest gap is the existing agent batch register/patch/replace surface evidenced by `agent_batch_service` and the batch tests, which is omitted despite claiming the controls cover every agent registration and lifecycle update. The absence of an independent task statement limits external requirement verification, and the claim that leaking only the receiver URL defeats an already-verified bearer token overstates HMAC's incremental protection."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 24,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The LLD is highly repository-specific and commits to important decisions including raw `content=` transmission, `model_fields_set` for omitted statuses, filtered-path `total_count`, and gates on PUT as well as PATCH. Its largest correctness defect is `status_change_requested`, which treats an explicitly supplied null or blank status as no change even though `ServerUpdateRequest.status` permits null and the design itself states server PUT previously persisted null, leaving a lifecycle-permission bypass. It also omits the agent batch register, patch, and replace processors, so both the initial-status mandate and lifecycle gate are incomplete for an established API surface. The Terraform design injects the HMAC secret through the ECS plaintext `environment` list while recommending a Secrets Manager reference, which ECS will not resolve without a `secrets.valueFrom` mapping."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The review finds several genuine load-bearing defects, especially signing different bytes than those transmitted, PUT bypasses, omitted-status corruption, implicit admin bypass, and inaccurate filtered counts. Findings such as Byte-1, Byte-2, Cipher-2, and Circuit-1 include concrete consequences and actionable resolutions rather than generic role approval. Its largest deficiency is approving the lifecycle gate without noticing the explicit-null bypass or the existing agent batch mutation paths shown by the repository's batch imports and tests. The SRE review also recommends a Secrets Manager reference while overlooking that the proposed ECS task definition places the value in ordinary environment variables."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 72,
+      "notes": "The plan covers unit, compatibility, deployment, functional, and end-to-end levels with strong oracles for exact signed bytes, invalid filters, mandate mismatches, permission denials, and PUT status preservation. Several status-filter checks can pass vacuously without deterministic draft, beta, and active fixtures, while the permission scenarios depend on an undefined `lob-owned` asset and `$CSRF` setup. The receiver is bound to `127.0.0.1` while the container targets `host.docker.internal`, and using an unreachable proxy URL is not a reliable way to force the scanner itself to raise. No tests cover explicit null status updates or agent batch register, patch, and replace, which are the most consequential untested bypasses."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The patch substantially implements the design through a centralized `_post_event`, exact-byte HMAC signing, scan summaries, lifecycle helpers, route wiring, scope configuration, metrics, documentation, and deployment parameters. The visible contexts target plausible baseline symbols including `_perform_security_scan_on_registration`, `update_server_endpoint`, `patch_agent`, `update_skill`, and `send_registration_webhook`, but the submission's `git apply --check` claim could not be independently confirmed from the available evidence. The largest defect is incomplete authorization coverage: agent batch register, patch, and replace paths are untouched, and explicit null or blank server status values evade `change_lifecycle_status` because `status_change_requested` returns false. The signing secret is also placed directly in the ECS environment and Terraform state, while the summary overstates backward compatibility despite immediately restricting existing non-admin status changes and requiring manual DocumentDB scope updates."
+    }
+  },
+  "task_score": 77.8,
+  "verdict": "This is a strong and unusually specific submission, but the implementation does not fully enforce the lifecycle boundary because agent batch operations and explicit-null status updates remain bypasses.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T15:46:42.151729Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 439325,
+      "cached_input_tokens": 315251,
+      "cache_write_input_tokens": 85499,
+      "output_tokens": 13481,
+      "reasoning_output_tokens": 11347
+    },
+    "duration_ms": 440339
+  }
+}

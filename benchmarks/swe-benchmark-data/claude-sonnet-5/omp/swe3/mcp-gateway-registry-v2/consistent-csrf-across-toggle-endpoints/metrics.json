@@ -1,0 +1,153 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "v1.0.20",
+  "complexity": "medium",
+  "tags": [
+    "security",
+    "csrf",
+    "authentication",
+    "api",
+    "fastapi",
+    "m2m",
+    "fixed-in-1.0.21"
+  ],
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "model_slug": "claude-sonnet-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 80.4,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 13431,
+    "output_tokens": 91121,
+    "cache_read_tokens": 17983026,
+    "cache_write_tokens": 473468,
+    "total_tokens": 18561046,
+    "total_cost_usd": 5.718347199999999,
+    "latency_seconds": 1132.8,
+    "num_turns": 94,
+    "generation_tokens_per_sec": 80.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 13431,
+  "output_tokens": 91121,
+  "latency_seconds": 1132.8,
+  "num_turns": 94,
+  "total_cost_usd": 5.718347199999999,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 17983026,
+  "cache_creation_tokens": 473468,
+  "run_started_at": "2026-08-30T23:43:43.373576Z",
+  "run_ended_at": "2026-08-31T00:02:36.194844Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 13431,
+    "output_tokens": 91121,
+    "cache_read_tokens": 17983026,
+    "cache_write_tokens": 473468,
+    "total_tokens": 18561046,
+    "total_cost_usd": 5.718347199999999,
+    "latency_seconds": 1132.8,
+    "num_turns": 94,
+    "generation_tokens_per_sec": 80.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "consistent-csrf-across-toggle-endpoints",
+    "model": "us.anthropic.claude-sonnet-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 19,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 79,
+        "notes": "The issue clearly identifies the bearer-client failure, browser-session exposure, affected routes, non-goals, and observable 200/403 outcomes. Its largest defect is contradictory acceptance language: it requires bearer-only success on all five user-facing endpoints even though `/api/toggle/{service_path}` uses session-only `enhanced_auth`, and it initially says all six receive consistent dependencies while explicitly exempting `/api/internal/toggle`. The submitted route contexts support the distinction between `nginx_proxied_auth`, `enhanced_auth`, and `validate_internal_auth`, while the repository release record confirms this CSRF/bearer compatibility problem was fixed in v1.0.21. No independent task statement was supplied, so broader requirement coverage and the claim that every M2M registration pipeline was affected cannot be fully verified."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 86,
+        "notes": "The LLD commits to a concrete request-level rule, names the actual functions and files, explains form versus JSON token transport, and provides implementable route signatures and failure behavior. Its main gap is that changing the shared `verify_csrf_token_flexible` dependency alters non-toggle callers such as logout, edit forms, and ANS routes without a complete caller audit or regression coverage, while it also fails to reconcile the issue's impossible bearer-success criterion for the session-only UI route. The patch confirms the named integration points exist: `registry/auth/csrf.py`, `toggle_service_api`, `toggle_virtual_server`, and the already-dependent agent and skill routes. Claims about every endpoint's audit logging and all frontend call paths could not be independently verified from the local repository because command execution failed before file access."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 19,
+        "specificity": 22,
+        "risk_awareness": 22,
+        "total": 84,
+        "notes": "The review surfaces three concrete improvements with consequences and resolutions: accurate route documentation, a cookie-plus-Authorization invariant test, and documentation of the internal endpoint's intentional exclusion. It does not challenge the issue/LLD contradiction concerning bearer access to the session-only UI route, and Pixel's discussion inconsistently says the newly protected virtual-server endpoint is not called directly while grouping its UI flow with already-protected routes. The implementation diff shows all three recommended changes were actually carried forward into comments, docstrings, and tests. Assertions about `AuthContext.tsx`, template call sites, proxy header stripping, and the absence of external callers were not independently verifiable."
+      },
+      "testing": {
+        "completeness": 19,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 79,
+        "notes": "The plan has strong dependency-level matrices, exact status/detail oracles, negative cases, token/session mismatch coverage, and the important cookie-plus-bearer-header invariant. Its principal weakness is claiming browser compatibility is covered by existing tests that override the CSRF dependency to a no-op; those tests cannot prove a valid cookie and token traverse the real route dependency successfully, and the plan does not add that case consistently across agent, server, and virtual-server routes. The supplied patch implements the proposed direct tests and bearer/cookie route tests, but only the skill route includes a real valid-cookie-plus-valid-token success test. The suggested `python -m unittest discover` command is unreliable for these pytest-style tests, although the alternative `uv run pytest` command is appropriate."
+      },
+      "implementation": {
+        "completeness": 21,
+        "correctness": 19,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 82,
+        "notes": "The production patch implements the central design end to end by moving the cookie decision into `verify_csrf_token_flexible` and adding the dependency to the server and virtual-server toggle routes, while honestly documenting the test-location deviation. The strongest evidence is the coherent diff across eight files, including direct validation tests and route tests for both newly protected endpoints plus the already-protected agent and skill endpoints. The largest remaining weakness is uneven route-level success coverage for valid cookie-bound CSRF tokens; additionally, `if not session_id` technically exempts an explicitly present empty cookie despite the stated invariant being based on cookie presence. Local `git apply --check` and fixture compatibility could not be independently rerun because the repository command sandbox failed before execution, so the summary's applicability and test-compatibility claims remain partially unverified."
+      }
+    },
+    "task_score": 82.0,
+    "verdict": "This is a strong, repository-specific security change with coherent implementation, limited chiefly by contradictory endpoint acceptance language, uneven real-dependency compatibility tests, and incomplete independent applicability verification.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-31T04:42:54.033182Z",
+      "repo_ref": "v1.0.20",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 436514,
+        "cached_input_tokens": 320559,
+        "cache_write_input_tokens": 48102,
+        "output_tokens": 12520,
+        "reasoning_output_tokens": 10019
+      },
+      "duration_ms": 396856
+    }
+  }
+}

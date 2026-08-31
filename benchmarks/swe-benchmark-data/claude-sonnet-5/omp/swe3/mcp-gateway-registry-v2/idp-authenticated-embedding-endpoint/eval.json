@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The issue defines concrete OAuth behavior, configuration, deployment surfaces, security expectations, non-goals, and testable failure cases. Its cited paths and symbols align with the submitted baseline contexts for LiteLLMClient, FederationAuthManager, config routing, Terraform, and Helm. The largest flaw is the absolute backward-compatibility criterion: the implementation necessarily adds Settings fields and unconditionally rendered deployment variables, so behavior cannot literally remain byte-for-byte identical with no new variable read. No independent task statement exists, and local repository inspection was unavailable because the shell sandbox failed before execution, so the external issue and exact baseline could not be independently verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 19,
+      "specificity": 24,
+      "risk_awareness": 20,
+      "total": 86,
+      "notes": "The LLD is unusually concrete about files, signatures, token flow, validation, masking, deployment wiring, compatibility, and rejected alternatives. It correctly commits to per-call api_key injection, locked token refresh, and a provider compatibility check in Settings. Its largest omission is Terraform's empty-secret lifecycle: it never ensures a missing client secret remains detectably missing, and the resulting \"not-configured\" ECS secret defeats the promised fail-fast validation when the other required fields are set. Claims about the installed LiteLLM signature, exact single-call-site topology, and line-specific repository findings could not be independently verified locally."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The review identifies a real misconfiguration defect—IdP enabled with sentence-transformers—and turns it into a specific startup validation change. It also gives actionable findings for Helm reserved names, secret recovery configuration, credential precedence documentation, and benchmark-only comments. Its largest miss is the Terraform placeholder secret, which can bypass missing-secret validation; it also calls backward compatibility \"airtight\" despite unconditional new Helm and ECS environment entries. The claimed independent greps, installed-package inspection, and frontend behavior could not be reproduced because local command execution was unavailable."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 72,
+      "notes": "The plan spans token caching, bearer injection, failures, compatibility, configuration masking, Docker, Terraform, Helm, rollback, and mock-server lifecycle testing with generally concrete oracles. Several commands are unreliable: unittest discovery will not exercise the submitted plain pytest tests, the Helm decode pipeline ends with \"|| true\" and can pass on failure, and the unchanged-default Helm assertion contradicts the unconditional EMBEDDINGS_IDP_ENABLED Secret entry. It also omits a concurrent-refresh test and the critical ECS case where IdP is enabled while the client-secret variable is empty but becomes \"not-configured\". None of the commands were executed, and their repository-specific flags and response shapes could not be independently verified locally."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 78,
+      "notes": "The patch implements the main design end to end across Settings, LiteLLMClient, the token provider, repository wiring, config masking, three deployment systems, documentation, and focused unit tests. The largest defect is in secrets.tf: an empty Terraform client-secret variable becomes \"not-configured\" and is always injected into ECS, so startup validation can accept an absent credential and defer failure to the first token request. The provider also does not normalize malformed JSON or invalid expires_in values into its documented RuntimeError contract, while tests omit concurrency and deployment-validation coverage. The unified diff has internally consistent symbols and contexts, but git apply --check and the candidate's claimed pinned commit could not be independently verified because the local shell sandbox failed before executing commands."
+    }
+  },
+  "task_score": 80.8,
+  "verdict": "Strong, implementation-ready work overall, limited most materially by Terraform secret handling that can violate the required startup fail-fast behavior and by unreliable verification commands.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T05:09:11.354526Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 498529,
+      "cached_input_tokens": 402799,
+      "cache_write_input_tokens": 65405,
+      "output_tokens": 10560,
+      "reasoning_output_tokens": 8614
+    },
+    "duration_ms": 259039
+  }
+}

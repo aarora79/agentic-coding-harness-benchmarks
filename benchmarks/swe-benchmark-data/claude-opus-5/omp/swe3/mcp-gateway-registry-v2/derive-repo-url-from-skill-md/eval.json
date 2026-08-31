@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 90,
+      "notes": "The issue provides unusually testable acceptance criteria, explicit non-goals, derivation examples, compatibility behavior, and both UI integration paths. The supplied baseline diff contexts corroborate key claims such as SkillInfo and the frontend Skill type lacking repository_url and both modals using View on GitHub. Its largest weakness is the unsupported assertion that most users omit the field, while no independent task statement establishes the full enterprise and semantic-search scope. Exact repository line references could not be independently re-read because shell execution failed at sandbox startup."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The LLD maps the data flow and named integration points in implementation-ready detail, including both SkillInfo construction sites, search metadata, form state, and modal rendering. Its central design error is that _extract_owner_repo validates only the first two segments and path length, so arbitrary GitHub paths such as /org/repo/issues are accepted despite the stated recognized-shapes-only contract. It also claims non-HTTP schemes cannot reach output and that logging is credential-safe, although ftp://github.com/org/repo/blob/main/SKILL.md derives successfully and debug messages interpolate the original credential-bearing URL. Leaving the file search backend unchanged also makes the semantic-search guarantee backend-dependent, and that claim could not be independently resolved through repository execution."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The review identifies concrete defects—especially positive owner/repository validation, credential removal from the rendered URL, index staleness, and search-plumbing scope—and records actionable resolutions. Its largest miss is the load-bearing URL-shape flaw: every reviewer endorses taking the first two path segments without checking blob, raw, or SKILL.md structure. The security review also declares logging clean even though derive_repository_url logs the original input URL, which may contain userinfo. The findings are otherwise specific and prioritized, but exact source assertions could not be independently rerun in the unavailable shell."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The plan supplies concrete unit, API, compatibility, UX, build, and end-to-end oracles, with particularly strong credential, port, null-field, and stale-index coverage. It omits the cases that expose the implementation's main defect, such as GitHub /tree or /issues paths and a well-formed ftp://github.com URL; its javascript test has no parsed hostname and therefore proves little about scheme enforcement. The implementation also contains no automated API or component tests, and the E2E instructions delete the skill before the subsequent UI check. The proposed commands and endpoint payloads could not be independently executed because repository command execution was unavailable."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 72,
+      "notes": "The patch implements the design broadly across parsing, listing, search metadata, frontend types, form state, both modals, documentation, and 25 helper tests, with coherent baseline contexts in the submitted diff. The core helper does not actually recognize only supported SKILL.md shapes: any GitHub-like host with three path segments can derive a repository, and a well-formed non-HTTP URL such as ftp://github.com/org/repo/blob/main/SKILL.md also produces an HTTPS result. Debug logging includes the original URL and can expose embedded credentials, while the unchanged file search backend may omit repository_url; neither risk is covered by the added tests. The summary also omits SemanticSearchResults.tsx from its file table and oversells rejection behavior, and git apply --check could not be independently run because the read-only shell failed before command execution."
+    }
+  },
+  "task_score": 78.2,
+  "verdict": "The submission is detailed and largely end-to-end, but its central derivation logic accepts unsupported GitHub paths and non-HTTP URLs, contradicting the stated contract and escaping its otherwise extensive review and tests.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T14:10:46.764263Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 472503,
+      "cached_input_tokens": 389851,
+      "cache_write_input_tokens": 61407,
+      "output_tokens": 10181,
+      "reasoning_output_tokens": 8209
+    },
+    "duration_ms": 238919
+  }
+}
