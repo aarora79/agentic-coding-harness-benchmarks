@@ -208,61 +208,30 @@ SCOPE="$(basename "$DATASET" .yaml)"
 # own path level, so summarize/commit target <model>/<harness>/<skill>/<repo>.
 HARNESS_SLUG="$(cd "$BENCH_DIR" && uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import HARNESS_SLUGS; print(HARNESS_SLUGS['$AGENT'])")"
 
-# On an 8xH200 (p5en) DLAMI the FP8 models JIT-compile DeepGemm/FlashInfer kernels
-# at engine init, and that link step fails on the stock environment: there is no
-# /usr/local/cuda (nvcc lives in /opt/pytorch/cuda), ninja is only inside the vLLM
-# venv, and FlashInfer's link command hardcodes -L$CUDA_HOME/lib64[/stubs], which
-# the DLAMI does not ship. vllm-serve.sh inherits our environment, so export the
-# fixes here rather than requiring the caller to remember them. Full rationale:
-# .claude/skills/vllm-setup/p5en-h200-cuda-fixes.md (Fixes 1-3).
+# p5en (8xH200) CUDA + cache environment. The substance lives in
+# self-hosted/vllm/scripts/p5en-cuda-env.sh because vllm-serve.sh needs the same
+# fixes when it is launched directly (the throughput sweep) rather than through
+# this orchestrator -- this used to be the only copy, so the two paths behaved
+# differently on identical hardware. vllm-serve.sh inherits our environment, so
+# sourcing here also covers the servers we start.
 #
-# No-op on any other node: keyed on 8 GPUs reporting as H200, and every step is
-# idempotent, so a re-run costs nothing.
+# No-op on any other node, and idempotent, so a re-run costs nothing.
 _apply_p5en_cuda_env() {
-  local gpus h200
-  gpus="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)"
-  h200="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | grep -c H200 || true)"
-  if [[ "$gpus" -ne 8 || "$h200" -ne 8 ]]; then
+  # shellcheck source=../../self-hosted/vllm/scripts/p5en-cuda-env.sh
+  . "$VLLM_DIR/scripts/p5en-cuda-env.sh"
+  if [[ "${P5EN_CUDA_ENV_APPLIED:-0}" != "1" ]]; then
     say "  (not an 8xH200 node: skipping the p5en CUDA fixes)"
     return 0
   fi
 
-  # The venv and caches live on the big NVMe on this node -- the 29 GB root disk
-  # cannot hold torch, the CUDA wheels and the weights.
-  local nvme=/opt/dlami/nvme
-  export VLLM_ENV="${VLLM_ENV:-$nvme/vllm-env}"
-  export UV_CACHE_DIR="${UV_CACHE_DIR:-$nvme/uv-cache}"
-  export TMPDIR="${TMPDIR:-$nvme/tmp}"
-  export CUDA_HOME="${CUDA_HOME:-/opt/pytorch/cuda}"
-  export PATH="$VLLM_ENV/bin:$CUDA_HOME/bin:$PATH"                     # Fix 1: ninja + nvcc
+  # The judge clones each task's repo to score it, and unlike the serving caches
+  # that root is chosen by the judge, not by us -- it defaults to
+  # /tmp/swe-judge-repos on the 29 GB root disk (codex_judge.py DEFAULT_CLONE_ROOT).
+  # Over a multi-model run those checkouts reached 1.2 GB and were part of what
+  # filled / on 2026-08-30. Point them at the NVMe alongside everything else.
+  export JUDGE_CLONE_ROOT="${JUDGE_CLONE_ROOT:-$VLLM_ENV/cache/judge-repos}"
+  mkdir -p "$JUDGE_CLONE_ROOT"
 
-  # Fixes 2 + 3. The link dir lives INSIDE $VLLM_ENV, not directly under $nvme:
-  # /opt/dlami/nvme is mode 1777 (world-writable, like /tmp) and is wiped on every
-  # instance stop, so a path created there does not pre-exist on a fresh boot --
-  # another local user could create it first, or as a symlink to a directory they
-  # own, and our ln -sf would then populate a directory they control. That
-  # directory is prepended to LD_LIBRARY_PATH for every vLLM process, which turns
-  # it into arbitrary shared-library injection into the serving process. $VLLM_ENV
-  # is owned by us and not world-writable, so it closes that window.
-  local linkdir="$VLLM_ENV/cuda-link"
-  local venv_cu13="$VLLM_ENV/lib/python3.12/site-packages/nvidia/cu13/lib"
-  mkdir -p "$linkdir"
-  ln -sf "$venv_cu13/libcudart.so.13"           "$linkdir/libcudart.so"
-  ln -sf /usr/lib/x86_64-linux-gnu/libcuda.so.1 "$linkdir/libcuda.so"
-  ln -sf "$venv_cu13/libnvrtc.so.13"            "$linkdir/libnvrtc.so"
-
-  # Fix 3: create and populate the lib64[/stubs] that FlashInfer's -L expects.
-  if mkdir -p "$CUDA_HOME/lib64/stubs" 2>/dev/null; then
-    ln -sf "$venv_cu13/libcudart.so.13"           "$CUDA_HOME/lib64/libcudart.so"
-    ln -sf "$venv_cu13/libnvrtc.so.13"            "$CUDA_HOME/lib64/libnvrtc.so"
-    ln -sf /usr/lib/x86_64-linux-gnu/libcuda.so.1 "$CUDA_HOME/lib64/libcuda.so"
-    ln -sf /usr/lib/x86_64-linux-gnu/libcuda.so.1 "$CUDA_HOME/lib64/stubs/libcuda.so"
-  else
-    say "  WARN could not write $CUDA_HOME/lib64 (needs sudo); FP8 JIT may fail with 'cannot find -lnvrtc'"
-  fi
-
-  export LIBRARY_PATH="$linkdir:$CUDA_HOME/lib64:$CUDA_HOME/lib64/stubs:$venv_cu13:/usr/lib/x86_64-linux-gnu:${LIBRARY_PATH:-}"
-  export LD_LIBRARY_PATH="$linkdir:$CUDA_HOME/lib64:$venv_cu13:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
   say "  p5en CUDA env applied (VLLM_ENV=$VLLM_ENV, CUDA_HOME=$CUDA_HOME)"
 }
 

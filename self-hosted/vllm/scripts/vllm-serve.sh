@@ -105,6 +105,15 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="${LOG_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)/logs}"
 
+# On an 8xH200 (p5en) DLAMI, FP8 models cannot JIT their kernels without CUDA
+# path fixes, and torch.compile/Triton default their caches to the 29 GB root
+# disk, which a multi-model run fills. Applied here so serving works the same
+# whether this script is launched directly (the throughput sweep) or through
+# run-multi-model-benchmark.sh (the quality path) -- previously only the latter
+# exported them. No-op on any other node; explicit caller values always win.
+# shellcheck source=./p5en-cuda-env.sh
+. "$SCRIPT_DIR/p5en-cuda-env.sh"
+
 FOREGROUND=0
 [[ "${1:-}" == "--foreground" || "${1:-}" == "-f" ]] && FOREGROUND=1
 
