@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 61,
+      "notes": "The issue clearly defines the WAF and disclosure problems, explicit non-goals, and mostly testable acceptance criteria. Its largest deficiency is an undefined cross-service handoff: the registry stores the token while the auth server is expected to retrieve it from a different session-store module without a shared-store contract or transfer mechanism. The submitted patch confirms incompatible storage keys, with the registry writing `session_id` and the auth server querying `_id`, while the eventual IdP redirect still contains `id_token_hint`. No independent task statement was supplied, and the claims covering every named provider and unchanged metrics cannot be verified from the issue."
+    },
+    "lld": {
+      "completeness": 10,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 33,
+      "notes": "The LLD names concrete files, endpoint parameters, provider branches, fallback behavior, and a single-use session concept. Its core data flow is nonfunctional because `registry/auth/session_store.py` writes the hint to its collection under `session_id`, whereas `auth_server/session_store.py` retrieves from its own collection using `_id`; no inter-service transfer or verified shared collection is designed. It also feeds the resolved token into `logout_params` and `urlencode`, returning a browser redirect to the IdP that still exposes `id_token_hint`, and it stores raw tokens with ISO-string expiration values that MongoDB TTL indexes cannot expire as dates. Claims of existing encryption, automatic cleanup, configuration-free operation, and safe rollback are therefore unsupported or contradicted."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 39,
+      "notes": "The review's strongest contribution is identifying session-store outage behavior, TTL-index deployment needs, monitoring, and upgrade concerns. It nevertheless approves the design without catching the missing cross-service token transfer, incompatible document keys, plaintext token insertion, string-valued TTL field, or the token's continued presence in the IdP redirect URL. Its assertion that cross-provider leakage is prevented by deletion is unsound because entries are not provider-bound, and it inconsistently describes a 32-byte value as 128 bits when `token_hex(16)` generates 16 random bytes. The claimed TTL blocker is also declared resolved even though neither the LLD nor patch creates a valid index or BSON-date expiration field."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 16,
+      "risk_awareness": 12,
+      "total": 50,
+      "notes": "The plan covers URL shape, single use, fallback, local logout, provider behavior, TTL cleanup, and an end-to-end cycle with concrete expected outcomes. The primary oracle checks only the registry-to-auth-server redirect, while the auth-server-to-IdP redirect intentionally contains the token, so it cannot prove the promised absence from browser-visible URLs. Several procedures are unreliable or unsupported: unauthenticated `curl -I /logout` cannot obtain a session-backed ID, navigation performance entries need not expose intermediate redirects, HttpOnly cookies cannot be checked through `document.cookie`, and a 65-second wait is not a reliable MongoDB TTL-monitor bound. The assumed database and collection names, `/api/auth` endpoint, proposed test paths, container names, and unittest command are not established by the submitted repository evidence, and no executable tests accompany the patch."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 12,
+      "risk_awareness": 6,
+      "total": 26,
+      "notes": "The patch is narrowly targeted at the submitted preimage symbols `oauth2_logout`, `logout_handler`, and the two session-store modules, although the claimed `git apply --check` and syntax runs could not be independently verified because repository shell execution failed before commands ran. It does not implement a working token handoff: the registry inserts a document with `session_id`, while the auth server queries its separate store for `_id`, leaving the new auth-server writer and registry reader unused. Even if both modules shared a physical collection, the key mismatch prevents retrieval, and the auth server subsequently constructs a browser `Location` URL containing the resolved token as `id_token_hint`, directly defeating the stated requirement. The patch also stores the token without an encryption helper, writes `expires_at` as an ISO string unsuitable for MongoDB TTL expiration, adds no tests or index migration, and the summary incorrectly calls the implementation complete and identical to the LLD."
+    }
+  },
+  "task_score": 41.8,
+  "verdict": "The submission is detailed and repository-shaped, but its implementation lacks a viable cross-service token transfer and still exposes the ID token in the browser's IdP redirect URL.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T22:08:29.707077Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 235521,
+      "cached_input_tokens": 171538,
+      "cache_write_input_tokens": 36801,
+      "output_tokens": 11251,
+      "reasoning_output_tokens": 9181
+    },
+    "duration_ms": 130715
+  }
+}

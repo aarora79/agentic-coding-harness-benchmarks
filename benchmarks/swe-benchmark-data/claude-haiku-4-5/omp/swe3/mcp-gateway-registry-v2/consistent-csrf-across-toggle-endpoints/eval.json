@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The issue clearly defines the browser-versus-M2M problem, six claimed endpoints, testable outcomes, and useful non-goals. Its paths and existing dependency names agree with the supplied diff contexts for agent, skill, server, and virtual-server routes. The largest deficiency is that it requires all six endpoints to use the new dependency, while the later design and implementation deliberately exempt /internal/toggle. No independent task statement establishes the six-endpoint scope, and issue #891 could not be verified from the available repository evidence."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 65,
+      "notes": "The LLD is unusually concrete about files, route symbols, dependency signatures, form handling, and expected status behavior, and those locations align with the patch contexts. Its largest unresolved decision is endpoint coverage: it promises uniform treatment of six endpoints but leaves /internal/toggle as a TODO and ultimately excludes it. More importantly, CSRF bypass is selected from any Bearer-prefixed header rather than from the authentication method successfully chosen by enhanced_auth or nginx_proxied_auth, so the claimed auth precedence is not demonstrated. The assertions of zero breaking changes and reliable M2M detection could not be established from the available surrounding auth implementation."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 64,
+      "notes": "The review identifies concrete concerns including repeated form parsing, mixed bearer-and-session requests, incomplete endpoint auditing, and observability. It correctly focuses attention on toggle_service_api form fields and the unresolved /internal/toggle decision. Its largest failure is accepting the unproven claim that a client-controlled Authorization header cannot be spoofed and resolving mixed authentication by documentation rather than verifying which credential the auth dependency actually accepts. It also claims configuration-based rollback despite the LLD adding no flag, and its HMAC-SHA512 statement about validate_csrf_token is unsupported by the submitted source."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 4,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 45,
+      "notes": "The plan recognizes the important categories: bearer bypass, session rejection, token binding, mixed credentials, compatibility, and form parsing. However, several constructed URLs duplicate prefixes—for example TEST_AGENT_PATH is /agents/test-agent and is appended to /agents—and the agent test submits enabled as form data even though the supplied FastAPI signature declares an unannotated scalar parameter. Most positive tests merely assert status is not 403, allowing authentication, validation, routing, or server failures to pass, while /internal/toggle receives no test despite the claimed six-endpoint scope. The proposed unittest discovery command would not collect the shown module-level pytest tests, and the bearer-auth overrides, persistent fixtures, and executable registration body are not specified."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 56,
+      "notes": "The patch concretely adds verify_csrf_token_if_session_based and wires it into the five externally described agent, skill, server, server-API, and virtual-server handlers shown by the diff. It does not add the dependency to /internal/toggle or add any tests, contradicting both the issue acceptance criteria and the summary's claim that all six endpoints were updated with no deviations. The largest technical risk is that bypass depends solely on a Bearer-prefixed header rather than confirmed bearer authentication, while requests with neither a session nor bearer header also pass this dependency. The summary additionally claims form behavior was tested despite saying verification was not executed; clean application and surrounding unused-import behavior could not be independently verified because local repository execution failed at the sandbox boundary."
+    }
+  },
+  "task_score": 61.0,
+  "verdict": "The submission presents a concrete and mostly coherent design, but unreliable tests, contradictory endpoint coverage, and an unverified header-based CSRF bypass materially limit confidence in the implementation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T21:45:55.696607Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 383973,
+      "cached_input_tokens": 230153,
+      "cache_write_input_tokens": 86166,
+      "output_tokens": 17691,
+      "reasoning_output_tokens": 15532
+    },
+    "duration_ms": 239970
+  }
+}

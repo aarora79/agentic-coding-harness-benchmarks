@@ -1,0 +1,153 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "high",
+  "tags": [
+    "authentication",
+    "oauth",
+    "session",
+    "mongodb",
+    "encryption",
+    "auth-server",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 105.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 14408,
+    "output_tokens": 31052,
+    "cache_read_tokens": 2594316,
+    "cache_write_tokens": 188513,
+    "total_tokens": 2828289,
+    "total_cost_usd": 0.66474085,
+    "latency_seconds": 295.8,
+    "num_turns": 30,
+    "generation_tokens_per_sec": 105.0,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 14408,
+  "output_tokens": 31052,
+  "latency_seconds": 295.8,
+  "num_turns": 30,
+  "total_cost_usd": 0.66474085,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 2594316,
+  "cache_creation_tokens": 188513,
+  "run_started_at": "2026-08-30T20:40:01.982993Z",
+  "run_ended_at": "2026-08-30T20:44:57.796577Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 14408,
+    "output_tokens": 31052,
+    "cache_read_tokens": 2594316,
+    "cache_write_tokens": 188513,
+    "total_tokens": 2828289,
+    "total_cost_usd": 0.66474085,
+    "latency_seconds": 295.8,
+    "num_turns": 30,
+    "generation_tokens_per_sec": 105.0,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "server-side-oauth-token-storage",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 20,
+        "correctness": 14,
+        "specificity": 20,
+        "risk_awareness": 15,
+        "total": 69,
+        "notes": "The issue clearly states the cookie-size problem, measurable acceptance criteria, explicit exclusions, expiry, revocation, and the no-per-request-read constraint. Its largest deficiency is presenting an invented access/refresh-token reference design and `/oauth2/tokens` API as settled requirements despite the absence of an independent task statement. Repository release evidence describes the eventual design as an opaque session ID referencing a server-side record containing username, groups, and encrypted `id_token`, with existing sessions invalidated, which conflicts with several compatibility and data-model claims here.  The asserted typical token sizes, two-kilobyte target, and exact endpoint contract could not be independently verified."
+      },
+      "lld": {
+        "completeness": 13,
+        "correctness": 6,
+        "specificity": 15,
+        "risk_awareness": 11,
+        "total": 45,
+        "notes": "The LLD identifies concrete files, callback and validation integration points, data flow, ownership filtering, encryption, TTL indexing, and operational concerns. Its central design is internally inconsistent: one section persists an automatically generated key in MongoDB and fails closed, while the configuration and implementation sections generate an ephemeral key, log it, and explicitly warn it will be lost; the displayed model is also structurally malformed around the `id` field and omits `user_id`. Repository release evidence instead uses an `oauth_sessions` store, HKDF derivation from `SECRET_KEY`, and an opaque cookie session ID, contradicting the LLD's claimed established storage and compatibility model.  Material symbols such as `validate_session_cookie`, `get_database`, the cited line ranges, and the proposed `request.app.state.db` wiring could not be verified from the unavailable local shell."
+      },
+      "review": {
+        "completeness": 18,
+        "correctness": 14,
+        "specificity": 18,
+        "risk_awareness": 20,
+        "total": 70,
+        "notes": "The review's strongest work is identifying concrete failure modes around ephemeral encryption keys, TTL deletion lag, staged rollout, expiry alignment, decryption errors, logging, and revocation. Its largest defect is the final claim that all blockers were integrated: the LLD still lacks the promised feature flag, revoke-all endpoint design, metrics integration, and consistent persistent-key behavior. Several recommendations are weak or arbitrary, including a redundant post-query ownership assertion, a 100GB alert threshold without workload evidence, and dual cookie storage that preserves the original size problem. Repository release evidence confirms that key derivation, migration behavior, and forced logout were material concerns, supporting the review's focus but not its declaration that the design was ready. "
+      },
+      "testing": {
+        "completeness": 14,
+        "correctness": 5,
+        "specificity": 15,
+        "risk_awareness": 12,
+        "total": 46,
+        "notes": "The plan covers storage, retrieval, unauthorized access, cookie size, legacy sessions, index creation, deployment, expiry, key changes, and concurrency. Many proposed tests cannot produce their stated oracle: callback requests use fake authorization codes and states without defining a mock, header parsing omits `curl -i`, signed cookies cannot be validated by simply grepping decoded JSON, and JWT decodability does not prove encryption round-trip equality. The cross-user test extracts a `token_reference` that the response does not contain and calls an unimplemented GET-by-reference endpoint, while the no-database-read check relies on an unverified log path and generic text matching. Its legacy-cookie expectation also conflicts with repository release behavior that rejects pre-migration sessions and requires reauthentication, and revocation lacks a concrete executable test despite being an acceptance criterion. "
+      },
+      "implementation": {
+        "completeness": 4,
+        "correctness": 2,
+        "specificity": 10,
+        "risk_awareness": 4,
+        "total": 20,
+        "notes": "The patch contains concrete AES-GCM encryption, scoped MongoDB queries, TTL-index creation, and revocation repository methods. It does not implement the feature end to end: every hunk adds a new file, while `server.py`, the OAuth callback, application startup, route registration, configuration, and tests remain untouched; the summary admits these are implementer follow-ups while simultaneously claiming the tokens were moved and there were no LLD deviations. `token_endpoints.py` cannot be imported because `app`, `Request`, `HTTPException`, `logger`, `validate_session_cookie`, and repository imports are undefined, and `OAuthTokenDocument(id=...)` conflicts with the `_id` alias without enabling field-name population; the DELETE handler also returns the default 200 rather than its promised 204. The implementation retains the critical ephemeral-key behavior and logs the generated secret, contrary to the reviewed persistent-key design, while repository release evidence shows a materially different integrated session-store implementation. "
+      }
+    },
+    "task_score": 50.0,
+    "verdict": "The submission has a strong issue and useful risk review, but the contradictory LLD, largely non-executable tests, and non-integrated implementation prevent it from delivering the requested feature.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-30T22:23:42.346037Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 373634,
+        "cached_input_tokens": 277688,
+        "cache_write_input_tokens": 42451,
+        "output_tokens": 10187,
+        "reasoning_output_tokens": 7879
+      },
+      "duration_ms": 120840
+    }
+  }
+}
