@@ -1,0 +1,153 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "high",
+  "tags": [
+    "authentication",
+    "oauth",
+    "session",
+    "mongodb",
+    "encryption",
+    "auth-server",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "model_slug": "claude-sonnet-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 80.1,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 12228,
+    "output_tokens": 104977,
+    "cache_read_tokens": 21185434,
+    "cache_write_tokens": 263205,
+    "total_tokens": 21565844,
+    "total_cost_usd": 5.9693252999999995,
+    "latency_seconds": 1310.5,
+    "num_turns": 99,
+    "generation_tokens_per_sec": 80.1,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 12228,
+  "output_tokens": 104977,
+  "latency_seconds": 1310.5,
+  "num_turns": 99,
+  "total_cost_usd": 5.9693252999999995,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 21185434,
+  "cache_creation_tokens": 263205,
+  "run_started_at": "2026-08-31T01:08:29.703802Z",
+  "run_ended_at": "2026-08-31T01:30:20.286820Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 12228,
+    "output_tokens": 104977,
+    "cache_read_tokens": 21185434,
+    "cache_write_tokens": 263205,
+    "total_tokens": 21565844,
+    "total_cost_usd": 5.9693252999999995,
+    "latency_seconds": 1310.5,
+    "num_turns": 99,
+    "generation_tokens_per_sec": 80.1,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "server-side-oauth-token-storage",
+    "model": "us.anthropic.claude-sonnet-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 14,
+        "correctness": 9,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 61,
+        "notes": "The issue provides unusually concrete scope, status codes, compatibility expectations, and negative cases. Its central diagnosis is defective: it admits the baseline already omits access_token and refresh_token, while the proposed change retains large id_token and groups fields and therefore does not resolve the current cookie overflow. The shipped repository approach moved the full session payload server-side and retained only a session identifier in the cookie. No independent task statement was supplied, limiting assessment beyond the identifier and repository history."
+      },
+      "lld": {
+        "completeness": 15,
+        "correctness": 8,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 63,
+        "notes": "The LLD is highly specific about files, interfaces, data fields, TTL behavior, ownership checks, fallback behavior, and rollout. Its load-bearing architecture cannot achieve its stated cookie-size goal because oauth2_callback still signs id_token, groups, and identity metadata; its claimed approximately 600-byte cookie is therefore unsupported. The proposed repository, Fernet helper, endpoint, factory wiring, and logout hook are otherwise internally coherent and closely follow the submitted source context. Claims about exact existing encryption and dependency conventions could not all be independently verified because local command execution failed before repository inspection began."
+      },
+      "review": {
+        "completeness": 13,
+        "correctness": 13,
+        "specificity": 21,
+        "risk_awareness": 17,
+        "total": 64,
+        "notes": "The review surfaces concrete defects, especially unscoped revocation, missing datetime imports, serialization churn, frontend ambiguity, and live-TTL verification. Its largest failure is approving the design without noticing that the baseline already excludes access and refresh tokens and that the unchanged id_token and groups remain the likely large cookie contents. Cipher's recommended delete filter is actionable and was incorporated consistently into the design and patch. Several claims about existing response shapes and dependencies remained unverifiable through the unavailable local executor."
+      },
+      "testing": {
+        "completeness": 12,
+        "correctness": 10,
+        "specificity": 22,
+        "risk_awareness": 14,
+        "total": 58,
+        "notes": "The plan gives concrete test files, inputs, expected statuses, ownership checks, expiry queries, encryption oracles, and backend fallback cases. The callback tests do not invoke oauth2_callback: one directly calls the mock repository and catches its exception itself, while the TTL test merely recomputes max(), so both would pass if production wiring were absent or broken. There is no real logout-handler test, no assertion on final cookie size or retained id_token/groups, and no proof that normal authentication avoids repository reads. The proposed commands and tests were not executed, and the submitted patch contains none of the tests described here."
+      },
+      "implementation": {
+        "completeness": 11,
+        "correctness": 8,
+        "specificity": 20,
+        "risk_awareness": 12,
+        "total": 51,
+        "notes": "The patch coherently adds an encrypted repository, factory wiring, retrieval endpoint, username-scoped revocation, TTL filtering, configuration, and documentation. It does not solve the stated overflow: the issue itself says access and refresh tokens are already absent, and the patch inserts token storage after the existing session construction without removing id_token, groups, or other large fields, while adding token_ref. It also contains no tests, logs the raw username despite the LLD's redaction guidance, and returns 404 rather than the summary's claimed 503 on file-backend sessions lacking token_ref because that check occurs first. The local sandbox failed before commands ran, so the claimed git apply check and testability could not be independently verified, although the submitted diff context is structurally plausible."
+      }
+    },
+    "task_score": 59.4,
+    "verdict": "The submission is detailed and internally organized, but it implements a secondary token-retrieval facility while leaving the actual oversized session payload in the cookie.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-31T06:08:54.493874Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 386307,
+        "cached_input_tokens": 280020,
+        "cache_write_input_tokens": 54840,
+        "output_tokens": 11012,
+        "reasoning_output_tokens": 9041
+      },
+      "duration_ms": 388868
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 85,
+      "notes": "The issue provides unusually testable acceptance criteria covering counter scope, admin asymmetry, failure policy, response semantics, management surfaces, and explicit non-goals. Its references to `RateLimitDefinition`, `RateLimiter.check()`, `_validate_caller_floor`, and the `/validate` hook align with the source contexts represented in the patch. Its largest gap is calling quarantine immediate without defining an enforcement-propagation bound, despite the later design allowing per-process cache staleness, and it does not state clearly that quarantine is inactive when the master rate-limiting switch is off. No independent task statement was supplied, so claims about issues #295 and #1504 could not be used to establish additional requirements."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 79,
+      "notes": "The LLD is highly concrete about data flow, repository methods, API shapes, failure behavior, rollout, and exact integration points such as `RateLimiter.check()` and nginx's throttle marker. Its largest technical flaw is using unescaped colon-delimited `group_name`, target name, and caller identity values in definition IDs and counter subjects even though it explicitly recognizes that names may contain colons; distinct definitions or caller-target pairs can therefore alias. It also promises reuse of `RATE_LIMIT_BACKEND_TIMEOUT_MS` while specifying a hardcoded repository default, and its five-second process-local cache does not satisfy the issue's unqualified immediate-kill-switch language. The stated `cli/api/...` paths are contradicted by the repository's `api/registry_client.py` and `api/registry_management.py` paths, which the implementation summary later acknowledges."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The review performs real design work by identifying the missing caller-target floor safeguard and the unsafe inherited fail-open policy, then tracing their resolutions to `_validate_caller_floor` and the quarantine repository design. It also gives actionable frontend, backend, operations, and security recommendations rather than generic approvals. Its largest omission is failing to catch the ambiguous composite IDs and counter keys, along with the UI's need to surface quarantine-list loading failures. Circuit's claim that a five-second TTL implies approximately ten seconds of normal propagation is unsupported; ordinary expiry is bounded by roughly one TTL plus read latency, while backend failure can preserve stale last-known-good state much longer."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The plan has strong behavioral oracles, including exact quota counts, independent caller and target buckets, plain-403 header absence, admin-bypass asymmetry, seed idempotency, and a zero-counter-call assertion. A concrete execution defect is that its CLI commands invoke `registry_management.py` from the repository root even though the implementation confirms the real path is `api/registry_management.py`. Sleeping twelve seconds before checking quarantine proves eventual behavior but does not measure or enforce the promised propagation bound, and the plan omits delimiter-collision, concurrent mutation, degraded-read metric, and quarantine-fetch-error UI cases. The plan reports no executed results, which is acceptable, but its rollback and default-200 assumptions remain unverified."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 71,
+      "notes": "The patch covers the principal end-to-end surfaces: model validation, definition lookup, limiter gates, quarantine storage, startup seeding, admin routes, auth-server response handling, CLI, UI, and substantial unit and integration coverage. Its largest correctness defect is delimiter aliasing: `build_id()` concatenates two unrestricted fields and `_build_caller_target_gates()` concatenates identity and target name with colons, allowing distinct definitions or counters to share a key. Additional material gaps include a hardcoded 0.25-second quarantine timeout instead of `RATE_LIMIT_BACKEND_TIMEOUT_MS`, no promised `rate_limit_errors_total` update on degraded reads, non-atomic find-then-pull removal, and a UI that ignores quarantine loading errors and can display empty lists after a failed fetch. The diff's contexts are internally plausible, but `git apply --check` could not be independently executed because the provided shell sandbox failed before command execution; this evidence limitation was not scored as a candidate defect."
+    }
+  },
+  "task_score": 78.2,
+  "verdict": "The submission is comprehensive and thoughtfully reviewed, but ambiguous composite keys and several quarantine consistency and failure-reporting defects keep the implementation from being production-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T05:49:32.424583Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 502547,
+      "cached_input_tokens": 397746,
+      "cache_write_input_tokens": 81949,
+      "output_tokens": 14959,
+      "reasoning_output_tokens": 13112
+    },
+    "duration_ms": 269297
+  }
+}
