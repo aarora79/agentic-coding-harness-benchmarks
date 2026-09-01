@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-opus-4-8",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 85,
+      "notes": "The issue's strongest aspect is its concrete six-endpoint matrix, explicit session-versus-bearer behavior, testable acceptance criteria, and bounded non-goals. Its largest flaw is claiming bearer-token requests succeed on all six endpoints despite its own table showing session-only `enhanced_auth` and separate `validate_internal_auth` paths; the authorization qualifier only partly resolves that inconsistency. The named route functions and CSRF dependency agree with the submitted patch contexts. With no independent task statement, the intended endpoint set and exact scope cannot be independently confirmed."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 86,
+      "notes": "The LLD commits to precise control flow in `verify_csrf_token_flexible`, names concrete route functions, preserves mixed-credential fail-closed behavior, and documents the shared dependency's wider caller impact. Its largest deficiency is treating that wider behavior change and newly protected browser callers as safely backward-compatible without a demonstrated caller audit or rollout validation. The proposed signatures and edits align internally with the patch contexts for `csrf.py`, `server_routes.py`, and `virtual_server_routes.py`, although the claim that `request.form()` is reached only for genuine form posts overstates what the shown control flow guarantees. Claims about every caller, proxy header sanitization, and the absence of other toggle routes could not be independently verified."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 79,
+      "notes": "The review's strongest contribution is identifying concrete risks around uninstrumented browser callers, shared-dependency side effects, mixed credentials, request-body handling, and the internal endpoint's effectively no-op CSRF wiring. Its largest weakness is resolving several findings through unsupported assertions, notably that the SPA is the only browser caller and that JSON requests never reach `request.form()`, rather than through source evidence or tests. It correctly requests route-level regression coverage for `/api/servers/toggle` and the virtual-server toggle, but that coverage is absent from the submitted patch. The asserted frontend exclusivity and complete six-route inventory remain unverifiable."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 16,
+      "risk_awareness": 17,
+      "total": 64,
+      "notes": "The dependency unit tests are the strongest portion: they provide specific 403 details, valid header and form cases, session binding, and an early-return body-read oracle. The route-level plan's central assertion, `status_code != 403`, can pass on 401, 404, 422, or unrelated failures and cannot distinguish a handler authorization 403 from a CSRF 403. It also treats six routes with different auth dependencies and payload shapes as one generic setup, while the end-to-end registration example contains a non-executable `...` payload. The claimed cookie default, registration command, and full-suite command were not independently verified."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 81,
+      "notes": "The patch coherently implements the proposed session-cookie gate, preserves token validation for cookie-bearing requests, and wires the dependency into `internal_toggle_service`, `toggle_service_api`, and `toggle_virtual_server`. Its largest deficiency is omitting the route-level tests promised by the LLD and review, leaving the six-endpoint wiring and newly closed browser gaps without executable regression coverage. The summary is also internally inconsistent when it says there are no deviations or follow-ups and then recommends the omitted route tests. The claimed baseline commit and successful `git apply --check` could not be independently verified from the available repository access."
+    }
+  },
+  "task_score": 79.0,
+  "verdict": "The submission presents a strong, coherent CSRF design and plausible focused patch, but weak route-level test oracles and omitted integration tests leave its end-to-end six-endpoint guarantees insufficiently demonstrated.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-01T11:56:39.063920Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 310447,
+      "cached_input_tokens": 226186,
+      "cache_write_input_tokens": 37178,
+      "output_tokens": 13488,
+      "reasoning_output_tokens": 11339
+    },
+    "duration_ms": 294016
+  }
+}

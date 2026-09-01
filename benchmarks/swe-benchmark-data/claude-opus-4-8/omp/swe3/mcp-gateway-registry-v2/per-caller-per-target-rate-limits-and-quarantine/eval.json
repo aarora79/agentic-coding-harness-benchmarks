@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-opus-4-8",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 86,
+      "notes": "The issue clearly defines both missing behaviors, explicit exclusions, response/admin/failure decisions, and testable acceptance criteria across backend and management surfaces. Referenced paths and symbols such as `RateLimiter.check()`, `registry/api/rate_limit_routes.py`, and `IAMRateLimits.tsx` correspond to patch targets. Its largest gap is calling quarantine an absolute immediate block while leaving store-outage semantics undecided, which could qualify that guarantee. No independent task statement was supplied, so issue-number and operator-demand claims could not be independently validated."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 73,
+      "notes": "The LLD is unusually concrete about repository files, data flow, counter keys, response semantics, admin asymmetry, caching, rollout, and management surfaces. Its reserved-marker design does not preserve its own invariants: a general PUT can submit `quarantine=true, enabled=false`, while the proposed validator also accepts arbitrary quarantine markers without restricting them to the two reserved identities. It also misses delimiter collisions in `identity|entity_type:name` and lost updates from read-modify-write membership changes. Claims about fail-open metrics and complete marker immutability are therefore stronger than the specified mechanics support."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The review identifies concrete repository-specific problems including marker rows with no numeric limit, caller-like floor validation, bounded metric labels, seed clobbering, and admin-bypass asymmetry. Its recommendations are prioritized and traceable to revisions in the LLD. The declaration that all blocking findings are resolved is not defensible because it misses the reserved-marker PUT bypass, arbitrary `quarantine=true` definitions, membership update races, and composite-key delimiter collisions. It also accepts observability and fail-open resolutions without checking whether their proposed control flow actually emits the promised error metric."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The plan covers unit, API, CLI, UI, compatibility, deployment, and end-to-end behavior with strong oracles for pairwise counter independence and quarantine response semantics. Its primary command, `python -m unittest discover`, will not collect the submitted pytest-style `TestRateLimiter` class with plain async methods, making the advertised execution path unreliable. The integration setup maps `$(whoami)` while later quarantining `alice`, and the E2E sequence expects an allowed post-unquarantine call immediately after exhausting the same window. Several named route, repository, model, and fail-open tests were planned but not included in the implementation, and the referenced `tests/scripts/call_mcp_tool.py` could not be verified."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 11,
+      "total": 60,
+      "notes": "The patch broadly implements the new axis, enforcement branch, persistence helpers, API, CLI, UI, documentation, and core limiter tests using plausible existing files and symbols. The largest defect is that reserved markers remain mutable through ordinary PUT requests using `quarantine=true`, including setting `enabled=false`, while arbitrary names can also bypass normal entity and numeric-limit validation. Caller quarantine uses `get_groups_for` directly rather than the supplied fail-open predicate, promised error metrics are absent, and `add_group`/`remove_group` use race-prone read-modify-write operations. Only `test_limiter.py` is changed, its `test_reserved_group_not_gated` merely proves quarantine denial rather than group stripping, and the claimed baseline/apply check could not be independently verified because repository command access failed."
+    }
+  },
+  "task_score": 73.6,
+  "verdict": "Strong, repository-specific design work supports a broad implementation, but quarantine invariants remain bypassable through ordinary definition updates and verification is materially incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-01T12:35:10.748994Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 380891,
+      "cached_input_tokens": 299919,
+      "cache_write_input_tokens": 52520,
+      "output_tokens": 10285,
+      "reasoning_output_tokens": 9068
+    },
+    "duration_ms": 171107
+  }
+}

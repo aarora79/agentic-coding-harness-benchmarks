@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-opus-4-8",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 86,
+      "notes": "The issue provides unusually concrete URL examples, testable acceptance criteria, and clear exclusions for network verification, non-GitHub providers, and backfilling. Its largest gap is that the semantic-search requirement does not explicitly require that search results actually populate repository_url, enabling the later implementation to add only a dormant optional field. Submitted patch context supports the named Dashboard, SkillInfo, modal, and parse-response integration points. No independent task statement was supplied, and the sandbox prevented direct source or tag verification."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 60,
+      "notes": "The LLD is concrete about files, symbols, constructors, response fields, and frontend state flow. Its largest defect is declaring the semantic-search change safe even if that path never populates repository_url, which cannot deliver the promised View Repo behavior. It also specifies data.repository_url || prev.repository_url, retaining a stale repository after parsing a non-GitHub URL, and accepts a hostname-substring heuristic that can classify non-GitHub domains as GitHub. Exact line locations and repository conventions could not be independently verified because local read commands were blocked."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 56,
+      "notes": "The review raises concrete concerns about hostname classification, link security attributes, compatibility, deployment, and the need for focused unit tests. Its largest failure is approving end-to-end completeness while overlooking the LLD's explicit admission that semantic-search results may not contain repository_url. It also fails to identify the stale-form-state behavior caused by data.repository_url || prev.repository_url, despite reviewing that expression directly. File and symbol references align with the submitted diff, but could not be checked against the local working tree."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 60,
+      "notes": "The plan covers derivation variants, API payloads, listing behavior, backward compatibility, both modals, and concrete expected values. Its primary command, uv run python -m unittest, will not collect the submitted plain pytest class and parametrized methods, allowing the new tests to run zero cases successfully. Several manual Parse scenarios use placeholder org/repo URLs that are unlikely to be fetchable, and no setup ensures semantic hits contain repository_url. It also omits the important transition test from a previously derived GitHub value to a non-GitHub parse, which would expose stale state."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 56,
+      "notes": "The patch concretely wires derivation through the parse response and listing model, updates frontend types, and replaces both modal labels with guarded links. It does not populate repository_url in the semantic-search backend, which the summary admits, so a central acceptance criterion remains unimplemented. Dashboard retains an old repository value when derivation returns null, while the helper's acknowledged substring host test can derive values for non-GitHub domains; the advertised +99/-4 total also contradicts the per-file counts in the summary. Patch applicability and exact source context could not be independently confirmed because the read-only command runner failed before executing git apply --check."
+    }
+  },
+  "task_score": 63.6,
+  "verdict": "The submission has a strong issue and detailed design, but the implementation leaves the semantic-search data path incomplete and can preserve an incorrect repository URL after a non-GitHub parse.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-01T12:03:12.191036Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 282452,
+      "cached_input_tokens": 214071,
+      "cache_write_input_tokens": 39198,
+      "output_tokens": 12540,
+      "reasoning_output_tokens": 10421
+    },
+    "duration_ms": 236302
+  }
+}
