@@ -1,6 +1,6 @@
 # Results: omp harness (swe3)
 
-Benchmark results for every model run under the **omp** coding agent with the **swe3** skill on `mcp-gateway-registry-v2`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness omp --skill swe3`. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe3.md](agentic-coding-swe-comparison-swe3.md).
+Benchmark results for every model run under the **omp** coding agent with the **swe3** skill on `mcp-gateway-registry-v2`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness omp --skill swe3 --repo mcp-gateway-registry-v2`. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe3.md](agentic-coding-swe-comparison-swe3.md).
 
 ## Results by model
 
@@ -10,7 +10,9 @@ Benchmark results for every model run under the **omp** coding agent with the **
 | glm-5.3 | 81.27 | 21/21 | 196,403,475 | 1,408,082 | 242,521,152 | 1,962,956 | 442,295,665 | 150.1m | $258.93 | hardware-derived (p5en.48xlarge) |
 | qwen3.8-27b | 78.48 | 20/21 | 176,788,091 | 2,238,375 | 226,013,088 | 7,299,679 | 412,339,233 | 1292.2m | $57.77 | hardware-derived (p5en.48xlarge) |
 | claude-sonnet-5 | 76.97 | 21/21 | 96,758 | 1,259,000 | 227,322,015 | 3,683,654 | 232,361,427 | 356.3m | $67.46 | metered (Bedrock) |
+| claude-opus-4-8 | 74.69 | 21/21 | 117,490 | 1,047,405 | 136,713,205 | 2,660,506 | 140,538,606 | 237.2m | $111.76 | metered (Bedrock) |
 | glm-5.2 | 74.36 | 21/21 | 200,492,890 | 767,429 | 198,289,984 | 2,216,533 | 201,260,319 | 159.1m | $97.67 | hardware-derived (p5en.48xlarge) |
+| claude-opus-4-6-v1 | 70.64 | 21/21 | 113,365 | 643,572 | 148,125,825 | 2,119,578 | 151,002,340 | 206.3m | $103.97 | metered (Bedrock) |
 | kimi-k2.7-code | 69.98 | 20/21 | 138,397,139 | 701,749 | 184,381,920 | 3,696,196 | 327,177,004 | 200.0m | $119.16 | hardware-derived (p5en.48xlarge) |
 | deepseek-v3.2 | 60.99 | 21/21 | 125,194,708 | 573,178 | 175,922,048 | 4,580,477 | 306,270,411 | 187.7m | $78.85 | hardware-derived (p5en.48xlarge) |
 | gemma-4-31b | 59.74 | 21/21 | 80,485,213 | 456,273 | 89,401,728 | 3,242,130 | 173,585,344 | 344.5m | $34.08 | hardware-derived (p5en.48xlarge) |
