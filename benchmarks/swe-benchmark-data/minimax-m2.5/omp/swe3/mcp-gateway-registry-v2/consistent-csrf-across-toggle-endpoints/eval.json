@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 71,
+      "notes": "The issue clearly identifies six routes, observed 403 failures, scope boundaries, and testable browser and M2M outcomes. Its own table identifies `/api/internal/toggle` as using internal authentication, yet the acceptance criteria require CSRF there while the proposed bypass only covers valid JWT authentication. That makes the all-six requirement internally inconsistent and potentially breaks the internal endpoint. No independent task statement was supplied, and the runtime claims could not all be independently verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 8,
+      "total": 46,
+      "notes": "The LLD is concrete about files, route signatures, validation branches, and alternatives. However, its endpoint table marks `/api/internal/toggle` as unprotected while its implementation and file-change sections omit that route, so it cannot satisfy its all-six goal. More critically, `X-User` only establishes that a header exists; the design does not prove it uniquely represents validated bearer authentication or cannot also appear on browser-authenticated requests. The backend review's unanswered question about that header contract should have remained an open security decision rather than 'None at this time.'"
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 6,
+      "specificity": 12,
+      "risk_awareness": 8,
+      "total": 35,
+      "notes": "The review does raise two relevant questions: whether virtual-server frontend calls send CSRF tokens and whether `X-User` is guaranteed for JWT requests. It nevertheless approves the design without resolving either question and misses the omitted `/api/internal/toggle` change. The security review incorrectly treats CSRF validation as providing rate limiting or abuse prevention, which is not its purpose. Its assertion that nginx already rate-limits every request is unsupported by any cited repository configuration."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 9,
+      "specificity": 15,
+      "risk_awareness": 10,
+      "total": 46,
+      "notes": "The plan provides concrete curl scenarios for bearer, valid-session, missing-token, missing-session, and invalid-token behavior. Its claimed all-six workflow actually exercises only four endpoints and never tests `/api/internal/toggle`; browser protection is also tested primarily through the agent route rather than every newly affected route. The commands send `Authorization: Bearer` while the implementation branches on `X-User`, but no test oracle proves that the deployment translates one into the other. Most success checks stop at HTTP 200 without verifying persisted enabled state, and no repository test paths or automated test command are provided."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 5,
+      "total": 36,
+      "notes": "The patch is focused and its hunks target the claimed `toggle_service_api`, `toggle_virtual_server`, and `verify_csrf_token_flexible` symbols. It adds dependencies to only two of the three routes the artifacts identify as unprotected, leaving `/api/internal/toggle` unchanged despite claiming all six endpoints are covered, and it adds no acceptance-criterion tests. The bypass trusts the presence of `X-User` and then permits requests without a CSRF token; it neither verifies a bearer JWT itself nor establishes that cookie-authenticated browser traffic cannot carry the same header. The summary incorrectly reports no deviations or follow-ups, and patch applicability could not be independently confirmed because the read-only shell sandbox failed before source inspection."
+    }
+  },
+  "task_score": 46.8,
+  "verdict": "The submission is specific and well organized, but the implementation is incomplete and its unproven `X-User` bypass risks disabling CSRF for browser-authenticated requests.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T13:28:00.299443Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 317760,
+      "cached_input_tokens": 163812,
+      "cache_write_input_tokens": 66003,
+      "output_tokens": 13836,
+      "reasoning_output_tokens": 12052
+    },
+    "duration_ms": 230323
+  }
+}

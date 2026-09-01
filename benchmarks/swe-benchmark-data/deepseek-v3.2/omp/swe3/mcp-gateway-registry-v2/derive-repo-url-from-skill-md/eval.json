@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 82,
+      "notes": "The issue clearly defines both user-facing problems, explicit non-goals, and testable behavior for parsing, editable auto-fill, and both detail modals. Submitted diff contexts corroborate the named parse endpoint, Dashboard handler, SkillCard, and SkillContentModal integration points. Its largest gap is that GitHub Enterprise support lacks a concrete host-recognition or configuration policy, and the expected behavior when parsing a non-GitHub URL over an existing form value is ambiguous. No independent task statement exists, and issue #846 plus the claimed existing backend model field could not be independently verified because repository command execution was unavailable."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 12,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 69,
+      "notes": "The LLD provides an unusually concrete end-to-end flow and identifies the relevant backend, API, type, form, and modal changes. Its proposed raw-host conversion is incorrect: removing the raw. prefix from raw.githubusercontent.com produces githubusercontent.com, so the subsequent exact replacement cannot yield github.com. The enterprise allowlist is also defeated by unconditional substring fallback, while configuration remains a TODO despite being a load-bearing security decision. It discusses many risks, but several mitigations such as _is_safe_url reuse and explicit allowlisting are not actually connected to the proposed implementation, and some observability work is disproportionate."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 17,
+      "risk_awareness": 18,
+      "total": 67,
+      "notes": "The review identifies a real hostname-substring vulnerability and gives actionable recommendations for strict allowlisting, shared link rendering, responsive layout, and accessibility. It nevertheless misses the LLD's incorrect raw.githubusercontent.com conversion and the unresolved enterprise configuration path. Several findings are generic or technically weak for this change, including regex injection, circuit breakers, and an unrelated X-Content-Type-Options recommendation. The security verdict appropriately requests revision, but other approvals and claims about existing SSRF protection are not sufficiently reconciled with that blocker."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 19,
+      "risk_awareness": 16,
+      "total": 62,
+      "notes": "The plan supplies concrete inputs and expected outputs across URL extraction, API response, form state, compatibility, and link rendering. Important expectations contradict the proposed code: github.evil.com cannot be rejected while legacy substring fallback accepts github.mycompany.com, public raw URLs produce the wrong host, and trailing-slash sanitization does not normalize its return value. Several security cases use non-oracles such as None or timeout and depends on _is_safe_url, while component cases with absent required props would not type-check. It also omits a build/import check that would catch the missing RepositoryLinks file and does not pin the stale-value transition from a GitHub parse to a non-GitHub parse."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 9,
+      "risk_awareness": 4,
+      "total": 24,
+      "notes": "The patch touches the expected service, route, type, form, and two modal contexts, but it does not include the newly imported RepositoryLinks.tsx file, so the submitted change is not build-complete. It also replaces the existing ANSBadge and SecurityScanModal imports instead of adding an import, creating additional unresolved-symbol risk if those components remain used. Public raw URLs derive githubusercontent.com rather than github.com, and the claimed enterprise allowlist still accepts every hostname containing github. Dashboard preserves a stale repository value for null responses, while the summary incorrectly claims successful security hardening and complete implementation; independent apply and surrounding-use verification were unavailable because local command execution failed."
+    }
+  },
+  "task_score": 60.8,
+  "verdict": "The design artifacts establish a useful, concrete direction, but the submitted implementation is incomplete and contains critical URL-conversion and hostname-validation defects.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T20:24:45.620222Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 295919,
+      "cached_input_tokens": 248652,
+      "cache_write_input_tokens": 42077,
+      "output_tokens": 8511,
+      "reasoning_output_tokens": 6368
+    },
+    "duration_ms": 90764
+  }
+}

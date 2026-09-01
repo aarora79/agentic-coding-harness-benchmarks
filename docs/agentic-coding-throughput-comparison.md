@@ -13,11 +13,11 @@ All figures come from the throughput skill (`self-hosted/vllm/scripts/run-throug
 Sweep: concurrency `1 2 5 7 10 15 20`, 10-minute window per level, 200K context. Cost is the **blended lens** (every processed token — prompt + generation — costs the same GPU slice; the honest primary metric for an input-heavy workload). "Cheapest $/task" is at each model's most cost-efficient concurrency level. The per-task token shape used here (`in:out`) is the sweep's synthetic definition; real agentic runs range wider (~50:1 to ~660:1 across models under the single-agent swe3 skill — see [cost-per-task-methodology.md](cost-per-task-methodology.md)), and per-token cost is a property of the model + hardware + load, so recost any real task shape with `clients/cost_for_task.py`.
 
 > [!IMPORTANT]
-> **The p5en 35% discount is a PLACEHOLDER, configurable in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json).** g6e is priced at its **3-year Reserved Instance rate**; p5en at **on-demand with a 0.35 placeholder `discount`** (35% off = pay 65% -> $41.14/hr; stand in your own committed/negotiated discount). Every self-hosted cost below rescales linearly with that rate.
+> **The p5en 35% discount is a PLACEHOLDER, configurable in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json).** g6e is priced at its **3-year commitment rate**; p5en at **on-demand with a 0.35 placeholder `discount`** (35% off = pay 65% -> $41.14/hr; stand in your own committed/negotiated discount). Every self-hosted cost below rescales linearly with that rate.
 
-> **Two different instances.** The smaller models were served on **g6e.12xlarge (4xL40S, $4.533/hr, 3-year RI)**; the larger ones on **p5en.48xlarge (8xH200, effective $41.14/hr full box = on-demand $63.296 x (1 - 0.35 placeholder discount); TP=4 models are charged half, $20.57/hr)**. Rates come from [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json) (us-east-1; the p5en discount is configurable). Cost per token/task already accounts for each instance's hourly price, so it is comparable across rows — but peak-throughput numbers are not apples-to-apples across the instance line. Rows are grouped by instance.
+> **Two different instances.** The smaller models were served on **g6e.12xlarge (4xL40S, $4.533/hr, 3-year commitment)**; the larger ones on **p5en.48xlarge (8xH200, effective $41.14/hr full box = on-demand $63.296 x (1 - 0.35 placeholder discount); TP=4 models are charged half, $20.57/hr)**. Rates come from [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json) (us-east-1; the p5en discount is configurable). Cost per token/task already accounts for each instance's hourly price, so it is comparable across rows — but peak-throughput numbers are not apples-to-apples across the instance line. Rows are grouped by instance.
 
-### g6e.12xlarge (4xL40S, $4.533/hr, 3-year RI)
+### g6e.12xlarge (4xL40S, $4.533/hr, 3-year commitment)
 
 | Model | Arch | Peak gen tok/s | Cheapest $/1M (blended) | Cheapest $/task | Task ratio (in:out) | Notes |
 |---|---|--:|--:|--:|--:|---|
@@ -52,7 +52,7 @@ Cheapest $/task uses each sweep's blended task definition (~8M input : 50K outpu
 ## Caveats on the source runs
 
 - **qwen3-coder-480b has no c=1 baseline** (its sweep started at c=2), so it lacks the uncontended health-check reference the other runs have. Treat its numbers as indicative; a re-run with c=1 would confirm the server was clean. All other runs passed the c=1 check (uncontended TTFT p50 <= 0.5s except qwen3.6-35b at 2.5s, which is still healthy for a dense-prompt cold start).
-- **Instance prices are configurable** (p5en on-demand $63.296 with a 0.35 placeholder `discount` = pay 65% -> $41.14/hr; g6e 3-year Reserved Instance $4.533/hr) as recorded in each run's effective `dollars_per_hour`. Your own committed/negotiated discount, on-demand, or spot would shift the cost columns proportionally (cost scales linearly with $/hr).
+- **Instance prices are configurable** (p5en on-demand $63.296 with a 0.35 placeholder `discount` = pay 65% -> $41.14/hr; g6e 3-year commitment rate $4.533/hr) as recorded in each run's effective `dollars_per_hour`. Your own committed/negotiated discount, on-demand, or spot would shift the cost columns proportionally (cost scales linearly with $/hr).
 
 ## How to reproduce
 
@@ -87,4 +87,4 @@ Per-model dashboards and machine-readable summaries under `self-hosted/vllm/benc
 | devstral-2-123b | [json](../self-hosted/vllm/benchmark-output/throughput/devstral-2-123b/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/devstral-2-123b/performance-dashboard.html) |
 | nemotron-ultra-550b | [json](../self-hosted/vllm/benchmark-output/throughput/nemotron-ultra-550b/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/nemotron-ultra-550b/performance-dashboard.html) |
 
-> Figures captured 2026-07-26, vLLM 0.25.1, 200K context; deepseek-v3.2, kimi-k2.7-code, and glm-5.2 re-swept 2026-07-30; devstral-2-123b (TP=4) and nemotron-ultra-550b (full box) added from their p5en sweeps. Costs repriced 2026-08-11 (p5en effective $41.14/hr = on-demand $63.296 x (1 - 0.35 placeholder discount); g6e 3-year RI $4.533/hr) from pricing.json. Re-running a sweep regenerates that model's summary + dashboard; update the tables here when the underlying runs change.
+> Figures captured 2026-07-26, vLLM 0.25.1, 200K context; deepseek-v3.2, kimi-k2.7-code, and glm-5.2 re-swept 2026-07-30; devstral-2-123b (TP=4) and nemotron-ultra-550b (full box) added from their p5en sweeps. Costs repriced 2026-08-11 (p5en effective $41.14/hr = on-demand $63.296 x (1 - 0.35 placeholder discount); g6e 3-year commitment rate $4.533/hr) from pricing.json. Re-running a sweep regenerates that model's summary + dashboard; update the tables here when the underlying runs change.

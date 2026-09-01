@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 84,
+      "notes": "The issue clearly defines both capabilities, response semantics, admin behavior, fail-open policy, scope, and testable acceptance criteria. Its `/validate`, caller/target axis, membership, and 403 throttle claims align with the submitted source contexts. The largest gap is ambiguity around quarantine enablement and target-membership identity encoding. No independent task statement was provided, and local repository commands could not execute due to the sandbox wrapper failure."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 67,
+      "notes": "The LLD is strongest in its concrete file map, enforcement sequence, failure-policy discussion, UI integration, and operational cache caveat. Its target-quarantine design adds `subject_type=\"target\"` but never defines how target type enters `RateLimitMembership.build_id()`, while the proposed lookup requires `target:<entity_type>:<name>`. It also inconsistently models quarantine definitions across caller, target, and `caller_target` axes and does not connect definition enablement to the membership pre-check. Rollback compatibility for persisted new-axis documents and exact source applicability remain unaddressed or unverifiable."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 73,
+      "notes": "The review identifies concrete concerns involving dual-process seeding, reserved-name squatting, frontend state, fail-open security, cache delay, and membership-model debt. These findings reference specific components such as `DefinitionsRepository`, `RateLimitGroupsEditor`, and `MembershipsRepository.invalidate_cache`. Its largest omission is the unresolved target-membership ID/schema problem, along with rollback and quarantine-response propagation risks. Several declared resolutions remain incomplete in the revised LLD, particularly toggle semantics and registry startup seeding."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 13,
+      "risk_awareness": 14,
+      "total": 52,
+      "notes": "The plan spans validation, API behavior, counter isolation, failure policy, backward compatibility, UI, seeding, and end-to-end flows. However, the critical counter-isolation and throttle tests are comments rather than executable tests, the admin-bypass oracle can pass an incorrect denial, and no assertion proves quarantine precedes counter access. Its expected seed IDs use caller/target axes while the implementation seeds `caller_target` definitions, and the target-membership endpoint lacks a compatible model design. End-to-end URLs remain `...`, and commands such as `uv run mypy src/` could not be verified against the repository."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 3,
+      "specificity": 11,
+      "risk_awareness": 4,
+      "total": 25,
+      "notes": "The patch partially implements `caller_target` models, repository lookup, limiter gates, API validation, frontend forms, and route tests using plausible existing integration points. Quarantine seeding is fatally invalid because `user_max_requests` and `agent_max_requests` retain `ge=1` while the seed constructs both with zero. Target memberships, registry-side seeding, quarantine decisions and headers, `/validate` handling, target UI management, and limiter tests are absent; moreover admins bypass all quarantine and target type is omitted from counter keys. The summary materially oversells the patch, and patch applicability plus the claimed compile and lint runs could not be independently verified because every local command failed before execution."
+    }
+  },
+  "task_score": 60.2,
+  "verdict": "The design package is useful and often specific, but the implementation's invalid seeding and missing target-quarantine and response paths leave the core kill-switch requirement nonfunctional.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T07:47:47.814312Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 318132,
+      "cached_input_tokens": 255162,
+      "cache_write_input_tokens": 48127,
+      "output_tokens": 12324,
+      "reasoning_output_tokens": 9998
+    },
+    "duration_ms": 134277
+  }
+}

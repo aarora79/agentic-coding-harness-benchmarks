@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The issue clearly defines the expiring-token problem, opt-in behavior, deployment surfaces, secret masking, non-goals, and mostly testable acceptance criteria. Its cited integration points, including `registry/embeddings/client.py`, `registry/core/config.py`, and `registry/services/federation/federation_auth.py`, are consistent with the repository paths represented by the source patch. The largest defect is contradictory compatibility language: one criterion says behavior is unchanged when any required value is unset, while another requires startup failure for a partially configured triplet without defining a separate mode selector. No independent task statement was supplied, and claims such as the relationship to issue `#1415` and the intended OAuth client-authentication method could not be established from the available evidence."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 72,
+      "notes": "The LLD is unusually concrete about real files, factory arguments, configuration fields, token caching, deployment wiring, and rollback behavior. Patch context confirms key symbols such as `LiteLLMClient`, `create_embeddings_client`, `Settings`, `CONFIG_GROUPS`, and `DocumentDBSearchRepository._get_embedding_model`. Its largest technical gap is the authentication contract: the sequence diagram leaves `Bearer <token>` versus the raw token unresolved, while official LiteLLM embedding examples pass a raw `api_key`; it also incorrectly assumes setting a client-local `_embedding_unavailable` flag activates repository fallback. The process-wide configurable singleton still permits one client to overwrite another client's credentials, and the document is internally inconsistent about requiring HTTPS and exposing the refresh-buffer setting across deployment surfaces."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 75,
+      "notes": "The review identifies concrete security and operational risks, including environment exposure of secrets, token logging, endpoint transport, bounded expiry, missing tests, and infrastructure-name consistency, then prioritizes resolutions. Its recommendations are actionable and the resolution log explains how the final LLD incorporated explicit manager configuration, masking, expiry bounds, and test coverage. However, it inaccurately says the submitted LLD writes credentials into `os.environ` and describes `httpx` as HTTPS-only, although the final LLD uses `configure()` and permits HTTP. It also misses the raw-key versus prefixed-bearer decision, endorses an ineffective client-local unavailable flag, and does not fully resolve the singleton's cross-client configuration hazard."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 60,
+      "notes": "The plan covers token caching and failure, LiteLLM integration, settings validation, compatibility, UI masking, deployment rendering, rollback, and an end-to-end refresh scenario with meaningful intended oracles. Several supplied tests are not runnable as written: `registry.embeddings.client.litellm` is not a module-level symbol in the proposed patch, and the mocked embedding response lacks the data structure consumed by `encode()`. The deployment commands include a candidate-specific `/tmp/swe-clone-idp-authenticated-embedding-endpoint` path, while the stated `unittest discover` command and config-response shape are not established by repository evidence. Coverage also omits concurrent refresh, raw versus double-prefixed bearer behavior, the unconditional ECS secret regression, expiry coercion and bounds, and assertions that tokens and secrets never reach logs."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 2,
+      "specificity": 10,
+      "risk_awareness": 5,
+      "total": 22,
+      "notes": "The patch does not implement the design end to end: both `client.py` and `embeddings/__init__.py` import `registry/embeddings/idp_token_manager.py`, but the unified diff contains no addition for that file, so the resulting package cannot import. It also omits the promised tests, compose and entrypoint wiring, root Terraform variables and module pass-through, and ECS environment injection for the token endpoint, client ID, and scope. Worse, ECS always injects a client-secret resource whose default value is `not-configured`, causing the new startup validator to reject default ECS deployments, while `api_key=f\"Bearer {token}\"` conflicts with LiteLLM's documented raw `api_key` usage and risks a doubled authorization prefix. The summary's claims that compilation succeeded and that there were no LLD deviations are therefore unsupported and contradicted by the submitted patch."
+    }
+  },
+  "task_score": 60.8,
+  "verdict": "The design artifacts provide a strong repository-specific foundation, but the submitted implementation is unusable because its core token-manager file is absent and its incomplete ECS wiring can break existing deployments.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T07:31:56.261455Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 264353,
+      "cached_input_tokens": 181688,
+      "cache_write_input_tokens": 39290,
+      "output_tokens": 10942,
+      "reasoning_output_tokens": 8968
+    },
+    "duration_ms": 132890
+  }
+}

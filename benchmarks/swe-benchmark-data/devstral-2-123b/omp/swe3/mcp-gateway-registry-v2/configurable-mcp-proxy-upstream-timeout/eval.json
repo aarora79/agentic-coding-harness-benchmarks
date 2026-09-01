@@ -1,0 +1,64 @@
+{
+  "task": "configurable-mcp-proxy-upstream-timeout",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 72,
+      "notes": "The issue clearly defines the 30-second problem, preserves the default, names concrete configuration behavior, and provides testable acceptance criteria and non-goals. Repository documentation confirms configuration has multiple operator-facing API and deployment surfaces, supporting the need for explicit exposure and documentation.  Its largest weakness is the claim that a minimum timeout prevents abuse; a minimum prevents overly short values, whereas an upper bound or concurrency control addresses excessively long resource retention. No independent task statement was supplied, and the exact baseline line references, reported production symptoms, and relationship to issue #1026 could not be independently verified."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 47,
+      "notes": "The LLD names concrete files, symbols, data flow, defaults, documentation surfaces, alternatives, and rollout steps, making the intended core change easy to follow. Its largest architectural error is treating auth-server `/config` and `get_auth_config()` as the admin configuration integration point, while repository documentation identifies `/api/config`, `/api/config/full`, and `/api/config/export` as the configuration APIs.  The `int` field with `ge=5` conflicts with the documented float type and runtime clamping behavior, and load-bearing questions about maximum values and request coverage remain unresolved. Exact baseline line locations, existing metrics, and several Terraform paths could not be verified from the accessible evidence."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 6,
+      "specificity": 10,
+      "risk_awareness": 10,
+      "total": 36,
+      "notes": "The SRE section usefully identifies longer-lived failed requests, resource utilization, monitoring, and possible circuit-breaking as operational concerns. The review nevertheless misses the LLD's configuration-API mismatch and validation/type contradictions, while incorrectly asserting that a five-second minimum prevents denial of service through extremely long timeouts. Its resolution section claims source-aware logging and a timeout metric were added, but the submitted patch contains only a per-request value log and no metric. The repository's observability documentation shows that application metrics are explicit implementation artifacts, so that claimed resolution cannot be inferred automatically. "
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 11,
+      "total": 46,
+      "notes": "The plan covers defaults, overrides, invalid values, timeout responses, filtering compatibility, deployment surfaces, and end-to-end behavior with several concrete expected values. Its two-second boundary tests contradict the specified five-second minimum, and expecting success at exactly a timeout boundary is inherently nondeterministic. The proposed integration test supplies no valid authentication or server fixture, does not configure the streamed response, and never asserts the first request's result, so it is unlikely to reach or meaningfully verify the constructor assertion. It also repeatedly treats `/config` as the configuration endpoint although repository documentation identifies `/api/config*`; the exact auth-server route could not be verified. "
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 1,
+      "specificity": 8,
+      "risk_awareness": 4,
+      "total": 21,
+      "notes": "The patch attempts the core field, helper, proxy-client argument, environment example, documentation, and one configuration response assignment. It does not constitute an applicable complete implementation: the `server.py` hunks are submitted out of source order, and the documentation hunk treats strings such as `**+ Type:**` as unchanged context rather than additions. The summary claims six changed files, tests, all planned features, and no deviations, but the diff contains only four file sections, no tests or metric, and none of the Docker, Terraform, or Helm wiring expected by the repository's cross-surface configuration convention.  A local `git apply --check` could not be executed in the provided environment, but the structural diff defects and omitted files are directly visible in the submitted artifact."
+    }
+  },
+  "task_score": 44.4,
+  "verdict": "The submission articulates the feature well, but the implementation is structurally invalid and incomplete, while the design and tests mishandle configuration surfaces and minimum-value semantics.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T10:55:47.461832Z",
+    "repo_ref": "1.25.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 375268,
+      "cached_input_tokens": 254527,
+      "cache_write_input_tokens": 38119,
+      "output_tokens": 13959,
+      "reasoning_output_tokens": 11470
+    },
+    "duration_ms": 178959
+  }
+}

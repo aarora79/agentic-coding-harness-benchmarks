@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The issue clearly defines both capabilities, names affected management surfaces, and supplies concrete acceptance criteria and non-goals. Its caller_target axis and reserved quarantine groups align broadly with the repository's published 1.28.0 rate-limiting contract. The largest gap is that critical behavior—403 response semantics, admin eligibility, and backing-store failure policy—is deferred rather than specified, despite being central to an emergency kill switch. No independent task statement was supplied, so several proposed architectural details cannot be confirmed as requirements."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 10,
+      "total": 45,
+      "notes": "The LLD names concrete files such as registry/rate_limiting/limiter.py and provides detailed models, routes, data flow, observability, and rollout sections. It conflicts with the repository contract by returning 429, quarantining administrators, and enabling quarantine by default, while the published behavior uses a plain 403, protects admin-group users, and is off by default. It is also internally inconsistent about admin bypass and configuration, contains a malformed QuarantineMembership code block, and promises CLI/UI support without designing it. Claims that DocumentDB handles the added cardinality and that lookups are O(1) are unsupported by a schema, index, or measured evidence."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 5,
+      "specificity": 10,
+      "risk_awareness": 10,
+      "total": 34,
+      "notes": "The review raises several relevant concerns, including key length, storage growth, rollback, monitoring, and operator UX. Its principal finding is resolved incorrectly by removing the established admin bypass, contradicting both backward-compatibility goals and the repository's admin quarantine guardrail. It misses larger defects in the LLD, including persistence construction, contradictory configuration, malformed model code, response semantics, and absent CLI/UI design, yet declares the design ready. The claim that UI mockups were added is not supported by the reviewed LLD."
+    },
+    "testing": {
+      "completeness": 8,
+      "correctness": 2,
+      "specificity": 6,
+      "risk_awareness": 7,
+      "total": 23,
+      "notes": "The plan at least identifies independent-caller quotas, quarantine enforcement, legacy definitions, invalid inputs, restart persistence, and performance as relevant areas. Most curl examples are incomplete or invalid, with missing headers and data flags, dangling backslashes, literal ellipses, and a rate-limit loop that issues extra requests instead of recording one response per iteration. It expects quarantine to return 429 rather than the repository's plain 403, and its window-reset test expects success while the target remains quarantined. CLI and UI testing are declared inapplicable despite explicit issue acceptance criteria, while asserted endpoints such as /api/auth/login and /api/config/full are not substantiated."
+    },
+    "implementation": {
+      "completeness": 3,
+      "correctness": 0,
+      "specificity": 4,
+      "risk_awareness": 2,
+      "total": 9,
+      "notes": "The patch touches the intended model, limiter, and API areas, but it does not deliver a functioning end-to-end feature or the promised CLI, UI, and persistent storage. The submitted unified diff appends both new Python files without diff headers, deletes the definitions of identity and caller_type before using them, and creates a fresh in-memory QuarantineService for each API request and another for the limiter, so quarantine state cannot propagate or persist. Target removal also uses a different subject representation than insertion, while the summary falsely claims DocumentDB reuse, seamless integration, no breaking changes, and production readiness. A local git apply --check could not be executed because the provided read-only shell sandbox failed to initialize, but the malformed patch structure and runtime defects are directly visible in the submitted diff."
+    }
+  },
+  "task_score": 37.0,
+  "verdict": "The issue is a useful foundation, but the design diverges from repository behavior and the implementation is structurally unapplyable and functionally broken.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T11:46:47.517764Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 370697,
+      "cached_input_tokens": 281779,
+      "cache_write_input_tokens": 44458,
+      "output_tokens": 12643,
+      "reasoning_output_tokens": 10633
+    },
+    "duration_ms": 458332
+  }
+}

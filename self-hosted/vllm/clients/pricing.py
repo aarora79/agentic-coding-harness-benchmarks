@@ -12,7 +12,7 @@ an 8-GPU p5en.48xlarge is charged half the (discounted) instance rate.
 a 35% discount (pay 65% of ``dollars_per_hour``), 0.0 means no discount. It lets
 us keep an on-demand base on record while pricing runs at a committed/negotiated
 discount (e.g. p5en on-demand with a 0.35 placeholder discount); where the base
-already reflects the target (e.g. g6e at its 3-year RI rate) it is 0.0.
+already reflects the target (e.g. g6e at its 3-year commitment rate) it is 0.0.
 
 Usage:
     from pricing import resolve, instance_hourly

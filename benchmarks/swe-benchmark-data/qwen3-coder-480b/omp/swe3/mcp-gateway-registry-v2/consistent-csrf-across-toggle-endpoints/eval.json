@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 17,
+      "risk_awareness": 18,
+      "total": 71,
+      "notes": "The issue clearly describes the M2M failure, browser security requirement, affected resource types, non-goals, and testable high-level outcomes. Official v1.0.21 release notes corroborate the agent/skill failure and intended Bearer-token exemption.  Its largest deficiency is that the acceptance criteria do not specify exact authentication-context boundaries or negative cases, and the blanket statement that all toggles apply CSRF is ambiguous when Bearer requests bypass validation. No independent task statement was supplied, so the claimed virtual-server scope could not be independently established beyond the submitted artifacts."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 56,
+      "notes": "The LLD names concrete files, the `verify_csrf_token_flexible` dependency, the virtual-server route signature, and the intended session-versus-Bearer flow. Its load-bearing design is internally inconsistent: the proposed code skips every syntactically Bearer request, while later artifacts claim a revised trusted-nginx-header distinction, and modifying `registry/auth/csrf.py` contradicts its stated non-goal of modifying the core CSRF implementation. It also gives a virtual-server error as `404 / Skill not found` and provides only a phase list rather than a usable rollback plan. The design recognizes browser CSRF and M2M compatibility risks but does not resolve proxy-header provenance, mixed cookie-plus-Bearer requests, or how authentication success is bound to the bypass."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 12,
+      "risk_awareness": 15,
+      "total": 49,
+      "notes": "The review's strongest contribution is identifying the critical question of forged nginx authentication headers, along with missing negative tests, monitoring, and rollback guidance. It nevertheless labels that issue resolved and the implementation ready even though the LLD still bypasses on any Bearer header and contains no trusted-header validation design. Recommendations such as performance benchmarks and rate limiting are comparatively generic, while it misses the contradiction with the CSRF non-goal and the cookie-plus-Bearer behavior. The repeated `APPROVED WITH CHANGES` verdicts therefore understate an unresolved authentication-boundary decision."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 13,
+      "risk_awareness": 11,
+      "total": 44,
+      "notes": "The plan covers all four toggle families, browser and M2M paths, missing-CSRF negatives, compatibility, deployment smoke checks, and registration-to-toggle workflows. However, static placeholder session cookies, CSRF tokens, and Bearer tokens cannot produce valid authentication or CSRF validation, while client-supplied `X-User` and `X-Auth-Method` headers do not demonstrate that a trusted proxy generated them. Most curl cases merely comment that 200 or 403 is expected, and the E2E checks use broad string matching rather than asserting status, response schema, and persisted enabled state. It omits invalid-token tests across all endpoints, invalid Bearer authentication, mixed cookie-plus-Bearer requests, and concrete repository-native unit or integration test cases."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 7,
+      "total": 46,
+      "notes": "The patch concretely adds the CSRF dependency to `toggle_virtual_server` and changes `verify_csrf_token_flexible`, but it supplies no automated tests despite tests being an explicit acceptance criterion. Its classifier treats any Bearer request carrying client-visible `X-User` or `X-Username` as trusted, never uses the collected `X-Auth-Method`, and processes a session cookie before the M2M exemption, so a valid Bearer client with a stale cookie can still be rejected. This deviates materially from both the LLD's unconditional Bearer skip and the official release description, while the summary incorrectly claims no deviations or follow-ups.  The diff also leaves unreachable final success logging and whitespace/style issues; local `git apply --check`, import availability, and index hashes could not be independently verified because the provided command sandbox failed before executing read-only commands."
+    }
+  },
+  "task_score": 53.2,
+  "verdict": "The submission identifies the right compatibility and browser-security problem, but unresolved authentication-boundary contradictions, non-executable tests, and an untested implementation prevent it from being safely implementation-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:09:50.243459Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 251593,
+      "cached_input_tokens": 179677,
+      "cache_write_input_tokens": 33550,
+      "output_tokens": 11866,
+      "reasoning_output_tokens": 9502
+    },
+    "duration_ms": 201475
+  }
+}

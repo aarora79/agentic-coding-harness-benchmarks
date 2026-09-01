@@ -1,0 +1,64 @@
+{
+  "task": "macos-setup-python-version-precheck",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 79,
+      "notes": "The strongest aspect is its testable acceptance criteria, explicit exclusions, and preservation requirements for missing Python and other prerequisite checks. The referenced skill contains the original existence-only Python check, while the setup guide documents Python 3.14, supporting the central inconsistency.  The largest deficiency is that the asserted downstream uv-sync failure and the need for a live raw-GitHub lookup are not established by an independent task statement or repository evidence. It recognizes fetch failure but overlooks branch drift and existing-checkout scenarios where remote main may not describe the code being configured."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 73,
+      "notes": "The design is concrete about the target file, output contract, control flow, timeout, fallback, and three intended edits. Its largest correctness flaw is the sed parser: despite claims of tolerance, the expression requires a closing quote immediately after the captured digits, so a valid value such as \">=3.14, <4\" falls back instead of extracting 3.14. A malformed fetched value also produces a Python traceback without the promised PYTHON_FAIL marker, and fetching main can disagree with an existing or version-pinned checkout. Exact claims about all subproject metadata, workflow pins, and baseline line context could not be independently verified because the repository shell failed before command execution."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 62,
+      "notes": "The review's strongest contribution is identifying fallback drift and adding a bounded curl timeout, with concrete resolutions carried into the design. Its backend analysis incorrectly states that the proposed regex handles comma-separated specifiers, even though the literal closing quote after the capture prevents that match. It also misses the more consequential remote-main versus actual-checkout mismatch and accepts the unsupported claim that every nonzero parsing failure becomes a marker-based PYTHON_FAIL. Several persona sections are peripheral, while material repository and runtime assumptions remain unchallenged."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 42,
+      "notes": "The plan names useful branches and supplies specific expected marker text, plus static checks for diff scope and remediation guidance. Its central commands do not execute the submitted block: the first sed substitution deletes the matching requires-python line, forcing fallback, and the stubs use a different Python invocation interface. The shared PHASE1_PY_BLOCK also contains malformed f-string quoting, while PATH=/usr/bin:/bin does not reliably remove python3. No executable fetch-failure case is provided despite that behavior being an acceptance criterion, and none of the proposed tests was executed."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The patch targets the real macos-setup skill and replaces its published existence-only check with concrete version comparison, missing-interpreter handling, timeout, fallback, and preserved markers.  For the repository's stated simple \">=3.14\" value, the comparison logic is internally coherent and closely follows the LLD. The largest defects are reliance on moving remote main metadata, the narrow parser, loss of the PYTHON_FAIL contract on malformed parsed input, and remediation text whose shell variable is not itself executed by the markdown table. Exact applicability to baseline commit 5f725c1d1d1a3515840b17e29a2b7f22a0c1fd09 and the claimed git apply --check result could not be independently verified because local read commands failed at sandbox initialization."
+    }
+  },
+  "task_score": 64.8,
+  "verdict": "The submission is detailed and largely implements the simple current-version case, but incorrect parsing assumptions and a substantially broken testing plan leave important behavior unverified.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T20:31:50.155023Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 235212,
+      "cached_input_tokens": 145171,
+      "cache_write_input_tokens": 36782,
+      "output_tokens": 9084,
+      "reasoning_output_tokens": 7267
+    },
+    "duration_ms": 95299
+  }
+}

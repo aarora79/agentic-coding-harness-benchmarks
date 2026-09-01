@@ -1,0 +1,64 @@
+{
+  "task": "pass-ssrf-allowlist-env-to-registry-container",
+  "model": "glm-5.3",
+  "scores": {
+    "github_issue": {
+      "completeness": 24,
+      "correctness": 23,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 94,
+      "notes": "The issue precisely identifies the two affected compose files, exact environment entries, desired unset behavior, and explicit non-goals. Its acceptance criteria are directly testable and distinguish registry-starting stacks from overlays and companion stacks. The strongest evidence is the concrete comparison among docker-compose.yml, docker-compose.podman.yml, and docker-compose.prebuilt.yml. The independent task statement is absent, and detailed line-number and issue-number claims could not all be independently verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The LLD is unusually concrete about insertion anchors, interpolation semantics, container recreation, env_file precedence, and the unchanged runtime path through config.py and url_guard.py. Its largest weakness is an internal contradiction: it calls three-file environment parity an existing pattern while separately acknowledging A2A_REVERSE_PROXY_ENABLED already violates that pattern. The observability section also calls the detailed settings surface /api/config, while repository documentation distinguishes the basic endpoint from admin-only /api/config/full. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/configuration.md)) Exact baseline line numbers and the claimed preflight call chain remain incompletely verifiable."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 90,
+      "notes": "The review performs real stress checks around env_file precedence, Pydantic env-name mapping, container recreation, security defaults, and absent parity coverage. Its strongest contribution is tracing the extra_env reserved-name mechanism rather than merely approving the proposed YAML. It misses the LLD's contradictory parity claim and the imprecise /api/config observability claim, and it accepts the regression-test deferral somewhat readily. The asserted clone verification and exact source locations could not all be independently reproduced."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 73,
+      "notes": "The plan supplies concrete interpolation, container-environment, default-deny, rollback, and positive/negative SSRF oracles across both variants. Its core E2E flow is not self-contained: it uses flight-booking-agent without starting the companion agent stack, so the negative control may produce DNS or connection failure instead of the intended SSRF block. The unset test does not actually neutralize values already present in .env, and the git stash comparison is unreliable when the patch is committed or already applied. Commands that append to .env and overwrite extra_env/registry.env also risk damaging an existing test workspace, while the exact API and token-file assumptions remain unverified."
+    },
+    "implementation": {
+      "completeness": 24,
+      "correctness": 24,
+      "specificity": 24,
+      "risk_awareness": 20,
+      "total": 92,
+      "notes": "The patch implements the requested deployment wiring end to end by adding both optional passthroughs to exactly the two identified registry environment blocks. Its context, indentation, insertion anchors, and comment text are internally consistent with the stated reference pattern, and the implementation summary accurately describes the limited scope. The largest remaining risk is the deliberate absence of an automated parity assertion, leaving the same drift class procedurally rather than mechanically prevented. Exact git apply --check verification against the local baseline could not be independently completed, which is an evidence gap rather than an apparent diff defect."
+    }
+  },
+  "task_score": 87.4,
+  "verdict": "This is a strong, narrowly correct deployment fix with well-grounded design work, but the testing plan's non-self-contained E2E setup and unsafe or nondeterministic workspace commands are the largest material limitation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T00:23:28.868870Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 311840,
+      "cached_input_tokens": 222144,
+      "cache_write_input_tokens": 37856,
+      "output_tokens": 13999,
+      "reasoning_output_tokens": 11630
+    },
+    "duration_ms": 382246
+  }
+}

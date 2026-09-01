@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "glm-5.3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 87,
+      "notes": "The issue clearly defines token expiry, opt-in behavior, deployment surfaces, security expectations, testable acceptance criteria, and explicit non-goals. Its cited integration points are consistent with the supplied baseline contexts for LiteLLM embeddings, settings, federation authentication, and configuration masking. The largest evidence gap is that no independent task statement establishes whether all five settings and every named deployment surface were actually required. It also overstates byte-for-byte compatibility because configuration output and deployment definitions necessarily change, and it prescribes a singleton implementation more tightly than an issue normally should."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The LLD is unusually concrete about data flow, settings, token caching, locking, secret handling, infrastructure wiring, rollback, and named files such as registry/embeddings/client.py and search_repository.py. However, it repeatedly names CONFIG_CATEGORIES while the supplied source context uses CONFIG_GROUPS, and it inconsistently says the disabled static-key path performs no provider environment write even though that write is existing LiteLLM behavior. Its outage analysis says query paths remain latched until restart but later claims a successful indexing call self-heals searches, and its sample manager does not normalize malformed JSON or invalid expires_in failures into the promised RuntimeError contract. The local repository shell failed before command execution, so exact source inspection and line-level verification could not be completed independently."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The review identifies concrete design risks rather than merely approving, including static-key precedence, query latch behavior, Terraform secret sensitivity, Helm reserved names, plaintext token endpoints, and stale documentation paths. Its recommendations are prioritized and generally produce actionable LLD changes. The largest deficiency is its claim that all blockers are resolved despite the revised LLD retaining contradictory no-op and outage-recovery statements, the wrong CONFIG_CATEGORIES symbol, and incomplete malformed-token handling. The review also evaluates only the issue and LLD, so it does not catch the later Terraform list-shape defect or erroneous testing commands."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 65,
+      "notes": "The plan spans unit, functional, compatibility, configuration, Docker, Terraform, Helm, rollover, failure, and rollback coverage with many concrete oracles. Its core search commands use POST /api/search, while the repository's hybrid-search design documents POST /api/search/semantic, so much of the functional and end-to-end procedure would fail before exercising embeddings.  Changing a secret followed by docker compose restart does not recreate the container with updated environment, and docker compose exec env cannot observe environment mutations made inside the running Python process. The supposed refresh-buffer test forces a token fully expired rather than within the sixty-second buffer, while the outage-recovery expectation contradicts the documented process-lifetime query latch."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "The Python hunks coherently implement the central flow: settings validation, a cached token manager, per-call LiteLLM api_key injection, static-key suppression, repository wiring, masking, documentation, and focused tests. The largest defect is in ecs-services.tf, where the conditional IdP environment list is inserted as an element of the existing environment list instead of as a separate concat argument, producing a nested array rather than valid ECS environment entries. The ECS client-secret entry is also injected unconditionally when the feature is disabled, malformed token JSON and invalid expires_in values escape the advertised RuntimeError handling, and tests never exercise an expiry inside the refresh buffer. Because the read-only shell sandbox failed before execution, the summary's git apply --check claim and exact patch applicability could not be independently verified."
+    }
+  },
+  "task_score": 76.8,
+  "verdict": "The submission has strong, repository-shaped design work and a mostly credible core implementation, but the required Terraform path is structurally broken and several central test procedures would not exercise the intended behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T23:58:38.198500Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 410784,
+      "cached_input_tokens": 330321,
+      "cache_write_input_tokens": 80169,
+      "output_tokens": 3865,
+      "reasoning_output_tokens": 1876
+    },
+    "duration_ms": 204768
+  }
+}

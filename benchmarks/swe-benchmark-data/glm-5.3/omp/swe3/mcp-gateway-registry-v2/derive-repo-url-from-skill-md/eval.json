@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "glm-5.3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 85,
+      "notes": "The issue provides testable behavior for parsing, editable auto-fill, both modal variants, null handling, and explicit non-goals. Its named integration points are corroborated by the submitted diff, including `_parse_skill_md_content`, `SkillInfo`, `SkillSearchResult`, `handleParseSkillMd`, and both modal components. Its largest gap is ambiguity around reparsing after a previous derivation and treatment of existing search-index documents, both of which can leave repository links stale or absent. No independent task statement was supplied, so the expanded UI and semantic-search scope is supported only by the repository tags and internally consistent artifacts."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 13,
+      "specificity": 24,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The LLD is unusually concrete about files, models, data flow, compatibility, indexing, rollout, and implementation boundaries. Its central algorithm is nevertheless wrong for public raw URLs: removing `raw.` from `raw.githubusercontent.com` produces `githubusercontent.com`, contradicting its promised `github.com` result. It also preserves a previous form value when a later parse returns null and does not enforce the documented HTTPS URL shapes. The claim that exactly three search hit builders cover every path could not be independently enumerated because the local repository command runner was unavailable."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 67,
+      "notes": "The review raises concrete concerns about stale indexes, URL validation, logging, optional frontend fields, and shared regex maintenance. Its largest failure is explicitly approving the raw-host prefix logic even though `raw.githubusercontent.com` minus `raw.` is `githubusercontent.com`, missing the implementation's core functional defect. It also notices that `data.repository_url || prev.repository_url` retains stale data after a non-GitHub reparse but dismisses the resulting wrong-repository risk. The asserted exhaustive trace of all consumers could not be independently verified through the unavailable local shell."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The plan supplies concrete API, compatibility, UI, rollback, and pure-function oracles rather than merely checking execution. Most importantly, its expected public raw result is `https://github.com/org/repo`, so the added unit test would expose the implementation defect immediately. Coverage is weaker for automated frontend behavior, stale-value reparsing, and scheme validation because inputs such as `ftp://github.com/...` are absent. The update scenario remains vague as `PUT/PATCH per existing API`, and the commands could not be executed in the provided sandbox."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 71,
+      "notes": "The patch touches all designed layers and accurately reports its 14-file, +329/-5 scope, including service, schemas, search indexing, frontend mapping, modals, and tests. The critical defect is `hostname[len(\"raw.\"):]`: for `raw.githubusercontent.com` it returns `githubusercontent.com`, so a primary acceptance criterion fails and the patch's own raw-URL unit test cannot pass. The form fallback can retain a repository from an earlier URL, while the helper also accepts unsupported schemes when they contain a GitHub hostname. Local `git apply --check` and test execution were unavailable because the sandbox command runner failed, although the submitted diff contexts and symbols are internally consistent."
+    }
+  },
+  "task_score": 77.8,
+  "verdict": "The artifacts are detailed and mostly well grounded, but the implementation is not mergeable because public raw.githubusercontent.com URLs derive the wrong host and fail a core acceptance criterion.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T23:46:49.732347Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 219409,
+      "cached_input_tokens": 160562,
+      "cache_write_input_tokens": 42472,
+      "output_tokens": 8641,
+      "reasoning_output_tokens": 7310
+    },
+    "duration_ms": 132384
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The issue provides unusually testable acceptance criteria, explicit fallback behavior, configuration, metrics, and clear non-goals. The submitted patch preimage supports the central claim that `registry/auth/routes.py` appends `id_token_hint` to the auth-server redirect and `auth_server/server.py:oauth2_logout` consumes it. Its largest correctness defect is claiming the OIDC specification requires the hint and describing the ID token as being revoked; the hint is recommended rather than universally required, and logout does not inherently revoke a signed ID token. No independent task statement was supplied, and the related issue numbers and exact operational incidence could not be verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 80,
+      "notes": "The LLD commits to concrete repository integration points, request and response models, timeout behavior, rollout compatibility, logging restrictions, and exact files; the patch context supports the named logout handlers, settings, and meter structures. Its largest design weakness is treating every non-200 response as permission to re-expose the token through the legacy browser URL, rather than limiting security-degrading fallback to compatibility failures such as 404/405 and explicitly chosen cases. It also overlooks malformed successful responses: a non-object JSON value raises `AttributeError` at `data.get`, which the proposed helper does not catch for legacy fallback, and its fallback-rate alert conflicts with intentionally disabled deployments that increment the same counter. Deployment assertions about arbitrary Helm/environment propagation and clean patch applicability could not be independently verified because repository command execution was unavailable."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 84,
+      "notes": "The review surfaces concrete, relevant defects—secret-bearing URL logging, request-derived redirect origins, split timeout handling, endpoint authentication, and plaintext internal transport—and records actionable resolutions. The submitted patch reflects several of those resolutions through provider-only logging, `REGISTRY_URL` preference, and an explicit `httpx.Timeout`. Its largest omission is failing to challenge fail-open fallback on arbitrary server errors or the observability design in which expected operator-disabled traffic triggers the same fallback alert as an outage. Claims that every deployment topology already provides reachability and that no middleware records response bodies are asserted as author confirmations but were not independently substantiated."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 71,
+      "notes": "The plan supplies concrete HTTP oracles for provider URL construction, unsafe redirects, mixed versions, disabled configuration, missing tokens, SSO termination, metrics, and rollback. Its most significant incorrect oracle is that the successful registry `Location` must be well under 2000 characters: the direct IdP URL still contains the full JWT and can remain long, while the benefit is avoiding the deployment WAF rather than shortening the IdP URL. It also claims the patch adds handler-level success, counter, and flag-disabled tests, but `tests/unit/auth/test_logout_backchannel.py` only exercises `_resolve_idp_logout_url_backchannel`; the logging test observes INFO and above, so it cannot detect a token leaked at DEBUG. The black-hole address timing assertion is environment-dependent, and the stated Helm pass-through and full-suite command could not be verified against the repository."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 19,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The patch implements the main flow end to end across the auth-server POST endpoint, shared URL builder, registry call and fallback, settings, metrics, documentation, and focused helper tests. The largest concrete deficiency is test coverage and summary accuracy: the claimed logout-handler, counter, and disabled-flag tests are absent, while `tests/unit/observability/test_meters.py` replaces the two existing logout metric names instead of adding the new names. Runtime handling also falls back with the secret-bearing URL on every non-200 and fails to catch a 200 response whose JSON is not a mapping, despite the summary claiming complete fallback behavior. The diff context is internally consistent with the displayed preimage, but the claimed clean `git apply --check` and surrounding repository conventions could not be independently confirmed because the read-only command sandbox failed before launching commands."
+    }
+  },
+  "task_score": 77.6,
+  "verdict": "This is a strong, repository-specific design with a largely complete implementation, but fail-open security semantics, overstated test coverage, and an observability-test regression materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T20:30:14.844652Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 451187,
+      "cached_input_tokens": 256301,
+      "cache_write_input_tokens": 155844,
+      "output_tokens": 14641,
+      "reasoning_output_tokens": 12130
+    },
+    "duration_ms": 171033
+  }
+}

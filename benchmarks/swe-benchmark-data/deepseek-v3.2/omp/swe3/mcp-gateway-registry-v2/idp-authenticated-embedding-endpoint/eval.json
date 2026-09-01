@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "deepseek-v3.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The issue clearly defines the token-expiry problem, opt-in behavior, security expectations, deployment surfaces, and explicit non-goals. Its acceptance criteria name concrete settings and observable outcomes, and repository documentation confirms that docs/configuration.md is a real configuration reference.  The main gap is that the initial environment-variable list omits EMBEDDINGS_IDP_TOKEN_REFRESH_BUFFER_SECONDS despite subsequently requiring a configurable buffer and six deployment settings. No independent task statement was supplied, and the asserted related issue #1415 could not be verified at the requested repository ref."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 16,
+      "total": 65,
+      "notes": "The LLD is unusually concrete about Settings, LiteLLMClient, create_embeddings_client, token caching, error classes, configuration surfaces, and compatibility behavior. Its largest unresolved decision is startup validation: it acknowledges lazy embedding-client construction but never names an application startup hook, while placing token-manager creation inside create_embeddings_client. Error behavior is internally inconsistent between returning None, permanent ValueError, a broken state, and startup failure, and the proposed metrics lack an identified repository integration point. Some deployment paths also could not be verified at ref 1.28.0; available repository documentation uses charts/registry/values.yaml rather than the asserted charts/mcp-gateway-registry path. "
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 64,
+      "notes": "The review identifies meaningful concerns around secret rotation, readiness, transient failures, short token lifetimes, configuration drift, and testability, with concrete recommendations. Its largest correctness problem is claiming resolutions that the LLD does not actually contain, including explicit network documentation, Kubernetes extraEnv secret sourcing, scope encoding, and injectable HTTP-client construction. The scope recommendation is itself unsafe because pre-quoting a value that httpx form-encodes produces double encoding for common scopes such as api://app/.default. The overall approval misses the unresolved startup integration and recoverability problems, so its verdict is less defensible than its individual observations."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 12,
+      "risk_awareness": 11,
+      "total": 45,
+      "notes": "The plan covers functional, compatibility, UI, deployment, rollback, and end-to-end scenarios, which is its strongest aspect. However, it invokes POST /api/search while repository evidence identifies the semantic-search route as /api/search/semantic, so a central workflow would not exercise the feature as written.  Its expected token_source log entries do not match the submitted implementation, and token-expiry verification is left as waiting or clearing the cache 'if possible' without a deterministic oracle. It omits executable unit tests for locking, refresh boundaries, malformed token responses, retries, permanent failure recovery, and secret leakage, while several compatibility checks merely say to verify behavior."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 3,
+      "specificity": 15,
+      "risk_awareness": 7,
+      "total": 34,
+      "notes": "The patch concretely modifies configuration, the LiteLLM client, UI metadata, and three Compose files, and the summary candidly admits that Terraform, Helm, documentation, metrics, and tests remain unimplemented. The feature is nevertheless unusable as written: the field validator targets embeddings_idp_enabled, which is declared before the endpoint, client ID, and secret, so Pydantic's info.data cannot contain those later fields and enabling IdP always reports them missing. The token request also pre-quotes scope before httpx form encoding, and the broken state cannot recover because get_token raises before attempting the successful refresh that would clear it; claimed startup validation occurs only when the lazy client factory runs. Local git apply --check was unavailable because the read-only shell sandbox failed before executing commands, but these correctness defects and the partial acceptance-criteria coverage are directly visible in the submitted diff."
+    }
+  },
+  "task_score": 56.8,
+  "verdict": "The design package is specific and operationally aware, but the implementation is incomplete and contains a fatal configuration-validation bug that prevents the advertised IdP mode from working.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T20:32:28.103407Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 330480,
+      "cached_input_tokens": 249292,
+      "cache_write_input_tokens": 50694,
+      "output_tokens": 13865,
+      "reasoning_output_tokens": 11439
+    },
+    "duration_ms": 150604
+  }
+}

@@ -144,6 +144,16 @@ api_key: local
 #       --dataset dataset/mcp-gateway-registry.yaml
 
 output_dir: swe-benchmark-data
+# Per-task repo clones. /tmp is the portable default, but CHECK IT FITS: a clone
+# transiently reaches ~1.8 GB once a task builds a venv inside it, and on a node
+# whose / is small this fills the root disk. On the 8xH200 DLAMI (29 GB /) that
+# is exactly what happened on 2026-08-30 -- the active model died with ENOSPC
+# writing its event stream and the next model's vLLM failed in Triton
+# compilation. Note TMPDIR does NOT cover this: the path comes from this config.
+# On a node with a big scratch volume, point it there instead, e.g.
+#   clone_dir: /opt/dlami/nvme/tmp/swe-clones
+# and prefer a 0755 dir you own over one directly under a 1777 scratch root,
+# which another local user could pre-create as a symlink.
 clone_dir: /tmp
 
 # Run every task in the dataset. To run a subset, list task ids, e.g.:

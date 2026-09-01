@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The issue clearly defines the browser-versus-bearer problem, scope, non-goals, and testable acceptance criteria. Its named integration points align with the submitted patch targets, including verify_csrf_token_flexible and toggle_virtual_server. The largest weakness is that several authentication and deployment assertions are stated as facts without independent evidence, and skill-route notation varies between sections. No independent task statement was supplied, limiting verification of requirements beyond the identifier and artifacts."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The LLD provides a concrete control flow, exact target symbols, compatibility behavior, alternatives, rollout, and failure analysis. Its proposed edits correspond precisely to the submitted diff contexts in registry/auth/csrf.py and registry/api/virtual_server_routes.py. The largest correctness defects are the false claim that FastAPI resolves sibling dependencies in parallel and the contradictory statements about whether /csrf-token uses the flexible dependency. Claims about nginx stripping headers, production ingress topology, and other call sites could not all be independently verified."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 20,
+      "total": 75,
+      "notes": "The review's strongest material is its concrete analysis of mixed cookie/bearer requests, cookie stripping, direct ingress, logging, and missing real-dependency tests. It correctly recommends dedicated tests rather than relying on route suites that override the CSRF dependency. Its largest deficiency is that it repeats the incorrect parallel-dependency-resolution claim and declares no design revision necessary without resolving the LLD's contradictory call-site claims. Answers asserting the SPA never mixes credentials, production always uses nginx, and INFO is the repository default are unsupported in the submitted evidence."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 65,
+      "notes": "The five dependency-level cases have concrete setup and useful oracles for valid, missing, invalid, and session-mismatched tokens. The largest defect is the proposed bearer route assertion, which can pass on 404, 422, 500, or a non-CSRF 403, while its service setup remains an ellipsis. The repository documentation exposes agent APIs under /api/agents, whereas the E2E commands use root-level /agents paths and an invalid JSON ellipsis, making that scenario non-runnable as written.  The plan also lacks an executable assertion that all four routes retain the shared dependency and does not directly cover form-token extraction."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The patch implements the two central design changes: an early no-cookie return in verify_csrf_token_flexible and the shared dependency on toggle_virtual_server. The cookie-present validation path remains structurally intact, and the added tests directly exercise both principal threat-model branches. The largest gap is the absence of the promised route-level regression test, so the tests would pass even if the virtual-server dependency addition were later removed; the summary therefore overstates having no deviation from the testing plan. The local command sandbox failed before execution, so the claimed baseline commit, git apply --check result, and repository pytest configuration could not be independently reverified."
+    }
+  },
+  "task_score": 77.2,
+  "verdict": "Strong and mostly implementation-ready security work, limited chiefly by inaccurate dependency-resolution claims and testing that does not reliably prove endpoint wiring or the documented E2E flow.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T20:09:38.287354Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 343944,
+      "cached_input_tokens": 232065,
+      "cache_write_input_tokens": 72705,
+      "output_tokens": 13763,
+      "reasoning_output_tokens": 11853
+    },
+    "duration_ms": 179456
+  }
+}

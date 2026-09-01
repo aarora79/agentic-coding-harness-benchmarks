@@ -109,4 +109,4 @@ cd self-hosted/vllm
 ./scripts/run-throughput-sweep.sh --model qwen3.8-27b --context-window 65536
 ```
 
-Instance pricing for `g6e.4xlarge` is in [pricing.json](../pricing.json) at the 3-year RI rate ($1.298/hr), the same basis as `g6e.12xlarge`.
+Instance pricing for `g6e.4xlarge` is in [pricing.json](../pricing.json) at the 3-year commitment rate ($1.298/hr), the same basis as `g6e.12xlarge`.

@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 82,
+      "notes": "The issue clearly defines the prefix-collision problem, scope, migration behavior, and testable acceptance criteria. The submitted patch context corroborates the named `_create_location_block` and its original unbounded location directive. Its largest correctness error is claiming that redirecting `/name` to `/name/` makes a POST reach `/name/mcp`; it preserves the POST but does not add `/mcp`. No independent task statement establishes whether deferring the parallel virtual-server vulnerability is acceptable."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 79,
+      "notes": "The LLD is unusually concrete about files, symbols, data flow, nginx precedence, rollout, and alternatives. Its implementation steps correspond closely to the submitted hunks in `registry/core/nginx_service.py`. The largest defect is that it calls root handling total while normalizing `/` to `/` and then appending another slash, producing `location {{ROOT_PATH}}//`; it also preserves internal doubled slashes. Claims such as the sole-caller relationship and exact validation pipeline could not be independently verified because repository command execution failed before reading files."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 80,
+      "notes": "The review meaningfully examines proxy URI rewriting, redirect caching, reload blast radius, and the unmitigated virtual-server path. Its concrete discussion of `_generate_virtual_server_blocks`, `_create_location_block`, and the changed `proxy_pass` semantics is substantially more useful than generic approval. It nevertheless misses the visible root-path `//` defect and accepts without evidence that the upstream handler tolerated doubled slashes, calling the behavior change strictly safe. The reserved-prefix question and claimed follow-up tracking remain unresolved and unverifiable."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 71,
+      "notes": "The plan provides concrete unit assertions for location shape, redirect generation, normalization, multi-segment paths, compatibility, deployment, and rollback. The test names and calls agree with the submitted implementation, although its hard-coded clone path does not match the supplied working directory. Its largest gap is the absence of a rendered-root-path test, which allows the `{{ROOT_PATH}}//` bug, while the MCP compatibility test merely reasserts the generated prefix string rather than exercising nginx behavior. The ROOT_PATH command contains an ellipsis, the E2E JSON contains invalid `{...}`, and no `nginx -t` or actual matcher-level oracle is specified."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 67,
+      "notes": "For ordinary paths such as `/weather` and `/a`, the patch implements the designed slash-bounded location, exact 308 redirect, and focused regression tests. The concrete root-path branch is incorrect: `_normalize_server_location_path(\"/\")` returns `/`, after which the renderer emits `location {{ROOT_PATH}}//`. The helper also retains internal doubled slashes, the redirect cannot make `/name` become `/name/mcp`, and the summary says eight tests although the diff contains seven new `test_` functions. Patch applicability could not be independently dry-run because the read-only shell sandbox failed before command execution; separately, the documented virtual-server vulnerability remains unmitigated."
+    }
+  },
+  "task_score": 75.8,
+  "verdict": "Strong and repository-specific design work implements the main non-root fix, but the root-path rendering bug and knowingly unmitigated parallel route-hijack materially limit production readiness.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T20:33:59.989690Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 265473,
+      "cached_input_tokens": 187447,
+      "cache_write_input_tokens": 39570,
+      "output_tokens": 11872,
+      "reasoning_output_tokens": 9522
+    },
+    "duration_ms": 129823
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The issue clearly identifies the four routes, session and bearer behaviors, exact 403 outcome, non-goals, and testable acceptance criteria. The patch contexts support its claim that agent and skill toggles used the existing validator and virtual-server toggle lacked it. Its largest deficiency is requiring bearer compatibility for all four endpoints while overlooking that the server toggle uses session-only enhanced_auth, so the proposed CSRF-only change cannot meet that criterion. No independent task statement was supplied, and the related issue number and disabled-by-default claims could not be independently verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 12,
+      "total": 61,
+      "notes": "The LLD is unusually concrete about real route files, dependency signatures, state flow, tests, and retained behavior. Its central contradiction is acknowledging that enhanced_auth prevents bearer access to the server toggle while deliberately declining the change needed to satisfy its own all-four-endpoints goal. The proposed condition, auth_method truthy and not equal to session, also exempts every unknown nonempty method despite repeatedly claiming unknown methods take the safe CSRF-required path. It discusses trust boundaries and browser risk, but does not resolve the unsafe broad exemption or verify the virtual-server SPA behavior."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 65,
+      "notes": "The review surfaces specific concerns about the missing allowlist, absent user context, session-only server authentication, and virtual-server SPA headers. Its largest failure is recognizing both load-bearing design defects but still accepting the non-session condition as future-proof and treating the server limitation as merely documentary. It never points out that an arbitrary unknown auth_method bypasses CSRF, contradicting the claimed safe default, or that the server acceptance criterion remains impossible. Several resolutions only add comments or planned tests rather than correcting the security and compatibility defects."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 55,
+      "notes": "The plan covers all four endpoints, positive and negative session cases, bearer cases, direct dependency tests, UX checks, and backward compatibility with concrete status oracles. The server bearer test cannot represent production behavior because that route remains behind enhanced_auth, and the curl scenarios also lack deterministic resource creation. The direct tests assign request.form a MagicMock returning a plain dictionary even though the validator awaits it, and the final unittest-discovery command will not reliably execute the pytest-style suite. It tests missing context but omits the crucial unknown nonempty auth_method case that exposes the proposed bypass."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 4,
+      "specificity": 15,
+      "risk_awareness": 4,
+      "total": 30,
+      "notes": "The patch adds the dependency and wires agent, skill, and virtual-server routes, but server_routes.py receives only an import change and its toggle dependency is never replaced. It also omits the claimed tests for skill, virtual server, and tests/unit/auth/test_csrf.py, while changing shared fixtures to stop overriding the old validator that retained non-toggle routes still use. The auth_method condition contradicts the documented safe handling of unknown methods, and bearer tests override the authentication dependency without populating request.state.user_context, so they should fall back to CSRF and fail. Local shell execution failed before commands ran, so git apply --check and the claimed compilation result could not be independently verified; the summary nevertheless materially overstates what the visible diff implements."
+    }
+  },
+  "task_score": 57.4,
+  "verdict": "The submission presents a strong problem statement and detailed design, but the implementation misses the server route, provides incomplete and likely failing tests, and introduces an overbroad CSRF exemption.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T07:18:42.756628Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 402588,
+      "cached_input_tokens": 286885,
+      "cache_write_input_tokens": 41264,
+      "output_tokens": 17116,
+      "reasoning_output_tokens": 15047
+    },
+    "duration_ms": 354847
+  }
+}

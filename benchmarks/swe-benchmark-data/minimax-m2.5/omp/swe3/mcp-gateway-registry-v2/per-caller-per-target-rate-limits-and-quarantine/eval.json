@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 20,
+      "risk_awareness": 19,
+      "total": 79,
+      "notes": "The issue clearly defines both capabilities, explicit non-goals, admin behavior, and mostly testable acceptance criteria. Its named enforcement point, RateLimiter.check(), and existing caller and target axes agree with the submitted baseline diff. The largest defect is that it requires fail-open behavior while the LLD, review, and testing plan require quarantine to fail closed; the quarantine response is also not specified precisely. No independent task statement establishes the claimed operator demand or exact CLI and UI obligations."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 15,
+      "total": 54,
+      "notes": "The strongest aspect is its concrete mapping to limiter.py, models.py, DefinitionsRepository, and MembershipsRepository, with a comprehensible gate-building flow. Its check() pseudocode permits an admin to bypass caller quarantine via `caller_quarantined and not is_admin`, directly contradicting the issue's required semantics. Target quarantine assumes a caller-oriented membership model can represent targets, while the CLI section leaves that integration undecided and the UI has no file-level plan. Fail-open versus fail-closed behavior is internally inconsistent, and the asserted metric names, latency figures, cache behavior, and seeding location are not substantiated."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 19,
+      "risk_awareness": 21,
+      "total": 75,
+      "notes": "The review identifies substantive risks including the target-membership mismatch, non-idempotent seeding, stale-cache exposure, auditability, cardinality, and migration. These findings are concrete and prioritized, and the empty-identity question is particularly relevant to the proposed composite key. It misses the LLD's explicit admin-bypass bug and recommends placing `quarantined` on a rate-limit definition without resolving multiple definitions, deletion, or targets having no definition. Several approvals rely on unverified assertions about caching, indexes, response headers, and infrastructure rather than checked repository behavior."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 13,
+      "total": 50,
+      "notes": "The plan provides concrete request sequences and useful oracles for quota independence, precedence, admin behavior, and backend failure. It switches target quarantine to an unapproved `quarantined` definition field, while the LLD specifies reserved membership groups and the implementation provides neither target mechanism. The end-to-end setup incorrectly creates separate Alice and Bob definitions even though the proposed definition contains no caller identity, and the group deletion and empty-group listing endpoints are unsupported by the described membership model. It omits UI coverage, validation cases, unquarantine behavior, cache invalidation, delimiter collisions, disabled definitions, multiple windows, and detailed unit-test locations."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 0,
+      "specificity": 10,
+      "risk_awareness": 8,
+      "total": 22,
+      "notes": "The patch attempts the core caller-target gate and caller quarantine in the relevant model, repository, and limiter symbols, but it does not implement the promised feature end to end. In models.py it replaces `CALLER_TYPE_AGENT = \"agent\"` while limiter.py still imports that symbol, causing an import failure; in definitions_repository.py it inserts the new method before the existing `return definitions`, leaving list_target_limits() without a return. The model change also removes the entity-type membership check for every axis, while target quarantine, fail-closed handling, reserved-group lifecycle, API, CLI, UI, status, metrics, and tests are absent. The summary admits many omissions but inaccurately describes lookup failures as fail-open, and a git apply dry-run could not be obtained because the read-only command sandbox failed before execution."
+    }
+  },
+  "task_score": 56.0,
+  "verdict": "The design package contains useful problem framing and risk review, but unresolved quarantine semantics and a patch with fatal import and existing-target-limit regressions make the submitted change unusable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T13:57:05.618660Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 325458,
+      "cached_input_tokens": 251036,
+      "cache_write_input_tokens": 47100,
+      "output_tokens": 13480,
+      "reasoning_output_tokens": 11345
+    },
+    "duration_ms": 140377
+  }
+}

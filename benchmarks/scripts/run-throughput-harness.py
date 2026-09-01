@@ -46,8 +46,11 @@ import importlib.util
 import json
 import logging
 import random
+import re
 import shutil
+import subprocess  # nosec B404 - list-form `git ls-files` only, never shell=True
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -149,6 +152,185 @@ def _task_cycler(tasks: list[Task]):
         yield from order
 
 
+_UNSAFE_PATH_CHARS = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def _safe_path_component(value: str, fallback: str) -> str:
+    """Reduce a value to a single safe filename component.
+
+    ``model_slug`` is derived from ``--model`` by ``model_to_slug``, which only
+    strips a Bedrock prefix and a bracketed suffix -- it does NOT sanitize path
+    separators, so a model id containing ``/`` or ``..`` survives intact. That
+    matters here because the slot dir built from it is ``shutil.rmtree``d with
+    ``ignore_errors=True`` when the session ends: a slug of ``../../../etc/x``
+    would escape ``clone_dir`` and silently delete a tree outside it. Collapsing
+    everything outside ``[A-Za-z0-9._-]`` and stripping leading dots means the
+    result can only ever name a child of ``clone_dir``.
+
+    Args:
+        value: The raw value to use as a path component.
+        fallback: Component to return when ``value`` reduces to nothing.
+
+    Returns:
+        A single path component safe to join onto a trusted parent directory.
+    """
+    return _UNSAFE_PATH_CHARS.sub("-", value).lstrip(".") or fallback
+
+
+def _root_entry_names(root: Path) -> set[str]:
+    """Return the names directly under ``root``, or an empty set if unreadable."""
+    try:
+        return {entry.name for entry in root.iterdir()}
+    except OSError:
+        return set()
+
+
+def _is_git_tracked(root: Path, name: str) -> bool:
+    """Report whether ``name`` is tracked by the git repo at ``root``.
+
+    Fails CLOSED. Only exit 1 -- git ran, found the repo, and reported the path is
+    not in the index -- counts as untracked. Exit 128 (``root`` is not a git repo),
+    a missing binary, or a timeout all return True, so a file whose trackedness
+    cannot be established is never deleted.
+
+    Args:
+        root: The repository root to ask about (also the subprocess cwd).
+        name: A single path component directly under ``root``.
+
+    Returns:
+        True if git lists the path, or if trackedness could not be determined.
+    """
+    try:
+        proc = subprocess.run(  # nosec B603 B607 - hardcoded 'git', list args, no shell
+            ["git", "ls-files", "--error-unmatch", "--", name],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    return proc.returncode != 1
+
+
+def _quarantine_dir(parent: Path) -> Path | None:
+    """Create a fresh 0700 directory under ``parent`` to move strays into.
+
+    ``mkdtemp`` rather than a fixed name: ``clone_dir`` defaults to ``/tmp``, so a
+    predictable path could be pre-created as a symlink by another local user and
+    would then receive the moved files. ``mkdtemp`` creates exclusively with 0700
+    or fails.
+
+    Args:
+        parent: Directory to create the quarantine dir inside (``clone_dir``).
+
+    Returns:
+        The new directory, or None if it could not be created.
+    """
+    try:
+        return Path(tempfile.mkdtemp(prefix="swe-thru-stray-", dir=str(parent)))
+    except OSError as exc:
+        logger.warning("could not create a quarantine dir under %s: %s", parent, exc)
+        return None
+
+
+def _sweep_stray_root_writes(
+    root: Path, before: set[str], since: float, quarantine_parent: Path
+) -> list[str]:
+    """Move files a load session dropped in the repo root out of the working tree.
+
+    WHY THIS EXISTS. Load sessions run ``claude -p`` with ``cwd=REPO_ROOT``
+    (``_run_claude``), which is required: the prompt is the ``/swe2`` slash
+    command, resolved from ``.claude/skills/`` relative to cwd, and the root
+    ``CLAUDE.md`` is auto-loaded as session context. Both are part of the request
+    shape the committed throughput baselines were measured with, so cwd cannot be
+    moved to the throwaway slot dir. The cost is that a session which ignores the
+    absolute ``artifacts_dir`` it was given and writes a bare relative filename
+    writes into the working repo instead. One such file (``github-issue.md``, from
+    the ``pytest-flaky-test-detection`` task) survived the 2026-08-31 H200 sweep
+    untracked and un-ignored, where a ``git add -A`` would have committed it.
+
+    MOVED, NOT DELETED. Throughput artifacts are load, not results (the slot dir
+    is already ``rmtree``d), so these files have no value -- but this runs against
+    the user's own working tree, where the cost of a wrong call is someone's
+    unsaved work. So each stray is moved into a throwaway quarantine dir under
+    ``clone_dir`` instead of unlinked: the repo comes out clean either way, and a
+    misattributed file is recoverable rather than gone.
+
+    Four guards on top of that:
+      * name came from ``iterdir`` of ``root``, so it is a single component and
+        cannot traverse; the resolved parent is re-checked against ``root``.
+      * only plain files, never directories or symlinks (a symlink could point
+        outside the repo, and a new directory is reported instead of moved).
+      * only files modified at or after the level's start, so a file that merely
+        became visible is left alone.
+      * only files git positively reports as untracked; an unverifiable answer
+        (``root`` is not a git repo, git missing, timeout) leaves the file alone.
+
+    A file replaced by a symlink between the check and the move is harmless:
+    ``shutil.move`` on a symlink moves the link, not its target.
+
+    Args:
+        root: The repository root the sessions ran in.
+        before: Entry names present in ``root`` when the level started.
+        since: ``time.time()`` value marking the start of the level window.
+        quarantine_parent: Directory to create the quarantine dir under, on the
+            first stray found (nothing is created when the root stays clean).
+
+    Returns:
+        The names moved out of ``root``, for the level summary.
+    """
+    moved: list[str] = []
+    quarantine: Path | None = None
+    for name in sorted(_root_entry_names(root) - before):
+        path = root / name
+        try:
+            if path.is_symlink() or not path.is_file():
+                logger.warning(
+                    "  stray repo-root entry %r appeared during this level and was "
+                    "LEFT IN PLACE (not a plain file) -- inspect and clean up by hand",
+                    name,
+                )
+                continue
+            stat = path.stat()
+            if path.resolve().parent != root.resolve():
+                continue
+            if stat.st_mtime < since:
+                continue
+        except OSError:
+            continue
+        if _is_git_tracked(root, name):
+            logger.warning(
+                "  repo-root file %r appeared during this level but is git-tracked "
+                "(or trackedness is unknown) -- leaving it in place",
+                name,
+            )
+            continue
+        if quarantine is None:
+            quarantine = _quarantine_dir(quarantine_parent)
+            if quarantine is None:
+                logger.warning(
+                    "  leaving stray repo-root file %r in place: no quarantine dir",
+                    name,
+                )
+                continue
+        try:
+            shutil.move(str(path), str(quarantine / name))
+        except (OSError, shutil.Error) as exc:
+            logger.warning("  could not move stray repo-root file %r: %s", name, exc)
+            continue
+        moved.append(name)
+        logger.warning(
+            "  moved stray repo-root write %r (%s bytes) to %s: a load session wrote "
+            "a bare relative path instead of its artifacts_dir",
+            name,
+            stat.st_size,
+            quarantine,
+        )
+    return moved
+
+
 def _run_one_session(
     config: RunnerConfig,
     task: Task,
@@ -167,7 +349,8 @@ def _run_one_session(
     Such a session is recorded as ``cutoff`` (not a failure) -- it consumed real
     serving capacity for the whole window.
 
-    Clones into a slot-unique dir so repeated instances of the same task never
+    Clones into a dir unique per model AND slot, so neither repeated instances of
+    the same task nor concurrent sweeps of different models on one host ever
     collide, and always cleans up the clone.
 
     Args:
@@ -182,7 +365,15 @@ def _run_one_session(
     """
     started = time.time()
     started_iso = _utc_now()
-    slot_dir = Path(config.clone_dir) / f"swe-thru-{slot_label.replace('#', '-')}"
+    # Scope the slot dir by MODEL as well as slot: several sweeps can run
+    # concurrently on one host (one per GPU, each on its own port), and slot
+    # labels restart at "c{N}#1" for every level, so two arms sweeping the same
+    # concurrency would claim the same dir -- and the finally block below
+    # rmtree's it, which would delete a sibling arm's live clone mid-session.
+    slot_dir = Path(config.clone_dir) / (
+        f"swe-thru-{_safe_path_component(config.model_slug, 'model')}"
+        f"-{slot_label.replace('#', '-')}"
+    )
     slot_dir.mkdir(parents=True, exist_ok=True)
     # Bound this session by whichever is smaller: the config timeout or the time
     # left in the window. min 1s so a just-past-deadline submit still terminates.
@@ -262,6 +453,10 @@ def run_level(
     ``level_started_at`` / ``level_ended_at`` bound the window so the performance
     summary can slice the DuckDB collector session to exactly this level.
 
+    Once every session has exited, files a session leaked into the repo root are
+    swept (see ``_sweep_stray_root_writes``) and listed under
+    ``stray_root_writes``.
+
     Args:
         config: The runner config.
         dataset: The loaded dataset (for ref resolution).
@@ -280,6 +475,10 @@ def run_level(
     wall_start = time.time()
     deadline = wall_start + duration_seconds
     level_started = _utc_now()
+    # Snapshot the repo root so writes a session leaks there (see
+    # _sweep_stray_root_writes) can be told apart from what was already present.
+    repo_root = Path(harness.REPO_ROOT)
+    root_before = _root_entry_names(repo_root)
 
     logger.info(
         "=== concurrency=%s: holding %s sessions in flight for %ss ===",
@@ -373,6 +572,11 @@ def run_level(
                 time.sleep(0.5)
 
     wall_seconds = round(time.time() - wall_start, 1)
+    # Every session has exited by here, so nothing this harness owns is still
+    # writing to the repo root.
+    strays = _sweep_stray_root_writes(
+        repo_root, root_before, wall_start, Path(config.clone_dir)
+    )
     by_status: dict[str, int] = {}
     for r in records:
         by_status[r["status"]] = by_status.get(r["status"], 0) + 1
@@ -391,6 +595,10 @@ def run_level(
         "client_completed_output_tokens": sum(
             r["output_tokens"] for r in records if r["status"] == "ok"
         ),
+        # Files a session wrote to the repo root instead of its artifacts_dir, and
+        # which this level moved out to quarantine. Recorded so the leak is visible
+        # in the level JSON rather than only in the log.
+        "stray_root_writes": strays,
         "sessions": records,
     }
 

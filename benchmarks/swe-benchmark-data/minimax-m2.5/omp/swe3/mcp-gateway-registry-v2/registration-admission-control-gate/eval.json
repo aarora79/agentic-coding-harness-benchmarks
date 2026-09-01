@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 74,
+      "notes": "The issue clearly defines affected asset types, create/update coverage, disabled-by-default behavior, fail-closed operation, and testable allow, deny, timeout, and unreachable outcomes. Its largest gap is an underspecified webhook contract and no treatment of sensitive registration data being sent externally or raw denial text being exposed. The claim of no dependencies conflicts with reliance on a customer-operated HTTP service, while the synchronous binary protocol does not itself provide the described manual approval workflow. No independent task statement was supplied, so requirements beyond the identifier and internally stated criteria cannot be verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 59,
+      "notes": "The design's strongest aspect is its concrete mapping to configuration, route functions, deployment surfaces, and a centralized gate helper. Its central correctness defect is that check_registration_gate returns successfully when the gate is enabled without a URL, directly defeating fail-closed admission control. It also maps every GateError to HTTP 403 in route snippets while promising 503 and 504 responses, and defines GateRequest, GateResponse, and timestamp behavior that the proposed service never uses. Latency and rollout are discussed, but full-payload disclosure, URL trust, secret handling, partial-update semantics, and malformed gate responses are not resolved."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 54,
+      "notes": "The review identifies useful concrete concerns including raw error disclosure, HTTPS enforcement, metrics, latency, circuit breaking, and dry-run operation. It nevertheless declares no blockers while missing the LLD's fail-open missing-URL branch and contradictory error-status design. Its resolution says internal registrations may skip the gate even though the issue requires every path and the submitted patch gates internal_register_service. The assertion that masking the token in API responses protects it at rest is unsupported, and the proposed bypass header lacks an authorization model."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 13,
+      "total": 53,
+      "notes": "The plan broadly covers disabled, allow, deny, timeout, unreachable, authentication, deployment, compatibility, and all named endpoint classes, including non-persistence assertions. Several executable examples conflict with the submitted source context: agent code uses request.name, request.path, and request.url while tests send agent_name and endpoint_url, skill code uses request.name while tests send skill_name, and server code uses proxy_pass_url while tests send endpoint_url. Timeout and unreachable tests accept multiple status codes, and the mock only prints requests rather than furnishing a repeatable assertion oracle. Runtime PATCH configuration, CLI commands, and several route/status claims remain unverified, while malformed responses, enabled-without-URL behavior, failed-update preservation, and unexpected gate statuses are absent."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 49,
+      "notes": "The patch implements the central HTTP helper, five settings, sensitive config exposure, and hooks in the named agent, server, internal-server, and skill functions. Its largest defect is that an enabled gate with no URL silently permits registration; it also accidentally removes ans_sync_interval_hours from CONFIG_GROUPS and maps infrastructure failures to 403 despite the LLD's 503/504 contract. Server gate payloads include only name, path, and proxy_pass_url, and the patch omits the promised tests plus Docker and Helm wiring without disclosing those deployment deviations in the summary. The submitted hunk contexts are internally plausible, but repository command execution failed before git apply --check could run, so exact applicability could not be independently verified and was not penalized."
+    }
+  },
+  "task_score": 57.8,
+  "verdict": "The submission presents a concrete, mostly coherent design direction, but the fail-open misconfiguration path and unreliable repository-specific testing leave the security gate unsafe to merge.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:01:10.111949Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 233648,
+      "cached_input_tokens": 149980,
+      "cache_write_input_tokens": 32382,
+      "output_tokens": 12748,
+      "reasoning_output_tokens": 11370
+    },
+    "duration_ms": 152911
+  }
+}

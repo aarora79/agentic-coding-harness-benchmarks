@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 73,
+      "notes": "The issue clearly defines the workflow problem, security motivation, scope, non-goal, and mostly testable acceptance criteria. Its largest defect is contradictory mandatory-status behavior: the proposed solution forces an omitted status, while acceptance criteria require rejecting omission with a 4xx. It also says all changes apply to servers, agents, and skills while specifically requiring only server-list status filtering. No independent task statement was supplied, so the intended product scope beyond these internally established requirements could not be verified."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 41,
+      "notes": "The design provides concrete configuration names, payload fields, and integration symbols such as `_perform_security_scan_on_registration`, `get_servers_json`, and `patch_server_endpoint`. Its critical correctness flaw is signing `json.dumps(payload)` while sending `client.post(json=payload)`, which does not guarantee that the signature covers the exact transmitted bytes. The implementation plan primarily covers servers, contradicts the missing-status acceptance criterion, and even diagrams a status-change webhook that its own non-goal excludes. Metrics, documentation, permission registration, agent and skill integration, failure-event handling, replay protection, and verified deployment wiring remain unresolved or merely asserted."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 7,
+      "risk_awareness": 9,
+      "total": 31,
+      "notes": "The review does identify potentially useful concerns including key rotation, replay attacks, retries, alerting, rollback, and migration. Much of it is generic or technically misplaced, including thread-safety locks for local HMAC computation, asynchronous HMAC, rate limiting on nonexistent outbound webhook endpoints, and UI handling of webhook delivery failures. Its resolution section claims rotation, Pydantic validation, rate limiting, locking, and frontend work were added, but none appears in the reviewed LLD. It misses the exact-body signature flaw, server-only scope, contradictory mandatory-status semantics, and inconsistent webhook payload design."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 36,
+      "notes": "The plan offers concrete commands and useful oracles for HMAC recomputation, filtering, permission denial, scan failure, rollback, and an end-to-end server workflow. However, it uses `WEBHOOK_HMAC_ENABLED` and `WEBHOOK_HMAC_SECRET` where the design and patch define `WEBHOOK_HMAC_SIGNING_ENABLED` and `WEBHOOK_HMAC_SIGNING_SECRET`, so the signing test setup is ineffective. It expects omitted status to be auto-assigned despite the issue requiring a 4xx, and it does not cover agents, skills, every existing webhook event, metrics, documentation, replay, or missing-secret behavior. Several token, webhook-receiver, Terraform, Helm, and deployment commands depend on infrastructure not established by the repository evidence, while declaring backward compatibility inapplicable ignores the new permission requirement."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 1,
+      "specificity": 8,
+      "risk_awareness": 2,
+      "total": 17,
+      "notes": "The patch is not viable because its `get_servers_json` hunk deletes the function signature’s closing `):`, leaving the following docstring in invalid syntax. It also replaces and thereby removes the existing `registration_gate_enabled` setting, while the webhook-service hunk inserts duplicate module headers and definitions ahead of the original implementation. HMAC is computed over one serialization but the request uses `json=payload`, and exceptions in the scan routine log without emitting the required failure event. The patch omits agents, skills, metrics, consumer documentation, deployment wiring, tests, and permission-system registration; its summary acknowledges several omissions while still claiming all required functionality, and a local `git apply --check` could not be executed because the command sandbox failed before process launch."
+    }
+  },
+  "task_score": 39.6,
+  "verdict": "The submission contains a strong problem statement but the design and tests preserve major contradictions, and the implementation is incomplete and syntactically broken with an invalid exact-body signing approach.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T11:31:51.892889Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 300468,
+      "cached_input_tokens": 216554,
+      "cache_write_input_tokens": 43248,
+      "output_tokens": 10802,
+      "reasoning_output_tokens": 9092
+    },
+    "duration_ms": 307278
+  }
+}

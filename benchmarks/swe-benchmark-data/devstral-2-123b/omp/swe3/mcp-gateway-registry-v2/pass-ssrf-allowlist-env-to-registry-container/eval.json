@@ -1,0 +1,64 @@
+{
+  "task": "pass-ssrf-allowlist-env-to-registry-container",
+  "model": "devstral-2-123b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 11,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 70,
+      "notes": "The issue clearly states motivation, exact variables, three target files, testable acceptance criteria, and explicit exclusions. Its central deficiency is that the submitted patch's unchanged context proves docker-compose.yml already contains both environment entries, contradicting the claim that all three files omit them. The internal-registration acceptance criterion is useful, although security risks from overly broad allowlists are not discussed. No independent task statement exists, and issue #1513 and the claimed runtime failure could not be independently verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 58,
+      "notes": "The LLD provides exact variable syntax, named deployment files, data flow, defaults, and a minimal rollout approach. Its load-bearing repository analysis is wrong: the patch preimage shows lines 206-207 are already registry environment entries, not merely references that remain unpassed. It also calls insertion before SECRET_KEY alphabetical even though SECRET_KEY sorts before SSRF_ALLOWED_HOSTS, and it does not address duplicate-entry risk. Claims about registry/api/config_routes.py and automatic allowlist logging were not independently verified."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 7,
+      "specificity": 10,
+      "risk_awareness": 10,
+      "total": 36,
+      "notes": "The review's strongest material points are testing empty and populated values, validating compose syntax, and warning about broad CIDR ranges. It nevertheless unanimously approves the design without noticing that docker-compose.yml already contains the proposed lines, the central flaw exposed by the patch context. Assertions about metadata-address behavior, environment precedence, sanitization, and Podman compatibility are presented as settled without repository evidence. Most role sections repeat approval rather than prioritize actionable defects, so the review fails to stress the design effectively."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 47,
+      "notes": "The plan usefully checks all three files, populated container values, empty defaults, syntax, and exactly two static occurrences per file. However, docker-compose config normally emits resolved configuration rather than the literal ${VAR:-default} expressions, and grep -A5 after registry: is unlikely to reach a distant environment entry. The only end-to-end registration test is commented out and simulated, while registry_cli is merely assumed rather than tied to a verified repository command. The fixed clone path and mcp-registry container name are unverified, and no executable negative or CIDR-specific SSRF oracle is supplied."
+    },
+    "implementation": {
+      "completeness": 1,
+      "correctness": 2,
+      "specificity": 7,
+      "risk_awareness": 7,
+      "total": 17,
+      "notes": "The patch does not implement the design: it duplicates two entries already present in docker-compose.yml and makes no changes to docker-compose.podman.yml or docker-compose.prebuilt.yml. The summary candidly identifies both omissions and the duplicate-entry defect, which is its strongest aspect. The hunk itself provides concrete evidence of the duplicated lines, although local git apply --check could not be executed because the sandbox failed before launching commands. The summary still misleadingly says the patch enables the functionality and incorrectly describes placement before SECRET_KEY as alphabetical."
+    }
+  },
+  "task_score": 45.6,
+  "verdict": "The artifacts are specific but rest on a contradicted repository premise, and the implementation is an acknowledged duplicate no-op that omits two design-required compose files.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T11:39:09.173930Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 216389,
+      "cached_input_tokens": 145105,
+      "cache_write_input_tokens": 27108,
+      "output_tokens": 11120,
+      "reasoning_output_tokens": 8861
+    },
+    "duration_ms": 164763
+  }
+}

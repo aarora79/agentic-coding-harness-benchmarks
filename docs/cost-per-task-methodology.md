@@ -4,14 +4,22 @@ How the throughput skill turns a fixed instance price into a **cost per token** 
 
 > [!IMPORTANT]
 > **Self-hosted GPU pricing basis (read before quoting any self-hosted dollar figure).** Every self-hosted cost on this page and in the charts is derived from a **configurable** hourly rate in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json), not a fixed market price:
-> - **g6e.12xlarge** is priced at its **3-year Reserved Instance rate ($4.533/hr)** (`discount: 0.0` -- the base already reflects the RI, no further discount).
+> - **g6e.12xlarge** is priced at its **3-year commitment rate ($4.533/hr)** (`discount: 0.0` -- the base already reflects the commitment, no further discount).
 > - **p5en.48xlarge** is priced at **on-demand ($63.296/hr) with a 35% PLACEHOLDER discount** (`discount: 0.35`, i.e. pay 65% -> effective $41.14/hr). **0.35 is a stand-in** for whatever committed-use / negotiated discount your organization actually has.
 >
 > The effective rate is `dollars_per_hour * (1 - discount)` (then prorated by `tp / gpus_per_instance` for a partial-box run). **Change `discount` (or `dollars_per_hour`) in `pricing.json` to your real rate and regenerate -- every cost number, chart, and frontier scales linearly.** Do not read the self-hosted dollars as market-fixed; they are only as good as the rate you configure.
 
+### Why these rates name no AWS discount instrument
+
+This repo says "**3-year commitment rate**" and never "Reserved Instance" or "Savings Plan", because the instrument does not change the number. AWS's [own comparison](https://docs.aws.amazon.com/savingsplans/latest/userguide/sp-ris.html) puts an EC2 Instance Savings Plan and a Standard RI in the same **up to 72% off** tier, and a Compute Savings Plan and a Convertible RI in the same **up to 66%** tier. Pick either; the rate lands in the same place.
+
+Reserved Instances are not retired. AWS [recommends Savings Plans over them](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-reserved-instances.html) and still documents buying, modifying, exchanging and reselling RIs. Two capabilities remain RI-only: reselling an unwanted Standard RI on the RI Marketplace, and a zonal RI's capacity reservation. Savings Plans provide no capacity, so pair one with an On-Demand Capacity Reservation if supply is tight.
+
+For a **steady inference endpoint** like the coding-agent workload these benchmarks model, an **EC2 Instance Savings Plan on the GPU family** is the closest fit: the model has to fit the GPU, so cross-family flexibility buys little and costs about six points of discount. Commit only the always-on baseline. Benchmark sweeps like the ones behind these tables are bursty and interruption-tolerant, so they belong on on-demand or Spot rather than under a commitment. Pull real rates with `aws savingsplans describe-savings-plans-offering-rates --service-codes AmazonEC2 --filters name=instanceType,values=<type>` rather than estimating them.
+
 ## The starting point: a fixed-cost machine, not a per-token bill
 
-A self-hosted model has **no per-token price**. You rent a GPU instance by the hour (e.g. `g6e.12xlarge` at $4.533/hr on a 3-year Reserved Instance) and it processes whatever tokens it can. So the only honest cost is derived, not quoted:
+A self-hosted model has **no per-token price**. You rent a GPU instance by the hour (e.g. `g6e.12xlarge` at $4.533/hr on a 3-year commitment) and it processes whatever tokens it can. So the only honest cost is derived, not quoted:
 
 ```
 dollars_per_second = dollars_per_hour / 3600

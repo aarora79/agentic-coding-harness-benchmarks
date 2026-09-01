@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "glm-5.3",
+  "scores": {
+    "github_issue": {
+      "completeness": 24,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 93,
+      "notes": "The issue clearly defines five concrete features, server/agent/skill parity, testable acceptance criteria, and explicit non-goals. Referenced concepts such as LifecycleStatus, outbound webhook delivery, update permissions, and scan routes are consistent with the supplied source diff. Its largest evidence limitation is that no independent task statement was supplied, so the proposed scope is primarily self-established. Security, compatibility, delivery semantics, metrics, and deployment wiring are addressed unusually well for an issue."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 17,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 86,
+      "notes": "The LLD is highly repository-specific, naming real route handlers, services, models, configuration surfaces, and previously overlooked mutation paths such as POST /edit and the agent batch processor. Its major correctness defect is that its FastAPI examples declare status_filter without alias=\"status\", despite promising a status= API contract. It also maps scan paths only from server_path/agent_path/skill_path even though the supplied server rescan code accesses scan_result.server_url, and it does not design failure-event emission when a manual rescan raises. Compatibility, rollout, authorization bypasses, secret handling, and bounded metric cardinality otherwise receive strong treatment."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 24,
+      "total": 92,
+      "notes": "The review identifies concrete, consequential defects rather than merely approving the design, notably server PUT nulling status, the form-edit authorization bypass, and agent batch bypasses. Those findings align with the supplied source context and materially improved the revised LLD's mutation-surface inventory. The largest omission is failure to catch the status_filter versus status query-name error and the questionable scan-result field mapping already present in the design. Its prioritization, consequences, remediation guidance, and security and operational analysis are otherwise excellent."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 80,
+      "notes": "The plan covers signing, scan outcomes, compatibility, all asset types, deployment surfaces, permission bypasses, and rollback with concrete expected values. However, every list test calls ?status= while the patch exposes status_filter, so those tests reveal a broken contract but are presented as expected to pass. The Docker-oriented setup also points the registry at localhost:8899, which normally addresses the registry container rather than the host receiver, and the login commands do not establish a reproducible authenticated session. Most route coverage remains manual curl inspection rather than executable handler tests, though the negative cases and unit-test oracles are otherwise specific."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 59,
+      "notes": "The patch broadly implements configuration, HMAC signing over transmitted bytes, permissions, batch handling, metrics, documentation, and tests across the claimed deployment surfaces. All three list handlers name the parameter status_filter without alias=\"status\", so the required ?status=draft contract is not implemented. agent_routes.py calls send_scan_complete_webhook without adding its import, the new timeout test uses httpx without importing it, and the outcome extractor ignores the demonstrated server_url result field; manual rescan exceptions also emit no completion event. A local git apply check could not be performed because the read-only shell sandbox failed before command execution, but the submitted diff itself contradicts the summary's claims of complete parity."
+    }
+  },
+  "task_score": 82.0,
+  "verdict": "The design and review artifacts are strong, but the implementation is not merge-ready because the public status filter contract and agent scan webhook path are broken.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T00:03:48.845215Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 437961,
+      "cached_input_tokens": 342059,
+      "cache_write_input_tokens": 76539,
+      "output_tokens": 10507,
+      "reasoning_output_tokens": 8633
+    },
+    "duration_ms": 164305
+  }
+}

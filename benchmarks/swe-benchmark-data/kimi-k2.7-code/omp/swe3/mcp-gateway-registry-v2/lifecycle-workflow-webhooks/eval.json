@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "kimi-k2.7-code",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 80,
+      "notes": "The issue clearly defines registration enforcement, separate lifecycle authorization, filtering, scan notifications, and exact-byte HMAC signing with testable HTTP outcomes. The submitted diff context supports the named route families, settings model, scopes configuration, and existing webhook service. Its largest gap is underspecifying behavior when no usable signing secret exists and when scanners raise rather than return a failed result. No independent task statement was supplied, so requirements beyond the identifier and internally consistent artifacts could not be verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 21,
+      "risk_awareness": 12,
+      "total": 60,
+      "notes": "The design is unusually concrete about files, helper functions, payload bytes, permission integration, pagination paths, and metrics. Its scan-complete calls occur only after a scan result is returned, while each surrounding exception path merely logs, so scanner exceptions violate the promised failure notification. The proposed `_validate_lifecycle_status(status)` shadows FastAPI's `status` module and attempts `status.HTTP_422_UNPROCESSABLE_ENTITY`, producing an attribute error for invalid input. It also permits empty-key HMAC signing and inconsistently designs a skill PATCH while later review material requires guarding the existing skill PUT."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The review identifies concrete concerns around secret rotation, raw-body parsing, full-fetch filtering, error exposure, and the missing skill PUT authorization check. Its largest credibility problem is claiming those resolutions were incorporated even though the supplied LLD lacks several of them and the implementation leaves `update_skill` untouched. It also describes three webhook event types although registration, update, deletion, and scan-complete make four. The review misses both the `status` name-shadowing defect and the absent webhook on scanner exceptions, while its reported test counts are not independently substantiated."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 58,
+      "notes": "The plan supplies useful oracles for status codes, filtered counts, backward-compatible edits, and HMAC verification over the captured raw body. It omits the critical scanner-exception failure path, error-message redaction cases, signatures for every existing event type, and pagination/access-control interactions. Its skill PATCH commands target functionality the patch never implements, while several curl examples omit authentication setup and use non-executable placeholders. The full-suite command is plausible, but successful execution and the asserted route payload shapes could not be independently verified."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 8,
+      "total": 46,
+      "notes": "The patch does implement a shared exact-byte signed webhook path, registration enforcement, list filters for all three asset types, and server/agent lifecycle checks. Its largest omission is skill lifecycle authorization: `SkillCardPatch` is dead code, no PATCH route is added, and the existing `update_skill` PUT path is untouched despite the LLD and review. Invalid values can raise an internal attribute error because `_validate_lifecycle_status` shadows the imported module, and scanner exceptions never emit `scan_complete`; empty-key signing and keyword-only error redaction further weaken security. The summary overstates consistency and verification because no lifecycle tests are changed, and direct `git apply --check` or test execution was unavailable due the command sandbox failing before execution."
+    }
+  },
+  "task_score": 62.4,
+  "verdict": "The submission has a strong issue and concrete design, but the implementation is not merge-ready because skill lifecycle authorization and failed-scan notifications are incomplete and invalid-status handling is broken.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T07:37:49.451725Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 385333,
+      "cached_input_tokens": 308357,
+      "cache_write_input_tokens": 51049,
+      "output_tokens": 11897,
+      "reasoning_output_tokens": 9989
+    },
+    "duration_ms": 188565
+  }
+}

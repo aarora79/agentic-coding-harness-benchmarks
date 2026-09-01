@@ -29,6 +29,10 @@ set -uo pipefail
 #   --agent NAME          coding agent that runs each task: claude (default), pi,
 #                         omp (oh-my-pi), or kiro
 #   --skill NAME          SWE skill: swe3 (default, single-agent) or swe2 (multi-agent)
+#   --timeout-seconds N   per-task wall-clock timeout passed to run-e2e-benchmark.sh.
+#                         Unset uses the harness default, which is tuned for the
+#                         small g6e models; a frontier model on a 200K+ window is
+#                         far slower per task and needs this raised (7200 = 2 h).
 #   --no-detach           run in the foreground (do not self-detach)
 #   --judge-mode MODE     when to score: inline (default, judge after each model,
 #                         GPU idle while it runs), async (judge in the background
@@ -51,44 +55,73 @@ LOG="$SCRATCH/multi-model-benchmark.log"
 
 # --- Model registry ----------------------------------------------------------
 # One row per known model:
-#   served_name | HF repo | max_model_len | tool_parser | tp | fits | extra_env
+#   served_name | HF repo | max_model_len | tool_parser | tp | fits (see key)
+#              | gpu_mem_util | reasoning_parser | extra_args | extra_env
 # fits: "g6e.12xl" = runs on 4xL40S (this repo's default 184 GB node);
 #       "p5en.48xl" = needs 8xH200 (or half of it at TP=4);
 #       "g6e.48xl"  = needs 8xL40S (does not fit 4xL40S at a usable window).
-# extra_env: optional, space-separated KEY=VALUE pairs exported into the
-# vllm-serve.sh environment for model-specific knobs the other columns cannot
-# express (ROPE_SCALING, MAX_NUM_SEQS, EXTRA_ARGS). The field is word-split, so
-# each VALUE must contain no spaces (use the --flag=value form) and no glob
-# characters (* ? [), which the split would expand against the working dir.
-# Never put a secret here (HF_TOKEN and friends): serve output is teed to a log
-# under .scratchpad/. Export those in the environment instead.
-# Other serve flags (trust-remote-code) come from the model doc; vllm-serve.sh
-# applies trust-remote-code automatically where required.
+#
+# The last four fields are NOT cosmetic and must match the model's doc under
+# self-hosted/vllm/models/ and the verified table in p5en-h200-cuda-fixes.md:
+#   - gpu_mem_util: glm-5.2 at a 300K window and qwen3-coder-480b at 200K do not
+#     fit their KV cache at 0.90 and abort at engine init.
+#   - reasoning_parser: without it a thinking model's reasoning tokens leak into
+#     the response text, which corrupts the artifacts the judge then scores.
+#   - extra_args: --trust-remote-code is REQUIRED by kimi, glm-5.2, glm-5.3,
+#     minimax and qwen3-coder-480b. vllm-serve.sh does NOT add it automatically
+#     (an earlier version of this comment claimed it did); without it those five
+#     fail to load. glm-5.3 carries more: vllm-serve.sh has no env var for the
+#     KV-cache dtype or the speculative config, so its FP8 KV cache and 5-token
+#     MTP drafting (both from the official vLLM recipe) ride in extra_args too.
+#     MULTI-WORD VALUES ARE SAFE HERE, unlike extra_env: this field is passed as
+#     one EXTRA_ARGS value that vllm-serve.sh splits with `read -ra` into an argv
+#     array, never eval.
+#   - extra_env: space-separated KEY=VALUE pairs exported into the vllm-serve.sh
+#     environment for knobs no column expresses (ROPE_SCALING, MAX_NUM_SEQS).
+#     This field IS word-split, so each VALUE must contain no spaces (use the
+#     --flag=value form) and no glob characters (* ? [), which the split would
+#     expand against the working dir. Do NOT set GPU_MEM_UTIL, REASONING_PARSER
+#     or EXTRA_ARGS here -- the dedicated columns above own those, and a
+#     duplicate would silently override the column. Never put a secret here
+#     (HF_TOKEN and friends): serve output is teed to a log under .scratchpad/.
+#     Export those in the environment instead.
+#
+# --trust-remote-code makes vLLM execute Python that ships inside the HF repo, in
+# this process, at load time. It is accepted here only because those five
+# architectures cannot load without it -- so treat the repo IDs above as part of
+# the trust boundary: keep them pinned to the official vendor org, and do not add
+# the flag to a row that does not genuinely need it or repoint a row at a fork.
 REGISTRY=(
-  "qwen3-coder-30b|Qwen/Qwen3-Coder-30B-A3B-Instruct|200000|qwen3_coder|4|g6e.12xl|"
-  "qwen3.6-35b|Qwen/Qwen3.6-35B-A3B|200000|qwen3_coder|4|g6e.12xl|"
-  "gemma-4-31b|google/gemma-4-31B-it|200000|gemma4|4|g6e.12xl|"
+  "qwen3-coder-30b|Qwen/Qwen3-Coder-30B-A3B-Instruct|200000|qwen3_coder|4|g6e.12xl|0.90|||"
+  "qwen3.6-35b|Qwen/Qwen3.6-35B-A3B|200000|qwen3_coder|4|g6e.12xl|0.90|||"
+  "gemma-4-31b|google/gemma-4-31B-it|200000|gemma4|4|g6e.12xl|0.90|||"
   # Qwen3.8-27B is served here as BF16 at TP=4 (~56 GB over 4 GPUs), not the FP8
   # single-GPU config in its model doc -- BF16 matches how every other model on
   # this node is benchmarked. MAX_NUM_SEQS caps decode sequences to the hybrid
   # model's Mamba state-cache pool, and the patched chat template accepts the
   # reasoning_effort value agents send (the stock one 500s on it).
-  "qwen3.8-27b|Qwen/Qwen3.8-27B|200000|qwen3_coder|4|g6e.12xl|MAX_NUM_SEQS=32 EXTRA_ARGS=--chat-template=$VLLM_DIR/config/qwen3.8-27b-chat-template.jinja"
+  "qwen3.8-27b|Qwen/Qwen3.8-27B|200000|qwen3_coder|4|g6e.12xl|0.90||--chat-template $VLLM_DIR/config/qwen3.8-27b-chat-template.jinja|MAX_NUM_SEQS=32"
   # Qwen3-32B is 32768-native, below the 64000 agentic floor enforced below, so
   # it needs YaRN (factor 4 -> 131072) to be benchmarkable at all.
-  "qwen3-32b|Qwen/Qwen3-32B|131072|hermes|4|g6e.12xl|ROPE_SCALING={\"rope_type\":\"yarn\",\"factor\":4.0,\"original_max_position_embeddings\":32768}"
-  "qwen3-coder-next|Qwen/Qwen3-Coder-Next|16384|qwen3_coder|4|g6e.48xl|MAX_NUM_SEQS=128"
-  "minimax-m2.5|MiniMaxAI/MiniMax-M2.5|196608|minimax_m2|4|p5en.48xl|"
-  "qwen3-coder-480b|Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8|200000|qwen3_coder|4|p5en.48xl|"
-  "kimi-k2.7-code|moonshotai/Kimi-K2.7-Code|131072|kimi_k2|8|p5en.48xl|"
-  "glm-5.2|zai-org/GLM-5.2-FP8|300000|glm47|8|p5en.48xl|"
-  "devstral-2-123b|mistralai/Devstral-2-123B-Instruct-2512|262144|mistral|8|p5en.48xl|"
+  "qwen3-32b|Qwen/Qwen3-32B|131072|hermes|4|g6e.12xl|0.90|||ROPE_SCALING={\"rope_type\":\"yarn\",\"factor\":4.0,\"original_max_position_embeddings\":32768}"
+  "qwen3-coder-next|Qwen/Qwen3-Coder-Next|16384|qwen3_coder|4|g6e.48xl|0.90|||MAX_NUM_SEQS=128"
+  "minimax-m2.5|MiniMaxAI/MiniMax-M2.5|196608|minimax_m2|4|p5en.48xl|0.92|minimax_m2|--trust-remote-code|"
+  "qwen3-coder-480b|Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8|200000|qwen3_coder|4|p5en.48xl|0.95||--trust-remote-code|"
+  "kimi-k2.7-code|moonshotai/Kimi-K2.7-Code|131072|kimi_k2|8|p5en.48xl|0.90|kimi_k2|--trust-remote-code|"
+  "glm-5.2|zai-org/GLM-5.2-FP8|300000|glm47|8|p5en.48xl|0.95|glm47|--trust-remote-code|"
+  "glm-5.3|zai-org/GLM-5.3|300000|glm47|8|p5en.48xl|0.95|glm47|--trust-remote-code --kv-cache-dtype fp8 --speculative-config.method mtp --speculative-config.num_speculative_tokens 5|"
+  "deepseek-v3.2|deepseek-ai/DeepSeek-V3.2|131072|deepseek_v32|8|p5en.48xl|0.90|||"
+  "devstral-2-123b|mistralai/Devstral-2-123B-Instruct-2512|262144|mistral|4|p5en.48xl|0.90|||"
 )
 
 DATASET="dataset/mcp-gateway-registry.yaml"
 DOLLARS_PER_HOUR="0"
 AGENT="claude"
 SKILL="swe3"
+# Match runner.example.yaml's timeout_seconds (and runner_config.DEFAULT_TIMEOUT_SECONDS).
+# Passed explicitly so the value in effect is visible in this script's log and does
+# not silently change if someone edits their local, gitignored runner.yaml.
+TIMEOUT_SECONDS="7200"
 DETACH=1
 JUDGE_MODE="inline"
 MODELS=()
@@ -115,10 +148,10 @@ _registry_row() {  # $1 served-name -> prints the row, or nothing
 
 print_catalog() {
   echo "Known models (served-name -- HF repo -- window -- fits):" >&2
-  local m name repo win parser tp fits extra_env
+  local m name repo win parser tp fits util rparser xargs extra_env
   for m in "${REGISTRY[@]}"; do
-    IFS='|' read -r name repo win parser tp fits extra_env <<< "$m"
-    printf '  %-18s %-45s %8s  %s\n' "$name" "$repo" "$win" "$fits" >&2
+    IFS='|' read -r name repo win parser tp fits util rparser xargs extra_env <<< "$m"
+    printf '  %-18s %-45s %8s  TP=%s  %s\n' "$name" "$repo" "$win" "$tp" "$fits" >&2
   done
   cat >&2 <<'EOF'
 
@@ -127,10 +160,14 @@ Fit key:
                freely in one invocation: qwen3-coder-30b qwen3.6-35b gemma-4-31b
                qwen3.8-27b qwen3-32b. They are served one at a time (swapped), so
                any subset works on a single 4xL40S box.
-  p5en.48xl -- needs 8xH200. minimax-m2.5 and qwen3-coder-480b use TP=4 (half the
-               box); kimi-k2.7-code and glm-5.2 use TP=8 (whole box). All are
-               served one at a time here, so group any p5en models together on
-               an 8xH200 node.
+  p5en.48xl -- needs 8xH200. minimax-m2.5, qwen3-coder-480b and devstral-2-123b use
+               TP=4 (half the box); kimi-k2.7-code, glm-5.2, glm-5.3 and
+               deepseek-v3.2 use TP=8 (whole box). All are served one at a time
+               here, so group any p5en models together on an 8xH200 node. There is
+               no 4xH200 instance type, so the TP=4 models still require a whole
+               p5en. glm-5.2 and glm-5.3 are ~750 GB each and cannot be resident
+               together, which is fine -- this script swaps them.
+               glm-5.3 additionally needs vLLM >= 0.28.0 and transformers >= 5.15.
   g6e.48xl  -- qwen3-coder-next needs 8xL40S (384 GB) for a >=200K window; on a
                4xL40S it only fits ~16K and every agentic task fails on turn 1.
 
@@ -147,10 +184,11 @@ while [[ $# -gt 0 ]]; do
     --dollars-per-hour) DOLLARS_PER_HOUR="${2:?}"; shift 2 ;;
     --agent)            AGENT="${2:?}"; shift 2 ;;
     --skill)            SKILL="${2:?}"; shift 2 ;;
+    --timeout-seconds)  TIMEOUT_SECONDS="${2:?}"; shift 2 ;;
     --no-detach)        DETACH=0; shift ;;
     --judge-mode)       JUDGE_MODE="${2:?}"; shift 2 ;;
     --skip-judge)       JUDGE_MODE="skip"; shift ;;
-    -h|--help)          sed -n '4,42p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; print_catalog; exit 0 ;;
+    -h|--help)          sed -n '4,45p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; print_catalog; exit 0 ;;
     -*)                 die "unknown flag: $1 (see --help)" ;;
     *)                  MODELS+=("$1"); shift ;;
   esac
@@ -169,6 +207,12 @@ case "$JUDGE_MODE" in
   inline|async|skip) ;;
   *) die "invalid --judge-mode '$JUDGE_MODE'. Must be one of: inline, async, skip." ;;
 esac
+# ${2:?} above only rejects an EMPTY value, so `--timeout-seconds --no-detach`
+# would set the timeout to the literal string "--no-detach", silently swallow
+# --no-detach, and hand garbage to run-e2e-benchmark.sh -- and this is the value
+# that decides how long an unattended multi-hour run lets a hung task sit.
+[[ "$TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] \
+  || die "invalid --timeout-seconds '$TIMEOUT_SECONDS'. Must be a positive integer of seconds (e.g. 7200)."
 
 # In async mode the e2e script is told to skip the judge, which also skips ITS
 # codex pre-flight -- so a missing or misconfigured codex would surface hours
@@ -206,6 +250,7 @@ done
 if [[ "$DETACH" == "1" && -z "${MMB_DETACHED:-}" ]]; then
   MMB_DETACHED=1 setsid nohup "$0" --no-detach \
     --judge-mode "$JUDGE_MODE" --dataset "$DATASET" --agent "$AGENT" --skill "$SKILL" \
+    --timeout-seconds "$TIMEOUT_SECONDS" \
     --dollars-per-hour "$DOLLARS_PER_HOUR" "${MODELS[@]}" \
     >>"$SCRATCH/multi-model-benchmark.nohup.log" 2>&1 &
   echo "detached multi-model benchmark (pid $!)."
@@ -219,12 +264,51 @@ SCOPE="$(basename "$DATASET" .yaml)"
 # own path level, so summarize/commit target <model>/<harness>/<skill>/<repo>.
 HARNESS_SLUG="$(cd "$BENCH_DIR" && uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import HARNESS_SLUGS; print(HARNESS_SLUGS['$AGENT'])")"
 
+# p5en (8xH200) CUDA + cache environment. The substance lives in
+# self-hosted/vllm/scripts/p5en-cuda-env.sh because vllm-serve.sh needs the same
+# fixes when it is launched directly (the throughput sweep) rather than through
+# this orchestrator -- this used to be the only copy, so the two paths behaved
+# differently on identical hardware. vllm-serve.sh inherits our environment, so
+# sourcing here also covers the servers we start.
+#
+# No-op on any other node, and idempotent, so a re-run costs nothing.
+_apply_p5en_cuda_env() {
+  # shellcheck source=../../self-hosted/vllm/scripts/p5en-cuda-env.sh
+  . "$VLLM_DIR/scripts/p5en-cuda-env.sh"
+  if [[ "${P5EN_CUDA_ENV_APPLIED:-0}" != "1" ]]; then
+    say "  (not an 8xH200 node: skipping the p5en CUDA fixes)"
+    return 0
+  fi
+
+  # The judge clones each task's repo to score it, and unlike the serving caches
+  # that root is chosen by the judge, not by us -- it defaults to
+  # /tmp/swe-judge-repos on the 29 GB root disk (codex_judge.py DEFAULT_CLONE_ROOT).
+  # Over a multi-model run those checkouts reached 1.2 GB and were part of what
+  # filled / on 2026-08-30. Point them at the NVMe alongside everything else.
+  export JUDGE_CLONE_ROOT="${JUDGE_CLONE_ROOT:-$VLLM_ENV/cache/judge-repos}"
+  mkdir -p "$JUDGE_CLONE_ROOT"
+
+  say "  p5en CUDA env applied (VLLM_ENV=$VLLM_ENV, CUDA_HOME=$CUDA_HOME)"
+}
+
+# A frontier FP8 model is 466 GB - 1 TB of weights. On a COLD HF cache the first
+# boot is dominated by the download, not the load: at ~1 GB/s that alone is 8-17
+# minutes, and slower without an HF token, before ~4 min of shard loading,
+# torch.compile and CUDA-graph capture. The old 15-minute ceiling here meant every
+# frontier model was declared "never ready" and skipped on its first run. Budget
+# 3 hours, and log progress so a stall is distinguishable from a slow download.
 wait_ready() {  # $1 served-name
-  local name="$1" i served
-  for i in $(seq 1 90); do  # up to ~15 min (large FP8 downloads/boots)
+  local name="$1" i served waited
+  for i in $(seq 1 1080); do  # up to ~3 h at 10 s per attempt
     served="$(curl -s -m 5 http://127.0.0.1:8000/v1/models 2>/dev/null \
       | python3 -c 'import sys,json;print(",".join(m["id"] for m in json.load(sys.stdin).get("data",[])))' 2>/dev/null || true)"
     [[ ",$served," == *",$name,"* ]] && { say "  $name ready"; return 0; }
+    # Every 5 min, report elapsed time and the cache size so a download in
+    # progress is visibly distinct from a hung engine init.
+    if (( i % 30 == 0 )); then
+      waited=$(( i / 6 ))
+      say "  still waiting for $name (${waited} min; HF cache $(du -sh "${HF_HOME:-/opt/dlami/nvme/hf-cache}" 2>/dev/null | cut -f1 || echo '?'))"
+    fi
     sleep 10
   done
   return 1
@@ -263,12 +347,23 @@ _commit_run() {  # $1 model-slug, $2 target dir relative to benchmarks/
   # artifacts are gitignored, and each model owns its own folder), but a
   # pull --rebase here does touch tracked files, so keep the lock and keep the
   # committed set narrow.
+  #
+  # AGENTS.md forbids committing to main, and this loop pushes unattended for
+  # hours -- so on main it stops at the commit and leaves the work committed
+  # locally rather than pushing. Results are never lost either way: the artifacts
+  # are on disk and the next run does not touch a different model's folder.
   ( flock 9
     cd "$REPO_ROOT" || exit 1
+    local_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
     git add "benchmarks/$target/run-summary.json" "benchmarks/$target/run-summary.md" \
             "benchmarks/$target"/*/metrics.json "benchmarks/$target"/*/eval.json 2>/dev/null
-    git diff --cached --quiet || git commit -q -m "$slug ($AGENT, $SKILL): benchmark run on $SCOPE (implementation + judge scores)"
-    git pull --rebase -q 2>/dev/null; git push -q 2>/dev/null
+    git diff --cached --quiet && exit 0
+    git commit -q -m "$slug ($AGENT, $SKILL): benchmark run on $SCOPE (implementation + judge scores)"
+    if [[ "$local_branch" == "main" || "$local_branch" == "master" ]]; then
+      echo "on $local_branch: committed locally, NOT pushing (open a PR instead)"
+    else
+      git pull --rebase -q 2>/dev/null; git push -q 2>/dev/null
+    fi
   ) 9>"$SCRATCH/.git.lock"
 }
 
@@ -324,9 +419,11 @@ trap '_kill_judges; say "interrupted -- background judging stopped"; exit 130' I
 
 say "=== START multi-model benchmark: ${MODELS[*]} (dataset=$SCOPE) ==="
 command -v uv >/dev/null 2>&1 || die "uv not on PATH"
+_apply_p5en_cuda_env
 
 for want in "${MODELS[@]}"; do
-  IFS='|' read -r SLUG REPO MML PARSER TP FITS EXTRA_ENV <<< "$(_registry_row "$want")"
+  IFS='|' read -r SLUG REPO MML PARSER TP FITS GPU_UTIL RPARSER XARGS EXTRA_ENV <<< "$(_registry_row "$want")"
+  GPU_UTIL="${GPU_UTIL:-0.90}"
   say "===== MODEL: $SLUG (fits: $FITS) ====="
 
   # Serve unless already serving this exact model.
@@ -336,11 +433,13 @@ for want in "${MODELS[@]}"; do
   else
     say "  stopping current model + freeing GPUs"
     stop_all_vllm
-    say "  serving $SLUG ($REPO, tp=$TP, mml=$MML, parser=$PARSER)"
+    say "  serving $SLUG ($REPO, tp=$TP, mml=$MML, parser=$PARSER, util=$GPU_UTIL${RPARSER:+, reasoning=$RPARSER}${XARGS:+, extra='$XARGS'}${EXTRA_ENV:+, env='$EXTRA_ENV'})"
     # shellcheck disable=SC2086 -- EXTRA_ENV is deliberately word-split into
-    # separate KEY=VALUE arguments for env; its values contain no spaces.
+    # separate KEY=VALUE arguments for env; its values contain no spaces. XARGS is
+    # quoted (multi-word is fine there): vllm-serve.sh splits it with read -ra.
     ( cd "$VLLM_DIR/scripts" && env MODEL="$REPO" SERVED_NAME="$SLUG" TP="$TP" PORT=8000 \
-        MAX_MODEL_LEN="$MML" GPU_MEM_UTIL=0.90 TOOL_PARSER="$PARSER" $EXTRA_ENV \
+        MAX_MODEL_LEN="$MML" GPU_MEM_UTIL="$GPU_UTIL" TOOL_PARSER="$PARSER" \
+        REASONING_PARSER="$RPARSER" EXTRA_ARGS="$XARGS" $EXTRA_ENV \
         ./vllm-serve.sh >"$SCRATCH/serve-$SLUG.log" 2>&1 ) &
     sleep 20
   fi
@@ -355,9 +454,10 @@ for want in "${MODELS[@]}"; do
 
   ( cd "$VLLM_DIR/scripts" && ./vllm-metrics.sh start >/dev/null 2>&1 || true )
 
-  say "  running e2e benchmark for $SLUG ..."
+  say "  running e2e benchmark for $SLUG (per-task timeout ${TIMEOUT_SECONDS}s) ..."
   # shellcheck disable=SC2086 -- E2E_SKIP_JUDGE is a single flag or empty.
   ( cd "$BENCH_DIR" && ./scripts/run-e2e-benchmark.sh --agent "$AGENT" --skill "$SKILL" --provider vllm --model "$SLUG" \
+      --timeout-seconds "$TIMEOUT_SECONDS" \
       --dataset "$DATASET" --yes $E2E_SKIP_JUDGE >"$SCRATCH/e2e-$SLUG.log" 2>&1 )
   say "  e2e done for $SLUG (exit $?)"
 

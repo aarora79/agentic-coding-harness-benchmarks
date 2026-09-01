@@ -1,0 +1,64 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 75,
+      "notes": "The issue clearly identifies the CLI/API parity problem, five fields, user impact, scope, and testable high-level outcomes. The repository documentation confirms the named CLI/client surfaces and that egress authentication was introduced in release 1.28.0.  Its largest gap is ambiguous edit behavior: requiring both URLs conflicts with the stated goal of preserving omitted stored values, and behavior for custom flags supplied to non-custom providers is unspecified. With no independent task statement, the detailed claims about the request model, persistence schema, UI, and exact server error could not all be verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 66,
+      "notes": "The LLD is concrete about `api/registry_management.py`, `api/registry_client.py`, `cmd_egress_configure`, `RegistryClient.configure_egress_auth`, flag names, signature changes, and conditional request-body construction. Those two files are documented repository entry points, so the principal integration boundary is credible.  The largest deficiency is that important decisions remain inconsistent or unresolved: partial edits versus mandatory URLs, handling custom fields for other providers, URL validation, rollback, and logging potentially sensitive tenant endpoint data. The duplicated trailing `except` block in Step 2 is invalid guidance, while the exact enum values and proposed response shape were not independently verified."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 11,
+      "risk_awareness": 14,
+      "total": 47,
+      "notes": "The review's strongest contribution is identifying malformed-URL/SSRF exposure, missing-field UX, testing needs, and weak rollback guidance. Its largest defect is failure to read the reviewed LLD accurately: it calls token-style and required-URL validation missing even though both appear explicitly in the design and sample code. The resolution then claims all critical findings were addressed although URL validation remains an open question and no rollback or monitoring resolution is supplied. Most reviewer sections are generic role-play, and their assertions about server-side security behavior were not grounded in verifiable repository evidence."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 11,
+      "total": 50,
+      "notes": "The strongest section supplies exact end-to-end JSON oracles for all five custom fields and includes required-field, enum, compatibility, and help-text scenarios. The setup exports credentials but never passes them to the CLI, while repository usage documentation demonstrates global registry URL and token-file arguments, making the commands insufficiently reproducible.  The non-custom-provider test checks only successful exit and cannot detect that the implementation actually forwards supplied custom fields; several other checks merely print PASS and can miss unrelated failures. The invalid-enum assertion also expects the handler's custom message even though `argparse choices` rejects the value first, and no concrete mocked unit test verifies the outgoing request body or omission semantics."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 2,
+      "specificity": 14,
+      "risk_awareness": 6,
+      "total": 30,
+      "notes": "The patch targets the repository-recognized CLI and client files and concretely adds the five flags, optional client parameters, request fields, and required-URL validation, although exact baseline context could not be independently inspected.  The submitted unified diff is structurally unusable: its first hunk declares 15 old and 32 new lines but contains far more context and 22 additions, and the parser hunk declares a 15-line increase while inserting 21 lines. Even if applied manually, it adds no acceptance-criterion unit tests, forwards custom fields for non-custom providers, and contains unreachable manual enum validation because `argparse choices` rejects invalid values earlier. The summary incorrectly claims exact LLD compliance and no follow-ups despite the missing tests, unresolved behavior, and malformed patch."
+    }
+  },
+  "task_score": 53.6,
+  "verdict": "The design identifies the right small integration surface, but contradictory validation and testing details culminate in a malformed, non-applicable implementation patch.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T15:58:32.182942Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 316741,
+      "cached_input_tokens": 229063,
+      "cache_write_input_tokens": 33734,
+      "output_tokens": 13928,
+      "reasoning_output_tokens": 11686
+    },
+    "duration_ms": 185281
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "qwen3-coder-480b",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 84,
+      "notes": "The issue clearly specifies precedence, deployment-mode defaults, runtime API delivery, deployment surfaces, acceptance criteria, and explicit non-goals. Its hardcoded-title and existing `/api/config` claims align with the submitted patch’s Layout, Login, Logout, and config route contexts. The largest gap is undefined behavior for empty, whitespace-only, unusually long, or special-character titles, plus ambiguity about what appearing in the System Config panel entails. No independent task statement was supplied, and related issue #984 could not be verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 10,
+      "total": 47,
+      "notes": "The LLD’s strongest aspect is its concrete inventory of backend, frontend, Docker, Terraform, and Helm files, most of which correspond to patch targets. It never designs the System Config panel integration and omits the Terraform root-to-child module argument required to carry `var.ui_title`. Several implementation snippets are malformed or contradictory, most notably placing React interpolation in `frontend/public/index.html` despite declaring the static title out of scope. The proposed `html.escape` transformation violates exact-string behavior in React, while caching, logging, sanitization, and backward-compatibility claims are asserted without sound repository evidence."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 7,
+      "specificity": 11,
+      "risk_awareness": 9,
+      "total": 36,
+      "notes": "The review identifies concrete frontend fallback and document-title questions and requests deployment-template specificity. Its largest deficiency is failing to detect the LLD’s invalid HTML proposal, missing admin-panel design, omitted Terraform module forwarding, and exact-string violation caused by backend escaping. The SRE review claims Helm templates were not identified even though the LLD explicitly lists `charts/registry/templates/deployment.yaml`, and the security review incorrectly treats HTML entity encoding as a complete XSS solution for React text rendering. The conclusion that all critical concerns were addressed is therefore unsupported."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 15,
+      "risk_awareness": 13,
+      "total": 49,
+      "notes": "The plan covers both deployment modes, custom and default values, compatibility, UI locations, deployment mechanisms, and malicious inputs with several concrete expected values. Its commands use hardcoded paths outside the submitted repository, and exporting variables without a defined service restart makes multiple API tests non-reproducible. Presence-only grep checks would pass despite the patch’s missing Terraform root-module forwarding, while the XSS boolean condition and length test can approve incorrect fallback behavior. It also lacks a System Config panel test, and unit and integration coverage appears only as unchecked placeholders."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 7,
+      "total": 43,
+      "notes": "The patch attempts broad plumbing through settings, `/api/config`, three visible frontend locations, Docker Compose, Terraform, and Helm. Critically, it declares root and child Terraform variables and consumes the child variable in `ecs-services.tf` but includes no module-call change forwarding the root value, and it does not demonstrate System Config panel exposure. `effective_ui_title` strips and HTML-escapes configured text and silently replaces invalid lengths, contradicting the promised exact string and causing escaped entities to render literally in React; the `.env.example` hunk also duplicates unrelated tab documentation. The summary overstates that there are no deviations or follow-ups, and local patch application plus possible preexisting `config` bindings in Login and Logout could not be verified because repository command execution failed at sandbox startup."
+    }
+  },
+  "task_score": 51.8,
+  "verdict": "The submission begins with a strong issue but degrades into an inconsistent design, shallow review, unreliable tests, and a partial implementation with broken Terraform propagation and incorrect title sanitization semantics.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:06:28.756786Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 263918,
+      "cached_input_tokens": 196672,
+      "cache_write_input_tokens": 36731,
+      "output_tokens": 13826,
+      "reasoning_output_tokens": 11864
+    },
+    "duration_ms": 335639
+  }
+}

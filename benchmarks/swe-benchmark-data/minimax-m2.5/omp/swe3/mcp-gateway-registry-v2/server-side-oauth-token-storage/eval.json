@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "minimax-m2.5",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 60,
+      "notes": "The issue supplies concrete acceptance criteria, dependencies, and useful non-goals despite the absence of an independent task statement. Its largest flaw is diagnosing access and refresh tokens as the whole cookie problem while the shown session data retains `id_token`, groups, and identity metadata; the repository’s eventual fix moved the full OAuth session payload server-side.  Criteria such as cookie size, logout deletion, TTL expiry, and cookie-only validation are directly testable. Migration, encryption-key rotation, multi-instance behavior, and failure-mode policy remain insufficiently defined."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 51,
+      "notes": "The LLD is concrete about `auth_server/server.py`, its proposed document schema, indexes, endpoint responses, and storage operations. Its load-bearing registry integration is left as a TODO in Step 5, with direct database access and an internal endpoint both proposed but neither selected. Keeping `id_token` and groups in the cookie undermines the size goal, while fixed eight-hour expiry ignores actual token expiry and raw `oauth_tokens` access omits the repository’s namespace convention. Error handling, metrics, alternatives, and rollout are discussed, but startup index creation, rollback behavior, key rotation, caching controls, and existing-session compatibility are not resolved."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 56,
+      "notes": "The review’s strongest work is identifying the missing UI integration, key-rotation problem, startup-index requirement, rollback uncertainty, and audit needs. It nevertheless declares zero blockers even though the LLD never decides how the registry’s token feature obtains stored tokens, which is central to acceptance. The connection-overhead and constant-time-response recommendations are weakly supported, while more serious issues—large `id_token` retention, namespace isolation, response caching, and token-expiry semantics—are missed. Recommendations are generally specific and prioritized, but the verdict does not follow from the defects the reviewers themselves found."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 16,
+      "risk_awareness": 13,
+      "total": 52,
+      "notes": "The plan covers storage, retrieval, logout, TTL indexes, feature flags, large tokens, compatibility, deployment, and an end-to-end flow with concrete commands. Several oracles are inadequate: document existence does not prove encryption, deleting all documents does not test expiry, and latency observation does not establish that session validation made no database call. It expects `/api/tokens/generate` to return `oauth_tokens` although the implementation does not add that behavior, and expects no `oauth_token_ref` key when the patch explicitly writes it as `None` while disabled. The statement that UX is unaffected directly contradicts both the review and implementation summary, and no executable unit-test cases are specified for encryption failure, tenant isolation, duplicate references, or stale-but-not-yet-purged documents."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 5,
+      "specificity": 12,
+      "risk_awareness": 6,
+      "total": 30,
+      "notes": "The patch provides concrete store, retrieve, invalidate, and index functions and wires token persistence, retrieval, and logout deletion into `auth_server/server.py`. It does not implement the registry or UI integration needed for the promised “Get JWT Token” behavior, and the summary admits this omission while still claiming the feature is implemented. The diff visibly leaves `id_token` and identity data in `session_data`, creates indexes during every callback, uses an unnamespaced collection, lacks tests and deployment configuration, and cannot distinguish expiration from other missing-document cases. Exact `git apply --check` verification was unavailable because the repository shell sandbox failed before command execution, so patch applicability and the callback’s unqualified `get_documentdb_client()` reference could not be independently confirmed."
+    }
+  },
+  "task_score": 49.8,
+  "verdict": "The submission is detailed but implements only a partial token-reference mechanism, leaving the actual oversized-session risk and end-to-end token retrieval path unresolved.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:03:50.866906Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 283465,
+      "cached_input_tokens": 184464,
+      "cache_write_input_tokens": 40670,
+      "output_tokens": 13006,
+      "reasoning_output_tokens": 10997
+    },
+    "duration_ms": 160743
+  }
+}

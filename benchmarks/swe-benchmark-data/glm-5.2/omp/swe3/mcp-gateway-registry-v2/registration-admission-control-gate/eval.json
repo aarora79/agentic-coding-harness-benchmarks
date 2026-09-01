@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "glm-5.2",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The issue provides an unusually clear contract, explicit exclusions, seven concrete route operations, deployment requirements, and testable allow, deny, and fail-closed outcomes. Its named routes and persistence symbols correspond to contexts present in the submitted patch, including agent, server, skill, Terraform, Compose, and Helm files. The largest limitation is the absence of an independent task statement, so the asserted business motivation and intended scope cannot be externally confirmed. Some details, such as update-payload semantics and credential handling, are deferred appropriately to the design."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 79,
+      "notes": "The LLD is repository-specific and commits to real route functions, configuration fields, persistence ordering, error mapping, deployment surfaces, and rollout behavior. Its main correctness defect is treating every 2xx response as allow even though the issue requires non-200/non-403 responses to fail closed. It also claims unexpected payload errors fail closed while its proposed catch-and-map helper silently returns for non-gate exceptions, and it does not specify a workable Kubernetes existing-Secret reference mechanism. The design considers meaningful security and operational risks, but several claimed ANS-pattern details could not be independently verified because local repository command execution was unavailable."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 81,
+      "notes": "The review finds concrete issues involving credential encryption order, redirects, URL validation, denial-message size, Terraform sensitivity, route-level testing, and operational visibility. Its recommendations are prioritized and mostly folded back into explicit LLD amendments rather than merely approving the design. However, it misses the issue-versus-LLD 200/2xx contradiction and the more serious fail-open behavior created when unknown exceptions are swallowed. Its Helm existing-secret recommendation is under-specified, and the resulting patch demonstrates that this decision was not implementation-ready."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The plan supplies concrete setup, actions, and oracles for gate responses, payloads, authentication, non-persistence, credential encryption, deployment wiring, compatibility, and E2E behavior. A major technical error is patching the defining service module even though route modules directly import the function, so those mocks would not replace the route-bound symbol. The disabled-route cases also require the gate function not to be called, contradicting the implementation's always-call-then-short-circuit design. It omits the required non-200 2xx failure case, validates that unknown exceptions are ignored rather than fail closed, and gives only weak grep-based coverage for deployment semantics and logging."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 3,
+      "specificity": 17,
+      "risk_awareness": 6,
+      "total": 40,
+      "notes": "The new client is concrete and includes timeout handling, denial extraction, message capping, URL checks, authentication headers, configuration, and broad deployment wiring. Critically, the diff replaces the existing `agent_service` and `server_service` imports while continuing to call those names, causing runtime failures across the affected routes. It also swallows unknown gate exceptions, accepts all 2xx responses contrary to the issue, deletes existing ANS Compose and Terraform wiring, and encodes an external Secret key name as the token rather than referencing that Secret. Required route-level tests are omitted despite being a binding design amendment, so the summary's claim of no deviations is false; the claimed clean `git apply --check` could not be independently executed because the local command runner failed before command execution."
+    }
+  },
+  "task_score": 72.8,
+  "verdict": "The design artifacts are detailed and largely useful, but the implementation is not mergeable because it breaks core imports, regresses existing configuration, and contains fail-open admission behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-29T20:41:08.316108Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 433082,
+      "cached_input_tokens": 357014,
+      "cache_write_input_tokens": 60486,
+      "output_tokens": 11140,
+      "reasoning_output_tokens": 9023
+    },
+    "duration_ms": 121931
+  }
+}

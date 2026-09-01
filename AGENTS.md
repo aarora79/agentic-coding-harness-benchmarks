@@ -312,6 +312,12 @@ def calculate_metrics(data: list[float], threshold: float = 0.5) -> dict[str, fl
 - **Do not hard-wrap prose in Markdown files.** Write each paragraph or sentence as a single line and let the editor / renderer soft-wrap it. Hard wrapping creates noisy diffs and breaks tables, lists, and links. Tables, fenced code blocks, and list structure are unaffected.
 - A good README includes prerequisites, links to external resources, clear command examples (with env-var variants), a development-workflow section, and performance warnings for time-intensive operations.
 
+### Prose style for explainers and design docs
+
+- **Write every explainer to the writing skill: [.claude/skills/writing/SKILL.md](.claude/skills/writing/SKILL.md), invocable as `/writing`.** This governs all design docs, explainers, READMEs and results docs under `docs/` and `benchmarks/docs/`, plus PR bodies, issue text and commit bodies. It applies Orwell's six rules and cuts the machine tells: passive voice, `-ly` padding, corrective negation ("this isn't X, it's Y"), contrasting pairs, punchy landing lines, and the em-dash reveal. Run its revision pass (step 1-9) before you commit a doc.
+- **Keep the technical words. Introduce the new ones.** The plain-English rule targets padding, not precision. `KV cache`, `prefill`, `TPOT`, `tensor parallelism`, `MTP` and `blended cost` are the exact names of the things and stay; `synergy`, `holistic` and `leverage` as a verb do not. When a doc introduces a term, metric or unit the reader has not met, define it once where it first appears: a `> [!NOTE]` callout listing the terms, a parenthetical gloss, or a short table near the top. A reader should not have to open another file to learn what a column heading means.
+- **Check every number against its source** before shipping the doc, and say where it came from. Cite the file that holds it (a `performance-summary.json`, a run log) so the next person can re-derive it. Mark a projection as a projection.
+
 ## Security
 
 ### General
