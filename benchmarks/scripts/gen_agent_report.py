@@ -111,14 +111,33 @@ def _blended_rate(model_slug: str) -> tuple[float, str] | None:
 def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
     """Sum a run's per-task tokens, wall-clock, and metered cost into totals.
 
-    ``total_tokens`` is the total tokens processed once each, computed by
-    ``compute_total_tokens_processed`` (issue #136). That helper detects whether
-    the cache fields are a PARTITION of ``input_tokens`` (self-hosted vLLM, where
-    ``input`` already contains the cached prompt -- so ``total = input + output``)
-    or ADDITIVE (Bedrock prompt caching, where a task can report ``input: 2``
-    while processing ~180K cached tokens -- so ``total = input + output +
-    cache_read + cache_write``). Adding the cache unconditionally, as this code
-    used to, ~2x double-counted every self-hosted partition run.
+    ``total_tokens`` is the total tokens processed once each. It is the SUM OF
+    THE PER-TASK ``total_tokens`` that ``summarize_run.py`` already wrote via
+    ``compute_total_tokens_processed`` (issue #136) -- NOT a fresh classification
+    of the summed fields.
+
+    That distinction is the whole point. The helper decides per task whether the
+    cache fields are a PARTITION of ``input_tokens`` (self-hosted vLLM: ``input``
+    already contains the cached prompt, so ``total = input + output``) or ADDITIVE
+    (Bedrock prompt caching: a task reports ``input: 2`` while processing ~180K
+    cached tokens, so the cache must be added). Classifying the AGGREGATE instead
+    lets a single anomalous task flip the verdict for every other task in the run.
+
+    That is not hypothetical. A task's ``vllm_prometheus`` block is a window delta
+    of SERVER-WIDE counters, accurate only when the run was the sole traffic on the
+    server; when a window catches traffic that is not its own, that task's cache
+    sum explodes (one glm-5.3 task reported ``input`` 479,697 against a cache sum
+    of 47,795,047 -- a 99.6x ratio). Twenty of that run's twenty-one tasks matched
+    the partition signature to within 0.02%, but the outlier dragged the summed
+    ratio to 1.24, outside the 5% band, so the aggregate was classified ADDITIVE
+    and the cache was re-added to all 21 tasks: 442,295,665 tokens reported against
+    245,606,604 actually processed, inflating that row's cost 1.80x ($258.93 vs
+    $143.78). Six of eleven self-hosted models were overstated 1.5-1.9x this way.
+
+    Summing the per-task totals is also what ``plot_cost_quality.py`` and
+    ``plot_cost_accuracy_bubble.py`` already do (they call the helper inside a
+    per-task loop), which is why the charts and the Pareto-frontier JSON were
+    correct while this table was not -- the report contradicted its own chart.
 
     Args:
         summary: One model's run-summary dict.
@@ -143,13 +162,27 @@ def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
         f"gen_agent_report:{summary.get('model_slug')}/"
         f"{summary.get('agent')}/{summary.get('skill')}"
     )
-    total_tokens = compute_total_tokens_processed(
-        tin,
-        tout,
-        tcr,
-        tcw,
-        context=context,
-    )
+    # Prefer the per-task totals the summarizer already classified one task at a
+    # time. Fall back to classifying the aggregate only for a legacy summary whose
+    # tasks predate the per-task field, where there is nothing better to use.
+    per_task = [t.get("total_tokens") for t in tasks]
+    if per_task and all(isinstance(v, int) for v in per_task):
+        total_tokens = sum(per_task)
+    else:
+        logger.warning(
+            "%s: %d/%d tasks lack a per-task total_tokens; falling back to "
+            "classifying the aggregate, which one anomalous task can skew",
+            context,
+            sum(1 for v in per_task if not isinstance(v, int)),
+            len(per_task),
+        )
+        total_tokens = compute_total_tokens_processed(
+            tin,
+            tout,
+            tcr,
+            tcw,
+            context=context,
+        )
     return {
         "input_tokens": tin,
         "output_tokens": tout,

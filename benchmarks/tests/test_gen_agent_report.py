@@ -92,6 +92,71 @@ class RunTotalsTest(unittest.TestCase):
         self.assertEqual(totals["cache_read_tokens"], 4_070_208)
         self.assertEqual(totals["cache_write_tokens"], 71_083)
 
+    def test_one_outlier_task_cannot_skew_the_whole_run(self) -> None:
+        # The real regression (glm-5.3): a task's vllm_prometheus block is a window
+        # delta of SERVER-WIDE counters, so a window that catches traffic which is
+        # not its own reports a wildly oversized cache sum. Classifying the summed
+        # fields let that single task flip the verdict to ADDITIVE and re-add the
+        # cache to every other task, inflating the run 1.80x. Summing the per-task
+        # totals -- already classified one task at a time -- must be immune.
+        clean = {
+            "input_tokens": 3_005_532,
+            "output_tokens": 41_017,
+            "cache_read_tokens": 2_951_744,
+            "cache_write_tokens": 54_437,
+            "total_tokens": 3_005_532 + 41_017,
+        }
+        outlier = {
+            "input_tokens": 479_697,
+            "output_tokens": 12_000,
+            "cache_read_tokens": 47_700_000,
+            "cache_write_tokens": 95_047,
+            "total_tokens": 479_697 + 12_000,
+        }
+        summary = {"tasks": [dict(clean) for _ in range(20)] + [outlier]}
+        totals = gen._run_totals(summary)
+        expected = 20 * (3_005_532 + 41_017) + (479_697 + 12_000)
+        self.assertEqual(totals["total_tokens"], expected)
+        # The aggregate-classified answer would have re-added every cache field.
+        aggregate_additive = (
+            20 * 3_005_532
+            + 479_697
+            + 20 * 41_017
+            + 12_000
+            + 20 * 2_951_744
+            + 47_700_000
+            + 20 * 54_437
+            + 95_047
+        )
+        self.assertLess(totals["total_tokens"], aggregate_additive)
+
+    def test_per_task_totals_win_over_recomputing_the_aggregate(self) -> None:
+        # A per-task total is authoritative even when it disagrees with what the
+        # summed fields would imply: summarize_run.py classified that task with the
+        # data in front of it, and this report must not second-guess it.
+        summary = {
+            "tasks": [
+                {
+                    "input_tokens": 100,
+                    "output_tokens": 10,
+                    "cache_read_tokens": 90,
+                    "cache_write_tokens": 10,
+                    "total_tokens": 110,
+                }
+            ]
+        }
+        self.assertEqual(gen._run_totals(summary)["total_tokens"], 110)
+
+    def test_falls_back_when_a_task_lacks_a_total(self) -> None:
+        # A legacy summary written before the per-task field existed still has to
+        # produce a number, so the aggregate path remains as the fallback.
+        summary = {
+            "tasks": [
+                {"input_tokens": 2, "output_tokens": 1000, "cache_read_tokens": 180000},
+            ]
+        }
+        self.assertEqual(gen._run_totals(summary)["total_tokens"], 181002)
+
     def test_total_tokens_accepts_cache_creation_alias(self) -> None:
         # claude-code metrics use cache_creation_tokens for cache-write.
         summary = {
