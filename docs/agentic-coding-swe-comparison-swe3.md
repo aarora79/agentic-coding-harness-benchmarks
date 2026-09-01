@@ -1,6 +1,6 @@
 # Agentic coding: model comparison on /swe3 (quality, tokens, cost)
 
-> **Not the headline result.** The reported run is the **omp** harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers Claude Code against pi on the v1 dataset. Different task sets and harnesses, so the scores here do not compare with it.
+> **Not the headline result.** The reported run is the **[oh-my-pi](omp-setup.md)** (`omp`) harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers Claude Code against pi on the v1 dataset. Different task sets and harnesses, so the scores here do not compare with it.
 
 How every benchmarked model compares as an **agentic coding** engine on real `/swe3` tasks against `mcp-gateway-registry`, under **both harnesses** (Claude Code and pi). Unlike the serving-economics view in [agentic-coding-throughput-comparison.md](agentic-coding-throughput-comparison.md) (synthetic throughput sweep), this doc is built from the actual benchmark runs and combines the three axes a buyer trades off -- **quality, tokens, and cost** -- plus wall-clock latency.
 

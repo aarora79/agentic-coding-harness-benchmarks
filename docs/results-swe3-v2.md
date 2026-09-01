@@ -1,6 +1,6 @@
 # Results -- `/swe3` on the v2 dataset (release-sourced, complexity-balanced)
 
-> **Not the headline result.** The reported run is the **omp** harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers the same v2 dataset under the **pi** harness, 3 models. Different task sets and harnesses, so the scores here do not compare with it.
+> **Not the headline result.** The reported run is the **[oh-my-pi](omp-setup.md)** (`omp`) harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers the same v2 dataset under the **pi** harness, 3 models. Different task sets and harnesses, so the scores here do not compare with it.
 
 Three models, 21 tasks each, on the **pi** harness with the single-agent [`/swe3`](../.claude/skills/swe3/SKILL.md) skill, scored by the codex judge (`openai.gpt-5.6-sol`, high effort).
 

@@ -1,6 +1,6 @@
 # Which model for which task? Reading the v2 results as a buying decision
 
-> **Not the headline result.** The reported run is the **omp** harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers the complexity read of the v2 dataset from the 3-model pi run. Different task sets and harnesses, so the scores here do not compare with it.
+> **Not the headline result.** The reported run is the **[oh-my-pi](omp-setup.md)** (`omp`) harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers the complexity read of the v2 dataset from the 3-model pi run. Different task sets and harnesses, so the scores here do not compare with it.
 
 The [v2 dataset](../benchmarks/dataset/mcp-gateway-registry-v2.yaml) was built to answer a question a single leaderboard number cannot: **does the right model change with the difficulty of the work?**
 

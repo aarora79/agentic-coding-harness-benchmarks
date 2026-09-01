@@ -1,6 +1,6 @@
 # Results -- /swe3 (single-agent skill)
 
-> **Not the headline result.** The reported run is the **omp** harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers the v1 dataset (5 tasks) under the pi harness. Different task sets and harnesses, so the scores here do not compare with it.
+> **Not the headline result.** The reported run is the **[oh-my-pi](omp-setup.md)** (`omp`) harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers the v1 dataset (5 tasks) under the pi harness. Different task sets and harnesses, so the scores here do not compare with it.
 
 Full benchmark results for the **`/swe3`** skill (the single-agent variant -- one agent loop, no sub-agent fan-out) on [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4`: **5 tasks**, each scored 0-100 by an independent LLM judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). The multi-agent `/swe2` numbers live in [results-swe2.md](results-swe2.md).
 
