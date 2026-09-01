@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 84,
+      "notes": "The issue clearly defines opt-in behavior, backward compatibility, startup validation, secret handling, deployment surfaces, and testable token-cache semantics. Its repository references align with the submitted baseline, including registry/embeddings/client.py, registry/core/config.py, and registry/api/config_routes.py. Its largest gap is undefined behavior for refresh failures or tokens whose lifetime is shorter than the five-minute buffer, while excluding repository regression testing weakens the compatibility promise. No independent task statement was supplied, so issue #1415 and requirements beyond the task identifier could not be verified."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 9,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 60,
+      "notes": "The LLD provides unusually concrete configuration, data flow, security, infrastructure, and rollout guidance tied to named repository files. However, its factory creates and validates token_provider but neither passes it nor its configuration to LiteLLMClient, whose documented ownership model conflicts with that factory flow; it also omits the application call-site needed to pass settings.embeddings_idp_mode. Repository naming is misstated in places: the patch context uses CONFIG_GROUPS rather than CONFIG_FIELD_GROUPS, and the actual deployment template is charts/registry/templates/deployment.yaml rather than the stated stack template path. Risk coverage is substantial, but the design does not resolve refresh thrashing for token lifetimes at or below 300 seconds, and the claim that httpx is safely available only transitively was not independently established."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 16,
+      "specificity": 19,
+      "risk_awareness": 19,
+      "total": 71,
+      "notes": "The review identifies several real, consequential concerns: secret-store injection, server-side redaction, configuration ownership, explicit authentication branching, HTTPS, and token-response handling. Its recommendations are concrete and mostly reflected in the revised design, although it repeats the incorrect CONFIG_FIELD_GROUPS symbol and makes some unverified claims about LiteLLM logging and dependency availability. The largest omission is failure to notice that the configured provider is discarded, LiteLLMClient cannot construct it as specified, and no production caller enables idp_mode. Consequently, the final PROCEED verdict is not defensible despite otherwise useful security and operations scrutiny."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 48,
+      "notes": "The plan covers static compatibility, acquisition, caching, refresh failures, secret leakage, deployment wiring, and an end-to-end semantic-search scenario. Its repeated /api/embeddings/generate and /api/admin/config routes are not established by the submitted source, while repository testing documentation uses different CLI/MCP flows and localhost:7860 rather than the assumed localhost:8080. Several procedures cannot prove their assertions: piping curl output through grep cannot observe server logs, the startup script exits 1 whether the expected exception occurs or not, and a 300-second token is invalid immediately under a 300-second buffer rather than after sleep 301. Unit and integration tests are only checklist entries, so concrete mocked concurrency, request-authentication, malformed expires_in, and application-wiring coverage remains unverified."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 2,
+      "specificity": 14,
+      "risk_awareness": 8,
+      "total": 31,
+      "notes": "The patch attempts broad coverage across Python configuration, token handling, redaction, Docker, Terraform, Helm, and documentation. In registry/embeddings/client.py, create_embeddings_client references IdpTokenProvider without importing it and discards the configured instance; LiteLLMClient then calls IdpTokenProvider() without its four required constructor arguments, making IdP mode fail before any embedding request. The Helm deployment removes rendering of extraEnv and leaves an unmatched end, while the submitted stack values are not placed under the app hierarchy consumed by .Values.app.*. No existing application caller is changed to pass embeddings_idp_mode, no tests are added, and the summary's claim of no design deviations is contradicted by both the provider lifecycle and Helm implementation."
+    }
+  },
+  "task_score": 58.8,
+  "verdict": "The artifacts present a strong problem statement and detailed design discussion, but the implementation is nonfunctional on its primary IdP path and contains broken Helm wiring.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T15:59:23.288821Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 397705,
+      "cached_input_tokens": 298859,
+      "cache_write_input_tokens": 60643,
+      "output_tokens": 13294,
+      "reasoning_output_tokens": 11158
+    },
+    "duration_ms": 183035
+  }
+}

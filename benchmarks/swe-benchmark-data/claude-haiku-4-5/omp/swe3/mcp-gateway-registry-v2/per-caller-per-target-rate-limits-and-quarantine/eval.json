@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 73,
+      "notes": "The issue provides concrete acceptance criteria for target-aware enforcement, early quarantine denial, status 403, headers, administrative management, and compatibility. Its largest defect is asserting both reuse of existing membership storage and target quarantine through that storage, while the LLD later acknowledges memberships are caller-centric and requires a new collection. The published repository overview distinguishes fail-open rate-limit availability behavior from fail-closed quarantine membership checks, whereas the issue broadly demands fail-closed behavior for both axes.  No independent task statement was supplied, so the exact authority of issue #1504 and several UI and deployment requirements could not be verified."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 13,
+      "total": 47,
+      "notes": "The LLD names relevant files and considers identity collisions, early denial, administrative bypass, caching, rollout, and observability. Its central design is unstable: target quarantine alternates among memberships, definitions, and a dedicated collection, while caller_target alternates between a composite counter subject and an exact-pair definition model. The submitted source context defines CALLER_TYPE_USER and CALLER_TYPE_AGENT, but the design repeatedly uses client identities and the patch queries user/client prefixes, creating an integration mismatch. Claims about cache TTLs, latency, indexes, existing API capabilities, UI reuse, and nginx conditional status behavior were not substantiated by verifiable baseline source."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 17,
+      "total": 60,
+      "notes": "The review usefully identifies caller-type collisions, empty identities, delimiter ambiguity, indexing, cache invalidation, auditability, and compromised-admin risk. It misses more fundamental defects, including the unresolved target-quarantine storage model, the issue's stated minimum limit of one versus proposed zero-valued definitions, and the lack of a credible 403-preservation path through nginx. Its claim that critical fixes are resolved is contradicted by examples that still omit caller type and by audit logging merely being deferred. Several approvals rely on unverified repository claims such as a 0.25-second timeout, 30-second caches, and existing UI behavior."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 49,
+      "notes": "The plan covers independent target quotas, quarantine, administrative behavior, compatibility, headers, malformed identities, deployment surface, and combined gates with concrete expected statuses. Several tests have invalid or self-contradictory oracles: the independence test exhausts both targets, the quarantine counter test deletes all memberships and then expects throttling, and the ordering test gives every gate the same window. Target-quarantine commands are absent from the patch, multiple token variables and helpers are undefined, and the end-to-end script prints success without failing on mismatched responses. DocumentDB failure, cache propagation, counter non-consumption, and real unit-level gate ordering remain unimplemented or unverifiable despite being listed as covered."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 4,
+      "specificity": 10,
+      "risk_awareness": 5,
+      "total": 24,
+      "notes": "The summary honestly states that the patch is only a data-layer phase, but consequently it implements no caller_target enforcement, quarantine denial, API or CLI management, startup seeding, immutability, UI support, or tests. Concrete defects include querying user/client prefixes despite importing user/agent constants, never calling ensure_quarantine_groups, and catching every exception from target-quarantine insertion as a successful duplicate. The proposed zero-valued quarantine definitions conflict with the issue's stated configuration floor of one, while quarantine headers still retain X-RateLimit-Throttled and no code creates quarantine decisions. Patch applicability could not be independently confirmed because the provided read-only shell failed before executing git apply --check, leaving exact baseline fit as a material evidence gap."
+    }
+  },
+  "task_score": 50.6,
+  "verdict": "The submission frames the problem well and surfaces useful risks, but its design remains contradictory and the partial implementation neither enforces the feature nor provides a reliable foundation for completing it.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T22:17:38.172315Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 334318,
+      "cached_input_tokens": 256456,
+      "cache_write_input_tokens": 49959,
+      "output_tokens": 11105,
+      "reasoning_output_tokens": 9303
+    },
+    "duration_ms": 140538
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The issue clearly distinguishes browser-session and M2M behavior, provides testable acceptance criteria, and explicitly excludes the internal toggle endpoint. The v1.0.21 release notes confirm that PR #894 addressed Bearer-token CSRF failures on toggle endpoints. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) Its largest weakness is treating X-User or a Bearer-shaped header as evidence of authentication, making correctness depend implicitly on prior authentication. No independent task statement was supplied, so the complete endpoint inventory could not be established beyond the artifacts."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 73,
+      "notes": "The LLD names concrete files, functions, dependency parameters, error behavior, and a clear session-first state flow. Its proposed changes align with the supplied patch contexts for verify_csrf_token_flexible, toggle_service_api, and toggle_virtual_server. The largest flaw is choosing client-visible header presence instead of a validated authentication result, creating a security-sensitive dependency-order coupling. It also lacks a complete route inventory, concrete test-file changes, and meaningful rollback guidance, while its request.state.user_context claim was not independently verifiable."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 15,
+      "specificity": 17,
+      "risk_awareness": 17,
+      "total": 64,
+      "notes": "The strongest review finding is the hybrid-request risk and the resulting requirement that session-cookie validation precede any bearer bypass. It does not challenge the more fundamental use of raw X-User and Authorization headers as authentication evidence, and several reviewer sections provide little scrutiny. Duplicate resolution paragraphs and NEEDS REVISION verdicts that remain after the stated resolutions make the final disposition internally inconsistent. The claim that AuthContext.tsx already attaches CSRF headers to every mutation was not supported by the available repository evidence."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 9,
+      "specificity": 14,
+      "risk_awareness": 17,
+      "total": 55,
+      "notes": "The plan covers valid, missing, invalid, M2M, unauthenticated, backward-compatible, and hybrid-cookie scenarios with explicit status and body expectations. Its commands use fabricated session, CSRF, and bearer values that cannot produce the asserted success responses against real token validation; the documented architecture validates bearer tokens before Nginx supplies X-User. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/auth.md)) A direct curl containing only X-User is not an M2M authentication test, and accepting either 401 or 403 gives the unauthenticated case a weak oracle. The checklist promises unit tests and all-six-endpoint integration coverage but supplies neither concrete cases nor a virtual-server test."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 69,
+      "notes": "The patch implements the central design end to end: session requests still validate CSRF, no-session bearer flows bypass it, and dependencies are added to the two identified route handlers. The release record independently confirms that the shipped fix addressed bearer-token toggle failures through PR #894. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) Its largest defects are checking only header syntax rather than validated identity, adding no regression tests, and leaving the function docstring inconsistent while the summary claims a valid bearer token and no follow-ups. The diff contexts are internally consistent, but an independent git apply check was unavailable because repository command execution was blocked by the harness sandbox."
+    }
+  },
+  "task_score": 67.6,
+  "verdict": "Strong, repository-specific work with a plausible implementation, but header-presence authentication coupling and a non-executable testing plan are substantial limitations.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:03:13.353525Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 223019,
+      "cached_input_tokens": 127984,
+      "cache_write_input_tokens": 24242,
+      "output_tokens": 12964,
+      "reasoning_output_tokens": 11010
+    },
+    "duration_ms": 259249
+  }
+}

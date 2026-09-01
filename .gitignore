@@ -28,6 +28,20 @@ self-hosted/vllm/benchmark-output/**/*-backup/
 .env.*
 .scratchpad/
 
+# Stray repo-root writes from a benchmark session: a coding agent that writes a
+# BARE RELATIVE filename instead of the absolute artifacts_dir it was given drops
+# the file here. Both harnesses run the agent with cwd=REPO_ROOT (the /swe2 and
+# /swe3 slash commands and the root CLAUDE.md only resolve from there), so the
+# repo root is where those land. Some are completion self-reports duplicating the
+# run's own artifacts; github-issue.md is a real design artifact that belongs in
+# the run folder. Both harnesses now sweep these (the quality path in
+# run-multi-model-benchmark.sh, the throughput path in run-throughput-harness.py);
+# these ignores are the backstop for names seen in the wild, so a killed run
+# cannot leave one for `git add -A`.
+/completion_confirmation.md
+/task_completion_report.txt
+/github-issue.md
+
 # Benchmark run outputs. The large per-run design artifacts (github-issue/lld/
 # review/testing .md, patch.diff, implementation.md) stay LOCAL -- they quote
 # cloned third-party source and are bulky. COMMITTED per run: run-summary.json
@@ -47,6 +61,10 @@ benchmarks/swe-benchmark-data/**
 # (already committed) stay tracked so readers can see exactly what /swe produces.
 # New real runs commit only run-summary.json per the rule above.
 !benchmarks/swe-benchmark-data/**/Hello-World/**
+# ...but never the raw agent event stream, even inside a Hello-World example.
+# It is megabytes of per-token JSON with no reader value (the six artifacts
+# already show what the run produced), and every other run keeps it local.
+benchmarks/swe-benchmark-data/**/*-stream.jsonl
 # Per-task target-repo clones. The harness clones into
 # <clone_dir>/swe-clone-<task-id>/ (clone_dir defaults to /tmp, outside the
 # repo) and deletes them after each task; this ignore is a backstop for a config
@@ -55,13 +73,6 @@ benchmarks/swe-benchmark-data/**
 # matches the swe-benchmark-data output dir.
 swe-clone-*/
 **/swe-clone-*/
-# Stray repo-root writes from throughput load sessions. The throughput harness
-# runs `claude -p` with cwd=REPO_ROOT (the /swe2 slash command and root CLAUDE.md
-# only resolve from there), so a load session that writes a BARE RELATIVE filename
-# instead of the absolute artifacts_dir it was given drops the file here. The
-# harness now sweeps these at the end of each level; this ignore is the backstop
-# for names seen in the wild, so a killed run cannot leave one for `git add -A`.
-/github-issue.md
 __pycache__/
 *.pyc
 credentials.json

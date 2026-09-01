@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 79,
+      "notes": "The issue clearly defines the M2M regression, browser-security invariant, scope, and testable status/detail expectations; release notes corroborate the agent/skill CSRF bug and associated fix.  Its largest defect is requiring cookie-plus-CSRF requests to succeed on every endpoint, although `/api/internal/toggle` also requires `validate_internal_auth`, making that blanket criterion unsatisfiable without an internal bearer token. The endpoint table and named dependencies are unusually specific, but the statement that all six authenticate the same way contradicts its own internal-auth row. No independent task statement was supplied, and local repository inspection could not independently confirm the complete six-endpoint inventory."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 19,
+      "specificity": 24,
+      "risk_awareness": 21,
+      "total": 87,
+      "notes": "The LLD is highly implementation-ready, naming concrete files, handlers, dependency ordering, shared callers, rollout, and exact control flow. Its largest correctness gap is the behavior matrix claiming a browser cookie plus valid CSRF proceeds on all six routes; the internal route still requires its separate JWT authentication. The threat analysis also incorrectly implies HttpOnly prevents same-origin XSS from obtaining a CSRF token, whereas XSS can invoke and read the token endpoint using the ambient session. The exact source line references and claimed test-fixture behavior could not be independently checked because the local shell failed before repository commands executed."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The review surfaces concrete design concerns—dependency ordering, inline ANS callers, threat-model enumeration, observability, module documentation, and test conventions—and records actionable resolutions. Its largest deficiency is failing to challenge the impossible uniform-success contract for the internal-auth endpoint while endorsing the design unanimously. The security persona also preserves the LLD's faulty XSS reasoning instead of noting that CSRF controls do not defend against same-origin script execution. Claims about exact auth-server, nginx, and fixture lines could not be independently verified locally."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The strongest portion is the concrete six-route matrix with exact 200/401/403 oracles, invalid-token cases, state verification, compatibility checks, and focused automated commands. The internal-toggle manual scenario is incorrect: with authentication declared before CSRF, a cookie-only browser request cannot demonstrate CSRF rejection or success without also supplying valid internal authentication. The plan also leaves `M2M_TOKEN_FILE` undefined and specifies ports 8000/8001, while published repository documentation identifies direct registry/auth ports 7860/8888 and public access through the proxy.  The proposed suites and CLI subcommands could not be executed or independently confirmed."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 83,
+      "notes": "The submitted diff implements the core design end to end: it checks the session cookie before token parsing, preserves cookie-path validation, and adds the shared dependency to the three identified missing routes with substantial focused tests. The largest risk is the intentional behavior change for non-toggle ANS and logout callers through the shared function, without automated route-level coverage for that expanded blast radius. Endpoint tests override authentication rather than sending real bearer credentials, and the skill test class omits the `skills` marker required by the LLD; unrelated formatter churn also weakens patch focus. Release notes corroborate that v1.0.21 contained the relevant bearer-client CSRF fix, but patch applicability and the claimed test results could not be independently rerun because local shell execution failed before command startup. "
+    }
+  },
+  "task_score": 80.8,
+  "verdict": "The submission presents a strong, detailed core fix, but overstates uniform browser behavior for the internal-auth endpoint and carries several invalid or unverifiable testing assumptions.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:33:36.529206Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 516800,
+      "cached_input_tokens": 401966,
+      "cache_write_input_tokens": 59074,
+      "output_tokens": 14849,
+      "reasoning_output_tokens": 12777
+    },
+    "duration_ms": 196339
+  }
+}

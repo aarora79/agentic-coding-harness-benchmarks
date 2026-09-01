@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 12,
+      "specificity": 16,
+      "risk_awareness": 8,
+      "total": 52,
+      "notes": "The issue clearly states a cookie-size problem, desired server-side storage, non-goals, and six recognizable acceptance criteria. Its proposed access/refresh-token reference model conflicts with the repository's published fix, which stores the complete OAuth session payload including username, groups, and ID token while leaving only a session ID in the cookie.  The largest deficiency is that compatibility, token ownership, logout, replay, key rotation, and endpoint authorization are not made testable despite their security impact. No independent task statement establishes the claimed token sizes or the assertion that commented-out tokens are the current workaround."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 42,
+      "notes": "The LLD provides concrete proposed models, configuration names, data flow, repository methods, and file-level steps. Its sample is internally broken because OAuthTokenStore requires encrypted_access_token and encrypted_refresh_token, while get_tokens constructs it with undefined access_token and refresh_token fields. It never creates the promised TTL index, implements vault or KMS providers, defines legacy-session behavior, or resolves logout and key rotation; repository release evidence also says existing sessions are invalidated and the whole OAuth payload is moved server-side, contradicting its compatibility and cookie-content claims.  Several exact paths, line ranges, dependency assumptions, and the invented token endpoint remain unsupported by the submitted task context."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 7,
+      "specificity": 8,
+      "risk_awareness": 9,
+      "total": 33,
+      "notes": "The review usefully raises rate limiting, database failures, observability, key rotation, and compromise handling. Its central weakness is approving the design while declaring security concerns resolved even though those same concerns remain unanswered and the LLD provides no rotation, revocation, or secure failure policy. It misses concrete defects such as the incompatible Pydantic construction, absent TTL-index creation, nonfunctional key-provider setting, unimplemented compatibility path, and exposure of refresh tokens. Most recommendations are generic role-based commentary rather than repository-specific findings with prioritized blocking changes."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 6,
+      "specificity": 9,
+      "risk_awareness": 8,
+      "total": 33,
+      "notes": "The plan covers functional, negative, compatibility, deployment, rollback, and end-to-end categories and sometimes supplies exact token-value oracles. The callback POST, token endpoint, deployment files, image, and infrastructure commands are asserted without repository evidence, while the cookie-size script tests fabricated base64 data rather than an application-generated signed cookie. Several important checks are placeholders or non-observable assertions, and the expired-token test permits either 401 or 404 instead of defining behavior. Its legacy-cookie expectation also conflicts with the repository's documented behavior that prior sessions require re-login after this change. "
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 1,
+      "specificity": 7,
+      "risk_awareness": 5,
+      "total": 17,
+      "notes": "The patch adds only a model and an isolated synchronous repository; it does not modify the OAuth callback, cookie, route, application lifecycle, configuration, indexes, or tests, as its summary admits. The displayed unified diff is malformed because its hunk counts do not match the additions and multiple blank context lines lack diff prefixes, so it is not an applicable patch. Even treated as source, get_tokens cannot construct OAuthTokenStore because it omits the required encrypted fields and supplies undeclared decrypted fields, and store_tokens merely comments about a TTL index without creating one. The summary honestly lists major omissions but then falsely claims token references, retrieval, TTL cleanup, and backward compatibility are implemented."
+    }
+  },
+  "task_score": 35.4,
+  "verdict": "The submission identifies the broad security direction, but its repository model is materially inaccurate and the implementation is malformed, internally broken, and missing every end-to-end integration point.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T15:31:01.215636Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 318654,
+      "cached_input_tokens": 231858,
+      "cache_write_input_tokens": 32842,
+      "output_tokens": 11543,
+      "reasoning_output_tokens": 9226
+    },
+    "duration_ms": 312082
+  }
+}

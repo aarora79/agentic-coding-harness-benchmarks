@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 18,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The issue clearly defines the static-credential expiration problem, opt-in OAuth2 behavior, backward compatibility, deployment surfaces, and embedding-dimension caveat. Its acceptance criteria are largely testable and specifically name LiteLLM, EMBEDDINGS_API_KEY, startup validation, secret masking, Docker, Terraform/ECS, and Helm. The largest omissions are credential-precedence rules and required behavior when token acquisition or refresh fails. No independent task statement was supplied, and the asserted existing federation-auth pattern could not be independently verified from the submitted evidence."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 41,
+      "notes": "The design provides concrete configuration names, proposed files, integration points, and sample implementation code. Its central implementation is invalid: IdPTokenManager creates an httpx.AsyncClient but calls post, raise_for_status, json, and close synchronously, while its lock protects singleton construction and clear_token but not concurrent refreshes. Startup validation actually occurs only when LiteLLMClient.encode constructs the manager, and refresh failure silently falls back to an API key despite leaving that policy as an open question. Docker, Terraform, Helm, UI masking, and documentation are only checklist items rather than designed changes, and the named repository paths and APIs were not independently verifiable."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 10,
+      "risk_awareness": 12,
+      "total": 37,
+      "notes": "The review offers actionable suggestions around URL validation, transient failures, metrics, alerting, and deployment coverage. It misses the LLD's most consequential defects—the synchronous use of AsyncClient, unlocked refresh path, deferred rather than startup validation, and unsafe fallback behavior—while repeatedly declaring the design thread-safe and robust. The security review claims the client secret is logged during initialization, but no such logging exists in the displayed design code, making its sole blocker unsupported. Its overall approval also conflicts with the stated critical security blocker and does not produce a defensible merge decision."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 5,
+      "specificity": 7,
+      "risk_awareness": 7,
+      "total": 28,
+      "notes": "The plan spans backward compatibility, deployment surfaces, end-to-end refresh, and rollback, which is its strongest aspect. It never establishes that POST /api/embeddings exists, explicitly uses a hypothetical validation CLI command, and sends an inbound Authorization header that cannot prove the outbound LiteLLM bearer injection. Assertions such as \"valid embedding array\" and \"token refresh occurred\" lack concrete values or observable mechanisms, and no executable unit-test setup is provided. It omits concurrent refresh, cache-boundary timing, malformed token responses, IdP outages, refresh failure policy, secret-log checks, and static-key precedence."
+    },
+    "implementation": {
+      "completeness": 0,
+      "correctness": 0,
+      "specificity": 0,
+      "risk_awareness": 0,
+      "total": 0,
+      "notes": "No unified diff was submitted; the implementation artifact contains only a summary referencing an unavailable ./patch.diff. Consequently, none of the claimed target files, source context, behavior, patch applicability, or repository conventions can be verified, so this is treated as no implementation submission. The summary also says verification was not executed while claiming compilation and integration were verified, and it asserts secret masking without identifying any masking change."
+    }
+  },
+  "task_score": 36.0,
+  "verdict": "The issue is useful, but the design contains fundamental asynchronous and concurrency errors, the review and tests fail to catch them, and no assessable code patch was submitted.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T15:03:55.032051Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 240099,
+      "cached_input_tokens": 167567,
+      "cache_write_input_tokens": 29984,
+      "output_tokens": 9375,
+      "reasoning_output_tokens": 7623
+    },
+    "duration_ms": 116682
+  }
+}

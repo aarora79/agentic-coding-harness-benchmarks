@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 17,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 65,
+      "notes": "The issue clearly explains the cookie-versus-bearer CSRF conflict and supplies testable positive, negative, and out-of-scope behavior. Its largest defect is repeatedly claiming six toggle endpoints while enumerating only four, leaving the intended endpoint inventory ambiguous. The submitted baseline contexts corroborate CSRF dependencies on toggle_service_route, toggle_agent, and toggle_skill and their absence from toggle_virtual_server. No independent task statement was supplied, so the exact endpoint count and the claimed breadth of broken registration pipelines could not be fully verified."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 62,
+      "notes": "The LLD provides concrete files, symbols, dependency wiring, helper behavior, alternatives, and rollout considerations. Its critical integration error is proposing removal of verify_csrf_token_flexible from server_routes.py even though edit_server_submit still uses it; the appended findings acknowledge that usage but incorrectly say only toggle endpoints use the symbol. The submitted source context places edit_server_submit at the cited location, making either a retained dual import or an explicit scope change necessary. The duplicated findings section and unresolved four-versus-six/React-endpoint scope prevent the design from being safely implementation-ready."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The review identifies concrete concerns around the server_routes.py import, the additional React route, virtual-server coverage, and out-of-scope ans_routes.py callers. It nevertheless approves the design while those issues remain contradictory or unresolved, and much of the SRE discussion is low-value speculation. Byte's claim that delegation changes a missing-token response to an invalid-token response is incorrect because the proposed helper invokes the same verify_csrf_token_flexible function unchanged. Claims about cookie synchronization races, CORS, and tracing are not grounded in demonstrated repository behavior."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 12,
+      "risk_awareness": 11,
+      "total": 43,
+      "notes": "The plan attempts a useful cookie/no-cookie matrix with missing-token, invalid-token, compatibility, and end-to-end cases. Several central invocations do not match the submitted route evidence: toggle_agent accepts a plain enabled parameter rather than the JSON body shown, the React route changes from /api/servers/{path}/toggle in the review to /api/servers/toggle here, and /toggle/my-agent targets the generic server toggle rather than the agent handler. Commands use curl -o /dev/null while subsequently requiring response-body assertions, and prerequisites do not create the named resources or define SESSION_TOKEN. The claimed six-endpoint coverage is never consistently enumerated, and no repository-native automated test command or concrete test file is proposed."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 1,
+      "specificity": 9,
+      "risk_awareness": 2,
+      "total": 17,
+      "notes": "The patch concretely adds the proposed helper and attempts to update the four named toggle handlers. The virtual-server edit is fatal: it replaces request: ToggleVirtualServerRequest with a defaulted _csrf parameter before required user_context, producing Python's non-default-argument-after-default SyntaxError while also removing the request body binding. It additionally changes the non-toggle edit_server_submit endpoint despite the issue explicitly excluding non-toggle endpoints, while the summary misleadingly reports no LLD deviation and leaves the claimed React toggle untouched. The local sandbox failed before git apply --check could be independently repeated, but the syntax and scope defects are directly visible in the submitted unified diff."
+    }
+  },
+  "task_score": 49.0,
+  "verdict": "The submission has a sound core CSRF concept and useful repository-specific design work, but inconsistent endpoint scope, unreliable tests, and a syntactically invalid implementation make it unshippable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T15:45:05.121487Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 275868,
+      "cached_input_tokens": 178852,
+      "cache_write_input_tokens": 36952,
+      "output_tokens": 10900,
+      "reasoning_output_tokens": 8922
+    },
+    "duration_ms": 149795
+  }
+}

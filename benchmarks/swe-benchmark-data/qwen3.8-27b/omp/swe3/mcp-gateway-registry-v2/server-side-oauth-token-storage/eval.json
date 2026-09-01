@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 53,
+      "notes": "The issue has unusually concrete acceptance criteria, compatibility behavior, non-goals, and failure cases. Its central premise is inconsistent: it acknowledges that access and refresh tokens were already removed from cookies, then proposes storing those same tokens server-side as the cookie-size fix while retaining groups and `id_token`. The repository's shipped #399 solution instead moved the session payload, including groups and encrypted `id_token`, behind an opaque session identifier. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) The claimed broken OAuth behavior of the existing Get JWT Token feature and the quoted provider token sizes were not independently established."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 58,
+      "notes": "The LLD is highly specific about files, endpoints, document fields, deployment surfaces, and degradation behavior. Its largest defect is architectural: leaving user metadata, groups, and `id_token` in the cookie does not address the actual oversized-session payload that the repository's eventual server-side session store removed. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) It also sets `expires_at` to now plus the TTL and configures `expireAfterSeconds` to the same TTL, causing Mongo automatic deletion after roughly twice the intended lifetime. The claimed graceful file-backend behavior is incomplete because `_get_collection()` can repeat the eagerly-pinging Mongo connection attempt on every login, outside the index retry cooldown."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 56,
+      "notes": "The review finds concrete defects such as malformed environment parsing, missing frontend timeout, index retry storms, and configuration-surface drift, then records actionable resolutions. It nevertheless misses the load-bearing flaw that the design preserves the large cookie fields while vaulting tokens that the issue says are already absent. It also overlooks the doubled TTL-index lifetime and the caching risk of returning access and refresh tokens through a GET endpoint without explicit `no-store` headers. Consequently its final approval path is not defensible despite the quality of its secondary findings."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 63,
+      "notes": "The plan supplies concrete setup, actions, status codes, predicates, and response-value oracles across store, endpoint, callback, compatibility, logout, and deployment tests. The core cookie regression test uses a tiny `id_token` and empty groups, so its under-4096 assertion would pass even though the real large-session failure remains. The mocked re-login test only verifies delete predicates rather than proving the old reference is inaccessible, and comparing against a Keycloak admin console's active access token is not a reliable stated oracle. Hard-coded clone paths, missing cache-control coverage, and no test for repeated Mongo connection stalls further reduce executability and risk coverage."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 18,
+      "risk_awareness": 7,
+      "total": 40,
+      "notes": "The diff coherently implements its proposed token vault across the callback, Mongo store, internal APIs, registry proxy, logout, frontend, configuration, and focused tests. It does not implement the actual cookie-size fix: access and refresh tokens were already excluded, while `groups` and `id_token` remain in `session_data`, so the problematic payload is not reduced. The TTL index expires documents after approximately twice the configured interval, Mongo-unavailable deployments can incur the eager connection timeout repeatedly, and plaintext refresh tokens are exposed by a GET response without explicit anti-caching headers. The summary also falsely says the frontend adds a My Tokens navigation entry when the diff only augments `fetchAdminTokens`; local patch applicability and the claimed full-suite results could not be independently executed."
+    }
+  },
+  "task_score": 54.0,
+  "verdict": "The submission is exceptionally detailed but implements a token-retrieval side feature rather than the required oversized-session fix, with additional TTL, outage-latency, and sensitive-response risks.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T17:11:14.123511Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 447007,
+      "cached_input_tokens": 336838,
+      "cache_write_input_tokens": 72806,
+      "output_tokens": 12911,
+      "reasoning_output_tokens": 11105
+    },
+    "duration_ms": 170046
+  }
+}

@@ -44,6 +44,34 @@ cd benchmarks
 ./scripts/run-e2e-benchmark.sh --help
 ```
 
+## Many models in one batch
+
+[scripts/run-multi-model-benchmark.sh](scripts/run-multi-model-benchmark.sh) runs the same end-to-end flow over several self-hosted models back to back, serving each in turn from its own model registry. It self-detaches, so a session teardown cannot kill a multi-hour run.
+
+```bash
+cd benchmarks
+./scripts/run-multi-model-benchmark.sh qwen3-coder-30b gemma-4-31b --agent omp --skill swe3
+./scripts/run-multi-model-benchmark.sh --help   # prints the model catalog
+```
+
+**When the judge runs is a knob, and it matters for wall-clock.** Generation runs on your GPUs; the codex judge is an Amazon Bedrock call that uses no GPU at all. `--judge-mode` decides whether those two overlap:
+
+| Mode | Behavior | Use when |
+|---|---|---|
+| `inline` (default) | Judge each model right after it generates. | One model, or you want each result final before the next starts. |
+| `async` | Judge in the background **while the next model generates**. | A multi-model batch. Judging is roughly 50 minutes per 21-task model, and this hides essentially all of it. |
+| `skip` | Harness only; score later. | The judge is unavailable, or you want to score on another machine. |
+
+`async` keeps judge, summarize, and commit together as one background unit, so a run-summary is never committed before its scores exist. Only one judge runs at a time: every model in a batch judges the same dataset, so concurrent judges would collide on the same `/tmp/swe-judge-repos` checkout. The run waits for outstanding judging before reporting `ALL DONE`, and exits non-zero naming any model whose judging failed.
+
+Score a `skip`ped run later with:
+
+```bash
+cd benchmarks/scripts && uv run python codex_judge.py --recursive --no-overwrite \
+    --folder ../swe-benchmark-data/{model-slug}/{harness}/{skill}/{scope}
+uv run python summarize_run.py --folder ../swe-benchmark-data/{model-slug}/{harness}/{skill}/{scope}
+```
+
 ## Quick start
 
 ```bash

@@ -212,6 +212,15 @@ If the run is long, remind the user they can run only the harness now and score 
 cd benchmarks/scripts && uv run python codex_judge.py --recursive --no-overwrite --folder ../swe-benchmark-data/{model-slug}
 ```
 
+**For a MULTI-MODEL batch, do not hand-write a scoring watcher.** Use [scripts/run-multi-model-benchmark.sh](../../../benchmarks/scripts/run-multi-model-benchmark.sh) with `--judge-mode async`: it judges each model in the background while the next one generates. The judge is a Bedrock call and uses no GPU, so the two overlap for free -- roughly 50 minutes per 21-task model that would otherwise be GPU-idle time (inline) or a serial tail after the batch (`--skip-judge`). It keeps judge, summarize and commit together, waits for outstanding judging before reporting `ALL DONE`, and exits non-zero naming any model whose judging failed.
+
+```bash
+cd benchmarks
+./scripts/run-multi-model-benchmark.sh {model} {model} --agent {agent} --skill {skill} --judge-mode async
+```
+
+`--judge-mode async` requires a working `codex`; the script proves it with a live call before serving anything, so a misconfigured judge fails in seconds rather than hours later inside a background job.
+
 ## Step 5 - Wrap up (stop the collector, archive the DuckDB snapshot, write the run summary) and report
 
 **5a. (vllm path) Stop the DuckDB metrics collector** now that the run is done, so it stops appending to the live database:

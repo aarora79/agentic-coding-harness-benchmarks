@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 87,
+      "notes": "The issue gives a crisp end-to-end scope, testable acceptance criteria, and useful exclusions covering repository verification and non-GitHub hosts. Its named integration points, including translate_skill_url, _parse_skill_md_content, Dashboard.tsx, and both skill modals, agree with the submitted patch contexts. The largest gap is ambiguity around repeated parsing and whether an existing manually entered repository_url should be cleared, preserved, or overwritten. No independent task statement was supplied, so the expanded UI and enterprise-host scope cannot be confirmed beyond the internally consistent artifacts and repository metadata."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The design is unusually concrete about files, symbols, data flow, optional response behavior, and conditional modal rendering. Its integration points match the patch contexts for _parse_skill_md_content, parse_skill_md, handleParseSkillMd, SkillCard, and SemanticSearchResults. The central correctness defect is that its algorithm reconstructs the original hostname for raw.githubusercontent.com while its own example requires https://github.com/org/repo, leaving a contradictory load-bearing decision. Its malformed-input guarantee is also incomplete because the resulting implementation accesses parsed.hostname outside the try block, and it does not address stale form values or enterprise instances using non-default ports."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 52,
+      "notes": "The review provides concrete recommendations for malformed inputs, enterprise cases, null handling, and conditional links rather than merely issuing approvals. It nevertheless misses the LLD's direct contradiction between preserving raw.githubusercontent.com and promising a github.com repository root, then incorrectly states that both URL shapes are handled correctly. Pixel's request for additional auto-fill feedback overlooks the existing success toast visible beside the Dashboard.tsx state update, while Sage incorrectly suggests a guarded optional property would still fail TypeScript strict null checks. The security approval is overconfident because the accepted schemes and precise trust semantics of _is_github_hostname are not established in the review."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 60,
+      "notes": "The plan has useful concrete oracles for blob and raw derivation, editable auto-fill, modal link targets, old records, and backward-compatible JSON responses. Its main flaw is presenting malformed, short-path, and GitLab cases as helper tests while invoking the parse endpoint, whose service constructs the result only after fetching the supplied URL; the illustrative URLs can therefore fail retrieval before repository_url is observable. The enterprise case has no executable mock setup, TOKEN is undefined, and the proposed tests under tests/unit and tests/integration have neither repository test commands nor concrete test files. It also lacks a direct derive_repository_url unit test and a repeated-parse case that would expose stale repository form state."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 61,
+      "notes": "The patch covers every stated layer: URL utility, service result, API response, frontend type, Dashboard auto-fill, and both modal implementations. The largest defect is in derive_repository_url: its raw branch returns f\"{scheme}://{hostname}/{org}/{repo}\", producing a raw.githubusercontent.com URL rather than the promised github.com repository root when called directly. Additionally, parsed.hostname is evaluated outside the exception handler, Dashboard preserves a previous repository_url when the new result is null, and no automated tests accompany the change. The summary therefore overstates that there are no deviations and that malformed inputs always return None; local git apply verification could not be completed because the provided shell sandbox failed before executing repository commands."
+    }
+  },
+  "task_score": 67.2,
+  "verdict": "The submission is well-scoped and largely implementation-ready, but its raw-URL derivation contract is internally inconsistent and the review and test plan fail to expose several concrete edge-path defects.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T21:51:22.380333Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 261755,
+      "cached_input_tokens": 215285,
+      "cache_write_input_tokens": 46134,
+      "output_tokens": 9284,
+      "reasoning_output_tokens": 7202
+    },
+    "duration_ms": 171290
+  }
+}

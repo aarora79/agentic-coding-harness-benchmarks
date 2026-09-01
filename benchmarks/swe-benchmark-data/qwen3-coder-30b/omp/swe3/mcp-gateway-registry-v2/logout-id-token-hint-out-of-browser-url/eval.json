@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 15,
+      "specificity": 14,
+      "risk_awareness": 18,
+      "total": 63,
+      "notes": "The issue clearly identifies URL token exposure, WAF rejection, intended logout behavior, and explicit non-goals. Its largest deficiency is that backward compatibility and “new path” behavior are undefined, making several acceptance criteria difficult to test. The submitted patch confirms that logout URLs are built in `registry/auth/routes.py`, but the claimed WAF frequency, token-size range, and related issue #1503 were not established by accessible repository evidence."
+    },
+    "lld": {
+      "completeness": 10,
+      "correctness": 6,
+      "specificity": 9,
+      "risk_awareness": 9,
+      "total": 34,
+      "notes": "The LLD identifies concrete components and recognizes temporary storage, TTL, fallback, and session-store failure concerns. Its core data flow is unresolved: it says no endpoint is needed, later adds one accepting `id_token`, while the registry is supposed to redirect using `token_id`; the diagrams still depict the original exposed-token flow. The patch corroborates the existence of `registry/auth/routes.py` and `registry/auth/session_store.py`, but the auth-server line ranges and endpoint assumptions could not be verified, and atomic consumption, replay prevention, shared-store access, and capability negotiation remain unspecified."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 7,
+      "specificity": 9,
+      "risk_awareness": 11,
+      "total": 36,
+      "notes": "The review usefully raises TTL expiry, storage outages, concurrency, abuse, monitoring, and clustered-session behavior. Its largest failure is declaring zero blockers while missing the LLD's incompatible POST-body and token-ID designs, undefined cross-component retrieval, and security-defeating fallback. Recommendations such as locking, retries, circuit breakers, and caching tokens are asserted without repository grounding and sometimes add risk rather than resolving the actual design gap."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 6,
+      "specificity": 8,
+      "risk_awareness": 8,
+      "total": 31,
+      "notes": "The plan at least attempts functional, compatibility, WAF, and session-store-failure coverage. The proposed JSON POST targets `${REGISTRY_URL}/logout`, whereas the LLD places its new POST endpoint at `/oauth2/logout/{provider}/token`, and the compatibility test explicitly expects the sensitive token to remain in the URL. The curl commands provide no concrete header-capture or authenticated-session setup, most assertions lack executable oracles, and the claimed `tests/unit`, `tests/integration`, and pytest command could not be verified from accessible repository evidence."
+    },
+    "implementation": {
+      "completeness": 1,
+      "correctness": 1,
+      "specificity": 5,
+      "risk_awareness": 3,
+      "total": 10,
+      "notes": "The summary honestly acknowledges that the auth-server endpoint and real storage integration are missing, but those are essential rather than follow-up work. The patch imports `.session_store_enhanced` while modifying `session_store.py`, leaves `token_id` permanently `None` through a `pass`, and implements every storage method as a placeholder returning failure. Even if a token ID became available, the conditional logout URL is immediately overwritten by the original assignment, so the submitted change cannot implement the design; exact patch applicability could not be confirmed because the local read-only command runner failed before execution."
+    }
+  },
+  "task_score": 34.8,
+  "verdict": "The issue captures a credible security problem, but the design is internally inconsistent, the tests do not exercise a coherent interface, and the implementation is explicitly incomplete and functionally ineffective.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T15:09:22.093467Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 176194,
+      "cached_input_tokens": 104582,
+      "cache_write_input_tokens": 24207,
+      "output_tokens": 10365,
+      "reasoning_output_tokens": 8961
+    },
+    "duration_ms": 120904
+  }
+}

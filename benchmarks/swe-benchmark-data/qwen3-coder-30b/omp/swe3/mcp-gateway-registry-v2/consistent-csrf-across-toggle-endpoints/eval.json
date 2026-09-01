@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 11,
+      "risk_awareness": 14,
+      "total": 52,
+      "notes": "The strongest aspect is the explicit distinction between bearer-token automation and cookie-authenticated browser security. The largest deficiency is the undefined claim of six endpoints while naming only four resource types and providing no exact routes. Repository release notes identify the fixed defect specifically as bearer-token CSRF handling for agent and skill toggles, making the broader inconsistency narrative only partially grounded.  No independent task statement was supplied, so the asserted six-endpoint scope could not be verified."
+    },
+    "lld": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 10,
+      "risk_awareness": 8,
+      "total": 27,
+      "notes": "The design names concrete route files, dependencies, and the intended browser-versus-bearer behavior. Its central implementation decision is wrong: it changes only the virtual-server route even though the documented v1.0.21 fix concerns bearer-token access to agent and skill toggle endpoints.  It also asserts that the existing flexible validator already handles bearer clients while simultaneously claiming protected agent and skill routes block those clients, without resolving that contradiction. Security questions about cookie-without-token behavior remain open rather than becoming committed validation rules."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 5,
+      "specificity": 7,
+      "risk_awareness": 10,
+      "total": 30,
+      "notes": "The strongest part is that several reviewers question exactly how the flexible validator treats bearer requests and sessions lacking CSRF tokens. The review nevertheless approves the design without answering those load-bearing questions or noticing that the proposed virtual-server-only change does not address the documented agent and skill defect.  Most recommendations are generic verification requests rather than prioritized findings tied to code behavior. Operational discussion of bottlenecks and distributed deployment is disproportionate, while the fatal scope and import risks receive no scrutiny."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 7,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 37,
+      "notes": "The plan's strongest coverage is its explicit bearer-success and cookie-without-CSRF failure scenarios, including agent and skill requests. However, it claims six endpoints while exercising four, marks backward compatibility not applicable despite making it an acceptance criterion, and provides few executable response or persisted-state oracles. Repository documentation places agent APIs under `/api/agents`, including registration, whereas the proposed commands use `/agents`, so they are not grounded in the documented API surface.  Invalid-token, mixed cookie-plus-bearer, per-endpoint negative, and concrete automated regression cases are missing."
+    },
+    "implementation": {
+      "completeness": 1,
+      "correctness": 0,
+      "specificity": 7,
+      "risk_awareness": 1,
+      "total": 9,
+      "notes": "The patch does not implement the documented agent and skill bearer-token fix; it only adds validation to the virtual-server toggle, where missing validation could not have been what prevented bearer clients from toggling.  More critically, its import hunk replaces `nginx_proxied_auth` with `verify_csrf_token_flexible` while the function still evaluates `Depends(nginx_proxied_auth)`, leaving the submitted module with an unresolved dependency name absent an unshown duplicate import. The summary falsely reports exact LLD compliance, no omitted work, and no follow-ups despite these defects. Patch applicability could not be dry-run because the provided local command sandbox failed before execution, but that evidence gap does not mitigate the internally visible import error."
+    }
+  },
+  "task_score": 31.0,
+  "verdict": "The submission identifies the correct security boundary at a high level, but the design targets the wrong route and the implementation both misses the documented agent/skill fix and introduces a likely module-import failure.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:52:39.611539Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 168317,
+      "cached_input_tokens": 103108,
+      "cache_write_input_tokens": 28660,
+      "output_tokens": 11733,
+      "reasoning_output_tokens": 9967
+    },
+    "duration_ms": 127594
+  }
+}

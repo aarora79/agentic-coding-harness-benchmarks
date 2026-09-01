@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 78,
+      "notes": "The issue clearly defines opt-in configuration, refresh, secret masking, compatibility, deployment, documentation, and explicit non-goals. The submitted baseline context confirms the relevant embeddings settings and LiteLLM integration points. Its largest gap is undefined behavior when static and IdP credentials coexist, plus ambiguity about startup timing and background versus request-time refresh. No independent task statement was supplied, and the asserted issue number and 60-minute token lifetime could not be verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The LLD names concrete core files and provides unusually detailed configuration, data-flow, deployment, and observability decisions. Its critical mismatch is designing an async encode path around an existing synchronous LiteLLM call, while an asyncio.Lock does not provide the claimed cross-thread safety. The cross-field field_validator approach is unsound, startup fetching is deferred in the expected running-loop case, and the proposed logging guard merely emits a reminder without preventing credential logging. Repository documentation places ECS environment wiring under terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf rather than the asserted main.tf, and the claimed federation API equivalence was not demonstrated. "
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 54,
+      "notes": "The review identifies concrete concerns around auth-mode precedence, event-loop handling, endpoint reachability, URL validation, and credential leakage. Its largest deficiency is approving the threading model while missing the fatal field-validation and synchronous-event-loop problems. The proposed logging-guard resolution only logs that headers should not be logged, so it does not resolve the stated security blocker. Claims that deployment surfaces are consistently wired and that the design has no backend blockers are unsupported by the LLD and contradicted by the submitted patch."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 47,
+      "notes": "The plan broadly covers token refresh, injection, validation, compatibility, deployment rendering, and end-to-end behavior. Several tests are not executable as written: they await synchronous encode, patch litellm.embedding rather than the symbol imported into registry.embeddings.client, and import CONFIG_FIELD_SCHEMAS although the patch shows CONFIG_GROUPS. The secret test initializes the provider before installing its failure mock and inspects only an exception string rather than captured logs, while the logging test merely asserts that a warning message was emitted. The reindex endpoint and Helm value names are unverified, Terraform apply is an excessive validation command, and important malformed-response and concurrent-refresh oracles are absent."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 4,
+      "specificity": 14,
+      "risk_awareness": 7,
+      "total": 34,
+      "notes": "The patch targets the central settings, factory, repository, UI, and LiteLLM client integration points with a concrete token-provider implementation. Its settings validator fatally rejects a fully populated configuration because info.data lacks the current client_id and later client_secret while validating client_id. LiteLLMClient.encode calls run_until_complete even when the loop is already running, then attempts another loop in the same thread, and asyncio.Lock does not make this synchronous client thread-safe. Deployment wiring, documentation, and tests required by the issue are omitted despite the summary claiming no deviations, and git apply --check could not be independently completed because the available command sandbox failed before process launch."
+    }
+  },
+  "task_score": 54.2,
+  "verdict": "The submission frames the feature well, but the design and patch contain fatal validation and event-loop defects and omit several explicit end-to-end deliverables.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T22:00:25.645913Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 274423,
+      "cached_input_tokens": 185812,
+      "cache_write_input_tokens": 41565,
+      "output_tokens": 14990,
+      "reasoning_output_tokens": 13228
+    },
+    "duration_ms": 188223
+  }
+}

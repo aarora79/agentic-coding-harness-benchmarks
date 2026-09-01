@@ -64,6 +64,14 @@ DEFAULT_MAX_OUTPUT_TOKENS = 16000
 # long, thorough implementations can exceed 1h on a heavy task (observed with
 # Opus 5). A task that overruns is killed and marked failed.
 DEFAULT_TIMEOUT_SECONDS = 7200
+# Wall-clock cap handed to the agent itself, so it stops on its own well before
+# the harness's own timeout_seconds kills it. An agent that finishes the work and
+# then loops -- emitting tokens forever without ever ending its turn -- otherwise
+# burns the full timeout AND its retry, hours per task, for a task that was
+# already done. Observed tasks finish in ~4 minutes, so this leaves wide headroom
+# while capping a runaway. Only agents with a native duration flag use it (omp's
+# --max-time); 0 disables it.
+DEFAULT_AGENT_MAX_TIME_SECONDS = 1800
 # How many times to retry a task that failed for a TRANSIENT reason (stream
 # error, empty/non-JSON output, timeout, an api/execution error). A task that
 # simply ran out of turns (subtype "error_max_turns") is NOT retried -- more
@@ -378,6 +386,14 @@ class RunnerConfig(BaseModel):
     max_turns: int = Field(default=DEFAULT_MAX_TURNS, ge=1)
     max_output_tokens: int = Field(default=DEFAULT_MAX_OUTPUT_TOKENS, ge=1)
     timeout_seconds: int = Field(default=DEFAULT_TIMEOUT_SECONDS, ge=1)
+    agent_max_time_seconds: int = Field(
+        default=DEFAULT_AGENT_MAX_TIME_SECONDS,
+        ge=0,
+        description="Wall-clock budget passed to the agent itself so it stops "
+        "before the harness timeout fires (omp --max-time). Caps a runaway "
+        "generation loop that would otherwise burn timeout_seconds plus a "
+        "retry. 0 disables, leaving only the harness timeout.",
+    )
     max_retries: int = Field(
         default=DEFAULT_MAX_RETRIES,
         ge=0,

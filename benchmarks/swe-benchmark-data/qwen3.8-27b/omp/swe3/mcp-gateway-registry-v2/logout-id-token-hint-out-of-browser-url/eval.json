@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "qwen3.8-27b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The issue provides concrete behavior, compatibility, provider, metric, and non-goal criteria. Its largest omission is that the registry must defer clearing the cookie, without which the proposed auth-server lookup cannot work. The submitted patch confirms that this cookie ownership change is essential in registry/auth/routes.py and auth_server/server.py. No independent task statement exists, and repository access failed, so provider, metric, and shared-store claims could not be independently verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The LLD is decision-ready and notably corrects the critical cookie-clear sequencing issue while covering rollout order, TTL-bounded replay, metrics, and fallback behavior. Its largest deficiency is incomplete treatment of an explicit query hint combined with a valid cookie, which bypasses store deletion in the proposed precedence rule. The submitted diff follows the named integration points in registry/auth/routes.py, auth_server/server.py, configuration, and meters. Exact line references, deployment guarantees, and existing symbol context could not be independently verified against the repository."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 83,
+      "notes": "The review finds substantive defects, especially the deferred-cookie requirement, failure-case replay window, deployment ordering, and missing validation and observability. It misses that query-parameter precedence can clear the browser cookie without deleting a valid server session. The patch demonstrates this because _resolve_logout_id_token_from_cookie is called only when id_token_hint is absent. Claims that repeated end-session calls are benign across all named identity providers were not substantiated."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The plan supplies unusually concrete HTTP, compatibility, WAF, deployment, and end-to-end oracles. Its largest weakness is disagreement with the submitted tests: Cognito coverage is claimed but absent, and multiple registry tests use the invalid AsyncMock pattern `.awaited is True/False`. The concurrent test expects both requests to resolve the token despite a valid race where one observes the deletion, while the old-auth-server scenario understates the risk of an uncleared cookie and redirect loop. The stated pytest command and directory conventions could not be verified against the inaccessible repository."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 66,
+      "notes": "The diff implements the normal path across registry routing, auth-server resolution, configuration, session deletion, cookie clearing, metrics, and focused tests. A material anti-replay gap remains: when a JWT-shaped id_token_hint parameter and valid cookie are both supplied, the store helper is skipped, the cookie is cleared, and the server-side session is not deleted. Several submitted tests will fail because AsyncMock has no boolean `.awaited` property, and the summary falsely claims Cognito and registry metric tests that are not in the patch. Patch applicability and surrounding source compatibility could not be independently confirmed because read-only shell execution failed before repository access."
+    }
+  },
+  "task_score": 76.2,
+  "verdict": "This is a strong, detailed design with a plausible normal-path implementation, but an anti-replay edge case, inaccurate test claims, and defective tests prevent production-ready confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:52:12.987231Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 342631,
+      "cached_input_tokens": 277872,
+      "cache_write_input_tokens": 58606,
+      "output_tokens": 11131,
+      "reasoning_output_tokens": 8986
+    },
+    "duration_ms": 136240
+  }
+}

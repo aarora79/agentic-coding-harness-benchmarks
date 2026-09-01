@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "qwen3.6-35b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 75,
+      "notes": "The issue clearly defines five behaviors, testable acceptance criteria, affected asset types, metrics, documentation, and one explicit non-goal. Submitted source context corroborates existing server and agent PATCH handlers and three scanner services, while skills initially lack PATCH. Its largest gap is ambiguity over whether signing is optional when the secret is unset, plus missing invalid-filter, permission-provisioning, and delivery-failure semantics. No independent task statement was supplied, so issue #1330 and the exact required feature boundaries could not be independently verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The LLD names concrete files, functions, payloads, configuration, scanner integration points, rollout stages, and failure considerations. Its largest correctness defect is claiming that signing canonical JSON and then using httpx's json parameter transmits identical bytes; the implementation itself had to switch to content to satisfy that requirement. It also reproduces LifecycleStatus with DRAFT equal to beta, leaves the metric API unverified, contradicts itself about deployment-file changes, and does not define how the new permission is provisioned. Ordering guarantees and several precise line or module claims remain unsupported, especially given the missing independent task specification."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 18,
+      "specificity": 20,
+      "risk_awareness": 19,
+      "total": 75,
+      "notes": "The review identifies concrete, consequential issues: exact signed bytes, scanner-only event emission, oversized raw output, lifecycle-validation exceptions, and metric conventions. Those concerns are borne out by the submitted patch, which uses canonical content, strips raw_output, and catches ValueError. It misses larger end-to-end risks such as permission provisioning, skill default-status enforcement, authentication headers on scan webhooks, and the incomplete skill PATCH workflow. Some criticism is overstated or inaccurate, including treating absent line numbers as critical and claiming the LLD never clarified scanner-only emission despite its explicit Step 3e."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 45,
+      "notes": "The plan provides concrete commands and covers happy paths, negative cases, compatibility, deployment, and an end-to-end scenario. Its central HMAC test incorrectly looks for the outbound webhook signature on the registration API response, whereas the patch adds it to the separate client.post request sent to the consumer. It also uses inconsistent server PATCH URLs, expects an invalid status filter to return all records despite the proposed equality filter, and relies on an unspecified localhost logs service. Coverage is largely server-only and lacks configured positive permission cases, admin behavior, metric assertions, reliable scan-failure setup, and equivalent agent or skill tests."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 2,
+      "specificity": 15,
+      "risk_awareness": 6,
+      "total": 34,
+      "notes": "The patch touches most named areas and attempts canonical signing, scan events, filtering, registration defaults, lifecycle checks, metrics, skill PATCH, and consumer documentation. It is fatally broken in webhook_service.py: send_registration_webhook serializes payload and posts to webhook_url before either variable is constructed, and the patch removes the configured-token return from _build_auth_headers. Skill registration performs a no-op pass when the mandatory default must be applied, scan webhooks omit existing auth headers, no permission definition is added, and skill PATCH omits modify_service, registration-gate, update-webhook, and concurrency behavior. The documentation falsely claims internal retries and at-least-once delivery while later admitting no retries, and the summary's claimed agent-PATCH deviation contradicts the actual agent patch."
+    }
+  },
+  "task_score": 57.4,
+  "verdict": "The design package is detailed and the review catches several genuine hazards, but the implementation contains fatal webhook defects and leaves lifecycle enforcement incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T16:03:22.329779Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 304404,
+      "cached_input_tokens": 232694,
+      "cache_write_input_tokens": 46432,
+      "output_tokens": 10177,
+      "reasoning_output_tokens": 7971
+    },
+    "duration_ms": 116613
+  }
+}

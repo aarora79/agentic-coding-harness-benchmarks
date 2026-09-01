@@ -1,0 +1,151 @@
+{
+  "task": "pass-ssrf-allowlist-env-to-registry-container",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "docker",
+    "compose",
+    "configuration",
+    "ssrf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-sonnet-5[1m]",
+  "model_slug": "claude-sonnet-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 79.5,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 76,
+    "output_tokens": 37974,
+    "cache_read_tokens": 3614564,
+    "cache_write_tokens": 96244,
+    "total_tokens": 3748858,
+    "total_cost_usd": 1.3434148,
+    "latency_seconds": 477.4,
+    "num_turns": 38,
+    "generation_tokens_per_sec": 79.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 76,
+  "output_tokens": 37974,
+  "latency_seconds": 477.4,
+  "num_turns": 38,
+  "total_cost_usd": 1.3434148,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 3614564,
+  "cache_creation_tokens": 96244,
+  "run_started_at": "2026-08-31T03:34:26.973234Z",
+  "run_ended_at": "2026-08-31T03:42:24.405962Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 76,
+    "output_tokens": 37974,
+    "cache_read_tokens": 3614564,
+    "cache_write_tokens": 96244,
+    "total_tokens": 3748858,
+    "total_cost_usd": 1.3434148,
+    "latency_seconds": 477.4,
+    "num_turns": 38,
+    "generation_tokens_per_sec": 79.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "pass-ssrf-allowlist-env-to-registry-container",
+    "model": "us.anthropic.claude-sonnet-5[1m]",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 24,
+        "risk_awareness": 23,
+        "total": 92,
+        "notes": "The issue precisely identifies the two affected Compose files, required environment entries, unchanged empty defaults, and explicit exclusions. Its acceptance criteria are directly testable against the registry service environment and container process environment. The patch context corroborates the named REGISTRY_CONTACT_URL and SECRET_KEY insertion area, while the absent independent task statement limits verification of issue #1513 and the asserted downstream health-routing behavior. Security and upgrade risks are handled proportionately through fail-closed defaults and narrow scope."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 21,
+        "specificity": 24,
+        "risk_awareness": 22,
+        "total": 90,
+        "notes": "The LLD commits to exact files, values, placement, defaults, data flow, exclusions, and alternatives, making the small change implementation-ready. Its strongest evidence is the exact SSRF settings-to-URL-guard path and replication of the existing docker-compose.yml syntax. Minor correctness weaknesses include saying an unset ${VAR} generally causes a Compose error and several broad repository claims that could not be independently verified, such as the absence of all relevant automated Compose tests. It treats the principal security risk correctly but originally omits the operational requirement to recreate rather than merely restart the container."
+      },
+      "review": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 21,
+        "risk_awareness": 20,
+        "total": 79,
+        "notes": "The review surfaces a concrete rollout defect—changed environment configuration requires container recreation—and requests useful rendered-config and exact-syntax checks. It also prioritizes the empty default as the primary security invariant and records resolution of its recommendations. Its largest factual defect is the claim that list-form Compose environment values replace the whole list; Compose treats environment as a key-based mapping during merges regardless of YAML presentation. Several reviewer sections mostly repeat the LLD, and claims such as zero deployment risk and the fresh DHI grep were not independently verifiable."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 18,
+        "risk_awareness": 17,
+        "total": 71,
+        "notes": "The core tests have meaningful oracles for set and unset interpolation, YAML validity, actual container environment, file scope, and both target Compose variants. The main deficiency is that the E2E scenario is not executable as written: it leaves internal-server registration, hostname, authentication, API schema, and health-check timing as placeholders while assuming /api/servers and a five-second cycle. The rollback procedure uses broad git stash operations and the grep-based rendered-config checks are not explicitly scoped to the registry service, creating avoidable false-positive and workspace risks. The asserted absence of an automated Compose test suite and the runtime commands could not be independently verified."
+      },
+      "implementation": {
+        "completeness": 24,
+        "correctness": 22,
+        "specificity": 24,
+        "risk_awareness": 22,
+        "total": 92,
+        "notes": "The patch implements the requested change end to end by adding both exact empty-default passthroughs to both named registry environment blocks and touching nothing else. Its diff contexts consistently anchor the additions between REGISTRY_CONTACT_URL or the BUILD_VERSION explanation and SECRET_KEY, and the YAML indentation and substitution syntax are appropriate. The summary honestly distinguishes rendered-config checks from the unexecuted container and E2E verification, although no automated regression protection is added. Local git apply --check and the claimed baseline commit could not be independently confirmed because repository command execution failed at the sandbox boundary, but no contradiction is visible in the submitted source contexts."
+      }
+    },
+    "task_score": 84.8,
+    "verdict": "This is a strong, implementation-ready configuration fix whose largest material limitation is an E2E testing procedure that depends on ungrounded placeholders and unspecified API setup.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-31T05:45:03.114315Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 287759,
+        "cached_input_tokens": 198088,
+        "cache_write_input_tokens": 41060,
+        "output_tokens": 12038,
+        "reasoning_output_tokens": 9931
+      },
+      "duration_ms": 446388
+    }
+  }
+}

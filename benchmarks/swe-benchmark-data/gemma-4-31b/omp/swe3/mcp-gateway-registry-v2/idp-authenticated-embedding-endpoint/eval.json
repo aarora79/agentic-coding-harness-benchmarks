@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "gemma-4-31b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 74,
+      "notes": "The issue clearly defines the static-token expiry problem, four configuration parameters, fallback behavior, startup validation, masking, documentation, and explicit non-goals. The supplied source context supports the existing EMBEDDINGS_API_KEY, LiteLLM client, and embeddings configuration group claims. Its largest deficiency is limited treatment of token-endpoint trust, IdP failures, secret delivery, and compatibility risks beyond masking. No independent task statement was supplied, so the exact intended scope and related issue #1415 could not be verified."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 13,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 57,
+      "notes": "The strongest aspect is its concrete mapping to Settings, LiteLLMClient, create_embeddings_client, DocumentDBSearchRepository._get_embedding_model, and CONFIG_GROUPS. Passing the token explicitly per embedding call is a committed and plausible integration decision. The major flaw is placing purported startup validation in a lazy embedding-model getter, while singleton configuration, SSRF protection, complete deployment wiring, failure policy, and rollback remain unresolved. The claimed equivalence to FederationAuthManager and exact baseline applicability could not be independently verified because the read-only command sandbox failed before execution."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 19,
+      "risk_awareness": 20,
+      "total": 72,
+      "notes": "The review's strongest contribution is identifying the user-controlled token endpoint as an SSRF blocker and giving actionable recommendations for explicit token-fetch errors and refresh-failure metrics. It also usefully flags synchronous network work under a lock and secret-management guidance. However, several reviewers assert that masking is implemented, all deployment surfaces are covered, and backward compatibility is perfect despite the LLD being a draft with only checklist-level wiring; Byte also assumes an unspecified return-None implementation. It misses the lazy-versus-startup validation mismatch and global singleton reconfiguration risk, while the referenced _validate_federation_endpoints symbol could not be independently verified."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 11,
+      "total": 52,
+      "notes": "The plan provides concrete acquisition, refresh, static-key, UI, deployment, and end-to-end scenarios with several meaningful oracles. Its refresh test is incompatible with the implementation: a 10-second token is immediately invalid under the 60-second refresh buffer, producing three token requests rather than the expected two. The startup test also conflicts with validation placed in _get_embedding_model, and checking Terraform variables or Helm values alone would not prove container environment wiring. It omits malformed responses, timeouts, concurrency, SSRF, secret-redaction, and legacy no-key cases, while /api/search and the get_config endpoint were not established by the supplied source context."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 4,
+      "specificity": 11,
+      "risk_awareness": 4,
+      "total": 28,
+      "notes": "The patch attempts the central flow by adding a caching token manager, injecting its token into LiteLLMClient.encode, propagating settings, masking the secret, and recording refresh failures. The Terraform hunk inserts four variable blocks before the original embeddings_api_key block closes, making them unsupported nested blocks, while values.yaml duplicates all four Helm keys verbatim. It adds only Terraform declarations and Helm values rather than runtime environment wiring, omits .env.example and tests, changes the legacy call to always pass api_key, provides only lazy validation, and ignores the review's SSRF blocker. The summary falsely claims no deviations or follow-ups and reports a 110-line manager although the diff adds 160 lines; git apply applicability could not be independently checked because the repository command runner failed before execution."
+    }
+  },
+  "task_score": 56.6,
+  "verdict": "The design artifacts form a useful but incomplete foundation, while the implementation is materially undermined by invalid Terraform structure, duplicated Helm configuration, incomplete deployment wiring, and unresolved security and compatibility risks.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:22:25.225473Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 162648,
+      "cached_input_tokens": 124024,
+      "cache_write_input_tokens": 31245,
+      "output_tokens": 7962,
+      "reasoning_output_tokens": 5733
+    },
+    "duration_ms": 417161
+  }
+}

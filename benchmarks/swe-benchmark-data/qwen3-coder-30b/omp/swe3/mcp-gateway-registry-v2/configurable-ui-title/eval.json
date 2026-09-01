@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "qwen3-coder-30b",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 20,
+      "risk_awareness": 13,
+      "total": 74,
+      "notes": "The issue clearly defines custom-title precedence, deployment-mode defaults, affected UI components, deployment surfaces, and explicit non-goals. Submitted diff context corroborates the named Layout, Login, Logout, configuration, Docker, and Helm integration points. Its largest gap is undefined handling for empty or whitespace values, configuration-fetch failure, and loading behavior, while backward compatibility remains broadly stated rather than precisely testable. No independent task statement was supplied, and the claimed related issue #984 could not be verified from the available repository evidence."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 47,
+      "notes": "The LLD is concrete about files, settings, components, Helm values, and frontend rendering flow. It incorrectly calls frontend/src/hooks/useRegistryConfig.ts a new file even though the patch modifies an existing 61-line file, and it does not demonstrate how adding ui_title to CONFIG_GROUPS produces the proposed top-level API field consumed by the hook. It also defers Terraform despite making Terraform support a goal, then claims implementation, testing, and deployment are complete. Most importantly, it does not resolve empty-string normalization, so the proposed Compose and Helm defaults can defeat registry-only title derivation, and its per-component hook design creates redundant requests and visible fallback flicker."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 7,
+      "specificity": 12,
+      "risk_awareness": 10,
+      "total": 39,
+      "notes": "The review identifies several relevant concerns, including repeated configuration fetches, title-length validation, empty-string versus null handling, and missing Terraform updates. However, the SRE review calls deployment coverage comprehensive while the LLD explicitly postpones Terraform, and no reviewer treats that acceptance-criterion failure as blocking. The security and SMTS sections approve an implementation without resolving the API response contract, empty-value behavior, or React rendering and layout implications. The review is therefore mostly role-play commentary rather than a prioritized defect analysis with enforceable changes."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 9,
+      "total": 42,
+      "notes": "The plan provides useful visual oracles for custom, with-gateway, and registry-only titles across Layout, Login, and Logout, plus basic Helm rollback coverage. Its shell assignments change only the test process environment and do not reconfigure an already running registry, so several API and deployment-mode tests cannot exercise the claimed behavior without restarting or launching the service with those values. The curl examples omit authentication despite requiring authentication in the prerequisites, and they assume a top-level .ui_title response that the LLD does not establish from CONFIG_GROUPS. The backward-compatibility oracle accepts either null or empty, Terraform is left to manual verification, and the implementation adds none of the unit or integration tests listed in the checklist."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 1,
+      "specificity": 12,
+      "risk_awareness": 1,
+      "total": 22,
+      "notes": "The patch targets most of the stated backend, frontend, Docker, and Helm files, but omits Terraform and all tests. Its registry/core/config.py hunk deletes both returns from data_dir and places ui_title at class indentation immediately after if self.is_local_dev:, leaving the if without a body and making the module syntactically invalid. It also defaults UI_TITLE to an empty string that bypasses registry-only derivation, removes SHOW_SERVERS_TAB from the Helm deployment, and performs three uncached configuration requests. The summary falsely claims exact LLD compliance, full backward compatibility, completed unit verification, and no follow-ups; a local git apply check was unavailable, but the submitted unified diff itself conclusively exposes these defects."
+    }
+  },
+  "task_score": 44.8,
+  "verdict": "The issue is strong, but the design and review miss central configuration-contract problems and the implementation is unmergeable because it introduces a Python syntax error alongside behavioral and deployment regressions.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-30T14:50:32.005155Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 218279,
+      "cached_input_tokens": 138915,
+      "cache_write_input_tokens": 26550,
+      "output_tokens": 11706,
+      "reasoning_output_tokens": 9851
+    },
+    "duration_ms": 138921
+  }
+}

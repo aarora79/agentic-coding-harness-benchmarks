@@ -1,0 +1,153 @@
+{
+  "task": "build-docker-images-from-uv-lock",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "medium",
+  "tags": [
+    "docker",
+    "build",
+    "uv",
+    "dependencies",
+    "reproducibility",
+    "ci",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 94.4,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 314,
+    "output_tokens": 29614,
+    "cache_read_tokens": 3811741,
+    "cache_write_tokens": 67885,
+    "total_tokens": 3909554,
+    "total_cost_usd": 0.61441435,
+    "latency_seconds": 313.7,
+    "num_turns": 52,
+    "generation_tokens_per_sec": 94.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 314,
+  "output_tokens": 29614,
+  "latency_seconds": 313.7,
+  "num_turns": 52,
+  "total_cost_usd": 0.61441435,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 3811741,
+  "cache_creation_tokens": 67885,
+  "run_started_at": "2026-08-30T19:47:14.553739Z",
+  "run_ended_at": "2026-08-30T19:52:28.281692Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 314,
+    "output_tokens": 29614,
+    "cache_read_tokens": 3811741,
+    "cache_write_tokens": 67885,
+    "total_tokens": 3909554,
+    "total_cost_usd": 0.61441435,
+    "latency_seconds": 313.7,
+    "num_turns": 52,
+    "generation_tokens_per_sec": 94.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "build-docker-images-from-uv-lock",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 17,
+        "correctness": 11,
+        "specificity": 18,
+        "risk_awareness": 13,
+        "total": 59,
+        "notes": "The issue clearly identifies dependency drift, names projects and Dockerfiles, and supplies mostly testable acceptance criteria and non-goals. Its central claim that either `uv sync --frozen` or `--locked` fails for a stale lock is wrong: uv documents that `--frozen` skips freshness checking, while `--locked` performs it.  It also says `Dockerfile.scopes-init` installs `auth_server`, whereas the implementation later calls it a non-Python BusyBox image. No independent task statement was supplied, and repository shell failure prevented confirmation that exactly four lockfiles were missing."
+      },
+      "lld": {
+        "completeness": 14,
+        "correctness": 8,
+        "specificity": 14,
+        "risk_awareness": 10,
+        "total": 46,
+        "notes": "The LLD usefully names dependency roots, workflow integration points, expected files, and the intended build flow. Its load-bearing decision is incorrect because it selects `uv sync --frozen` while asserting stale-lock rejection, which requires `--locked`; `--frozen` uses the existing lock without checking whether it is current.  It also claims locked builds need no package-index network access even though the submitted locks merely reference downloadable distributions, and it does not analyze how `uv sync` differs from the existing requirements-only installation. Several Dockerfiles remain marked TBD or \"to be verified\" while the document simultaneously declares no open questions, so it is not implementation-ready."
+      },
+      "review": {
+        "completeness": 11,
+        "correctness": 7,
+        "specificity": 12,
+        "risk_awareness": 9,
+        "total": 39,
+        "notes": "The strongest findings are the concrete requests to test the registry's subsequent editable install, document lock regeneration, and exercise runtime smoke tests. The review nevertheless approves the core design without catching that `--frozen` does not validate lock freshness, despite that being the feature's principal promised failure mode.  It repeats unsupported claims that lockfiles eliminate build-time network requirements and detect lockfile tampering, and its security and SRE sections largely restate benefits rather than stress the mechanism. The claimed `Dockerfile.registry` line-58 behavior and exact lockfile sizes could not be independently verified because repository command execution failed."
+      },
+      "testing": {
+        "completeness": 15,
+        "correctness": 6,
+        "specificity": 17,
+        "risk_awareness": 14,
+        "total": 52,
+        "notes": "The plan spans lock generation, image builds, stale-lock negatives, CI, compatibility, and a runtime health check with concrete commands. Its key negative oracle is invalid because `uv sync --frozen` is not expected to reject an outdated lock; that behavior belongs to `--locked`.  The mutation appends an array element blindly to the end of `pyproject.toml`, which may only test TOML parsing, and from `auth_server/` it incorrectly references `../../docker/Dockerfile.auth` and `../../` rather than the repository parent. It builds only auth and registry images, merely checks package names rather than locked versions, and includes destructive cleanup with `git reset --hard`."
+      },
+      "implementation": {
+        "completeness": 9,
+        "correctness": 5,
+        "specificity": 15,
+        "risk_awareness": 6,
+        "total": 35,
+        "notes": "The patch summary describes four generated locks, two Dockerfile conversions, workflow triggers, CI validation, and an optional hook, so it implements part of the stated design. It misses other package-installing images implied by the acceptance criteria while claiming no deviations, and its use of `uv sync --frozen` does not provide the advertised stale-lock failure.  The visible pre-commit command swallows every validation failure with `|| true`, and its hunk also deletes the existing shell-hook `exclude: ^(docker/|scripts/setup/)`, creating unrelated behavior change. Full applicability and generated-lock consistency could not be checked because the submitted diff was truncated and the repository shell failed before executing `git apply --check`."
+      }
+    },
+    "task_score": 46.2,
+    "verdict": "The submission is concrete and broad but is undermined by choosing `--frozen` for a requirement that needs `--locked`, incomplete Docker coverage, and an implementation hook that cannot fail.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-08-30T21:35:38.002565Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 898272,
+        "cached_input_tokens": 730750,
+        "cache_write_input_tokens": 128925,
+        "output_tokens": 9592,
+        "reasoning_output_tokens": 7542
+      },
+      "duration_ms": 150928
+    }
+  }
+}

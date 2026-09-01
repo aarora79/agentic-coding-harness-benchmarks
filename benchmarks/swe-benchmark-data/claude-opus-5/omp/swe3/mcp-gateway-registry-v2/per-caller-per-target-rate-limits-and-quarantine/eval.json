@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-opus-5[1m]",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 92,
+      "notes": "The issue's strongest aspect is its unusually testable acceptance criteria covering models, counters, quarantine semantics, APIs, CLI, UI, compatibility, and exclusions. Named integration points such as `RateLimiter.check()`, `_enforce_rate_limit`, and the three existing collections agree with the submitted source contexts. Its main deficiency is tension between describing quarantine as immediate and accepting propagation through an unspecified short-TTL cache, while also making it inert when the master switch is off. No independent task statement was supplied, so the intended breadth beyond the task identifier cannot be verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 17,
+      "specificity": 24,
+      "risk_awareness": 19,
+      "total": 83,
+      "notes": "The LLD is exceptionally concrete about real files, data flow, compatibility, API shapes, failure handling, observability, and rollout. Its largest correctness flaw is the unescaped `<identity>|<target>` counter subject: neither side is proven unable to contain `|`, and the proposed validation does not prevent collisions between distinct pairs. It also claims TTL-bounded store load, but the designed cold-start fail-open result is not cached, so every request during an outage can repeat the read timeout. Finally, sorting gates only by window cannot guarantee the stated same-window deny-does-not-consume behavior, a contradiction exposed by the implementation's own caller-versus-pair test."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 81,
+      "notes": "The review's strongest aspect is that it identifies concrete repository-specific defects, including unbounded quarantine lists, missing read timeouts, silent allow behavior, duplicated ID formats, and edit-time ID mutation. Recommendations are prioritized and accompanied by explicit LLD resolutions rather than generic reviewer approval. It nevertheless misses the composite-key collision, repeated cold-start timeout load, non-atomic member-cap race, and same-window gate-ordering contradiction. Its claim that all blocking findings were resolved is therefore overstated by the submitted implementation."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 82,
+      "notes": "The plan provides strong oracles for pair isolation, marker-free 403 responses, admin non-bypass, stale snapshots, compatibility, authorization, and zero fake-backend increments. The core manual isolation scenario does not place the agent in the `tenants` group, so its successful request cannot prove a distinct `(agent, atlassian)` counter. The plan also omits collision tests for the composite subject, repeated cold-start outage reads, and concurrent additions at the 500-member boundary. Several end-to-end steps depend on uncleared fixed-window state or placeholders such as `<documentdb-volume>`, and the submitted summary confirms none of the tests were executed."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 14,
+      "total": 67,
+      "notes": "The patch is broad and internally traceable across models, repositories, enforcement, routes, CLI, UI, documentation, and focused tests. A submitted test is inconsistent with the code: gates are assembled caller-first and sorted only by window, so a same-window pair denial occurs after the wider caller counter increments, contradicting `test_tighter_pair_gate_denies_before_wider_caller_gate`. The raw `identity|target` key permits counter aliasing, cold-start store failures retry on every request because the empty fallback is not cached, and the read-then-`$addToSet` member-cap check races under concurrent additions. Independent `git apply --check` and test execution could not be performed because the provided read-only shell failed during sandbox initialization, so applicability beyond the full submitted diff context remains unverified."
+    }
+  },
+  "task_score": 81.0,
+  "verdict": "The design package is detailed and strongly repository-shaped, but the implementation is not merge-ready because its gate ordering contradicts its own test and its quarantine keying and outage behavior retain material correctness and security risks.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-08-31T16:15:06.095912Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 640301,
+      "cached_input_tokens": 525046,
+      "cache_write_input_tokens": 97085,
+      "output_tokens": 11182,
+      "reasoning_output_tokens": 9168
+    },
+    "duration_ms": 260039
+  }
+}
