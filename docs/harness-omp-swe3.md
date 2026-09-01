@@ -1,14 +1,27 @@
 # Results: omp harness (swe3)
 
-Benchmark results for every model run under the **omp** coding agent with the **swe3** skill on `mcp-gateway-registry`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness omp --skill swe3`. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe3.md](agentic-coding-swe-comparison-swe3.md).
+Benchmark results for every model run under the **omp** coding agent with the **swe3** skill on `mcp-gateway-registry-v2`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness omp --skill swe3`. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe3.md](agentic-coding-swe-comparison-swe3.md).
 
 ## Results by model
 
 | Model | Mean score | Completed | Input | Output | Cache read | Cache write | Tokens processed† | Wall-clock | Run cost | Cost basis* |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| qwen3.8-27b | 70.32 | 5/5 | 29,642,484 | 334,172 | 68,896,352 | 2,840,251 | 101,713,259 | 870.6m | $23.70 | hardware-derived (g6e.4xlarge) |
+| claude-opus-5 | 82.83 | 21/21 | 162,025 | 1,450,206 | 204,530,351 | 3,340,646 | 209,483,228 | 448.9m | $160.21 | metered (Bedrock) |
+| glm-5.3 | 81.27 | 21/21 | 196,403,475 | 1,408,082 | 242,521,152 | 1,962,956 | 442,295,665 | 150.1m | $258.93 | hardware-derived (p5en.48xlarge) |
+| qwen3.8-27b | 78.48 | 20/21 | 176,788,091 | 2,238,375 | 226,013,088 | 7,299,679 | 412,339,233 | 1292.2m | $57.77 | hardware-derived (p5en.48xlarge) |
+| claude-sonnet-5 | 76.97 | 21/21 | 96,758 | 1,259,000 | 227,322,015 | 3,683,654 | 232,361,427 | 356.3m | $67.46 | metered (Bedrock) |
+| glm-5.2 | 74.36 | 21/21 | 200,492,890 | 767,429 | 198,289,984 | 2,216,533 | 201,260,319 | 159.1m | $97.67 | hardware-derived (p5en.48xlarge) |
+| kimi-k2.7-code | 69.98 | 20/21 | 138,397,139 | 701,749 | 184,381,920 | 3,696,196 | 327,177,004 | 200.0m | $119.16 | hardware-derived (p5en.48xlarge) |
+| deepseek-v3.2 | 60.99 | 21/21 | 125,194,708 | 573,178 | 175,922,048 | 4,580,477 | 306,270,411 | 187.7m | $78.85 | hardware-derived (p5en.48xlarge) |
+| gemma-4-31b | 59.74 | 21/21 | 80,485,213 | 456,273 | 89,401,728 | 3,242,130 | 173,585,344 | 344.5m | $34.08 | hardware-derived (p5en.48xlarge) |
+| qwen3.6-35b | 59.24 | 21/21 | 109,283,532 | 672,086 | 158,821,872 | 3,652,281 | 272,429,771 | 162.5m | $9.21 | hardware-derived (p5en.48xlarge) |
+| claude-haiku-4-5 | 56.18 | 21/21 | 32,478 | 555,228 | 87,467,904 | 2,378,678 | 90,434,288 | 110.1m | $14.53 | metered (Bedrock) |
+| minimax-m2.5 | 53.29 | 21/21 | 129,837,822 | 418,721 | 132,496,896 | 1,848,978 | 130,256,543 | 65.8m | $9.71 | hardware-derived (p5en.48xlarge) |
+| qwen3-coder-480b | 50.83 | 20/21 | 141,646,302 | 512,567 | 141,018,048 | 1,257,381 | 142,158,869 | 100.5m | $33.54 | hardware-derived (p5en.48xlarge) |
+| devstral-2-123b | 47.64 | 17/21 | 96,123,999 | 570,018 | 98,849,840 | 955,671 | 96,694,017 | 163.6m | $13.11 | hardware-derived (p5en.48xlarge) |
+| qwen3-coder-30b | 42.58 | 21/21 | 138,288,705 | 556,264 | 138,029,360 | 1,455,218 | 138,844,969 | 109.1m | $9.94 | hardware-derived (p5en.48xlarge) |
 
-\* **Cost basis differs by row and the dollars are NOT directly comparable.** _hardware-derived (throughput)_ (self-hosted vLLM): a rented GPU has no per-token bill, so cost is the model's blended cost-per-token -- measured by the throughput sweep at its true instance rate (g6e.12xlarge for L40S, p5en.48xlarge for H200) and peak concurrency -- times the tokens this run processed. This prices the real work done, unlike a wall-clock estimate that would also charge idle agent-thinking time. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
+\* **Cost basis differs by row and the dollars are NOT directly comparable.** _hardware-derived (throughput)_ (self-hosted vLLM): a rented GPU has no per-token bill, so cost is the model's blended cost-per-token -- measured by the throughput sweep at its true instance rate (g6e.12xlarge for L40S, p5en.48xlarge for H200) and peak concurrency -- times the tokens this run processed. This prices the real work done, unlike a wall-clock estimate that would also charge idle agent-thinking time. _metered (Bedrock)_: a hosted API's real per-token bill, summed over the run. It is a metered invoice, not a hardware estimate, and (unlike the self-hosted rows) it benefits from Bedrock prompt caching. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
 
 † **Tokens processed** counts input + output + cache-read + cache-write -- all tokens the model actually processed, not just fresh input+output. On the Bedrock path a task often reports only ~2 fresh input tokens with the rest served from prompt cache, so counting input+output alone would understate the real work ~100x. (Self-hosted rows report their cache reuse via server-side Prometheus counters, folded in here where present.)
 

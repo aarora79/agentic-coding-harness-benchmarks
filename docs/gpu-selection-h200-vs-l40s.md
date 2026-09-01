@@ -31,7 +31,7 @@ For the cross-model throughput tables see [agentic-coding-throughput-comparison.
 The H200 slice costs 2.6x more per hour and does 5x the work, so it wins on cost per token while serving 4x the users. Every figure in this table holds the serving config identical across the two GPUs. Tuning the H200's scheduler for its own hardware pushes it further, to 454 gen tok/s and $0.235/1M, at a latency cost [the ceiling section](#the-h200s-ceiling-measured) sets out.
 
 > [!IMPORTANT]
-> **Every price in this doc is public on-demand, us-east-1, with no discount applied to either box.** That is a deliberate choice, made so the comparison is like for like: $3.004/hr for a g6e.4xlarge and $63.296/hr for a p5en.48xlarge, taken from the `rates.on_demand` entries in [`pricing.json`](../self-hosted/vllm/pricing.json). Note that these are **not** the repo's configured rates, which discount the two boxes unequally, so the cost figures here will not match the numbers in the throughput summaries or the cross-model tables.
+> **Every price in this doc is public on-demand, us-east-1, with no discount applied to either box.** That is a deliberate choice, made so the comparison is like for like: $3.004/hr for a g6e.4xlarge and $63.296/hr for a p5en.48xlarge, taken from the `rates.on_demand` entries in [`pricing.json`](../self-hosted/vllm/pricing.json). Note that these are **not** the repo's configured rates, which put both families on their 3-year commitment price (~43% of on-demand), so every cost figure here is about 2.3x the matching number in the throughput summaries and the cross-model tables. Because the two boxes now carry the same commitment term, that difference is a single scale factor and no ratio in this doc moves.
 >
 > **Nobody actually runs a steady inference fleet at on-demand.** In practice you would put the always-on baseline under a 1- or 3-year commitment -- AWS sells that as an EC2 Instance Savings Plan or a Standard Reserved Instance, both in its "up to 72% off" tier -- and pay roughly 43% of the rates above. **This doc models none of that.** Discounting both boxes by the same factor leaves every ratio, every percentage and every break-even in this doc unchanged, because $/hr enters the cost model linearly; it only scales the absolute dollars down. Discounting them by *different* factors, which is what happens if you commit to one family and not the other, moves the conclusion, and this doc deliberately does not go there.
 
@@ -258,24 +258,24 @@ CUDA_VISIBLE_DEVICES=0 MODEL="Qwen/Qwen3.8-27B-FP8" SERVED_NAME="qwen3.8-27b" \
               --chat-template ../config/qwen3.8-27b-chat-template.jinja" \
   ./vllm-serve.sh
 
-# 2. Sweep. Pass --out-dir: --model must match the served name, and the default
-#    out-dir would overwrite the other GPU's committed baseline.
+# 2. Sweep. The default out-dir is throughput/{model}, which IS this arm (the
+#    bare slug names the canonical p5en sweep), so no --out-dir is needed here.
 cd ..
 ./scripts/run-throughput-sweep.sh --model qwen3.8-27b \
-  --out-dir benchmark-output/throughput/qwen3.8-27b-h200-tp1 \
+  --out-dir benchmark-output/throughput/qwen3.8-27b \
   --concurrencies "1 2 5 7 10 15 20 30" --duration-seconds 600 --context-window 65536
 
 # 3. Summarise. --tp 1 prorates a partial box to a single-GPU price.
 uv run python -m clients.build_performance_summary --model qwen3.8-27b \
-  --db benchmark-output/throughput/qwen3.8-27b-h200-tp1/throughput-metrics.duckdb \
+  --db benchmark-output/throughput/qwen3.8-27b/throughput-metrics.duckdb \
   --instance-type p5en.48xlarge --tp 1 \
   --input-tokens-per-task 8000000 --output-tokens-per-task 50000 \
-  --out benchmark-output/throughput/qwen3.8-27b-h200-tp1/performance-summary.json
+  --out benchmark-output/throughput/qwen3.8-27b/performance-summary.json
 uv run python -m clients.build_performance_dashboard \
-  --summary benchmark-output/throughput/qwen3.8-27b-h200-tp1/performance-summary.json
+  --summary benchmark-output/throughput/qwen3.8-27b/performance-summary.json
 ```
 
-For the ceiling hunt, change one flag and one directory: `--max-num-seqs 128`, `--concurrencies "30 40 50 60 80 100"`, and `--out-dir .../qwen3.8-27b-h200-tp1-seqs128`. Keep `--model qwen3.8-27b` to match the served name, and always pass `--out-dir`: the default is `throughput/{model}`, which holds the committed L40S baseline.
+For the ceiling hunt, change one flag and one directory: `--max-num-seqs 128`, `--concurrencies "30 40 50 60 80 100"`, and `--out-dir .../qwen3.8-27b-seqs128`. Keep `--model qwen3.8-27b` to match the served name, and pass `--out-dir` for every arm that is *not* the canonical one: the default is `throughput/{model}`, which holds the p5en single-H200 baseline, so an unsuffixed re-run overwrites it. The L40S baseline lives in the `-g6e` sibling for the same reason.
 
 ## Source data
 
@@ -285,9 +285,9 @@ Each row is a whole 4-GPU g6e.12xlarge against one H200 of a p5en, same model an
 
 | Model | g6e.12xlarge (4x L40S, TP=4) | p5en slice (1x H200, TP=1) |
 |---|---|---|
-| `qwen3.6-35b` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b-h200-tp1/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b-h200-tp1/performance-dashboard.html) |
-| `gemma-4-31b` | [json](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b-h200-tp1/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b-h200-tp1/performance-dashboard.html) |
-| `qwen3-coder-30b` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b-h200-tp1/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b-h200-tp1/performance-dashboard.html) |
+| `qwen3.6-35b` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b-g6e/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b-g6e/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b/performance-dashboard.html) |
+| `gemma-4-31b` | [json](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b-g6e/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b-g6e/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b/performance-dashboard.html) |
+| `qwen3-coder-30b` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b-g6e/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b-g6e/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b/performance-dashboard.html) |
 
 > The three H200 arms ran 2026-08-31 on a p5en.48xlarge (8x H200 DLAMI) with `CUDA_VISIBLE_DEVICES=0`, at a 200,000-token context window, `GPU_MEM_UTIL=0.90`, no `--max-num-seqs` override, 600 s per level, concurrency 1/2/5/7/10/15/20. Each g6e side carries over its own committed sweep and its own per-task token shape, so `$/task` is comparable arm to arm but not model to model. `qwen3-coder-30b` stopped at c=15 because its throughput had gone flat for two consecutive levels. `qwen3.6-35b` was still climbing at c=20, so its figure is a floor. Costs here are rescaled from each summary's configured rate to public on-demand ($10.493/hr for g6e.12xlarge, $7.912/hr for one of eight H200s), which is why they differ from the cost fields inside the JSON.
 >
@@ -299,8 +299,8 @@ Every number in the rest of this doc comes from these three summaries.
 
 | Arm | Instance | Config | Summary | Dashboard |
 |---|---|---|---|---|
-| L40S baseline | g6e.4xlarge, TP=1 | `--max-num-seqs 32` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b/performance-dashboard.html) |
-| H200 slice, matched | p5en.48xlarge, TP=1 | `--max-num-seqs 32` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b-h200-tp1/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b-h200-tp1/performance-dashboard.html) |
-| H200 slice, ceiling hunt | p5en.48xlarge, TP=1 | `--max-num-seqs 128` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b-h200-tp1-seqs128/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b-h200-tp1-seqs128/performance-dashboard.html) |
+| L40S baseline | g6e.4xlarge, TP=1 | `--max-num-seqs 32` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b-g6e/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b-g6e/performance-dashboard.html) |
+| H200 slice, matched | p5en.48xlarge, TP=1 | `--max-num-seqs 32` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b/performance-dashboard.html) |
+| H200 slice, ceiling hunt | p5en.48xlarge, TP=1 | `--max-num-seqs 128` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b-seqs128/performance-summary.json) | [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.8-27b-seqs128/performance-dashboard.html) |
 
-> L40S figures come from the original `qwen3.8-27b` g6e.4xlarge sweep. Both H200 arms ran 2026-08-31 on p5en.48xlarge (8x H200 DLAMI, GPU 0 only), 600 s per level, 65,536 context: the matched arm at c=1 to 30, the ceiling arm at c=30 to 100. Rates are the `rates.on_demand` entries in [`pricing.json`](../self-hosted/vllm/pricing.json): p5en.48xlarge $63.296/hr for the full box, prorated to $7.912/hr for one of eight GPUs, and g6e.4xlarge $3.004/hr. The committed summaries and dashboards use that file's configured `dollars_per_hour` instead, which discounts the two boxes unequally, so their cost fields are lower than the ones here and are not like for like. Re-running either sweep regenerates that arm's summary and dashboard. Update the tables here when the runs change.
+> L40S figures come from the original `qwen3.8-27b` g6e.4xlarge sweep. Both H200 arms ran 2026-08-31 on p5en.48xlarge (8x H200 DLAMI, GPU 0 only), 600 s per level, 65,536 context: the matched arm at c=1 to 30, the ceiling arm at c=30 to 100. Rates are the `rates.on_demand` entries in [`pricing.json`](../self-hosted/vllm/pricing.json): p5en.48xlarge $63.296/hr for the full box, prorated to $7.912/hr for one of eight GPUs, and g6e.4xlarge $3.004/hr. The committed summaries and dashboards use that file's configured `dollars_per_hour` instead -- the 3-year commitment rate for both families -- so their cost fields are ~43% of the ones here. Re-running either sweep regenerates that arm's summary and dashboard. Update the tables here when the runs change.
