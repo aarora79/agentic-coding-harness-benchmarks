@@ -1,0 +1,153 @@
+{
+  "task": "configurable-mcp-proxy-upstream-timeout",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.25.0",
+  "complexity": "medium",
+  "tags": [
+    "enhancement",
+    "config",
+    "auth-server",
+    "httpx",
+    "proxy",
+    "timeouts",
+    "fixed-in-1.26.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-8",
+  "model_slug": "claude-opus-4-8",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 77.9,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 5967,
+    "output_tokens": 39801,
+    "cache_read_tokens": 3305645,
+    "cache_write_tokens": 92915,
+    "total_tokens": 3444328,
+    "total_cost_usd": 3.2584012500000004,
+    "latency_seconds": 511.1,
+    "num_turns": 33,
+    "generation_tokens_per_sec": 77.9,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 5967,
+  "output_tokens": 39801,
+  "latency_seconds": 511.1,
+  "num_turns": 33,
+  "total_cost_usd": 3.2584012500000004,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 3305645,
+  "cache_creation_tokens": 92915,
+  "run_started_at": "2026-09-01T08:52:42.930957Z",
+  "run_ended_at": "2026-09-01T09:01:14.018998Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 5967,
+    "output_tokens": 39801,
+    "cache_read_tokens": 3305645,
+    "cache_write_tokens": 92915,
+    "total_tokens": 3444328,
+    "total_cost_usd": 3.2584012500000004,
+    "latency_seconds": 511.1,
+    "num_turns": 33,
+    "generation_tokens_per_sec": 77.9,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "configurable-mcp-proxy-upstream-timeout",
+    "model": "us.anthropic.claude-opus-4-8",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 78,
+        "notes": "The strongest aspect is its testable scope: it identifies the settings field, proxy call site, deployment surfaces, defaults, exclusions, and compatibility behavior. Its largest technical error is describing the scalar HTTPX timeout as a total wall-clock limit; HTTPX applies it to network-operation inactivity, while disabling timeouts uses None rather than zero.  The requirement that sub-floor values clamp without crashing conflicts with Field(ge=1), because BaseSettings validates environment-derived values during construction before the reader can clamp them.  No independent task statement establishes the reported production scenario, and the local sandbox failure prevented independent verification of the cited baseline source."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 13,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 76,
+        "notes": "The design is unusually concrete about files, integration points, precedence, deployment wiring, observability, rollback, and the exact implementation shape. Its largest defect is the unresolved conflict between Pydantic ge=1 validation and the promised runtime clamp: an invalid compose or Helm environment value can fail Settings construction before _read_mcp_proxy_upstream_timeout_seconds executes.  It also repeatedly calls the HTTPX scalar value a total timeout and treats zero as disabling timeouts, neither of which matches HTTPX's documented behavior.  Claims that the admin surface supports PUT and that edits take effect without restart were not substantiated by a named route or state-update mechanism, and exact source verification was unavailable because the repository shell could not initialize."
+      },
+      "review": {
+        "completeness": 16,
+        "correctness": 8,
+        "specificity": 17,
+        "risk_awareness": 15,
+        "total": 56,
+        "notes": "The review's strongest contribution is identifying concrete operational concerns such as held-open connections, deployment-surface drift, unit labeling, and duplicated readers. Its largest failure is approving the design without catching that Field(ge=1) can reject an environment value before the proposed clamp runs, which directly defeats an acceptance criterion.  Multiple personas reinforce the incorrect assertion that timeout zero disables HTTPX timeouts, although HTTPX documents None as the disabling value.  The live-edit/no-restart conclusion is also asserted without repository evidence, making the largely approving verdict less defensible than its detail suggests."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 11,
+        "specificity": 20,
+        "risk_awareness": 13,
+        "total": 61,
+        "notes": "The plan provides specific reader branch tests, expected values, HTTP status oracles, compatibility checks, and deployment-surface coverage. Its largest gap is that the zero-environment test replaces server.settings with an attribute-less mock, bypassing the real Settings construction path where ge=1 can raise validation failure before clamping.  It lacks an automated assertion that mcp_proxy passes the resolved value to AsyncClient, while grep-based wiring checks establish textual presence rather than valid placement or rendered configuration. The proposed public proxy and config API URLs, Helm command, and full unittest-discovery command could not be verified against the baseline because local repository execution was unavailable."
+      },
+      "implementation": {
+        "completeness": 22,
+        "correctness": 12,
+        "specificity": 22,
+        "risk_awareness": 15,
+        "total": 71,
+        "notes": "The submitted diff comprehensively changes the settings model, helper, AsyncClient call, admin tuple, three compose files, Terraform, Helm, documentation, and focused unit tests. Its largest defect is functional: MCP_PROXY_UPSTREAM_TIMEOUT_SECONDS=0 can be rejected while constructing Settings because of ge=1, so the helper's clamp and its mocked test do not satisfy the promised non-crashing deployment behavior.  The summary's claim of no deviations therefore overstates correctness, and the documentation also mischaracterizes HTTPX's operation-specific inactivity limits as a total request timeout.  Diff paths and contexts are internally coherent with the cited symbols, but git apply --check and exact baseline inspection could not be performed because the managed shell failed before command execution."
+      }
+    },
+    "task_score": 68.4,
+    "verdict": "The submission is comprehensive and implementation-oriented, but it misses a startup-validation path that violates its explicit clamping guarantee and propagates that error through the design, review, tests, and patch.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-01T11:48:12.196126Z",
+      "repo_ref": "1.25.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 313763,
+        "cached_input_tokens": 188272,
+        "cache_write_input_tokens": 39054,
+        "output_tokens": 13255,
+        "reasoning_output_tokens": 11081
+      },
+      "duration_ms": 221992
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "us.anthropic.claude-opus-4-6-v1",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 61,
+      "notes": "The issue provides concrete actors, status-code behavior, configuration, compatibility expectations, and explicit non-goals. Its largest defect is that the title and user story promise restoration of the existing Get JWT Token flow while changing `/internal/tokens` is explicitly out of scope, leaving no consumer for `/oauth2/tokens`. It also promises sub-4096-byte cookies while retaining potentially large groups and `id_token`; repository release evidence says the eventual #399 fix moved username, groups, and encrypted `id_token` server-side. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) Exact token-size estimates and universal coverage across every named IdP were not substantiated, and risks from returning refresh tokens to a browser are omitted."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 63,
+      "notes": "The LLD is unusually concrete about `auth_server/server.py`, `mongodb_groups_enrichment._get_mongodb()`, MongoDB documents, indexes, endpoint responses, configuration files, and callback/logout data flow. Its central design does not reliably solve the stated cookie failure because it leaves both groups and `id_token` in the cookie and does not connect stored tokens to the existing token-generation flow. It knowingly hardcodes `oauth_token_store` despite identifying the repository's namespace helper, duplicates cookie validation with a hardcoded 28800-second age, and treats failed index creation as nonfatal without preserving the TTL guarantee. Rollout and failure behavior are discussed, but namespace isolation, exact expiry enforcement, key rotation, sensitive-response controls, and complete Terraform wiring remain unresolved."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 19,
+      "risk_awareness": 19,
+      "total": 65,
+      "notes": "The review finds several real, actionable issues, especially cross-session deletion on logout, immutable TTL-index configuration, umbrella-chart propagation, rate limiting, and test-singleton isolation. Its largest failure is recognizing that the frontend and `/internal/tokens` never consume the new endpoint while still approving the design as transparent to the existing flow. The resolution section claims the LLD was revised for targeted deletion, rate limiting, and audit logging, but the submitted LLD still contains the original username-wide deletion and unprotected endpoint snippets. It also misses the central residual cookie bloat, hardcoded session lifetime, namespace collision, delayed TTL deletion, and the security implications of returning refresh tokens over a GET response."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 58,
+      "notes": "The plan supplies useful unit-test oracles for encryption, ownership, CRUD, index creation, missing refresh tokens, multiple sessions, authentication failures, and backward-compatible cookies. Much of the critical-path coverage is manual rather than executable, and `curl http://localhost:27017 | jq` cannot inspect MongoDB while invoking an OAuth callback with placeholder code cannot complete a real flow. The five-second TTL test expects deletion after ten seconds even though TTL cleanup is asynchronous, and the cookie decoder does not handle every `itsdangerous` serialized form. It never provides an automated callback, endpoint, logout, or provider-matrix cookie-size test, so its strongest acceptance claims could remain broken while the proposed unit suite passes."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 9,
+      "total": 47,
+      "notes": "The patch is internally detailed and adds a focused encrypted token-store module, targeted logout deletion, endpoint handling, deployment configuration, and substantial module-level tests. It does not implement the promised outcome end to end: access and refresh tokens were already excluded from cookies by default, large groups and `id_token` remain, and `/api/tokens/generate` still returns the existing self-signed token; repository evidence shows the eventual fix moved the entire OAuth session payload server-side. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) `ensure_indexes()` swallows failures while startup logs success, retrieval does not enforce expiry before the asynchronous TTL monitor deletes a record, cookie validation hardcodes 28800 seconds, and the collection ignores repository namespace conventions. Tests cover only `oauth_token_store.py`, not callback, endpoint, logout, cookie size, or backward compatibility, and patch applicability could not be independently confirmed because the provided local execution sandbox failed before command startup."
+    }
+  },
+  "task_score": 58.8,
+  "verdict": "The submission is concrete and thoughtfully structured, but its implementation stores tokens without solving the repository's full oversized-session problem or restoring the existing Get JWT Token path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-01T07:40:12.086424Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 294656,
+      "cached_input_tokens": 220484,
+      "cache_write_input_tokens": 45196,
+      "output_tokens": 10812,
+      "reasoning_output_tokens": 8375
+    },
+    "duration_ms": 147304
+  }
+}

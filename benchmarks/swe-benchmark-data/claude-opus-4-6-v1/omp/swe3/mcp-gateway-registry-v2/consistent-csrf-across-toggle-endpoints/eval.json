@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-opus-4-6-v1",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The issue clearly inventories the five user-facing toggle routes, separates the internal route, and supplies testable cookie-versus-bearer acceptance criteria. Its largest defect is requiring bearer-token operation on every toggle while the submitted route evidence shows the server UI toggle still uses session-oriented enhanced_auth rather than nginx_proxied_auth. It also contradicts itself by saying to apply the dependency to all six endpoints while simultaneously excluding the internal endpoint. No independent task statement establishes the broader claim that every M2M registration pipeline is broken."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 70,
+      "notes": "The LLD names concrete files, symbols, route signatures, compatibility boundaries, and the intended cookie and token flows. Its major unresolved flaw is claiming bearer clients will succeed on the server UI toggle even though server_routes.py retains enhanced_auth, which the LLD itself describes as the session fallback rather than the nginx bearer path. It also incorrectly states that sibling FastAPI dependencies execute in parallel and overstates absence of a session cookie as proof of bearer authentication. Claims that nginx strips Authorization and that the cited frontend and line-level integration points behave exactly as described could not be independently verified."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 66,
+      "notes": "The review usefully identifies browser compatibility risk on the newly protected routes and examines the both-cookie-and-proxy-headers case. It misses the more consequential enhanced_auth mismatch and resolves the frontend concern with an unsupported claim that virtual-server JSON toggles use the same form pattern as the server UI route. The security section also incorrectly treats HttpOnly and SameSite as making non-browser cookie replay impossible. The claimed frontend locations, global CSRF-header behavior, and JWT-only reachability were not substantiated by the submitted patch."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 57,
+      "notes": "The dependency unit cases have meaningful status, message, session-mismatch, form, and header-precedence oracles. Several HTTP tests are not executable against the shown interfaces: toggle_agent receives enabled as a scalar query parameter rather than the submitted JSON body, and the server UI bearer test expects 200 despite its enhanced_auth dependency. The proposed unittest discovery command also does not exercise the pytest-style fixtures shown in the existing test files. Route-wiring tests for all five endpoints and an unauthenticated no-cookie rejection test are missing, while the token script and agent verification endpoint remain unverified."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 69,
+      "notes": "The patch concretely adds the session-aware dependency, wires it into all five intended route functions, preserves the old dependency for non-toggle routes, and adds focused unit coverage. It does not fully satisfy its own bearer-compatibility claim because toggle_service_route still depends on enhanced_auth, so skipping CSRF alone cannot make that endpoint accept nginx-authenticated M2M callers. The tests exercise the helper directly but do not prove that every route is wired correctly or that newly protected browser calls receive 403 without a token; the new test file also contains an unused patch import. Patch applicability against the baseline could not be independently confirmed in the available execution environment, although the submitted contexts and symbols are internally consistent."
+    }
+  },
+  "task_score": 68.0,
+  "verdict": "The submission presents a strong, concrete CSRF change, but overclaims universal bearer compatibility and supplies several HTTP tests that do not match the shown route interfaces.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-01T06:44:45.784200Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 181581,
+      "cached_input_tokens": 125257,
+      "cache_write_input_tokens": 37554,
+      "output_tokens": 9864,
+      "reasoning_output_tokens": 7964
+    },
+    "duration_ms": 139936
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "us.anthropic.claude-opus-4-8",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 89,
+      "notes": "The issue clearly defines five cross-entity deliverables, measurable acceptance criteria, dependencies, and explicit non-goals. Its named route modules, webhook service, lifecycle enum, and scopes file correspond to targets and symbols present in the submitted diff. The largest evidence gap is the absence of an independent task statement, so claims such as the existing polling endpoints and exact intended scope cannot be independently confirmed. Security, compatibility, and delivery risks are handled unusually well for an issue, though signing-key rotation is not addressed."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 78,
+      "notes": "The LLD is strongly repository-shaped, naming concrete functions such as send_registration_webhook and all three scan handlers while committing to exact-body signing and additive authorization. The submitted source context supports the central chokepoint and PUT-versus-PATCH distinctions. Its largest correctness gap is failure to establish how request-model defaults preserve the required distinction between omitted and explicitly mismatched initial statuses; it also claims validation while leaving registration_initial_status as an unchecked string until request handling. The threat model covers forgery, replay, and least privilege, but omits coordinated key rotation and unsuccessful HTTP response classification."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 21,
+      "total": 80,
+      "notes": "The review identifies concrete defects with consequences, notably json= reserialization breaking HMAC verification, skill authorization needing to remain additive, replay handling, and unsigned-send observability. Those findings correspond directly to code paths shown in webhook_service.py and skill_routes.py. Its largest omission is failing to challenge initial-status omission semantics, configuration-value validation, and treating HTTP error responses as successful sends. The statement that every finding was resolved is overstated because detailed LLD steps still use ad hoc normalized comparisons rather than the promised shared validator."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 12,
+      "specificity": 15,
+      "risk_awareness": 19,
+      "total": 63,
+      "notes": "The strongest tests use the raw received body as the HMAC oracle and exercise least privilege, forged payloads, compatibility defaults, and all entity types. The plan also specifies meaningful expected status codes and scan fields rather than merely asserting execution. Its ordering expectation for registration followed by scan_complete conflicts with its own contract stating that independently scheduled events are unordered, while unsafe targets and raw-body capture are not concretely provisioned. The proposed unittest discovery command, exact fixtures, and several configuration commands remain unverified, and no corresponding tests appear in the patch."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 11,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The patch implements the main architecture coherently: webhook_service.py serializes once and posts content=body, permission checks cover server, agent, and skill updates, and scopes, metrics, environment documentation, and the consumer contract are included. Concrete defects remain: registration_initial_status is not validated at configuration load, and every HTTP response—including 4xx or 5xx—is recorded as success. Enforcement operates on already-materialized request.status values without checking field presence, risking rejection rather than forcing when an omitted field has an existing non-null default. No automated tests are included, and the claimed clean git application could not be independently verified because local repository command execution was unavailable."
+    }
+  },
+  "task_score": 73.6,
+  "verdict": "Strong, repository-shaped design work is undermined by material implementation and testing gaps around initial-status defaults, invalid configuration, webhook failure accounting, and executable regression coverage.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-01T12:21:34.095962Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 425819,
+      "cached_input_tokens": 325379,
+      "cache_write_input_tokens": 52149,
+      "output_tokens": 16592,
+      "reasoning_output_tokens": 14452
+    },
+    "duration_ms": 273949
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "high",
+  "tags": [
+    "rate-limiting",
+    "security",
+    "auth-server",
+    "api",
+    "operations",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-6-v1",
+  "model_slug": "claude-opus-4-6-v1",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 54.0,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 6453,
+    "output_tokens": 58147,
+    "cache_read_tokens": 13076465,
+    "cache_write_tokens": 162813,
+    "total_tokens": 13303878,
+    "total_cost_usd": 9.041753749999998,
+    "latency_seconds": 1076.3,
+    "num_turns": 93,
+    "generation_tokens_per_sec": 54.0,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 6453,
+  "output_tokens": 58147,
+  "latency_seconds": 1076.3,
+  "num_turns": 93,
+  "total_cost_usd": 9.041753749999998,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 13076465,
+  "cache_creation_tokens": 162813,
+  "run_started_at": "2026-09-01T05:19:34.282011Z",
+  "run_ended_at": "2026-09-01T05:37:30.638249Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 6453,
+    "output_tokens": 58147,
+    "cache_read_tokens": 13076465,
+    "cache_write_tokens": 162813,
+    "total_tokens": 13303878,
+    "total_cost_usd": 9.041753749999998,
+    "latency_seconds": 1076.3,
+    "num_turns": 93,
+    "generation_tokens_per_sec": 54.0,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "per-caller-per-target-rate-limits-and-quarantine",
+    "model": "us.anthropic.claude-opus-4-6-v1",
+    "scores": {
+      "github_issue": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 18,
+        "total": 79,
+        "notes": "The issue provides unusually concrete behavior, including the composite counter subject, admin bypass rules, response headers, compatibility requirements, and explicit non-goals. Its named integration points such as `RateLimiter.check()`, `rate_limit_routes.py`, and `IAMRateLimits.tsx` correspond to the submitted source diff. The largest defect is its contradictory quarantine model: it requires auto-seeded undeletable reserved groups while also introducing a separate quarantine-entry collection and deletion API, without defining how those concepts relate. No independent task statement was supplied, so requirement correctness beyond the task identifier and internally stated acceptance criteria could not be verified."
+      },
+      "lld": {
+        "completeness": 19,
+        "correctness": 14,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 72,
+        "notes": "The LLD is highly specific about real symbols and data flow, including `_build_caller_target_gates()`, `_enforce_rate_limit()`, repository queries, counter keys, failure policy, metrics, and frontend integration. Its central quarantine design is internally inconsistent: reserved groups are promised and declared as constants, but the implementation plan uses unrelated documents in `rate_limit_quarantine`, performs no startup seeding, and later reinterprets what undeletable means. The scaling claim that quarantine causes roughly one read per five seconds per replica is incorrect for the proposed per-subject caches, which can require reads for every distinct caller and target after expiration. Rollback is also reduced to the global rate-limiting switch, and the claimed immediate kill-switch behavior is weakened by an acknowledged five-second cross-replica cache delay."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 18,
+        "specificity": 21,
+        "risk_awareness": 21,
+        "total": 79,
+        "notes": "The review finds several concrete issues with operational consequences, notably quarantine propagation delay, canonical identifier validation, monitoring visibility, compromised-admin behavior, and missing three-axis interaction coverage. Its recommendations are prioritized and actionable, and the five-second cache change plus integration-test requirement are explicitly carried forward. The largest omission is failure to challenge the fundamental mismatch between the promised reserved-group mechanism and the separate collection, despite declaring the design backward-compatible and coherent. It also accepts canonical IDs without considering delimiter ambiguity, client-controlled `created_at`, or acceptance of target types that the limiter does not enforce."
+      },
+      "testing": {
+        "completeness": 16,
+        "correctness": 9,
+        "specificity": 18,
+        "risk_awareness": 13,
+        "total": 56,
+        "notes": "The plan covers models, CRUD, authorization, backward compatibility, UI behavior, independent target counters, quarantine precedence, and counter non-consumption with concrete expected results. Its primary enforcement setup cannot work under its own prerequisites: it declares default user and agent floors of 20 and 10 per minute, then attempts to create 60-second limits of 3 and 2 that the preceding floor-validation test says must be rejected. The `call_mcp_tool.py` examples do not demonstrate use of `testuser` credentials, while several curl commands discard response headers yet claim to verify `X-Quarantined` and absence of `Retry-After`. Concrete fail-open/fail-closed outage tests, cache-propagation handling, control-plane exclusion, caller-target admin bypass, and executable unit-test commands are missing, and local sandbox failure prevented independent confirmation of the submitted script path and flags."
+      },
+      "implementation": {
+        "completeness": 13,
+        "correctness": 11,
+        "specificity": 17,
+        "risk_awareness": 10,
+        "total": 51,
+        "notes": "The patch implements the core caller-target gate, early quarantine checks, admin API CRUD, distinct denial headers, metrics, and frontend axis support in the expected subsystem files. It does not implement the required reserved-group seeding or semantics, leaves the quarantine constants unused, and explicitly omits the required quarantine management panel while the summary still describes the overall feature as added. Concrete defects include caller introspection checking the user identity before honoring `subject_type=client`, `upsert()` storing but not returning the generated `created_at` and replacing it on repeated PUTs, and accepting unenforced `mcp_tool` or `a2a_skill` quarantine entries through `TARGET_ENTITY_TYPES`. The summary also overstates UI completion and file-count consistency; the patch's applicability could not be independently dry-run because the read-only command sandbox failed before execution, so that claim remains unverified rather than penalized."
+      }
+    },
+    "task_score": 67.4,
+    "verdict": "The submission presents a detailed and mostly coherent design foundation, but the implementation materially diverges from its reserved-group contract and contains test setup and quarantine correctness defects that prevent production readiness.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-01T07:29:03.754494Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 309431,
+        "cached_input_tokens": 231899,
+        "cache_write_input_tokens": 57471,
+        "output_tokens": 12528,
+        "reasoning_output_tokens": 9773
+      },
+      "duration_ms": 259835
+    }
+  }
+}

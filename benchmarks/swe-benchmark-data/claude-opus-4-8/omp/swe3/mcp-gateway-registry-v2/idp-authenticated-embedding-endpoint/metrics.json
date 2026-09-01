@@ -1,0 +1,155 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.28.0",
+  "complexity": "high",
+  "tags": [
+    "semantic-search",
+    "embeddings",
+    "oauth",
+    "authentication",
+    "litellm",
+    "docker",
+    "terraform",
+    "helm",
+    "fixed-in-1.29.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-8",
+  "model_slug": "claude-opus-4-8",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 71.5,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 13290,
+    "output_tokens": 84671,
+    "cache_read_tokens": 20522675,
+    "cache_write_tokens": 232323,
+    "total_tokens": 20852959,
+    "total_cost_usd": 13.896581249999999,
+    "latency_seconds": 1184.3,
+    "num_turns": 103,
+    "generation_tokens_per_sec": 71.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 13290,
+  "output_tokens": 84671,
+  "latency_seconds": 1184.3,
+  "num_turns": 103,
+  "total_cost_usd": 13.896581249999999,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 20522675,
+  "cache_creation_tokens": 232323,
+  "run_started_at": "2026-09-01T10:31:59.167862Z",
+  "run_ended_at": "2026-09-01T10:51:43.503244Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 13290,
+    "output_tokens": 84671,
+    "cache_read_tokens": 20522675,
+    "cache_write_tokens": 232323,
+    "total_tokens": 20852959,
+    "total_cost_usd": 13.896581249999999,
+    "latency_seconds": 1184.3,
+    "num_turns": 103,
+    "generation_tokens_per_sec": 71.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "idp-authenticated-embedding-endpoint",
+    "model": "us.anthropic.claude-opus-4-8",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 90,
+        "notes": "The issue provides unusually testable acceptance criteria, explicit non-goals, deployment scope, compatibility expectations, and security requirements. Its named integration points—`LiteLLMClient`, `registry/services/federation/federation_auth.py`, `/api/config`, and the documented deployment surfaces—match the submitted repository structure and patch context. Its largest gap is that it does not specify recovery behavior after a transient refresh failure, despite uninterrupted operation being the motivation. No independent task statement was supplied, so the requirement origin and related issue linkage could not be independently verified."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 76,
+        "notes": "The design is strongly repository-specific, naming the factory, sole documented construction site, configuration model, masking route, deployment files, token data flow, and default-off branching. It correctly commits to per-call `api_key` injection, locking, buffered expiry, startup validation, secret handling, and a dedicated provider rather than reusing the federation singleton. Its largest flaw is accepting the existing `_embedding_unavailable` latch after refresh errors: one transient IdP outage can permanently suppress further token retries until restart, contradicting the assertion that automatic refresh makes manual clearing unnecessary. It also fails to make conditional Docker/ECS environment rendering a design requirement, and the claimed LiteLLM authorization behavior could not be independently verified from the local dependency."
+      },
+      "review": {
+        "completeness": 18,
+        "correctness": 19,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 74,
+        "notes": "The review raises concrete design concerns rather than merely approving: opaque `None` failures, a lock held across network I/O, SSRF trust boundaries, static-key shadowing, Terraform secret cost, and dimension changes. Its recommendations directly influenced identifiable design decisions, including raising `RuntimeError` and skipping `_set_api_key_env()` when a provider is attached. The largest deficiency is declaring every blocker resolved while missing the permanent unavailable-latch behavior and the acceptance requirement that default deployments set no new environment variables. It also did not expose the later Terraform placeholder-secret or Helm existing-secret failure modes, although those details were not fully specified in the reviewed LLD."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 15,
+        "specificity": 20,
+        "risk_awareness": 16,
+        "total": 69,
+        "notes": "The plan supplies concrete oracles for caching, buffered refresh, HTTP and network failures, scope propagation, bearer injection, startup validation, static-key compatibility, masking, and token-lifetime E2E behavior. However, it describes the suite as plain pytest while its principal examples use `unittest.TestCase`, and the thread test checks only POST count without collecting thread results or exceptions. Its largest coverage gap is that grep-based deployment checks would pass the submitted unconditional ECS/Compose wiring and would not detect Terraform's `not-configured` secret bypassing fail-fast validation. The proposed `/api/search`, `_format_value`, Helm, and re-index commands were not established by available repository evidence, and no malformed token response or transient-refresh recovery test is specified."
+      },
+      "implementation": {
+        "completeness": 18,
+        "correctness": 13,
+        "specificity": 21,
+        "risk_awareness": 14,
+        "total": 66,
+        "notes": "The patch implements the central Python flow end to end: settings reach `create_embeddings_client`, the provider caches under a lock, and `LiteLLMClient.encode()` injects the token while preserving the static-key branch. The largest defect is Terraform's unconditional secret value `not-configured`: when IdP mode is enabled without a supplied secret, that nonempty sentinel defeats the promised startup validation; ECS and all Compose files also set new variables unconditionally despite the explicit default-inert acceptance criterion. Helm additionally loses an inline `embeddings.idp.clientSecret` when `app.existingSecret` suppresses the generated secret, while token JSON decoding and `expires_in` conversion can escape as unhandled raw exceptions. The summary also reports 24 files although the displayed diff contains 25, and its `git apply --check` claim could not be independently rerun because local command execution was unavailable."
+      }
+    },
+    "task_score": 75.0,
+    "verdict": "This is strong, repository-specific design work with a substantial implementation, but deployment wiring—especially Terraform's unconditional placeholder secret—breaks the promised fail-fast and default-inert behavior.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-01T12:14:20.055378Z",
+      "repo_ref": "1.28.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 373651,
+        "cached_input_tokens": 312273,
+        "cache_write_input_tokens": 56880,
+        "output_tokens": 7582,
+        "reasoning_output_tokens": 5317
+      },
+      "duration_ms": 190468
+    }
+  }
+}

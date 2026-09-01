@@ -1,0 +1,152 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "low",
+  "tags": [
+    "auth",
+    "oidc",
+    "logout",
+    "security",
+    "waf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-6-v1",
+  "model_slug": "claude-opus-4-6-v1",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 48.4,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 5531,
+    "output_tokens": 35921,
+    "cache_read_tokens": 7824470,
+    "cache_write_tokens": 116608,
+    "total_tokens": 7982530,
+    "total_cost_usd": 5.566714999999997,
+    "latency_seconds": 742.8,
+    "num_turns": 71,
+    "generation_tokens_per_sec": 48.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 5531,
+  "output_tokens": 35921,
+  "latency_seconds": 742.8,
+  "num_turns": 71,
+  "total_cost_usd": 5.566714999999997,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 7824470,
+  "cache_creation_tokens": 116608,
+  "run_started_at": "2026-09-01T06:20:44.516020Z",
+  "run_ended_at": "2026-09-01T06:33:07.305963Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 5531,
+    "output_tokens": 35921,
+    "cache_read_tokens": 7824470,
+    "cache_write_tokens": 116608,
+    "total_tokens": 7982530,
+    "total_cost_usd": 5.566714999999997,
+    "latency_seconds": 742.8,
+    "num_turns": 71,
+    "generation_tokens_per_sec": 48.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "logout-id-token-hint-out-of-browser-url",
+    "model": "us.anthropic.claude-opus-4-6-v1",
+    "scores": {
+      "github_issue": {
+        "completeness": 19,
+        "correctness": 14,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 72,
+        "notes": "The issue clearly defines the first-hop exposure, exact replacement parameter, fallback behavior, TTL, dependencies, and testable acceptance criteria. It correctly references the existing logout URL metrics and the supported IdP set, but incorrectly describes id_token_hint as a mandated query parameter and an ID token as a bearer credential that logout revokes. Its largest practical contradiction is promising fallback when the auth server is down, because the resulting browser redirect still targets that unavailable server. No independent task statement was supplied, so the proposed architecture and provider-wide requirements cannot be confirmed as required rather than candidate-selected."
+      },
+      "lld": {
+        "completeness": 19,
+        "correctness": 12,
+        "specificity": 23,
+        "risk_awareness": 15,
+        "total": 69,
+        "notes": "The LLD is unusually concrete about logout_handler, oauth2_logout, internal_router, MongoDB operations, encryption helpers, metrics, deployment order, and failure paths. Its central security defect is that provider is stored but never included in resolve_and_delete_hint, allowing a captured key to be consumed through another or even invalid provider route; resolution also occurs before provider validation. The proposed _get_collection swallows TTL-index creation failure and then caches the collection, preventing retries and potentially retaining abandoned encrypted tokens indefinitely. It also overstates OIDC requirements and the effectiveness of fallback when the auth server itself is unreachable."
+      },
+      "review": {
+        "completeness": 16,
+        "correctness": 13,
+        "specificity": 18,
+        "risk_awareness": 13,
+        "total": 60,
+        "notes": "The review supplies concrete backend, SRE, and security observations about atomic consumption, rolling upgrades, latency, fallback exposure, and monitoring. Its largest deficiency is approving the design without detecting that the stored provider is not enforced and that an invalid-provider request consumes the one-time hint before validation. It also asserts without demonstrated repository evidence that internal JWTs are single-use and understates how proxies can observe the key before consumption. The verdicts therefore treat material security and retention defects as if only minor documentation changes remained."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 14,
+        "specificity": 21,
+        "risk_awareness": 15,
+        "total": 68,
+        "notes": "The plan has concrete HTTP, compatibility, deployment, end-to-end, and unit scenarios with meaningful redirect, metric, encryption, expiry, and one-time-use oracles. It does not cover provider mismatch, invalid-provider consumption, TTL-index creation failure, oversized deposits, or the issue's full six-provider acceptance criterion. The fallback E2E procedure stops the auth server and then claims logout still works, although the browser must subsequently redirect to that stopped service; deleting a document also does not test TTL expiration. The submitted unittest command and /api/auth/me path could not be independently verified because repository command execution failed in the read-only sandbox."
+      },
+      "implementation": {
+        "completeness": 17,
+        "correctness": 12,
+        "specificity": 21,
+        "risk_awareness": 11,
+        "total": 61,
+        "notes": "The patch implements the described deposit, opaque redirect key, atomic resolution, fallback metric, and legacy id_token_hint path across the four claimed files. The largest defect is that logout_hint_store records provider but resolution queries only _id, while oauth2_logout resolves and deletes the hint before checking whether the path provider exists, enabling cross-provider token forwarding or one-request denial of logout. A second concrete defect is that failed TTL-index creation is merely logged and _collection is then cached, so index creation is never retried and unconsumed hints may persist; no regression tests accompany the security-sensitive change. The visible diff is internally coherent, but git apply --check and signatures such as generate_internal_token could not be independently verified because the execution sandbox failed before running repository commands."
+      }
+    },
+    "task_score": 66.0,
+    "verdict": "The submission is detailed and mostly coherent, but provider-unbound hint consumption and non-guaranteed TTL cleanup leave material security and data-retention defects.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-01T07:13:52.391716Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 262541,
+        "cached_input_tokens": 196655,
+        "cache_write_input_tokens": 35149,
+        "output_tokens": 13043,
+        "reasoning_output_tokens": 11332
+      },
+      "duration_ms": 245369
+    }
+  }
+}
