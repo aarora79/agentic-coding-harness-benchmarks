@@ -55,29 +55,38 @@ Quality alone tells you which model is best; cost alone tells you which is cheap
 
 Each task points the agent at a real GitHub repository and a real problem. The agent works the task **non-interactively** through the `/swe2` skill, which lands six artifacts on disk -- four design docs (`github-issue.md`, `lld.md`, `review.md`, `testing.md`) plus the implemented change (`patch.diff`, `implementation.md`). The harness records what the run cost -- token usage, latency, and the number of LLM turns -- and a separate [judge](benchmarks/docs/harness-reference.md#scoring-the-artifacts-the-judge) scores the artifacts for quality. Run the same task across models and the resulting `metrics.json` / `eval.json` files line up side by side.
 
-## Results: a worked example
+## Results
 
-To show what the harness produces, we ran it against [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4` -- **5 real tasks**, each scored 0-100 by an independent LLM judge, across **16 models** on the Claude Code and pi harnesses (plus **5 models** on the newer [kiro-cli](docs/harness-kiro-cli-swe3.md) harness, and `qwen3.8-27b` a second time on [omp](docs/harness-omp-swe3.md)). The flagship view below is the **cost/quality Pareto frontier** for the single-agent `/swe3` skill, **merged across harnesses**: mean cost per task (x) against mean task score (y), one point per model, with the non-dominated frontier highlighted. Each model is plotted at its **best harness** -- decided by Pareto dominance, and by cost-per-point where neither harness dominates (the rule, and every runner-up it set aside, are in [best-harness-selection.md](docs/best-harness-selection.md)). Marker shape says which harness won.
+The headline run is the **omp** harness driving the single-agent `/swe3` skill over the **`mcp-gateway-registry-v2`** dataset: 21 tasks, 16 models, every task scored 0-100 by an independent judge. Each task comes from a closed issue in [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry), pinned to the release *before* the fix shipped, so the defect is present in the tree the agent clones. The tasks span four complexity tiers, so the results split by how hard the work is.
 
-![Cost vs. quality Pareto frontier, best harness per model on /swe3](docs/images/cost-quality-combined-swe3.png)
+This repo also holds earlier runs on other harnesses, skills and datasets -- Claude Code and pi on the 5-task v1 dataset, kiro-cli, and the multi-agent `/swe2` skill. Those stay published as background. They use different task sets, so their scores do not line up with the table below and must not be merged into it.
 
-> **What is a Pareto frontier, and what does it mean here?** The frontier is the set of models where **no other model is both higher-scoring _and_ cheaper**. Those are the only models worth considering; everything else is *dominated* -- some frontier model beats it on both axes, so there is never a reason to pick it. Concrete example from this chart: **`deepseek-v3.2` (54/100, $1.71/task) dominates `qwen3-coder-480b` (44/100, $3.11/task)** -- deepseek scores *higher* and costs *less* (both self-hosted, so the dollars are like-for-like), so qwen3-coder-480b is off the frontier. Merging the harnesses adds a sharper one: **`qwen3.8-27b` on omp (70.3/100, $3.49/task) dominates `claude-sonnet-5` on pi (66.5/100, $3.81/task)** -- a 27B open-weight model on a single GPU, beating a frontier API model on both axes at once. Reading it is a two-step decision: pick the quality level your task needs on the y-axis, then take the **leftmost (cheapest) model on the frontier at that level**. (Costs come in two non-comparable bases -- metered Bedrock bills vs hardware-derived self-hosted figures -- so we also draw the honest frontier *within* each hosting basis; see the results docs.)
+![Cost vs. quality Pareto frontier, omp harness on /swe3](docs/images/cost-quality-omp-swe3.png)
 
-**claude-opus-5** tops quality (75.7/100). The best open-weight result is a near tie -- **glm-5.2** at 70.8 and **qwen3.8-27b** at 70.3 -- but they cost very different things to get: glm-5.2 is a 744B MoE on 8x H200 at $5.98/task, qwen3.8-27b a 27B dense model on a **single L40S** at $3.49/task. Both sit on the frontier. The full story -- task-by-task tables, per-model leaderboard, hardware, footnotes, the cost methodology, and the model-tier buying guidance -- is split by skill:
+> **What is a Pareto frontier, and what does it mean here?** The frontier is the set of models where **no other model is both higher-scoring _and_ cheaper**. Those are the only models worth considering; everything else is *dominated*, so there is never a reason to pick it. From this chart: **`qwen3.8-27b` (78.48, $1.79/task) dominates `claude-sonnet-5` (76.97, $3.21/task)** -- a 27B open-weight model outscores a frontier API model and costs less than half as much. Read it in two steps: pick the quality you need on the y-axis, then take the cheapest model on the frontier at that level. Costs come in two bases that do not compare as raw dollars -- metered Bedrock bills against hardware-derived self-hosted figures -- so the results docs also draw the frontier within each basis.
 
-- **[Results -- /swe3 (single-agent)](docs/results-swe3.md)** -- the primary results view (pi harness), 16 models.
-- **[Results -- /swe3 on the v2 dataset](docs/results-swe3-v2.md)** -- a second, larger dataset: 15 release-sourced tasks balanced across low/medium/high complexity, 3 models. Separate scores, not comparable with the above.
-- **[Which model for which task?](docs/model-selection-by-complexity.md)** -- the buying decision the v2 complexity split makes possible: what a model upgrade actually buys, per difficulty tier.
-- **[Results -- /swe2 (multi-agent)](docs/results-swe2.md)** -- the multi-agent skill (Claude Code harness), 14 models.
-- **[Cross-harness comparison (/swe3)](docs/agentic-coding-swe-comparison-swe3.md)** -- Claude Code vs pi on the same models: per-metric win tallies and the model-tier buying guidance (which model for which job, and which harness).
+**claude-opus-5 tops quality at 82.83 for $7.63 a task.** `glm-5.3` comes within 1.6 points at 81.27 for $6.85, running on 8x H200. The cheapest way to reach the high 70s is `qwen3.8-27b`: 78.48 for **$1.79 a task** on a 4x L40S box. At the other end, `qwen3.6-35b` scores 59.24 for **29 cents**.
 
-Path 1 (Anthropic on Bedrock) and Path 3 (self-hosted on vLLM) are measured; Path 2 (open-weight on Bedrock via LiteLLM) is [fully implemented](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) but has no published run yet. The `mcp-gateway-registry` dataset ships in [benchmarks/dataset/](benchmarks/dataset/mcp-gateway-registry.yaml) so you can reproduce the run; generated artifacts are not committed.
+Within the metered Bedrock rows alone the frontier is `claude-haiku-4-5` ($0.69, 56.18), `claude-sonnet-5` ($3.21, 76.97) and `claude-opus-5` ($7.63, 82.83). Both older Opus models fall off it: Sonnet 5 beats `claude-opus-4-8` (74.69, $5.32) and `claude-opus-4-6-v1` (70.64, $4.95) on score and on price.
+
+- **[omp harness, /swe3, v2 dataset](docs/harness-omp-swe3.md)** -- the headline table above, 16 models, with the quality radar and the cost-accuracy view.
+- **[Which model for which task?](docs/model-selection-by-complexity.md)** -- what a model upgrade buys you at each difficulty tier.
+- **[Cost per task, and why the two bases differ](docs/cost-per-task-methodology.md)** -- how a fixed instance price becomes a cost per token and per task.
+
+Background runs, on other datasets and harnesses:
+
+- **[Results -- /swe3 on the v1 dataset](docs/results-swe3.md)** -- 5 tasks, 16 models, pi harness.
+- **[Results -- /swe3 on v2](docs/results-swe3-v2.md)** -- the v2 dataset under the earlier harnesses.
+- **[Results -- /swe2 (multi-agent)](docs/results-swe2.md)** -- the multi-agent skill, Claude Code harness, 14 models.
+- **[Cross-harness comparison (/swe3)](docs/agentic-coding-swe-comparison-swe3.md)** -- Claude Code against pi on the same models.
+
+Path 1 (Anthropic on Bedrock) and Path 3 (self-hosted on vLLM) have published runs. Path 2 (open-weight on Bedrock via LiteLLM) [works](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) but nobody has run it yet. Both datasets ship in [benchmarks/dataset/](benchmarks/dataset/) so you can reproduce a run; generated artifacts are not committed.
 
 > **The example repo is the example, not the contract.** `/swe3` works against any GitHub URL -- clone the target you actually care about, write the task description, and run.
 
 ### Results by harness and skill
 
-The same models can be driven by different coding agents (harnesses), and each harness can run more than one SWE skill (`swe2`, the multi-agent skill, vs `swe3`, the single-agent skill) -- token consumption and accuracy differ enough that results are kept per (harness, skill). Each combination has its own generated results document (a running table plus cost-quality and quality-radar charts); the two cross-harness comparison docs put Claude Code and pi head to head per skill.
+One model can be driven by different coding agents (harnesses), and each harness runs either SWE skill (`swe2`, the multi-agent one, or `swe3`, the single-agent one). Token use and accuracy differ enough that results are kept per (harness, skill), each with its own generated document: a table plus cost-quality and quality-radar charts. **The reported result is omp with `/swe3` on the v2 dataset**; the rest of this table is earlier work on other datasets, kept for reference and not comparable with it.
 
 | Skill | Results write-up | Cross-harness comparison | Per-harness generated docs |
 |---|---|---|---|
