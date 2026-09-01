@@ -34,13 +34,13 @@ Tiers, by what the task needs:
 
 - **Frontier open-weight -- `glm-5.2` (self-hosted), on pi.** Top of the self-hosted frontier at **70.8/100, $5.98/task**; the model to standardize on if you self-host your quality tier. pi wins quality (70.8 vs 65.6) *and* cost ($5.98 vs $12.50), for ~9 extra minutes (105m vs 96m) -- a trivial trade for +5 points.
 
-- **Value open-weight -- `deepseek-v3.2` (self-hosted), on pi.** A mid-frontier self-hosted point at **54.4/100, $1.71/task** -- roughly three-quarters of glm-5.2's quality for under a third of its cost, and it completes 5/5. This is the workhorse for the bulk of day-to-day self-hosted coding where you do not need the top of the frontier. (Below it on the self-hosted frontier sit `qwen3.6-35b` at 52.3/$0.44 and, cheapest, `qwen3-coder-30b` at 26.9/$0.16 -- but **note reliability**: qwen3.6-35b completed only **4/5** tasks under pi and qwen3-coder-30b only 2/5, so they are frontier points with an asterisk, not set-and-forget workhorses. Do not route unattended work to a model that does not reliably finish.)
+- **Value open-weight -- `deepseek-v3.2` (self-hosted), on pi.** A mid-frontier self-hosted point at **54.4/100, $1.15/task** -- roughly three-quarters of glm-5.2's quality for under a third of its cost, and it completes 5/5. This is the workhorse for the bulk of day-to-day self-hosted coding where you do not need the top of the frontier. (Below it on the self-hosted frontier sits `qwen3.6-35b` at 52.3/$0.16 -- but **note reliability**: it completed only **4/5** tasks under pi, so it is a frontier point with an asterisk, not a set-and-forget workhorse. `qwen3-coder-30b` is cheaper per hour but no longer a frontier point at all: 26.9/$0.18 and only 2/5. Do not route unattended work to a model that does not reliably finish.)
 
 - **Most cost-effective, just-get-it-done -- `claude-haiku-4-5` (Bedrock), on pi.** Bottom of the Bedrock frontier at **47.1/100, $0.64/task**, for boilerplate, small fixes, and scaffolding you will review anyway. The easy case: pi is both higher quality (47.1 vs 41.1) *and* cheaper ($0.64 vs $0.80) than Claude Code, at equal 5/5 reliability.
 
-**If you insist on ONE combined frontier (both cost bases together).** Some readers will want a single ranking regardless of hosting. Doing that is *directional only* -- it puts a metered Bedrock bill (prompt-cache-discounted) next to a hardware-derived self-hosted cost (committed-capacity GPU rate), which are not comparable as raw dollars -- but it is revealing. On the combined pi swe3 frontier ([`metrics/pareto-frontier-pi-swe3.json`](metrics/pareto-frontier-pi-swe3.json), `combined_frontier_cross_hosting_directional`): **qwen3-coder-30b ($0.16, but only 2/5) -> qwen3.6-35b ($0.44) -> deepseek-v3.2 ($1.71) -> claude-sonnet-5 ($3.81) -> glm-5.2 ($5.98) -> claude-opus-5 ($8.28)**. The cheap open-weight models plus `deepseek-v3.2` hold the low-to-mid frontier; `glm-5.2` now joins the top just under `claude-opus-5`. With self-hosted costs corrected (issue #136, ~2x lower), `glm-5.2` (70.8/$5.98) is **no longer dominated** by `claude-opus-5`: opus-5 scores higher (75.7) but now costs *more* ($8.28), so glm-5.2 is a legitimate cheaper, lower-scoring frontier point. (`claude-haiku-4-5` drops off the frontier, since qwen3.6-35b now clears its quality for less.)
+**If you insist on ONE combined frontier (both cost bases together).** Some readers will want a single ranking regardless of hosting. Doing that is *directional only* -- it puts a metered Bedrock bill (prompt-cache-discounted) next to a hardware-derived self-hosted cost (committed-capacity GPU rate), which are not comparable as raw dollars -- but it is revealing. On the combined pi swe3 frontier ([`metrics/pareto-frontier-pi-swe3.json`](metrics/pareto-frontier-pi-swe3.json), `combined_frontier_cross_hosting_directional`): **qwen3.6-35b ($0.16) -> deepseek-v3.2 ($1.15) -> qwen3.8-27b ($2.12) -> claude-sonnet-5 ($3.81) -> glm-5.2 ($4.03) -> claude-opus-5 ($8.28)**. Open-weight models hold everything below the top: five of the six frontier points are self-hosted, and only `claude-opus-5` sits above `glm-5.2`. `glm-5.2` (70.8/$4.03) is **not dominated** by `claude-opus-5`: opus-5 scores higher (75.7) but costs more than twice as much, so glm-5.2 is a legitimate cheaper, lower-scoring frontier point. Two models dropped off: `claude-haiku-4-5`, because qwen3.6-35b clears its quality for a quarter of the price, and `qwen3-coder-30b` ($0.18/26.9, and only 2/5), because qwen3.6-35b is now both cheaper *and* far better.
 
-**`deepseek-v3.2` (54.4/$1.71) is the standout self-hosted workhorse** -- non-dominated, reliable 5/5, and cheaper than sonnet-5 while scoring in the mid-50s; `qwen3.6-35b` (52.3/$0.44) holds the gap below it (with a **4/5** reliability asterisk). **This cross-hosting picture is highly sensitive to the GPU rate basis** -- these self-hosted costs use a **placeholder 35% discount on p5en on-demand** and g6e's 3-year commitment rate, both configurable in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json) (`discount`). A deeper committed discount pulls the p5en models (glm-5.2, kimi, nemotron) back onto the frontier; see [cost-per-task-methodology.md](cost-per-task-methodology.md). This is exactly why the default view keeps the frontiers split by hosting.
+**`deepseek-v3.2` (54.4/$1.15) is the standout self-hosted workhorse** -- non-dominated, reliable 5/5, and a third of sonnet-5's cost while scoring in the mid-50s; `qwen3.6-35b` (52.3/$0.16) holds the gap below it (with a **4/5** reliability asterisk). **This cross-hosting picture is sensitive to the GPU rate basis** -- these self-hosted costs use the **3-year commitment rate for both instance families** (p5en.48xlarge $27.72/hr, g6e.12xlarge $4.533/hr) from [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json). Pricing at on-demand instead (p5en $63.296/hr) multiplies every self-hosted dollar by ~2.3 and pushes the p5en models (glm-5.2, kimi, nemotron) back off the frontier; see [cost-per-task-methodology.md](cost-per-task-methodology.md). This is exactly why the default view keeps the frontiers split by hosting.
 
 **The through-line:** choose the model by where your task lands on the quality/cost frontier for your hosting basis; run it on pi, which wins or ties on the axes that matter and is fastest on wall-clock almost every time. A model that is merely cheap but *dominated* (off the frontier) -- or that does not reliably finish -- is not a bargain.
 <!-- MANUAL:harness-reading END -->
@@ -56,14 +56,14 @@ For each harness: a results table (quality, tokens, run cost + the two normalize
 | claude-opus-5 | Bedrock | 70.76 | 5/5 | 175.1M | $120.25 | $24.05 | $1.70 | 199m |
 | claude-opus-4-8 | Bedrock | 69.24 | 5/5 | 57.0M | $49.51 | $9.90 | $0.72 | 113m |
 | claude-sonnet-5 | Bedrock | 68.04 | 5/5 | 341.6M | $123.20 | $24.64 | $1.81 | 191m |
-| glm-5.2 | self-hosted | 65.60 | 5/5 | 86.8M | $62.50 | $12.50 | $0.95 | 96m |
-| kimi-k2.7-code | self-hosted | 55.44 | 5/5 | 57.9M | $31.28 | $6.26 | $0.56 | 79m |
-| deepseek-v3.2 | self-hosted | 53.72 | 5/5 | 68.9M | $26.31 | $5.26 | $0.49 | 103m |
-| nemotron-ultra-550b | self-hosted | 53.68 | 5/5 | 95.6M | $27.17 | $5.43 | $0.51 | 82m |
-| devstral-2-123b | self-hosted | 49.52 | 5/5 | 28.2M | $5.67 | $1.13 | $0.11 | 55m |
-| minimax-m2.5 | self-hosted | 48.36 | 5/5 | 39.0M | $4.32 | $0.86 | $0.09 | 22m |
-| qwen3.6-35b | self-hosted | 48.16 | 5/5 | 37.8M | $3.56 | $0.71 | $0.07 | 47m |
-| qwen3-coder-480b | self-hosted | 46.32 | 5/5 | 57.5M | $20.14 | $4.03 | $0.43 | 54m |
+| glm-5.2 | self-hosted | 65.60 | 5/5 | 86.8M | $42.11 | $8.42 | $0.64 | 96m |
+| kimi-k2.7-code | self-hosted | 55.44 | 5/5 | 57.9M | $21.08 | $4.22 | $0.38 | 79m |
+| deepseek-v3.2 | self-hosted | 53.72 | 5/5 | 68.9M | $17.73 | $3.55 | $0.33 | 103m |
+| nemotron-ultra-550b | self-hosted | 53.68 | 5/5 | 95.6M | $18.31 | $3.66 | $0.34 | 82m |
+| devstral-2-123b | self-hosted | 49.52 | 5/5 | 28.2M | $3.82 | $0.76 | $0.08 | 55m |
+| minimax-m2.5 | self-hosted | 48.36 | 5/5 | 39.0M | $2.91 | $0.58 | $0.06 | 22m |
+| qwen3.6-35b | self-hosted | 48.16 | 5/5 | 37.8M | $1.28 | $0.26 | $0.03 | 47m |
+| qwen3-coder-480b | self-hosted | 46.32 | 5/5 | 57.5M | $13.57 | $2.71 | $0.29 | 54m |
 | claude-haiku-4-5 | Bedrock | 41.08 | 5/5 | 25.4M | $3.99 | $0.80 | $0.10 | 23m |
 
 Cost vs. accuracy (Claude Code) -- bubble area = tokens processed, color = hosting (Bedrock vs self-hosted):
@@ -75,20 +75,21 @@ Cost vs. accuracy (Claude Code) -- bubble area = tokens processed, color = hosti
 | Model | Hosting | Mean score | Completed | Tokens processed | Run cost | Cost/task | Cost/point | Wall-clock |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | claude-opus-5 | Bedrock | 75.72 | 5/5 | 50.0M | $41.42 | $8.28 | $0.55 | 94m |
-| glm-5.2 | self-hosted | 70.76 | 5/5 | 41.5M | $29.90 | $5.98 | $0.42 | 105m |
+| glm-5.2 | self-hosted | 70.76 | 5/5 | 41.5M | $20.15 | $4.03 | $0.28 | 105m |
 | claude-sonnet-5 | Bedrock | 66.52 | 5/5 | 67.0M | $19.07 | $3.81 | $0.29 | 74m |
+| qwen3.8-27b | self-hosted | 66.40 | 5/5 | 96.7M | $13.55 | $2.71 | $0.20 | 710m |
 | claude-opus-4-8 | Bedrock | 60.68 | 5/5 | 22.5M | $22.99 | $4.60 | $0.38 | 63m |
-| kimi-k2.7-code | self-hosted | 60.68 | 5/5 | 51.0M | $27.58 | $5.52 | $0.45 | 57m |
+| kimi-k2.7-code | self-hosted | 60.68 | 5/5 | 51.0M | $18.58 | $3.72 | $0.31 | 57m |
 | grok-4.6 | Bedrock | 56.28 | 5/5 | 13.1M | $66.71 | $13.34 | $1.19 | 70m |
-| nemotron-ultra-550b | self-hosted | 55.20 | 5/5 | 68.7M | $19.53 | $3.91 | $0.35 | 34m |
-| deepseek-v3.2 | self-hosted | 54.44 | 5/5 | 22.3M | $8.54 | $1.71 | $0.16 | 33m |
-| qwen3.6-35b | self-hosted | 52.30 | 4/5 | 19.1M | $1.80 | $0.45 | $0.03 | 29m |
-| devstral-2-123b | self-hosted | 47.64 | 5/5 | 18.8M | $3.78 | $0.76 | $0.08 | 30m |
+| nemotron-ultra-550b | self-hosted | 55.20 | 5/5 | 68.7M | $13.16 | $2.63 | $0.24 | 34m |
+| deepseek-v3.2 | self-hosted | 54.44 | 5/5 | 22.3M | $5.75 | $1.15 | $0.11 | 33m |
+| qwen3.6-35b | self-hosted | 52.30 | 4/5 | 19.1M | $0.64 | $0.16 | $0.01 | 29m |
+| devstral-2-123b | self-hosted | 47.64 | 5/5 | 18.8M | $2.55 | $0.51 | $0.05 | 30m |
 | claude-haiku-4-5 | Bedrock | 47.12 | 5/5 | 18.1M | $3.21 | $0.64 | $0.07 | 29m |
-| minimax-m2.5 | self-hosted | 45.08 | 5/5 | 21.2M | $2.34 | $0.47 | $0.05 | 13m |
-| qwen3-coder-480b | self-hosted | 43.96 | 5/5 | 44.4M | $15.55 | $3.11 | $0.35 | 28m |
-| gemma-4-31b | self-hosted | 42.96 | 5/5 | 16.5M | $5.18 | $1.04 | $0.12 | 58m |
-| qwen3-coder-30b | self-hosted | 26.90 | 2/5 | 9.8M | $0.62 | $0.31 | $0.02 | 18m |
+| minimax-m2.5 | self-hosted | 45.08 | 5/5 | 21.2M | $1.58 | $0.32 | $0.04 | 13m |
+| qwen3-coder-480b | self-hosted | 43.96 | 5/5 | 44.4M | $10.48 | $2.10 | $0.24 | 28m |
+| gemma-4-31b | self-hosted | 42.96 | 5/5 | 16.5M | $3.24 | $0.65 | $0.08 | 58m |
+| qwen3-coder-30b | self-hosted | 26.90 | 2/5 | 9.8M | $0.70 | $0.35 | $0.03 | 18m |
 
 Cost vs. accuracy (pi) -- bubble area = tokens processed, color = hosting (Bedrock vs self-hosted):
 
@@ -99,9 +100,9 @@ Cost vs. accuracy (pi) -- bubble area = tokens processed, color = hosting (Bedro
 A practical way to read the tables: pick the cheapest model whose quality clears the bar your task needs. Costs below are **per task** (one real `/swe3` problem; a run is 5 tasks). Numbers are from the **pi** column -- the single-agent shape a developer drives at the terminal. Remember the two cost bases are not comparable as raw dollars (Bedrock is a metered bill; self-hosted is hardware-derived) -- see the methodology doc.
 
 - **Top-quality tier (hard / high-stakes changes): `claude-opus-5`** -- highest score (76/100) at $8.28/task. Reach for it on security-sensitive, cross-cutting, or get-it-right-the-first-time work where a wrong design is expensive. You pay the most, but accuracy is the most.
-- **Open-weight workhorse (bulk of day-to-day coding): `glm-5.2`** -- best self-hosted quality (71/100) at $5.98/task. Strong on real refactors and features; the model to standardize on if you self-host and route most tickets to one engine.
-- **Best value (most quality per dollar): `claude-sonnet-5`** -- clears ~61/100 (80% of the top score) at just $3.81/task. The sweet spot for well-scoped tasks: most of the quality, a fraction of the cost.
-- **Budget tier (routine / high-volume edits): `minimax-m2.5`** -- cheapest full 5/5 run at $0.47/task (score 45/100). Good for boilerplate, small fixes, and throwaway scaffolding where you will review the output anyway.
+- **Open-weight workhorse (bulk of day-to-day coding): `glm-5.2`** -- best self-hosted quality (71/100) at $4.03/task. Strong on real refactors and features; the model to standardize on if you self-host and route most tickets to one engine.
+- **Best value (most quality per dollar): `qwen3.8-27b`** -- clears ~61/100 (80% of the top score) at just $2.71/task. The sweet spot for well-scoped tasks: most of the quality, a fraction of the cost.
+- **Budget tier (routine / high-volume edits): `minimax-m2.5`** -- cheapest full 5/5 run at $0.32/task (score 45/100). Good for boilerplate, small fixes, and throwaway scaffolding where you will review the output anyway.
 - **Reliability flag:** `qwen3.6-35b` (4/5), `qwen3-coder-30b` (2/5) did **not** finish every task under pi -- cheap per task, but a non-completion is a failure, not a discount. Do not route unattended work to a model that does not reliably finish.
 
 ## Does the harness change the answer? (pi vs Claude Code)

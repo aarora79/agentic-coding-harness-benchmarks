@@ -149,7 +149,7 @@ Kiro's published pricing gives two defensible per-credit rates:
 cost_per_task_usd = credits_consumed_for_the_run x DOLLARS_PER_CREDIT
 ```
 
-Treat `DOLLARS_PER_CREDIT` as a **configurable rate**, the same way the self-hosted GPU discount is a documented placeholder in this repo (see [cost-per-task-methodology.md](cost-per-task-methodology.md)). The default is the **$0.04 marginal** rate -- the honest "what does one more task cost" figure -- with $0.02 available for an all-you-can-use blended view. Example: a run reporting `Credits: 0.21` costs `0.21 x $0.04 = $0.0084` (or `$0.0042` at the blended rate). Trivial tasks cost cents; a real swe task at 50-300 turns consumes far more credits.
+Treat `DOLLARS_PER_CREDIT` as a **configurable rate**, the same way the self-hosted GPU rate is a documented commitment term in this repo, swappable for your own (see [cost-per-task-methodology.md](cost-per-task-methodology.md)). The default is the **$0.04 marginal** rate -- the honest "what does one more task cost" figure -- with $0.02 available for an all-you-can-use blended view. Example: a run reporting `Credits: 0.21` costs `0.21 x $0.04 = $0.0084` (or `$0.0042` at the blended rate). Trivial tasks cost cents; a real swe task at 50-300 turns consumes far more credits.
 
 Kiro credits are a **third cost basis**, alongside metered Bedrock dollars and hardware-derived self-hosted GPU-seconds. As with those, compare within a hosting basis rather than reading raw dollars across bases; the credit-to-dollar conversion depends on your Kiro plan.
 

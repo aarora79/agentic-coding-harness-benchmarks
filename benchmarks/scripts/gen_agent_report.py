@@ -41,6 +41,8 @@ _BENCHMARKS_DIR = _SCRIPTS_DIR.parent
 _REPO_ROOT = _BENCHMARKS_DIR.parent
 DEFAULT_DATA_DIR = _BENCHMARKS_DIR / "swe-benchmark-data"
 DEFAULT_OUT_DIR = _REPO_ROOT / "docs"
+# The dataset scope a report covers unless --repo says otherwise.
+DEFAULT_REPO = "mcp-gateway-registry"
 RUN_SUMMARY_FILENAME = "run-summary.json"
 
 # Throughput sweeps: each model's performance-summary.json carries a hardware-
@@ -258,7 +260,10 @@ def _render(
         f"Benchmark results for every model run under the **{label}** coding agent "
         f"with the **{skill}** skill on `{repo}`, generated from the committed "
         "`run-summary.json` files. Regenerate with `uv run "
-        f"scripts/gen_agent_report.py --harness {harness} --skill {skill}`. "
+        f"scripts/gen_agent_report.py --harness {harness} --skill {skill}"
+        # The doc path carries no repo, so a non-default dataset must be named
+        # here or the printed command silently regenerates a different report.
+        f"{'' if repo == DEFAULT_REPO else f' --repo {repo}'}`. "
         "Companion to the cross-harness comparison "
         f"[agentic-coding-swe-comparison-{skill}.md](agentic-coding-swe-comparison-{skill}.md).",
         "",
@@ -382,7 +387,7 @@ def _parse_args() -> argparse.Namespace:
         default="swe3",
         help="SWE skill folder to read: 'swe3' (default) or 'swe2'.",
     )
-    parser.add_argument("--repo", default="mcp-gateway-registry", help="Dataset scope.")
+    parser.add_argument("--repo", default=DEFAULT_REPO, help="Dataset scope.")
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument(
         "--out-dir",

@@ -2,22 +2,23 @@
 """Single-source EC2 pricing lookup for cost-per-token / cost-per-task math.
 
 Reads ``self-hosted/vllm/pricing.json`` so no script hardcodes a dollar figure.
-The effective hourly rate a run is charged is
-``dollars_per_hour * (1 - discount)``, then further prorated by
+``dollars_per_hour`` IS the rate a run is charged, prorated by
 ``tp / gpus_per_instance`` when a model is served with tensor parallelism below
 the instance's GPU count (it uses only part of the box) -- e.g. a TP=4 model on
-an 8-GPU p5en.48xlarge is charged half the (discounted) instance rate.
+an 8-GPU p5en.48xlarge is charged half the instance rate.
 
-``discount`` is the FRACTIONAL DISCOUNT off the base rate: 0.35 means
-a 35% discount (pay 65% of ``dollars_per_hour``), 0.0 means no discount. It lets
-us keep an on-demand base on record while pricing runs at a committed/negotiated
-discount (e.g. p5en on-demand with a 0.35 placeholder discount); where the base
-already reflects the target (e.g. g6e at its 3-year commitment rate) it is 0.0.
+There is deliberately NO discount multiplier. pricing.json used to carry one, and
+p5en was based at on-demand with a 0.35 PLACEHOLDER discount: a guess sitting in
+the same field, and flowing into the same charts, as measured prices. Every
+instance is now based at its real published 3-year commitment rate, with the
+alternatives recorded in that entry's ``rates`` map for reference only. To price
+at a different term, move the value into ``dollars_per_hour`` and regenerate the
+summaries; nothing multiplies it on the way through.
 
 Usage:
     from pricing import resolve, instance_hourly
-    rate = resolve("p5en.48xlarge", tp=4)   # half-box effective $/hr (discounted)
-    full = instance_hourly("g6e.12xlarge")  # whole-instance effective $/hr
+    rate = resolve("p5en.48xlarge", tp=4)   # half-box $/hr
+    full = instance_hourly("g6e.12xlarge")  # whole-instance $/hr
 """
 
 from __future__ import annotations
@@ -55,22 +56,29 @@ def _entry(instance_type: str) -> dict:
 
 
 def _effective_full(entry: dict) -> float:
-    """Whole-instance effective $/hr = base dollars_per_hour x (1 - discount).
+    """Whole-instance $/hr: ``dollars_per_hour`` exactly as published.
 
-    ``discount`` is the fractional discount off the base rate: 0.35
-    means a 35% discount, i.e. you pay 65% of ``dollars_per_hour``. 0.0 means no
-    discount (pay the full base rate).
+    Nothing is applied on top. A ``discount`` key here would silently change
+    every derived cost in the repo, so reject it rather than honour or ignore it:
+    the rate must be a real published price, not a base times an assumption.
+
+    Raises:
+        PricingError: If the entry still carries a ``discount`` key.
     """
-    base = float(entry["dollars_per_hour"])
-    discount = float(entry.get("discount", 0.0))
-    return base * (1.0 - discount)
+    if "discount" in entry:
+        raise PricingError(
+            "pricing.json entry carries a 'discount' key, which is no longer "
+            "supported: set dollars_per_hour to the real published rate and "
+            "record the alternatives under 'rates'."
+        )
+    return float(entry["dollars_per_hour"])
 
 
 def instance_hourly(instance_type: str) -> float:
-    """Return the whole-instance effective $/hr for ``instance_type``.
+    """Return the whole-instance $/hr for ``instance_type``.
 
-    Effective = ``dollars_per_hour * (1 - discount)`` (the discount lets us
-    keep an on-demand base on record while charging a committed-capacity rate).
+    This is ``dollars_per_hour`` verbatim: the entry's published 3-year
+    commitment rate, with nothing applied on top.
 
     Args:
         instance_type: e.g. ``g6e.12xlarge`` or ``p5en.48xlarge``.
@@ -100,7 +108,8 @@ def resolve(instance_type: str, tp: int | None = None) -> float:
         Effective dollars per hour to attribute to this model's run.
 
     Raises:
-        PricingError: If the instance type is not in pricing.json.
+        PricingError: If the instance type is not in pricing.json, or its entry
+            still carries an unsupported ``discount`` key.
     """
     entry = _entry(instance_type)
     full = _effective_full(entry)

@@ -33,8 +33,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -124,15 +126,28 @@ PERF_SUMMARY_DIR = (
 PERF_SUMMARY_FILENAME = "performance-summary.json"
 
 
-def _blended_cost_per_token(model: str) -> float | None:
+def _blended_cost_per_token(
+    model: str, arms: dict[str, str] | None = None
+) -> float | None:
     """Return the cheapest blended $/token for a model from its perf summary.
 
     The blended lens charges every processed token (prompt + generation) the
     same measured GPU slice; the cheapest concurrency level is the model's best
     sustainable per-token cost on its benchmarked instance. Returns None when no
     performance summary exists for the model (e.g. not swept for throughput).
+
+    Args:
+        model: The model slug, which by default also names its throughput arm.
+        arms: Optional ``{model: arm-directory}`` overrides. A model swept on
+            more than one instance has one summary per arm, and the arm chosen
+            decides the hardware basis of that point. The bare slug is the
+            CANONICAL arm (the p5en sweep, so the whole fleet shares one basis);
+            an alternative basis is a suffixed sibling (e.g. ``gemma-4-31b-g6e``)
+            and must be asked for by name, since mixing the two would put two
+            hardware bases on one cost axis.
     """
-    summary = _read_json(PERF_SUMMARY_DIR / model / PERF_SUMMARY_FILENAME)
+    arm = (arms or {}).get(model, model)
+    summary = _read_json(PERF_SUMMARY_DIR / arm / PERF_SUMMARY_FILENAME)
     if summary is None:
         return None
     rates = [
@@ -214,7 +229,9 @@ def _task_score(eval_data: dict | None) -> float | None:
     return float(score) if isinstance(score, (int, float)) else None
 
 
-def _point_from_summary(model_repo_dir: Path, model: str) -> ModelPoint | None:
+def _point_from_summary(
+    model_repo_dir: Path, model: str, arms: dict[str, str] | None = None
+) -> ModelPoint | None:
     """Build a ModelPoint from the committed run-summary.json, if present.
 
     run-summary.json already carries the leaderboard-convention means (failed
@@ -242,7 +259,7 @@ def _point_from_summary(model_repo_dir: Path, model: str) -> ModelPoint | None:
     # throughput sweep x this run's actual per-task tokens, averaged over the
     # non-failed tasks). Fall back to run-summary's token-priced estimate only
     # when no performance summary exists for the model.
-    cost = _blended_mean_cost(summary, model)
+    cost = _blended_mean_cost(summary, model, arms)
     if cost is None:
         est = summary.get("mean_cost_usd_excl_failed")
         cost = float(est) if isinstance(est, (int, float)) else 0.0
@@ -259,7 +276,9 @@ def _point_from_summary(model_repo_dir: Path, model: str) -> ModelPoint | None:
     )
 
 
-def _blended_mean_cost(summary: dict, model: str) -> float | None:
+def _blended_mean_cost(
+    summary: dict, model: str, arms: dict[str, str] | None = None
+) -> float | None:
     """Mean blended cost per task from perf-summary per-token rate x run tokens.
 
     Uses the model's cheapest blended $/token (hardware-derived, from the
@@ -268,7 +287,7 @@ def _blended_mean_cost(summary: dict, model: str) -> float | None:
     exclusion convention. Returns None when the model has no performance summary
     (so the caller falls back to the token-priced estimate).
     """
-    per_token = _blended_cost_per_token(model)
+    per_token = _blended_cost_per_token(model, arms)
     if per_token is None:
         return None
     failed = set(summary.get("failed_tasks") or [])
@@ -297,7 +316,9 @@ def _blended_mean_cost(summary: dict, model: str) -> float | None:
     return sum(costs) / len(costs) if costs else None
 
 
-def _aggregate_model(model_repo_dir: Path, model: str) -> ModelPoint | None:
+def _aggregate_model(
+    model_repo_dir: Path, model: str, arms: dict[str, str] | None = None
+) -> ModelPoint | None:
     """Aggregate one model's cost and score under a repo directory.
 
     Prefers the committed ``run-summary.json`` (present for every model and
@@ -315,7 +336,7 @@ def _aggregate_model(model_repo_dir: Path, model: str) -> ModelPoint | None:
     Returns:
         The model's aggregate, or None if it has neither a summary nor tasks.
     """
-    from_summary = _point_from_summary(model_repo_dir, model)
+    from_summary = _point_from_summary(model_repo_dir, model, arms)
     if from_summary is not None:
         return from_summary
 
@@ -350,7 +371,12 @@ def _aggregate_model(model_repo_dir: Path, model: str) -> ModelPoint | None:
 
 
 def _collect_points(
-    data_dir: Path, repo: str, harness: str, skill: str
+    data_dir: Path,
+    repo: str,
+    harness: str,
+    skill: str,
+    models: list[str] | None = None,
+    arms: dict[str, str] | None = None,
 ) -> list[ModelPoint]:
     """Collect one ModelPoint per model that has ``harness`` runs for ``repo``.
 
@@ -362,19 +388,30 @@ def _collect_points(
         data_dir: The ``swe-benchmark-data`` root.
         repo: The dataset repo subfolder to aggregate (e.g. mcp-gateway-registry).
         harness: The coding-agent folder to read (e.g. ``claude-code`` or ``pi``).
+        skill: The skill folder to read (e.g. ``swe3``).
+        models: Restrict the chart to these model slugs. None plots every model
+            with runs. A named slug that has no runs is an error rather than a
+            silent omission: a frontier missing a model the caller asked for
+            would be read as that model being dominated.
+        arms: Optional ``{model: throughput-arm}`` overrides deciding which
+            sweep prices each model -- see ``_blended_cost_per_token``.
 
     Returns:
         Model aggregates sorted by descending mean score.
 
     Raises:
-        SystemExit: If no model has scorable runs for the repo under this harness.
+        SystemExit: If no model has scorable runs for the repo under this
+            harness, or if a slug named in ``models`` produced no point.
     """
+    wanted = set(models or ())
     points: list[ModelPoint] = []
     for model_dir in sorted(p for p in data_dir.iterdir() if p.is_dir()):
+        if wanted and model_dir.name not in wanted:
+            continue
         repo_dir = model_dir / harness / skill / repo
         if not repo_dir.is_dir():
             continue
-        point = _aggregate_model(repo_dir, model_dir.name)
+        point = _aggregate_model(repo_dir, model_dir.name, arms)
         if point is None:
             continue
         # A model that never produced a scored task (e.g. one that could not be
@@ -393,6 +430,14 @@ def _collect_points(
             f"no scorable runs found under {data_dir} for repo '{repo}' with "
             f"harness '{harness}'. Run the benchmark and judge first."
         )
+    if wanted:
+        missing = sorted(wanted - {p.model for p in points})
+        if missing:
+            raise SystemExit(
+                f"--models named {missing} but they have no scorable "
+                f"{harness}/{skill}/{repo} runs. Plotting the rest would show a "
+                f"frontier that silently omits them; fix the slug or drop it."
+            )
     return sorted(points, key=lambda p: p.mean_score, reverse=True)
 
 
@@ -446,7 +491,15 @@ def _point_dict(p: ModelPoint) -> dict:
 
 
 def _write_frontier_json(
-    points: list[ModelPoint], *, harness: str, skill: str, repo: str, out_dir: Path
+    points: list[ModelPoint],
+    *,
+    harness: str,
+    skill: str,
+    repo: str,
+    out_dir: Path,
+    stem: str | None = None,
+    models_filter: list[str] | None = None,
+    throughput_arms: dict[str, str] | None = None,
 ) -> Path:
     """Emit the Pareto frontier (score vs cost/task) as machine-readable JSON.
 
@@ -456,6 +509,14 @@ def _write_frontier_json(
     one per hosting basis (Bedrock-only, self-hosted-only) -- the honest
     like-for-like comparisons, since a metered API bill and a hardware-derived
     figure are not comparable as raw dollars (see cost-per-task-methodology.md).
+
+    Args:
+        stem: Output filename stem. Defaults to the fleet-wide
+            ``pareto-frontier-<code>-<skill>``. A filtered run MUST pass its own
+            stem: a subset frontier written to the fleet-wide path would read as
+            the whole fleet, and every model left out would look dominated.
+        models_filter: The ``--models`` restriction, recorded in the payload so
+            the file states which models it covers instead of implying all.
     """
     bedrock = [p for p in points if p.hosting == "Bedrock"]
     selfh = [p for p in points if p.hosting != "Bedrock"]
@@ -472,6 +533,15 @@ def _write_frontier_json(
         "harness": harness,
         "skill": skill,
         "repo": repo,
+        # Absent = every model with runs. Present = this file covers ONLY these,
+        # so a model's absence here says nothing about whether it is dominated.
+        "models_filter": sorted(models_filter) if models_filter else None,
+        # Which throughput sweep priced each model, where it was not the
+        # same-named one. This IS the hardware basis of those points, so it
+        # belongs in the record rather than only in the command that made it.
+        "throughput_arm_overrides": dict(sorted(throughput_arms.items()))
+        if throughput_arms
+        else None,
         "frontier_rule": "non-dominated on (max score, min cost/task)",
         "combined_frontier_cross_hosting_directional": [
             _point_dict(p) for p in _pareto_frontier(points)
@@ -483,9 +553,8 @@ def _write_frontier_json(
         ],
     }
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = (
-        out_dir / f"pareto-frontier-{HARNESS_CODES.get(harness, harness)}-{skill}.json"
-    )
+    name = stem or f"pareto-frontier-{HARNESS_CODES.get(harness, harness)}-{skill}"
+    out_path = out_dir / f"{name}.json"
     out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     logger.info("wrote %s", out_path)
     return out_path
@@ -565,43 +634,119 @@ def _label_sides(
     return sides
 
 
+def _text_widths_px(ax, fig, points: list[ModelPoint], weight: str) -> dict[int, float]:
+    """Return each label's real rendered width in pixels, keyed by ``id(point)``.
+
+    Measured rather than estimated from a character count: label lengths here vary
+    by more than 2x (``glm-5.3`` against ``nemotron-ultra-550b*``), and a single
+    average width both over-clusters the short labels and, worse, under-detects
+    collisions between the long ones. Each probe artist is removed immediately, so
+    nothing is added to the figure.
+    """
+    renderer = fig.canvas.get_renderer()
+    widths: dict[int, float] = {}
+    for point in points:
+        probe = ax.text(
+            0, 0, _label(point), fontsize=POINT_LABEL_FONTSIZE, fontweight=weight
+        )
+        widths[id(point)] = probe.get_window_extent(renderer=renderer).width
+        probe.remove()
+    return widths
+
+
 def _label_offsets(
-    ax, fig, points: list[ModelPoint], label_chars: int = 22
+    ax,
+    fig,
+    points: list[ModelPoint],
+    label_chars: int = 22,
+    label_weight: str = "normal",
+    centre_moved: bool = True,
 ) -> dict[int, float]:
     """Return each label's vertical offset (in points) to avoid overlaps.
 
     Labels sit to the right of their dot at the dot's y-level. Two labels collide
-    only when they are close in BOTH axes -- near in x (their text would occupy
-    the same horizontal band) and near in y (they would stack). This groups the
-    points into such collision clusters and spreads ONLY those apart vertically,
-    centered on the cluster; every isolated label keeps a 0 offset (stays pinned
-    to its dot, no leader line). Offsets are returned in display points, keyed by
-    ``id(point)``, so the caller can pass them straight to ``annotate`` and decide
-    a leader line is needed exactly when the offset is non-zero.
+    when their text boxes would overlap in BOTH axes -- the left one's text runs
+    far enough right to reach the other's, and they sit within about a line of
+    each other in y. Colliding points are grouped into clusters and spread apart
+    vertically, centered on the cluster; every isolated label keeps a 0 offset
+    (stays pinned to its dot, no leader line). Offsets are returned in display
+    points, keyed by ``id(point)``, so the caller can pass them straight to
+    ``annotate`` and decide a leader line is needed exactly when the offset is
+    non-zero.
+
+    Clustering is iterated to a fixed point, and both reasons are load-bearing:
+
+    1. The first pass groups on DOT positions, but spreading moves labels, so a
+       label pushed away from its own cluster can land on the row of a label it
+       did not originally collide with.
+    2. A label that moved gets CENTRED over its dot by the caller (so its leader
+       line is vertical), which widens it leftward by half its text -- into space
+       the right-of-dot geometry said was free. This is how ``minimax-m2.5`` came
+       to sit on ``qwen3-coder-480b*``: the two dots are far enough apart that
+       neither's right-side box reached the other, but once both were centred
+       their boxes met.
+
+    So each round re-tests every pair using the box each label will ACTUALLY be
+    drawn in given the current offsets, merges whatever now overlaps, and spreads
+    again until a round changes nothing.
 
     Args:
         ax: The axes (already drawn, so transforms are valid).
         fig: The figure (for DPI when converting pixels <-> points).
         points: All model aggregates.
-        label_chars: Typical label length in characters, used to size the
-            horizontal collision band. Charts with longer labels (the combined
-            chart names a harness too) must raise it or wide labels will overlap
-            without being detected as colliding.
+        label_chars: Fallback label length in characters, used only if a label's
+            width cannot be measured.
+        label_weight: Font weight the labels will be drawn at, so the measured
+            widths match what actually gets rendered.
+        centre_moved: Whether the caller centres a displaced label over its dot.
+            Must match the caller's ``vertical_leaders and leader_lines``, or the
+            boxes reasoned about here are not the boxes drawn.
 
     Returns:
         ``{id(point): dy_in_points}`` -- 0.0 for labels that did not move.
     """
     to_px = ax.transData.transform
     line_px = POINT_LABEL_FONTSIZE * 1.35 * fig.dpi / 72.0  # one label's height in px
-    # Two labels collide when they share a horizontal band (near in x) AND sit
-    # within ~1.6 line-heights in y. The x band is generous (a label is wide), so
-    # a whole diagonal run of nearby dots merges into one cluster rather than
-    # fragmenting into pairs that would still overlap each other.
-    x_band_px = 12 + POINT_LABEL_FONTSIZE * 0.6 * label_chars  # gap + text width
-    y_touch_px = line_px * 2.8
+    fallback_w = POINT_LABEL_FONTSIZE * 0.6 * label_chars
+    widths = _text_widths_px(ax, fig, points, label_weight)
     px = {id(p): to_px((p.mean_cost, p.mean_score)) for p in points}
+    # Vertical clearance one label needs from another. Kept above a bare line
+    # height so descenders and the leader-line elbow have room.
+    y_touch_px = line_px * 1.6
+    step_px = line_px * 2.5
 
-    # Union-find over "collides" (near in x AND y) to form clusters.
+    x0_px, x1_px = (
+        ax.transAxes.transform((0.0, 0.0))[0],
+        ax.transAxes.transform((1.0, 0.0))[0],
+    )
+    y0_px, y1_px = (
+        ax.transAxes.transform((0.0, 0.0))[1],
+        ax.transAxes.transform((0.0, 1.0))[1],
+    )
+
+    def x_span(point: ModelPoint, moved: bool) -> tuple[float, float]:
+        """The horizontal pixel extent this label will occupy as drawn.
+
+        Two placements, matching the caller exactly: a label that has not moved
+        sits ~12px right of its dot, and one that HAS moved is centred over the
+        dot instead (unless centring would push it outside the axes, in which case
+        the caller leaves it right-of-dot). Widths are per-label and measured, so a
+        short slug is not clustered with a distant point and a long one is not
+        missed.
+        """
+        x_px = px[id(point)][0]
+        width = widths.get(id(point), fallback_w)
+        half = width / 2
+        if centre_moved and moved and x_px - half > x0_px and x_px + half < x1_px:
+            return (x_px - half, x_px + half)
+        return (x_px + 12, x_px + 12 + width)
+
+    def x_overlaps(a: ModelPoint, b: ModelPoint, offsets_px: dict[int, float]) -> bool:
+        """True if the two labels would share horizontal space as drawn."""
+        a0, a1 = x_span(a, abs(offsets_px.get(id(a), 0.0)) > 1e-6)
+        b0, b1 = x_span(b, abs(offsets_px.get(id(b), 0.0)) > 1e-6)
+        return a0 < b1 and b0 < a1
+
     parent = {id(p): id(p) for p in points}
 
     def find(a: int) -> int:
@@ -610,34 +755,123 @@ def _label_offsets(
             a = parent[a]
         return a
 
-    for i, a in enumerate(points):
-        for b in points[i + 1 :]:
-            ax_px, ay = px[id(a)]
-            bx_px, by = px[id(b)]
-            if abs(ax_px - bx_px) < x_band_px and abs(ay - by) < y_touch_px:
-                parent[find(id(a))] = find(id(b))
+    def union(a: int, b: int) -> bool:
+        """Merge two clusters; True if they were not already one."""
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            return False
+        parent[ra] = rb
+        return True
 
-    clusters: dict[int, list[ModelPoint]] = {}
-    for p in points:
-        clusters.setdefault(find(id(p)), []).append(p)
+    def spread_all() -> dict[int, float]:
+        """Spread every multi-member cluster, returning offsets in pixels."""
+        clusters: dict[int, list[ModelPoint]] = {}
+        for point in points:
+            clusters.setdefault(find(id(point)), []).append(point)
+        out = {id(p): 0.0 for p in points}
+        for members in clusters.values():
+            if len(members) < 2:
+                continue  # isolated label: no move, no line
+            members.sort(key=lambda p: px[id(p)][1])  # by pixel-y, ascending
+            # A big cluster spread at the full step can be taller than the plot,
+            # which pushes its end labels off the axes entirely -- into the title
+            # or the footnotes, where they read as stray text and not as labels.
+            # So measure the run that _spread actually produced (it keeps the
+            # original spacing where it already exceeds the step, so its extent
+            # can be larger than (n-1)*step) and, if it does not fit, replace it
+            # with an evenly spaced run sized to the band. Tighter spacing beats a
+            # label leaving the plot.
+            band = y1_px - y0_px
+            spread_px = _spread([px[id(p)][1] for p in members], step_px)
+            if (max(spread_px) - min(spread_px)) + line_px > band:
+                step = max(line_px, (band - line_px) / (len(members) - 1))
+                mid = (y0_px + y1_px) / 2
+                first = mid - (len(members) - 1) * step / 2
+                spread_px = [first + i * step for i in range(len(members))]
+            # Slide the run inside the band. Both edges are checked, and after the
+            # rebuild above the run is guaranteed to fit, so one shift suffices.
+            shift = 0.0
+            if min(spread_px) - line_px / 2 < y0_px:
+                shift = y0_px - (min(spread_px) - line_px / 2)
+            elif max(spread_px) + line_px / 2 > y1_px:
+                shift = y1_px - (max(spread_px) + line_px / 2)
+            for point, new_y in zip(members, spread_px):
+                out[id(point)] = new_y + shift - px[id(point)][1]
+        return out
 
-    offsets: dict[int, float] = {id(p): 0.0 for p in points}
-    for members in clusters.values():
-        if len(members) < 2:
-            continue  # isolated label: no move, no line
-        members.sort(key=lambda p: px[id(p)][1])  # by pixel-y, ascending
-        ys_px = [px[id(p)][1] for p in members]
-        spread_px = _spread(ys_px, line_px * 2.5)
-        for p, new_y in zip(members, spread_px):
-            # display-y grows downward in some backends; transData is bottom-up,
-            # so a higher pixel value = higher on screen. Convert delta to points.
-            offsets[id(p)] = (new_y - px[id(p)][1]) * 72.0 / fig.dpi
-    return offsets
+    # Seed the clusters from the dot positions, then iterate: spread, re-test at
+    # the resulting positions, merge whatever now collides, spread again. Bounded
+    # so a pathological layout cannot loop forever -- each round can only merge
+    # clusters, so it converges in at most len(points) rounds anyway.
+    unmoved: dict[int, float] = {id(p): 0.0 for p in points}
+    for a, b in itertools.combinations(points, 2):
+        if (
+            x_overlaps(a, b, unmoved)
+            and abs(px[id(a)][1] - px[id(b)][1]) < line_px * 2.8
+        ):
+            union(id(a), id(b))
+
+    offsets_px = spread_all()
+    for _ in range(len(points)):
+        merged = False
+        for a, b in itertools.combinations(points, 2):
+            if not x_overlaps(a, b, offsets_px):
+                continue
+            ay = px[id(a)][1] + offsets_px[id(a)]
+            by = px[id(b)][1] + offsets_px[id(b)]
+            if abs(ay - by) < y_touch_px and union(id(a), id(b)):
+                merged = True
+        if not merged:
+            break
+        offsets_px = spread_all()
+
+    # display-y grows downward in some backends; transData is bottom-up, so a
+    # higher pixel value = higher on screen. Convert the deltas to points.
+    return {key: dy * 72.0 / fig.dpi for key, dy in offsets_px.items()}
+
+
+def _parse_arms(specs: list[str] | None) -> dict[str, str]:
+    """Parse ``MODEL=ARM`` overrides into a mapping, validating each arm exists.
+
+    A typo'd arm would fall through to "no performance summary", which silently
+    reprices that model with the token-priced fallback instead of the hardware
+    basis every other point uses -- a wrong dot rather than a missing one. So a
+    nonexistent arm is a hard error.
+
+    Raises:
+        SystemExit: On a malformed spec or an arm with no performance summary.
+    """
+    arms: dict[str, str] = {}
+    for spec in specs or ():
+        model, sep, arm = spec.partition("=")
+        if not sep or not model.strip() or not arm.strip():
+            raise SystemExit(f"--throughput-arm expects MODEL=ARM, got {spec!r}")
+        model, arm = model.strip(), arm.strip()
+        if not (PERF_SUMMARY_DIR / arm / PERF_SUMMARY_FILENAME).is_file():
+            raise SystemExit(
+                f"--throughput-arm {model}={arm}: no {PERF_SUMMARY_FILENAME} under "
+                f"{PERF_SUMMARY_DIR / arm}. Run the throughput sweep for that arm "
+                f"first; falling back would price it on a different basis."
+            )
+        arms[model] = arm
+    return arms
+
+
+def _escape_dollars(text: str) -> str:
+    """Escape ``$`` so matplotlib renders a price, not a MathText formula.
+
+    A note naming two rates ("p5en $27.72/hr, g6e $4.533/hr") contains a PAIR of
+    dollar signs, which matplotlib reads as a MathText region: it italicizes the
+    span and drops both signs, so the rates the note exists to state vanish.
+    Escaping every unescaped ``$`` prints the money.
+    """
+    return re.sub(r"(?<!\\)\$", r"\\$", text)
 
 
 _DEFAULT_COST_BASIS_NOTE = (
-    "Self-hosted cost basis: g6e = 3-year commitment rate; p5en = on-demand x 35% "
-    "placeholder discount (pay 65%) -- configurable in self-hosted/vllm/pricing.json."
+    "Self-hosted cost basis: 3-year EC2 Instance Savings Plan rate for both "
+    "instance families (p5en.48xlarge $27.72/hr, g6e.12xlarge $4.533/hr), "
+    "prorated by TP for a partial-box run -- see self-hosted/vllm/pricing.json."
 )
 
 
@@ -657,7 +891,7 @@ def _plot(
     color_for: Callable[[ModelPoint], str] | None = None,
     accent_color: str | None = None,
     extra_legend: list | None = None,
-    label_backing: bool = True,
+    label_backing: bool = False,
     log_x: bool = False,
     avoid_markers: bool = True,
     vertical_leaders: bool = True,
@@ -692,9 +926,11 @@ def _plot(
             to the frontier rather than as a second, unexplained object.
         extra_legend: Optional extra legend handles, e.g. the marker key that
             says which shape is which harness.
-        label_backing: Draw the surface-coloured plate behind each label. It
-            keeps text readable where labels sit over the frontier fill; turn it
-            off for a flatter look when labels clear the fill anyway.
+        label_backing: Draw a surface-coloured plate behind each label. Off by
+            default: the plate reads as a UI chip around every model name, which
+            is chrome the chart does not need, and it hides label collisions
+            instead of exposing them. Turn it on only where labels must sit over
+            a dense frontier fill and would otherwise be unreadable.
         log_x: Put cost on a log scale. Cost spans nearly two orders of
             magnitude, so a linear axis crushes the cheapest models into the
             left margin, and their labels cannot sit beside their own dots.
@@ -866,7 +1102,16 @@ def _plot(
     # labels of a combined chart are spread rather than left overlapping.
     longest = max((len(_label(p)) for p in points), default=22)
     label_chars = max(22, longest)
-    dy_by_point = _label_offsets(ax, fig, points, label_chars=label_chars)
+    dy_by_point = _label_offsets(
+        ax,
+        fig,
+        points,
+        label_chars=label_chars,
+        label_weight=label_weight,
+        # Must mirror the `centred` condition below, or the placer avoids
+        # collisions between boxes that are not the ones drawn.
+        centre_moved=vertical_leaders and leader_lines,
+    )
     sides = (
         _label_sides(ax, fig, points, dy_by_point, label_chars)
         if avoid_markers
@@ -946,7 +1191,7 @@ def _plot(
     fig.text(
         0.5,
         -0.02,
-        cost_basis_note,
+        _escape_dollars(cost_basis_note),
         ha="center",
         va="top",
         fontsize=FOOTNOTE_FONTSIZE,
@@ -1019,6 +1264,22 @@ def _parse_args() -> argparse.Namespace:
         "get separate charts (they differ in tokens/accuracy).",
     )
     parser.add_argument(
+        "--models",
+        nargs="+",
+        default=None,
+        help="Restrict the chart to these model slugs (default: every model with "
+        "runs). A named slug with no scorable runs is an error, not a silent skip.",
+    )
+    parser.add_argument(
+        "--throughput-arm",
+        action="append",
+        default=None,
+        metavar="MODEL=ARM",
+        help="Price MODEL from throughput arm ARM instead of the same-named "
+        "sweep, e.g. qwen3.8-27b=qwen3.8-27b-g6e. Repeatable. The canonical arm "
+        "(bare slug) is the p5en sweep; use this to chart the g6e basis instead.",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         default=None,
@@ -1038,6 +1299,13 @@ def _parse_args() -> argparse.Namespace:
         "--title",
         default=None,
         help="Override the chart title",
+    )
+    parser.add_argument(
+        "--cost-basis-note",
+        default=None,
+        help="Override the fine-print cost-basis note. Use it when --models "
+        "narrows the chart to one instance family, so the note names only the "
+        "rate that actually priced the points shown.",
     )
     parser.add_argument(
         "--cost-label",
@@ -1061,6 +1329,15 @@ def main() -> None:
         raise SystemExit(f"data dir not found: {data_dir}")
 
     mode = "dark" if args.dark else "light"
+    # The default paths are keyed by (harness, skill) only, so a --models run
+    # would overwrite the committed fleet-wide chart and frontier JSON with a
+    # subset that still looks fleet-wide. Make the caller name the artifact.
+    if args.models and not args.out:
+        raise SystemExit(
+            "--models requires --out: the default path is the fleet-wide chart "
+            "for this harness/skill, and writing a subset there would present a "
+            "partial frontier as the complete one."
+        )
     output = args.out or _default_output(args.harness, args.skill, args.dark)
     # Title leads with the harness and skill (what the chart is OF); the repo and
     # its dataset provenance move into the frontier legend to declutter the title.
@@ -1081,14 +1358,17 @@ def main() -> None:
         else "Mean cost per task ($) -- self-hosted hardware-derived; "
         "Anthropic metered (see notes)"
     )
-    cost_basis_note = (
+    cost_basis_note = args.cost_basis_note or (
         "Cost basis: kiro-cli is priced in Kiro credits at $0.04/credit "
         "(configurable) -- see docs/cost-per-task-methodology.md."
         if is_kiro
         else _DEFAULT_COST_BASIS_NOTE
     )
 
-    points = _collect_points(data_dir, args.repo, args.harness, args.skill)
+    arms = _parse_arms(args.throughput_arm)
+    points = _collect_points(
+        data_dir, args.repo, args.harness, args.skill, args.models, arms
+    )
     for point in points:
         logger.info(
             "  %-32s score=%.2f cost=$%.2f (%d/%d scored)",
@@ -1107,6 +1387,10 @@ def main() -> None:
             skill=args.skill,
             repo=args.repo,
             out_dir=args.metrics_dir.expanduser().resolve(),
+            # A filtered run names its own artifacts (enforced above), so derive
+            # the JSON stem from the image and never clobber the fleet-wide file.
+            stem=f"pareto-frontier-{output.stem}" if args.models else None,
+            models_filter=args.models,
         )
     _plot(
         points,

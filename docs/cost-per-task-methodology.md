@@ -3,15 +3,20 @@
 How the throughput skill turns a fixed instance price into a **cost per token** and **cost per task** for a self-hosted (vLLM) model, why there are two ways to express it, and what the agentic-coding workload shape means for user experience and for scaling. The core model is **`run_cost = GPU-seconds x $/second`** — price tokens by dividing them by measured throughput at a stated concurrency, never by wall-clock; and the only lever that lowers that cost on a KV-bound model is KV-cache headroom, which trades against context window. A worked GLM-5.2 example runs through both. Companion to [serving-optimization-notes.md](serving-optimization-notes.md); produced by [clients/build_performance_summary.py](../self-hosted/vllm/clients/build_performance_summary.py) and surfaced by [clients/build_performance_dashboard.py](../self-hosted/vllm/clients/build_performance_dashboard.py) and [clients/cost_for_task.py](../self-hosted/vllm/clients/cost_for_task.py).
 
 > [!IMPORTANT]
-> **Self-hosted GPU pricing basis (read before quoting any self-hosted dollar figure).** Every self-hosted cost on this page and in the charts is derived from a **configurable** hourly rate in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json), not a fixed market price:
-> - **g6e.12xlarge** is priced at its **3-year commitment rate ($4.533/hr)** (`discount: 0.0` -- the base already reflects the commitment, no further discount).
-> - **p5en.48xlarge** is priced at **on-demand ($63.296/hr) with a 35% PLACEHOLDER discount** (`discount: 0.35`, i.e. pay 65% -> effective $41.14/hr). **0.35 is a stand-in** for whatever committed-use / negotiated discount your organization actually has.
+> **Self-hosted GPU pricing basis (read before quoting any self-hosted dollar figure).** Every self-hosted cost on this page and in the charts is derived from an hourly rate in [`self-hosted/vllm/pricing.json`](../self-hosted/vllm/pricing.json). Both instance families are based at their **3-year commitment rate**, so the whole fleet is one commitment term and the cost columns are comparable across it:
+> - **g6e.12xlarge**: **$4.533/hr** (on-demand $10.493, 1-year $6.61).
+> - **g6e.4xlarge**: **$1.298/hr** (on-demand $3.004, 1-year $1.893).
+> - **p5en.48xlarge**: **$27.72/hr** (on-demand $63.296, 1-year $40.43).
 >
-> The effective rate is `dollars_per_hour * (1 - discount)` (then prorated by `tp / gpus_per_instance` for a partial-box run). **Change `discount` (or `dollars_per_hour`) in `pricing.json` to your real rate and regenerate -- every cost number, chart, and frontier scales linearly.** Do not read the self-hosted dollars as market-fixed; they are only as good as the rate you configure.
+> `dollars_per_hour` **is** the rate charged -- nothing is applied on top -- then prorated by `tp / gpus_per_instance` for a partial-box run, so a TP=4 model on the 8-GPU p5en is charged $13.86/hr and a TP=1 model $3.465/hr. The alternative terms sit in each entry's `rates` map for reference only.
+>
+> **To price at a different term**, move that value into `dollars_per_hour` and regenerate: every cost number, chart, and frontier scales linearly, so [`clients/reprice_performance_summary.py`](../self-hosted/vllm/clients/reprice_performance_summary.py) rescales a committed summary exactly, without needing the (local, gitignored) sweep DuckDB.
+>
+> There is deliberately **no discount multiplier**. `pricing.json` used to carry one, and p5en was based at on-demand times a `0.35` **placeholder** -- an assumption sitting in the same field, and flowing into the same charts, as measured prices. `pricing.py` now rejects a leftover `discount` key rather than honouring it, so the concept cannot creep back.
 
-### Why these rates name no AWS discount instrument
+### Which AWS discount instrument these rates name
 
-This repo says "**3-year commitment rate**" and never "Reserved Instance" or "Savings Plan", because the instrument does not change the number. AWS's [own comparison](https://docs.aws.amazon.com/savingsplans/latest/userguide/sp-ris.html) puts an EC2 Instance Savings Plan and a Standard RI in the same **up to 72% off** tier, and a Compute Savings Plan and a Convertible RI in the same **up to 66%** tier. Pick either; the rate lands in the same place.
+The g6e rates are a "**3-year commitment rate**" without naming an instrument, because the instrument does not change the number: AWS's [own comparison](https://docs.aws.amazon.com/savingsplans/latest/userguide/sp-ris.html) puts an EC2 Instance Savings Plan and a Standard RI in the same **up to 72% off** tier, and a Compute Savings Plan and a Convertible RI in the same **up to 66%** tier. Pick either; the rate lands in the same place. The p5en rates are quoted as **EC2 Instance Savings Plan** rates because that is where they were read from, and they sit at the same ratios to on-demand as g6e (1-year 63.9%, 3-year 43.8%) -- which is the check that the two families are on the same basis.
 
 Reserved Instances are not retired. AWS [recommends Savings Plans over them](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-reserved-instances.html) and still documents buying, modifying, exchanging and reselling RIs. Two capabilities remain RI-only: reselling an unwanted Standard RI on the RI Marketplace, and a zonal RI's capacity reservation. Savings Plans provide no capacity, so pair one with an On-Demand Capacity Reservation if supply is tight.
 
@@ -82,17 +87,19 @@ The blended lens is just **"how many GPU-seconds did this work occupy, times the
 
 **Why not just pro-rate wall-clock?** Because a single agentic session leaves the GPU idle most of the time. Wall-clock pricing charges you full box price for that idle time and, worse, assumes one user owns the whole box. See the GLM-5.2 worked example below.
 
-#### Worked example: GLM-5.2, 5 SWE tasks on p5en.48xlarge (8xH200, effective $41.14/hr = on-demand $63.296 x (1 - 0.35 placeholder discount))
+#### Worked example: GLM-5.2, 5 SWE tasks on p5en.48xlarge (8xH200, $27.72/hr = the 3-year EC2 Instance Savings Plan rate for the full box)
 
 From the throughput sweep ([throughput/glm-5.2/performance-summary.json](../self-hosted/vllm/benchmark-output/throughput/glm-5.2/performance-summary.json)) and the SWE run ([glm-5.2/pi/swe3/.../run-summary.json](../benchmarks/swe-benchmark-data/glm-5.2/pi/swe3/mcp-gateway-registry/run-summary.json)). The sweep's cheapest sustainable point is **concurrency 5**, where the server sustains **15,679 prompt + 189 decode = 15,867 combined tok/s** and the KV cache is already 100% full. The 5 tasks processed **41,519,145 tokens** (input+output). On this self-hosted vLLM run the `cache_read`/`cache_write` tokens are a *partition* of `input_tokens`, not additions to it, so they are already counted inside input and are NOT added again (adding them back would ~2x the count; see issue #136 and the appendix). This is measured over **6,288 wall-clock seconds**.
 
 | Costing method | Calculation | Result | What it assumes |
 |---|---|--:|---|
-| **Blended / GPU-seconds (what we use)** | `41,519,145 / 15,867 = 2,617 s = 0.727 hr; x $41.14` | **$29.90** | box kept busy at c=5 (shared across ~11 concurrent requests) |
-| Wall-clock pro-rate (rejected) | `6,288 s = 1.747 hr; x $41.14` | $71.86 | one user owns the box; idle time billed |
-| GPU-seconds at concurrency 1 (rejected) | `41,519,145 / 7,019 = 1.64 hr; x $41.14` | $67.60 | dedicated box, serial single user |
+| **Blended / GPU-seconds (what we use)** | `41,519,145 / 15,867 = 2,617 s = 0.727 hr; x $27.72` | **$20.15** | box kept busy at c=5 (shared across ~11 concurrent requests) |
+| Wall-clock pro-rate (rejected) | `6,288 s = 1.747 hr; x $27.72` | $48.42 | one user owns the box; idle time billed |
+| GPU-seconds at concurrency 1 (rejected) | `41,519,145 / 7,019 = 1.64 hr; x $27.72` | $45.55 | dedicated box, serial single user |
 
-The $29.90 in the leaderboard is the **c=5** figure. Note it is *lower* than the naive wall-clock estimate ($71.86) — because dividing by measured throughput removes the idle wall-clock (6,288 s elapsed vs 2,617 s of actual token-crunching, ~1.0 hr idle) the agent spent thinking and tool-calling. And it is below the c=1 figure ($67.60) — the gap between those two is exactly the amortization concurrency buys. If you cannot actually run the box at c=5 (e.g. you dedicate it to one serial developer), your true cost is nearer $68, not $30. Always state the operating point.
+The $20.15 in the leaderboard is the **c=5** figure. Note it is *lower* than the naive wall-clock estimate ($48.42) — because dividing by measured throughput removes the idle wall-clock (6,288 s elapsed vs 2,617 s of actual token-crunching, ~1.0 hr idle) the agent spent thinking and tool-calling. And it is below the c=1 figure ($45.55) — the gap between those two is exactly the amortization concurrency buys. If you cannot actually run the box at c=5 (e.g. you dedicate it to one serial developer), your true cost is nearer $46, not $20. Always state the operating point.
+
+Every figure in that table is linear in the hourly rate, so the whole example rescales by one factor: at 1-year ($40.43/hr) the blended figure is $29.39, and at on-demand ($63.296/hr) it is $46.01. That linearity is what [`clients/reprice_performance_summary.py`](../self-hosted/vllm/clients/reprice_performance_summary.py) exploits.
 
 ### The trade-off between the lenses
 
@@ -180,7 +187,7 @@ Kiro's published pricing gives two defensible per-credit rates:
 | Blended (included monthly allotment) | **$0.02** | Every paid tier is the same rate: Pro $20/1,000, Pro+ $40/2,000, Pro Max $100/5,000, Power $200/10,000 |
 | Marginal (add-on / overage) | **$0.04** | "Add-on credits $0.04/credit" once the monthly allotment is spent |
 
-`DOLLARS_PER_CREDIT` is a **configurable rate**, the same stance this page takes on the self-hosted GPU discount (a documented placeholder you set to your real plan). The default is the **$0.04 marginal** rate -- the honest "what does one more task cost" figure -- with $0.02 available for an all-you-can-use blended view. Example: a run reporting `Credits: 0.21` costs `0.21 x $0.04 = $0.0084` (or `$0.0042` blended); a real swe task at 50-300 turns consumes far more.
+`DOLLARS_PER_CREDIT` is a **configurable rate**, the same stance this page takes on the self-hosted GPU rate (a documented commitment term you swap for your own). The default is the **$0.04 marginal** rate -- the honest "what does one more task cost" figure -- with $0.02 available for an all-you-can-use blended view. Example: a run reporting `Credits: 0.21` costs `0.21 x $0.04 = $0.0084` (or `$0.0042` blended); a real swe task at 50-300 turns consumes far more.
 
 **How the harness records it.** `run-swe-headless.py` captures kiro-cli's output, strips the ANSI color codes, and regex-parses the `Credits:` value from the summary line. It multiplies that by `kiro_dollars_per_credit` -- a config knob (default 0.04) settable in `runner.yaml` or with `--kiro-dollars-per-credit` -- to get the run's `total_cost_usd`. Each task's `metrics.json` stores **both** the raw `kiro_credits` (provenance) and the derived `total_cost_usd`, and `summarize_run.py` averages `total_cost_usd` across the run's tasks into the reported `$/task` (the `mean_cost_usd_excl_failed` field). So the dollar figure is always traceable back to the exact credits kiro-cli charged.
 
