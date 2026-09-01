@@ -1,0 +1,153 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "medium",
+  "tags": [
+    "bug",
+    "security",
+    "nginx",
+    "routing",
+    "auth",
+    "python",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-6-v1",
+  "model_slug": "claude-opus-4-6-v1",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 49.3,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 6568,
+    "output_tokens": 22262,
+    "cache_read_tokens": 4037614,
+    "cache_write_tokens": 84923,
+    "total_tokens": 4151367,
+    "total_cost_usd": 3.13896575,
+    "latency_seconds": 451.4,
+    "num_turns": 47,
+    "generation_tokens_per_sec": 49.3,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 6568,
+  "output_tokens": 22262,
+  "latency_seconds": 451.4,
+  "num_turns": 47,
+  "total_cost_usd": 3.13896575,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 4037614,
+  "cache_creation_tokens": 84923,
+  "run_started_at": "2026-09-01T04:26:50.046356Z",
+  "run_ended_at": "2026-09-01T04:34:21.497604Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 6568,
+    "output_tokens": 22262,
+    "cache_read_tokens": 4037614,
+    "cache_write_tokens": 84923,
+    "total_tokens": 4151367,
+    "total_cost_usd": 3.13896575,
+    "latency_seconds": 451.4,
+    "num_turns": 47,
+    "generation_tokens_per_sec": 49.3,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "nginx-location-trailing-slash-route-hijack",
+    "model": "us.anthropic.claude-opus-4-6-v1",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 79,
+        "notes": "The issue provides a concrete reproduction, explains nginx prefix collision behavior, defines testable acceptance criteria, and explicitly limits storage and authentication changes. Its largest inconsistency is proposing a version-map regex update while the LLD later argues the existing `~^{escaped_path}(/.*)?:` form requires no change. The submitted diff contains the cited `_create_location_block` context and corresponding tests, supporting the central diagnosis. No independent task statement was supplied, and sandbox failure prevented verification of the cited management-route lines, existing guards, and issue link against the working tree."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 76,
+        "notes": "The LLD commits to exact generated directives, identifies callers and related regex handling, and explains why normalization belongs in `_create_location_block`. The principal gap is the redirect design: `return 301 $scheme://$host$uri/` is not analyzed for non-GET methods, query preservation, or the newly reflected host value. Its reasoning about `path.rstrip(\"/\") + \"/\"`, the version-map pattern, and the two-block return is concrete and internally consistent with the patch. Claims about validation, regeneration lifecycle, and exact surrounding repository patterns could not be independently verified because local repository reads were unavailable."
+      },
+      "review": {
+        "completeness": 18,
+        "correctness": 15,
+        "specificity": 19,
+        "risk_awareness": 17,
+        "total": 69,
+        "notes": "The review usefully notices ROOT_PATH behavior, `$host`, config growth, exact-location precedence, and the changed two-block return shape. Its largest weakness is dismissing the host-based redirect as merely pre-existing because `proxy_set_header Host $host` exists; emitting that value in a client-visible Location header is a distinct behavior introduced by this design. It also calls the bug an authorization bypass although the described evidence establishes route hijacking and erroneous authentication responses, not bypass, and it misses method and query-string compatibility. Quantitative reload-window and config-size claims were not repository-verified."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 16,
+        "specificity": 20,
+        "risk_awareness": 13,
+        "total": 66,
+        "notes": "The plan supplies concrete unit setups and string oracles across transports, existing trailing slashes, special characters, proxy targets, and the `/a` collision case. The key deficiency is that it never validates a rendered configuration with nginx or exercises real routing, while declaring end-to-end testing inapplicable for an nginx-routing regression. Redirect tests assert only the presence of `return 301`, so an incorrect target, lost arguments, or unintended method behavior would pass; version-map and non-empty ROOT_PATH recommendations are also not implemented. The deployment command assumes `registry-container` and greps for literal `ROOT_PATH`, neither of which was established by available repository evidence."
+      },
+      "implementation": {
+        "completeness": 19,
+        "correctness": 17,
+        "specificity": 21,
+        "risk_awareness": 14,
+        "total": 71,
+        "notes": "The patch implements the central fix directly by normalizing the prefix to `/path/`, adding an exact bare-path location, updating five existing assertions, and adding three focused regression tests. Its largest defect is the under-specified redirect: it applies to every HTTP method, embeds `$host`, and uses `$uri` without explicitly preserving arguments, while tests check neither the full target nor those edge cases. The supplied hunk contexts and symbols are internally consistent with the artifacts, but sandbox failure prevented `git apply --check`, caller inspection, and independent confirmation of the claimed baseline commit. The summary also overstates complete coverage because the issue's version-map acceptance criterion and the review's ROOT_PATH recommendation receive no implementation test."
+      }
+    },
+    "task_score": 72.2,
+    "verdict": "This is a strong and concrete core fix, but the newly introduced absolute 301 redirect lacks adequate compatibility and security analysis and testing, with repository verification further limited by unavailable local reads.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-01T07:21:03.704559Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 169208,
+        "cached_input_tokens": 102556,
+        "cache_write_input_tokens": 28750,
+        "output_tokens": 11965,
+        "reasoning_output_tokens": 10093
+      },
+      "duration_ms": 293742
+    }
+  }
+}

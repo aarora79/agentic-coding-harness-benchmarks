@@ -1,0 +1,152 @@
+{
+  "task": "portable-env-secret-generation-in-build-script",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "bash",
+    "portability",
+    "macos",
+    "secrets",
+    "setup",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-6-v1",
+  "model_slug": "claude-opus-4-6-v1",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 51.7,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 1276,
+    "output_tokens": 19616,
+    "cache_read_tokens": 2759671,
+    "cache_write_tokens": 65827,
+    "total_tokens": 2846390,
+    "total_cost_usd": 2.28803425,
+    "latency_seconds": 379.7,
+    "num_turns": 37,
+    "generation_tokens_per_sec": 51.7,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 1276,
+  "output_tokens": 19616,
+  "latency_seconds": 379.7,
+  "num_turns": 37,
+  "total_cost_usd": 2.28803425,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 2759671,
+  "cache_creation_tokens": 65827,
+  "run_started_at": "2026-09-01T06:14:21.817470Z",
+  "run_ended_at": "2026-09-01T06:20:41.511994Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 1276,
+    "output_tokens": 19616,
+    "cache_read_tokens": 2759671,
+    "cache_write_tokens": 65827,
+    "total_tokens": 2846390,
+    "total_cost_usd": 2.28803425,
+    "latency_seconds": 379.7,
+    "num_turns": 37,
+    "generation_tokens_per_sec": 51.7,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "portable-env-secret-generation-in-build-script",
+    "model": "us.anthropic.claude-opus-4-6-v1",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 15,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 77,
+        "notes": "The issue provides unusually concrete scope, non-goals, affected variables, and testable acceptance criteria. The submitted patch context corroborates the claimed ten static removals plus one dynamic metrics-token removal. Its largest correctness defect is claiming that shell sourcing uses the first duplicate assignment; sequential `source .env` processing leaves the later assignment effective, although the repository does instruct users to source this file.  No independent task statement or evidence verifies the linked issue or asserted crash-loop impact."
+      },
+      "lld": {
+        "completeness": 18,
+        "correctness": 10,
+        "specificity": 22,
+        "risk_awareness": 12,
+        "total": 62,
+        "notes": "The design is highly specific about `build_and_run.sh`, `_remove_env_lines`, all eleven replacements, atomic rename, and rejected alternatives. Its central error is treating every nonzero `grep -v` result as “all lines matched”; grep distinguishes no-selection status 1 from error status 2, so an I/O error can trigger truncation and replacement of `.env`.  The early `! grep -q` similarly converts file-access errors into a successful no-op, contradicting the promised failure propagation. It also declares permission preservation a constraint but provides no mechanism to preserve the original mode, and never calls the identified `handle_error` integration point."
+      },
+      "review": {
+        "completeness": 16,
+        "correctness": 10,
+        "specificity": 19,
+        "risk_awareness": 12,
+        "total": 57,
+        "notes": "The review identifies concrete concerns involving permissions, temporary files, atomic replacement, and dynamic regex construction. Its largest deficiency is approving the design without noticing that the helper conflates grep’s no-selection and error statuses, the failure most capable of corrupting `.env`.  It acknowledges changed file permissions but dismisses them as non-regressive without repository evidence, despite the LLD explicitly requiring preservation. The assertion that service-name conversion produces only `[A-Z0-9_]` is also unsupported because the described `tr` conversion does not remove periods."
+      },
+      "testing": {
+        "completeness": 16,
+        "correctness": 10,
+        "specificity": 20,
+        "risk_awareness": 11,
+        "total": 57,
+        "notes": "The plan gives concrete fixtures and expected content for matching, absent, quoted, duplicate, all-matching, populated, and dynamic-token cases. Its largest gap is complete omission of the acceptance-critical rewrite-failure tests, including grep errors, unwritable destinations, mode preservation, and temporary-file collisions. The tests copy a helper implementation into the test rather than execute the patched function, and most `echo \"FAIL\"` branches still exit successfully, so they can pass operationally while behavior is broken. The macOS check merely prints values for visual inspection and does not assert uniqueness, non-emptiness, or successful stack startup."
+      },
+      "implementation": {
+        "completeness": 17,
+        "correctness": 10,
+        "specificity": 21,
+        "risk_awareness": 9,
+        "total": 57,
+        "notes": "The patch consistently replaces the submitted ten static `sed -i` lines and one dynamic call, and places the helper beside the existing `handle_error` symbol. The critical defect is the `else` branch after `grep -v`: any grep error is interpreted as an empty result, allowing `: > \"$tmp\"` followed by `mv` to erase unrelated `.env` content instead of aborting.  Predictable `${file}.tmp.$$` naming permits stale-file or symlink collisions, while replacement through a newly created file can change restrictive permissions. The summary incorrectly claims no LLD deviations despite omitting permission preservation and explicit error reporting; local sandbox failure prevented independent confirmation of its `git apply --check` claim."
+      }
+    },
+    "task_score": 62.0,
+    "verdict": "The submission is concrete and largely aligned with the apparent portability task, but its core rewrite helper can silently mishandle grep errors and corrupt `.env`, a defect missed by both review and testing.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-01T07:32:44.401040Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 241404,
+        "cached_input_tokens": 173265,
+        "cache_write_input_tokens": 33500,
+        "output_tokens": 11290,
+        "reasoning_output_tokens": 9127
+      },
+      "duration_ms": 220635
+    }
+  }
+}

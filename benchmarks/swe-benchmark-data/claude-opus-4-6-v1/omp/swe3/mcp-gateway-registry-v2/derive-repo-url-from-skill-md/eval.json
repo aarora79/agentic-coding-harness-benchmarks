@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-opus-4-6-v1",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 83,
+      "notes": "The issue clearly separates registration auto-fill from modal navigation and provides testable acceptance criteria, explicit URL shapes, and useful non-goals. The submitted diff corroborates the named integration points, including parse_skill_md, Dashboard.tsx, SkillCard.tsx, SemanticSearchResults.tsx, and both frontend interfaces. Its largest gap is limited treatment of malformed or ambiguous GitHub-like URLs and the state needed to distinguish a manual value from the previous auto-filled value. Local repository commands failed before execution because the read-only shell sandbox could not initialize loopback networking, so the stated tag, model field, and related issue could not be independently verified beyond the supplied patch context."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 67,
+      "notes": "The LLD is concrete about files, symbols, response fields, data flow, conditional rendering, and deployment impact, and its locations agree with the submitted diff. Its critical defect is the claim that data.repository_url || prev.repository_url preserves manual input: a truthy parse result always wins, so reparsing overwrites a custom value and cannot implement the stated previous-auto-fill rule. It also says the helper will emit debug logs although neither its proposed code nor the patch logs, and the review claims the import section was updated while this LLD still specifies a function-local import. Exact baseline source and existing test conventions could not be independently inspected because repository shell execution failed before running any command."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 53,
+      "notes": "The review raises concrete points about import placement, utility tests, duplicated JSX, optional links, and user-controlled URL components. Its largest failure is explicitly asserting that data.repository_url || prev.repository_url will not overwrite user input, which reverses JavaScript operand-selection semantics and approves the change's central UX regression. It also records the import issue as resolved although the submitted LLD remains unchanged and accepts omission of implementation tests based on an unsupported constraint. Repository-specific assertions about existing imports, stored documents, and hostname-helper behavior could not be independently verified after the local shell sandbox failed to initialize."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 64,
+      "notes": "The utility cases have concrete inputs and expected values, while the manual reparse test would directly expose the implementation's overwrite bug. Several API and end-to-end commands use placeholder or unproven remote SKILL.md paths, so an endpoint that fetches the URL may fail before producing the expected repository_url response; example.com is likewise not a controlled non-GitHub fixture. The plan also omits the distinct case where a value still matching the previous auto-fill should update after parsing a different URL, and it provides no automated frontend regression test. The proposed tests/unit path and uv run python -m unittest discover command could not be checked against the repository's actual test layout and runner because shell inspection was unavailable."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 62,
+      "notes": "The patch covers the backend derivation and response path, both frontend types, form integration, and conditional links in both submitted modal locations. The largest defect is repository_url: data.repository_url || prev.repository_url in Dashboard.tsx, which overwrites any manually entered value whenever parsing returns a derived URL and therefore does not implement the issue's stated preservation rule. No tests are added despite the review and testing plan calling for utility coverage, while implementation.md inaccurately says that nothing was left out and all LLD work is present. The diff contexts and symbols are internally coherent, but git apply --check and comparison with the actual baseline could not be completed because every repository command failed during sandbox initialization."
+    }
+  },
+  "task_score": 65.8,
+  "verdict": "The submission is well-scoped and mostly end-to-end, but both the implementation and its review get the manual-override state semantics backwards, causing reparsing to overwrite user-entered repository URLs.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-01T06:49:48.275711Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 178085,
+      "cached_input_tokens": 141275,
+      "cache_write_input_tokens": 33101,
+      "output_tokens": 8834,
+      "reasoning_output_tokens": 7040
+    },
+    "duration_ms": 133172
+  }
+}
