@@ -1,6 +1,6 @@
 # Results: kiro-cli harness (swe3)
 
-Benchmark results for every model run under the **kiro-cli** coding agent with the **swe3** skill on `mcp-gateway-registry`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness kiro-cli --skill swe3`. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe3.md](agentic-coding-swe-comparison-swe3.md).
+Benchmark results for every model run under the **kiro-cli** coding agent with the **swe3** skill on `mcp-gateway-registry`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness kiro-cli --skill swe3`. See [kiro-cli setup](kiro-cli-setup.md) for install and configuration. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe3.md](agentic-coding-swe-comparison-swe3.md).
 
 ## Results by model
 

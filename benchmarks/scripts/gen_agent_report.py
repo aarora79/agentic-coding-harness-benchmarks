@@ -61,6 +61,16 @@ HARNESS_LABELS = {
     "pi": "pi",
     "opencode": "opencode",
     "kiro-cli": "kiro-cli",
+    # omp's own name is oh-my-pi; "omp" is the binary. Spell both out so the
+    # generated page names the project a reader can go and find.
+    "omp": "oh-my-pi (omp)",
+}
+
+# Harnesses with an install/configuration page in docs/. Linked from the report
+# so a reader who wants to reproduce the run knows where the setup lives.
+HARNESS_SETUP_DOCS = {
+    "omp": ("omp setup", "omp-setup.md"),
+    "kiro-cli": ("kiro-cli setup", "kiro-cli-setup.md"),
 }
 
 # Short per-harness code that (with the skill) suffixes chart filenames
@@ -297,7 +307,13 @@ def _render(
         # The doc path carries no repo, so a non-default dataset must be named
         # here or the printed command silently regenerates a different report.
         f"{'' if repo == DEFAULT_REPO else f' --repo {repo}'}`. "
-        "Companion to the cross-harness comparison "
+        + (
+            f"See [{HARNESS_SETUP_DOCS[harness][0]}]({HARNESS_SETUP_DOCS[harness][1]}) "
+            "for install and configuration. "
+            if harness in HARNESS_SETUP_DOCS
+            else ""
+        )
+        + "Companion to the cross-harness comparison "
         f"[agentic-coding-swe-comparison-{skill}.md](agentic-coding-swe-comparison-{skill}.md).",
         "",
         "## Results by model",

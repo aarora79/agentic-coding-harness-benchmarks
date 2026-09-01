@@ -1,6 +1,6 @@
-# Results: omp harness (swe3)
+# Results: oh-my-pi (omp) harness (swe3)
 
-Benchmark results for every model run under the **omp** coding agent with the **swe3** skill on `mcp-gateway-registry-v2`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness omp --skill swe3 --repo mcp-gateway-registry-v2`. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe3.md](agentic-coding-swe-comparison-swe3.md).
+Benchmark results for every model run under the **oh-my-pi (omp)** coding agent with the **swe3** skill on `mcp-gateway-registry-v2`, generated from the committed `run-summary.json` files. Regenerate with `uv run scripts/gen_agent_report.py --harness omp --skill swe3 --repo mcp-gateway-registry-v2`. See [omp setup](omp-setup.md) for install and configuration. Companion to the cross-harness comparison [agentic-coding-swe-comparison-swe3.md](agentic-coding-swe-comparison-swe3.md).
 
 ## Results by model
 
@@ -33,14 +33,14 @@ A task scoring 0 (missing/empty artifacts) is a model failure, excluded from the
 
 ### Cost vs. quality (Pareto frontier)
 
-![Cost vs quality, omp harness](images/cost-quality-omp-swe3.png)
+![Cost vs quality, oh-my-pi (omp) harness](images/cost-quality-omp-swe3.png)
 
 ### Quality by dimension (radar)
 
-![Quality radar, omp harness](images/quality-radar-omp-swe3.png)
+![Quality radar, oh-my-pi (omp) harness](images/quality-radar-omp-swe3.png)
 
 ### Cost vs. accuracy (bubble area = tokens)
 
 x = cost per task, y = mean score, bubble area = total tokens processed, color = hosting basis (metered Bedrock vs hardware-derived self-hosted -- NOT directly comparable as raw dollars; see the cost note above).
 
-![Cost vs accuracy, omp harness](images/cost-accuracy-bubble-omp-swe3.png)
+![Cost vs accuracy, oh-my-pi (omp) harness](images/cost-accuracy-bubble-omp-swe3.png)
