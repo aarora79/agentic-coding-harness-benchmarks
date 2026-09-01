@@ -1,10 +1,10 @@
-# GPU choice: one H200 slice against a whole g6e.4xlarge
+# GPU choice: H200 slices against L40S instances
 
-**A p5en.48xlarge costs 21x more per hour than a g6e.4xlarge and serves 48x more concurrent coding sessions at the same 10-second first-token wait, so each developer costs 56% less: $0.26/hr against $0.60/hr.**
+**Host these models on p5en H200 slices, not on g6e L40S instances.** Every model measured on both families serves more agentic-coding load per dollar on one H200 than on an L40S box. A g6e instance runs these models correctly, so it stays a legitimate option. It also saturates at one or two concurrent sessions and costs 1.4x to 3x more per token, which rules it out for an endpoint a team shares.
 
-That holds for a model small enough to fit the L40S, at public on-demand prices with no discount applied to either box.
+**The illustration below is `qwen3.8-27b`**, worked end to end so the mechanism rests on measurements: a p5en.48xlarge costs 21x more per hour than a g6e.4xlarge and serves 48x more concurrent coding sessions at the same 10-second first-token wait, so each developer costs 56% less, $0.26/hr against $0.60/hr. That test changes one thing: `qwen3.8-27b` (FP8, 27B dense) runs at TP=1 on one L40S, then at TP=1 on **one of the eight H200s** in a p5en, charged at one eighth of the box. Same model, same flags, same dataset, same window.
 
-The test changes one thing. `qwen3.8-27b` (FP8, 27B dense) runs at TP=1 on one L40S, then at TP=1 on **one of the eight H200s** in a p5en, charged at one eighth of the box. Same model, same flags, same dataset, same window.
+The same conclusion was then confirmed on three further models against a whole 4-GPU g6e.12xlarge; see [every model lands the same way](#every-model-lands-the-same-way). All prices are public on-demand with no discount applied to any box.
 
 For the cross-model throughput tables see [agentic-coding-throughput-comparison.md](agentic-coding-throughput-comparison.md). For the cost model see [cost-per-task-methodology.md](cost-per-task-methodology.md).
 
@@ -49,6 +49,49 @@ At 240 developers the annual gap is **$1.26M against $554k**.
 
 > [!WARNING]
 > **The p5en only wins if the box is full.** A p5en.48xlarge sells as one 8-GPU unit, so 100 developers use 42% of it and pay for all of it, which puts it 5% behind a 20-box g6e fleet. A dedicated p5en breaks even at **106 developers** -- the point where the g6e fleet has to buy its 22nd box. Below that, either share the spare GPUs with other work (the slice column assumes you can) or stay on g6e.
+
+## Every model lands the same way
+
+The `qwen3.8-27b` comparison above pits one H200 against **one** L40S. The harder test gives the L40S box every advantage: three more models, each already benchmarked on a **whole g6e.12xlarge** (4x L40S, TP=4, $10.493/hr), re-run on **one** H200 at $7.912/hr. The single GPU is the *cheaper* option here -- **0.754x the hourly price** -- so it only has to reach three quarters of the four-GPU box's throughput to win on cost.
+
+One H200 beat the whole box on all three models, on throughput and on cost per token together. Each headline below quotes both sides at that model's **usable knee**, not at its cheapest level; [the note below](#why-the-knee-and-not-the-cheapest-level) gives the rule.
+
+**`qwen3.6-35b` -- one H200 replaces the four-L40S box outright.** It sustains **28,467 tok/s across 20 concurrent sessions at 2.4 s to first token**, against **13,366 tok/s across 2 sessions at 4.5 s** on the whole g6e.12xlarge: 2.13x the throughput, serving 10x the sessions, at **3.01x lower cost per token** ($0.077 against $0.232 per 1M) and $0.119 against $0.324 per task.
+
+**`gemma-4-31b` -- one H200 beats four L40S by two thirds.** **4,169 tok/s across 7 sessions** against **2,491 tok/s across 2**, at **2.26x lower cost per token** ($0.523 against $1.181 per 1M) and $0.750 against $1.667 per task. This is the one arm where the H200's usable point carries the *higher* first-token wait (10.7 s against 5.0 s): a dense 31B model is prefill-bound on either card, so the H200 spends its advantage on batch depth instead of latency.
+
+**`qwen3-coder-30b` -- near-parity throughput, spread across 7 sessions instead of 1.** **13,088 tok/s across 7 sessions** against **12,000 tok/s across a single session**, at **1.37x lower cost per token** ($0.169 against $0.232 per 1M) and $0.464 against $0.671 per task. The 1.09x throughput margin is thin, so read this arm with the [caveat below](#what-this-means-for-hosting).
+
+**`qwen3.8-27b` -- the worked example in the rest of this doc, against one L40S rather than four.** **6,870 tok/s across 30 sessions** against **1,547 tok/s across 5** on a g6e.4xlarge: 4.44x the throughput, 41% cheaper per token, 56% cheaper per developer-hour.
+
+Full curves, latency percentiles and per-task costs sit in the [source data](#source-data). Each model repeats the mechanism the `qwen3.8-27b` sections below take apart, so this doc measures it once.
+
+### The g6e knee falls at one or two sessions
+
+**Where each box's knee falls** decides the hosting question. Every g6e arm knees at **c=1 or c=2**. One level past it, queueing takes 35-39% of first-token latency: `qwen3-coder-30b` at c=2, `gemma-4-31b` and `qwen3.6-35b` at c=5. One H200 holds **7 to 20** sessions inside the same latency envelope.
+
+The four-GPU box fails for a different reason than the single L40S in the `qwen3.8-27b` arm below. There, KV cache pinned at 1.000 and vLLM capped admission at 7 sessions. Here KV peaks at just 23-43% at each arm's knee, so memory is not the limit: the box runs out of prefill compute. Agentic coding sends about 1.4M prompt tokens per task against 21K generated, so prefill does nearly all the work, and requests queue for a compute slot while half the KV pool sits idle. KV saturates only much later, at c=20, where `qwen3-coder-30b` peaks at 0.995 with 81% of its TTFT already spent queueing.
+
+The g6e's published throughput peaks therefore overstate what it can serve. `qwen3-coder-30b` reports 20,045 tok/s at c=10 on the g6e box, its best figure anywhere. Queueing accounts for 59% of first-token latency at that level, so the figure measures a growing backlog. Its largest usable figure is 12,000 tok/s, at a single session. The [L40S peak section](#the-l40s-peak-comes-with-a-67-second-wait) takes the same failure apart for `qwen3.8-27b`, where the throughput peak costs a 67-second wait.
+
+A one-session ceiling cannot host an endpoint a team shares. Serving 100 developers from g6e takes 20 boxes for the `qwen3.8-27b` shape and 100 for `qwen3-coder-30b` at its g6e knee, the arithmetic in [fleet consolidation](#fleet-consolidation). One H200 slice serves 7 to 20 sessions and costs less per token.
+
+### Why the knee and not the cheapest level
+
+`build_performance_summary` reports the cheapest $/1M across a whole sweep, which for `gemma-4-31b` lands at c=20 -- where mean TTFT is 72 s and **88% of it is queue time**. Prefill time per request stays flat at 7-9 s across every concurrency in that arm, so the GPU's work per request never changes. All TTFT growth past the knee comes from requests parked waiting for admission, so the extra concurrency buys a backlog.
+
+The knee used above is the highest concurrency where **queue time is under 30% of TTFT and mean TTFT is under 15 s**. Quoting it costs almost nothing: pushing `gemma-4-31b` from its knee to its cheapest level saves 15% per token for **6.7x the TTFT**. For `qwen3.6-35b` and `qwen3-coder-30b` the knee *is* the cheapest level, so there is no trade to make at all.
+
+The same rule picks the knee on both instance families. The g6e loses more from it, because its cheapest levels are its most queued.
+
+### What this means for hosting
+
+Host on **p5en.48xlarge, one H200 per model replica (TP=1)**. Reserve g6e for cases where a p5en cannot be filled, since a p5en sells as one indivisible 8-GPU unit and only wins when the whole box is used -- the [break-even is 106 developers](#what-it-costs-to-serve-n-developers) for the `qwen3.8-27b` shape. Below that, share the spare GPUs with other work or stay on g6e and accept the single-session ceiling.
+
+`qwen3.6-35b` makes the strongest case for consolidation: 28,467 tok/s at 2.4 s TTFT on one card, TTFT between 1.9 s and 2.6 s from c=1 all the way to c=20, and a curve still climbing at the top of the sweep. Eight such replicas fit in one p5en.
+
+> [!WARNING]
+> **Treat `qwen3-coder-30b` as provisional, the weakest of the three.** A rate change on either box could flip its 1.09x throughput gain, its H200 knee sits at 25% queue share against a 30% threshold, and its g6e baseline knee of c=1 looks suspect: that arm was already 38% queued at c=2, which points at a noisy baseline. The cost conclusion holds. The throughput margin carries little weight. Re-running its g6e arm would settle it.
 
 ## Config
 
@@ -236,7 +279,23 @@ For the ceiling hunt, change one flag and one directory: `--max-num-seqs 128`, `
 
 ## Source data
 
-Every number above comes from these three summaries.
+### The three-model confirmation
+
+Each row is a whole 4-GPU g6e.12xlarge against one H200 of a p5en, same model and same serving flags on both sides -- only the GPU and the GPU count change.
+
+| Model | g6e.12xlarge (4x L40S, TP=4) | p5en slice (1x H200, TP=1) |
+|---|---|---|
+| `qwen3.6-35b` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b-h200-tp1/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b-h200-tp1/performance-dashboard.html) |
+| `gemma-4-31b` | [json](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b-h200-tp1/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/gemma-4-31b-h200-tp1/performance-dashboard.html) |
+| `qwen3-coder-30b` | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b/performance-dashboard.html) | [json](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b-h200-tp1/performance-summary.json) / [html](../self-hosted/vllm/benchmark-output/throughput/qwen3-coder-30b-h200-tp1/performance-dashboard.html) |
+
+> The three H200 arms ran 2026-08-31 on a p5en.48xlarge (8x H200 DLAMI) with `CUDA_VISIBLE_DEVICES=0`, at a 200,000-token context window, `GPU_MEM_UTIL=0.90`, no `--max-num-seqs` override, 600 s per level, concurrency 1/2/5/7/10/15/20. Each g6e side carries over its own committed sweep and its own per-task token shape, so `$/task` is comparable arm to arm but not model to model. `qwen3-coder-30b` stopped at c=15 because its throughput had gone flat for two consecutive levels. `qwen3.6-35b` was still climbing at c=20, so its figure is a floor. Costs here are rescaled from each summary's configured rate to public on-demand ($10.493/hr for g6e.12xlarge, $7.912/hr for one of eight H200s), which is why they differ from the cost fields inside the JSON.
+>
+> **Concurrency counts sessions, not requests.** An agentic session issues more than one API call at a time, so `requests_running` runs ahead of the offered concurrency: `qwen3.6-35b` peaked at 43 running requests at c=20 and at 11 at c=1. Every "N sessions" figure above is the number of `/swe` sessions the harness held in flight, which is the number that maps to developers.
+
+### The `qwen3.8-27b` illustration
+
+Every number in the rest of this doc comes from these three summaries.
 
 | Arm | Instance | Config | Summary | Dashboard |
 |---|---|---|---|---|
