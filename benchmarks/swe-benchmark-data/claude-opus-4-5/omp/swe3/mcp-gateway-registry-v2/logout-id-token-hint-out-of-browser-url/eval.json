@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 67,
+      "notes": "The issue clearly defines the WAF and disclosure problems, scopes exclusions, and provides testable acceptance criteria. The submitted route context confirms that registry/auth/routes.py currently appends id_token_hint and auth_server/server.py accepts it. Its largest defect is that the proposed nonce flow still redirects the browser to the IdP with id_token_hint, contradicting its requirement that no browser-facing URL contain the token. No independent task statement was supplied, and the issue also misses provider binding for the bearer-like nonce."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 6,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 54,
+      "notes": "The LLD gives concrete modules, schemas, atomic consumption semantics, failure behavior, and deployment ordering. However, the repository's get_documentdb_client() returns an AsyncDatabase, while both proposed modules treat it as a client and call get_default_database(), so the primary storage path is incompatible with the real API. The design also explicitly acknowledges that the final IdP redirect remains browser-based with id_token_hint, yet continues claiming the token is removed from all browser-facing URLs. Provider-to-hint binding, index-creation permissions, and full mixed-version SSO behavior remain unresolved despite the claim that there are no open questions."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 47,
+      "notes": "The review offers concrete observations about nonce validation, observability, import paths, TTL cleanup, and rollout behavior. Its largest failure is approving the design while falsely asserting that the JWT leaves browser history and proxy paths, despite the LLD's own sequence showing a browser redirect containing id_token_hint. It also misses the incorrect DocumentDB helper usage and inaccurately says the new modules follow existing session-store patterns exactly. The alleged critical MongoDB injection risk from a typed string equality query is overstated, while the real cross-provider nonce-binding and final-hop exposure risks are not identified."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 48,
+      "notes": "The plan spans unit, integration, rolling-upgrade, index, rollback, browser, and WAF checks with several concrete expected values. The unit snippets use AsyncMock for synchronous with_options(), which makes the proposed mock chain invalid, and they never exercise the real get_documentdb_client() contract that breaks the patch. Integration cases are pass placeholders, while the E2E script tolerates a missing logout_hint and checks logout_hints instead of the repository's namespaced collection, allowing false success. Most importantly, tests inspect only the first redirect and would not catch the JWT in the subsequent browser-facing IdP Location URL."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 16,
+      "risk_awareness": 7,
+      "total": 34,
+      "notes": "The patch targets the relevant logout_handler and oauth2_logout symbols and implements nonce generation, encryption, expiry, atomic consumption, legacy input, and graceful fallback. Both new modules misuse the repository's DocumentDB API by calling get_default_database() on the AsyncDatabase returned by get_documentdb_client(), causing creation and lookup to fail and silently degrade without implementing the feature. Even with that fixed, auth-server still sends id_token_hint in a browser redirect to the IdP and does not bind the stored provider to the consuming route. No tests are included, the summary's claims of complete browser-URL removal and exact design conformance are false, and patch applicability could not be dry-run because the read-only command sandbox failed before execution."
+    }
+  },
+  "task_score": 50.0,
+  "verdict": "The artifacts are detailed but the implementation is nonfunctional against the repository API and the architecture still exposes the ID token in a browser-facing redirect.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-02T00:14:51.152100Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 378308,
+      "cached_input_tokens": 239962,
+      "cache_write_input_tokens": 45316,
+      "output_tokens": 17395,
+      "reasoning_output_tokens": 15453
+    },
+    "duration_ms": 392797
+  }
+}

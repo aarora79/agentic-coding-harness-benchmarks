@@ -1,0 +1,152 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "high",
+  "tags": [
+    "rate-limiting",
+    "security",
+    "auth-server",
+    "api",
+    "operations",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+  "model_slug": "claude-opus-4-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 55.8,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 148,
+    "output_tokens": 44454,
+    "cache_read_tokens": 9625163,
+    "cache_write_tokens": 195967,
+    "total_tokens": 9865732,
+    "total_cost_usd": 7.149465249999998,
+    "latency_seconds": 796.9,
+    "num_turns": 86,
+    "generation_tokens_per_sec": 55.8,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 148,
+  "output_tokens": 44454,
+  "latency_seconds": 796.9,
+  "num_turns": 86,
+  "total_cost_usd": 7.149465249999998,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 9625163,
+  "cache_creation_tokens": 195967,
+  "run_started_at": "2026-09-01T22:09:02.411294Z",
+  "run_ended_at": "2026-09-01T22:22:19.305770Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 148,
+    "output_tokens": 44454,
+    "cache_read_tokens": 9625163,
+    "cache_write_tokens": 195967,
+    "total_tokens": 9865732,
+    "total_cost_usd": 7.149465249999998,
+    "latency_seconds": 796.9,
+    "num_turns": 86,
+    "generation_tokens_per_sec": 55.8,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "per-caller-per-target-rate-limits-and-quarantine",
+    "model": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 21,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 79,
+        "notes": "The issue clearly separates pair-specific quotas from quarantine and provides concrete, testable response, bypass, compatibility, and scope criteria. Its references to caller/target axes, membership groups, and the validation chokepoint align with the submitted source contexts. The main correctness defect is claiming the caller axis lets one caller consume another caller's headroom; that behavior describes the shared target axis, while empty auto-seeded groups also assume storage semantics not established here. No independent task statement was supplied, so operator demand, issue references, and the exact intended quarantine failure policy remain unverifiable."
+      },
+      "lld": {
+        "completeness": 16,
+        "correctness": 10,
+        "specificity": 19,
+        "risk_awareness": 15,
+        "total": 60,
+        "notes": "The LLD names concrete files, models, repository methods, gate ordering, response handling, UI changes, and rollout concerns, making much of the caller_target path decision-ready. The submitted diff contexts corroborate symbols such as RateLimiter.check, AXIS_ABBREVIATION, list_caller_limits, membership routes, and useRateLimits.ts. Its largest defect is the purported auto-seed implementation: it performs no insert, is lazy rather than startup-driven, and its global flag is inconsistent with the shown class-level placement; the definition deletion guard also does not represent deletion of membership-backed groups. The document additionally contradicts itself on fail-open versus unconditional fail-closed behavior and leaves composite-key limits, rollback compatibility, and full UI management unresolved while declaring no open questions."
+      },
+      "review": {
+        "completeness": 16,
+        "correctness": 11,
+        "specificity": 19,
+        "risk_awareness": 18,
+        "total": 64,
+        "notes": "The review identifies concrete concerns including duplicate membership access, quarantine failure policy, subject-type validation, composite-key size, UI visibility, operational documentation, and startup discovery. However, the implemented is_caller_quarantined method still calls get_groups_for before check calls get_groups_for again, so the claimed single-fetch resolution is incomplete. It also marks auto-seeding resolved even though the LLD's pseudocode inserts nothing, and its reviewers simultaneously praise fail-open degradation and mandate unconditional fail-closed behavior. The final ready-for-implementation verdict misses the required 403 response integration and unsupported rollback assumptions."
+      },
+      "testing": {
+        "completeness": 15,
+        "correctness": 9,
+        "specificity": 16,
+        "risk_awareness": 13,
+        "total": 53,
+        "notes": "The plan has useful behavioral oracles for pair isolation, 403-versus-429 semantics, admin bypass, subject validation, three-axis composition, and backward compatibility. Several supposedly executable tests use placeholder routes such as /mcp/serverA/..., unestablished token files, and a conditional floor expectation rather than deterministic setup. It lacks concrete tests proving quarantine precedes counter increments, startup seeding occurs, missing caller or target context suppresses the new axis, and backend failures produce the intended policy. The rollback claim that an older validator will ignore caller_target documents is unsupported, and the proposed test locations and unittest command were not verified against repository conventions."
+      },
+      "implementation": {
+        "completeness": 9,
+        "correctness": 8,
+        "specificity": 18,
+        "risk_awareness": 7,
+        "total": 42,
+        "notes": "The patch concretely extends the model, definition query, membership lookup, and limiter gate construction, and its composite subject implements the central per-caller-per-target isolation mechanism. The largest defect is that it does not modify auth_server/server.py, so the new quarantined decision flag has no submitted consumer to produce the required 403 response despite the LLD explicitly requiring that change. Auto-seeding is expressly omitted, IAMRateLimits.tsx and observability changes are absent, and no tests are added, contradicting the summary's claim of no LLD deviations and leaving UI management incomplete. Exact application to the stated baseline could not be independently confirmed because repository command execution was unavailable, although the supplied diff contexts are internally coherent."
+      }
+    },
+    "task_score": 59.6,
+    "verdict": "The artifacts are detailed and identify several real risks, but unresolved design contradictions and an incomplete patch—especially missing 403 wiring, startup seeding, UI integration, and tests—leave the feature short of end-to-end readiness.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-02T00:28:45.798551Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 397438,
+        "cached_input_tokens": 318530,
+        "cache_write_input_tokens": 54748,
+        "output_tokens": 14778,
+        "reasoning_output_tokens": 12473
+      },
+      "duration_ms": 301525
+    }
+  }
+}
