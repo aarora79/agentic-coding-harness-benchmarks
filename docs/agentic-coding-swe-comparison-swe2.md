@@ -9,7 +9,7 @@ Generated from the committed `run-summary.json` files; regenerate with `uv run s
 Two non-comparable cost bases share the cost columns; each row states which:
 
 - **metered (Bedrock)** -- a hosted API's real per-token bill, summed over the run. Benefits from Bedrock prompt caching.
-- **hardware-derived (self-hosted)** -- a rented GPU has no per-token bill, so cost is the model's blended $/token (measured by the throughput sweep at its true instance rate -- g6e.12xlarge for L40S, p5en.48xlarge for H200) times the tokens the run processed. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
+- **hardware-derived (self-hosted)** -- a rented GPU has no per-token bill, so cost is the model's blended $/token (measured by the p5en.48xlarge throughput sweep) times the tokens the run processed. Every self-hosted row uses that one sweep, including models served on a smaller g6e.12xlarge box, so the fleet shares a single basis -- a row is the cost of that model's work on p5en, not a quote for the box it ran on. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
 
 `Cost/task` = run cost / scored tasks. `Cost/point` = run cost / mean score -- a value-efficiency figure (lower is more quality per dollar).
 
