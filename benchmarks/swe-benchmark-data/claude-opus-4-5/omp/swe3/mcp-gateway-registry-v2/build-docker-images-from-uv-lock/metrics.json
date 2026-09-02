@@ -1,0 +1,153 @@
+{
+  "task": "build-docker-images-from-uv-lock",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "medium",
+  "tags": [
+    "docker",
+    "build",
+    "uv",
+    "dependencies",
+    "reproducibility",
+    "ci",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+  "model_slug": "claude-opus-4-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 53.1,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2574,
+    "output_tokens": 26663,
+    "cache_read_tokens": 3474540,
+    "cache_write_tokens": 84338,
+    "total_tokens": 3588115,
+    "total_cost_usd": 2.9438275000000007,
+    "latency_seconds": 502.4,
+    "num_turns": 39,
+    "generation_tokens_per_sec": 53.1,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2574,
+  "output_tokens": 26663,
+  "latency_seconds": 502.4,
+  "num_turns": 39,
+  "total_cost_usd": 2.9438275000000007,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 3474540,
+  "cache_creation_tokens": 84338,
+  "run_started_at": "2026-09-01T20:20:36.018218Z",
+  "run_ended_at": "2026-09-01T20:28:58.421829Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2574,
+    "output_tokens": 26663,
+    "cache_read_tokens": 3474540,
+    "cache_write_tokens": 84338,
+    "total_tokens": 3588115,
+    "total_cost_usd": 2.9438275000000007,
+    "latency_seconds": 502.4,
+    "num_turns": 39,
+    "generation_tokens_per_sec": 53.1,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "build-docker-images-from-uv-lock",
+    "model": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 18,
+        "correctness": 12,
+        "specificity": 20,
+        "risk_awareness": 10,
+        "total": 60,
+        "notes": "The issue provides a concrete inventory of five Dockerfiles, four missing lockfiles, explicit exclusions, and testable acceptance criteria. Its largest technical error is claiming that `uv sync --frozen` fails when a lockfile is stale; `--frozen` uses the existing lock without checking freshness, while `--locked` performs that check. The named files align with the submitted design and patch inventory, but broad claims of reproducible images ignore mutable base images and other non-Python build inputs. No independent task statement was supplied, and repository access failed in the harness, so the path inventory could not be fully verified against the worktree."
+      },
+      "lld": {
+        "completeness": 17,
+        "correctness": 9,
+        "specificity": 21,
+        "risk_awareness": 10,
+        "total": 57,
+        "notes": "The LLD is highly specific about Dockerfiles, project roots, workflow integration, fallback behavior, and installation sequencing. Its central decision is technically misstated: `--frozen` does not detect stale manifests, and exact `uv sync` can remove or replace packages installed by the preceding special-index PyTorch step unless the locked environment preserves them. The LLD itself says `build-registry.yml` triggers on `pyproject.toml`, yet it proposes no trigger update for root `uv.lock`, while the review later incorrectly declares this covered. The full repository and generated lockfiles were not independently readable, so claims such as every project using `package = false`, unchanged image size, and complete nine-project coverage remain partly unverifiable."
+      },
+      "review": {
+        "completeness": 13,
+        "correctness": 7,
+        "specificity": 16,
+        "risk_awareness": 8,
+        "total": 44,
+        "notes": "The review does identify concrete secondary concerns, including the unlocked fallback path, dependency scanning, contributor maintenance, and future project discovery. Its largest deficiency is approving the design while repeatedly endorsing the false claim that `--frozen` rejects stale locks and treating PyTorch installation order as sufficient despite `uv sync` being exact by default. It also contradicts the LLD by saying registry build triggers already cover lockfile changes even though the LLD describes that workflow as watching root `pyproject.toml`, not root `uv.lock`. Claims about existing Trivy coverage and all nine project roots could not be verified from the inaccessible worktree."
+      },
+      "testing": {
+        "completeness": 14,
+        "correctness": 9,
+        "specificity": 18,
+        "risk_awareness": 11,
+        "total": 52,
+        "notes": "The plan supplies concrete commands for lock checks, image builds, smoke tests, CI simulation, compatibility, and a missing-lock fallback. It omits any build using `Dockerfile.mcp-server-cpu`, does not test stale-lock behavior inside Docker, and never verifies that the special CPU PyTorch installation survives `uv sync`. The auth health command masks failure with `|| echo`, the missing-lock pipeline can pass despite a failed build, and appending a dependency at the end of `pyproject.toml` may test invalid TOML rather than a valid stale lock. The proposed health endpoint, E2E path, compose flags, and build arguments could not all be verified against repository source."
+      },
+      "implementation": {
+        "completeness": 15,
+        "correctness": 10,
+        "specificity": 16,
+        "risk_awareness": 7,
+        "total": 48,
+        "notes": "The visible patch adds a nine-root lock-check workflow and a generated `auth_server/uv.lock`, while the summary accounts for four new locks and five Dockerfile changes. It does not meet its own fail-on-stale acceptance criterion because every Dockerfile reportedly uses `uv sync --frozen`, and the unlocked fallback still permits non-reproducible generic-server builds. Exact syncing also creates an unaddressed risk of removing or replacing packages installed earlier from the CPU-only PyTorch index. The submitted diff is truncated before the Dockerfile changes and repository shell access failed, so clean application, surrounding context, the other three lockfiles, and the summary's claim that all criteria are met could not be independently verified."
+      }
+    },
+    "task_score": 52.2,
+    "verdict": "The submission is detailed and repository-oriented, but its core misunderstanding of `uv sync --frozen` and insufficient validation of exact-sync Docker behavior materially weaken the design and implementation.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-01T23:15:35.830871Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1040605,
+        "cached_input_tokens": 866173,
+        "cache_write_input_tokens": 136050,
+        "output_tokens": 12491,
+        "reasoning_output_tokens": 10373
+      },
+      "duration_ms": 283987
+    }
+  }
+}

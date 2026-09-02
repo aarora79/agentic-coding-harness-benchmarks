@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 70,
+      "notes": "The issue clearly defines browser-session and M2M behavior, names route files, and supplies testable acceptance criteria and non-goals. Its largest defect is repeatedly requiring coverage of six endpoints while its audit enumerates only five. The table concretely identifies server_routes.py, agent_routes.py, skill_routes.py, and virtual_server_routes.py integration points. With no independent task statement, claims such as agents being disabled by default and X-User being the canonical M2M indicator could not be independently established."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 68,
+      "notes": "The design is unusually concrete about files, imports, endpoint signatures, cookie precedence, and delegation to verify_csrf_token_flexible. Its main weakness is that the proposed function also skips CSRF when neither a session cookie nor an identity header exists, so it does not actually restrict bypass to the claimed M2M discriminator. The named route functions and dependency symbols agree with the submitted source contexts, but only five user-facing endpoint paths are designed despite repeated claims of six. The trust boundary for proxy-supplied headers, direct application access, rollout, and fallback behavior remains asserted rather than demonstrated."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 11,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 56,
+      "notes": "The strongest review content identifies cookie-plus-header precedence, proxy-header spoofing, logging sensitivity, and the need to test the mixed-auth case. Its verdict is insufficiently critical and contains a material factual error: both the SRE and security sections say the neither-cookie-nor-header case requires CSRF, while the LLD explicitly returns without validation. It also raises a possible dashboard path, /api/servers/${serverPath}/toggle, but approves without resolving whether that route exists or is covered. The proxy trust assumption and claimed complete endpoint inventory remain unverified."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 62,
+      "notes": "The plan provides a useful browser/M2M/invalid-token matrix, mixed cookie-and-header coverage, backward-compatibility checks, and an end-to-end registration scenario. A major correctness defect is that agent tests send JSON while the submitted agent_routes.py signature exposes enabled as a scalar parameter, which FastAPI ordinarily binds as a query parameter. The final command uses unittest discovery for pytest fixtures and pytest.mark.asyncio tests, so it can report success without collecting the proposed tests. Several endpoint assertions only require 200 rather than verifying the resulting state, and the csrf-token path and is_enabled response field are not established by repository evidence."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 13,
+      "total": 64,
+      "notes": "The patch consistently replaces or adds the adaptive dependency on the five endpoint paths listed in its own table and preserves the conservative rule that any configured session cookie triggers existing CSRF validation. It does not include the tests required by the acceptance criteria, yet the summary says nothing remains unimplemented and inaccurately claims all six endpoints were updated. The implementation also permits every cookieless request to bypass CSRF, including requests without X-User or X-Username, making its behavior broader than the stated bearer-client detection model and generating warning logs for such traffic. The submitted file contexts and symbols are internally coherent, but repository command execution was unavailable, so git apply --check and independent baseline verification could not be completed."
+    }
+  },
+  "task_score": 64.0,
+  "verdict": "The submission offers a concrete and mostly plausible adaptive-CSRF change, but inconsistent endpoint counting, uncritical review, invalid test mechanics, and missing implementation tests materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-01T23:39:40.401391Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 223222,
+      "cached_input_tokens": 165248,
+      "cache_write_input_tokens": 31426,
+      "output_tokens": 7843,
+      "reasoning_output_tokens": 6461
+    },
+    "duration_ms": 624694
+  }
+}
