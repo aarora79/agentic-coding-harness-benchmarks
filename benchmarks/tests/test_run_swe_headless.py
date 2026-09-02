@@ -1518,3 +1518,87 @@ class TestOmpMaxTime(unittest.TestCase):
         self.assertTrue(cmd[-1].endswith("PROMPT"))
         self.assertEqual(cmd[-2], "--")
         self.assertLess(cmd.index("--max-time=600"), cmd.index("--"))
+
+
+def _omp_events(usages: list[dict], tail: int = 1, stop: str = "stop") -> list[dict]:
+    """Build an omp stream whose agent_end covers only the last ``tail`` messages.
+
+    omp emits a ``message_end`` per assistant message AND a ``turn_end`` mirroring
+    it, then one ``agent_end`` carrying the settled conversation. An extra
+    ``agent_start`` (compaction, or the todo reminder) resets that conversation, so
+    ``agent_end`` reports only what came after it -- which is the shape that lost
+    tokens in issue #157.
+
+    Args:
+        usages: One per-message usage dict, in order.
+        tail: How many trailing messages survive into ``agent_end``.
+        stop: Terminal stopReason on the final message.
+
+    Returns:
+        The event stream, oldest first.
+    """
+    events: list[dict] = [{"type": "agent_start"}]
+    msgs: list[dict] = []
+    for i, usage in enumerate(usages):
+        if i == len(usages) - tail and tail < len(usages):
+            events.append({"type": "agent_start"})
+        message = {
+            "role": "assistant",
+            "usage": usage,
+            "stopReason": stop if i == len(usages) - 1 else "end_turn",
+        }
+        msgs.append(message)
+        events.append({"type": "turn_start"})
+        events.append({"type": "message_end", "message": message})
+        # turn_end mirrors message_end; counting both would double every message.
+        events.append({"type": "turn_end", "message": message})
+    events.append({"type": "agent_end", "messages": msgs[-tail:], "willRetry": False})
+    return events
+
+
+class OmpAgentEndTruncationTest(unittest.TestCase):
+    """omp usage must come from the stream, not from the truncated agent_end."""
+
+    @staticmethod
+    def _usage(output: int) -> dict:
+        return {
+            "input": 2,
+            "output": output,
+            "cacheRead": 1000,
+            "cacheWrite": 10,
+            "cost": {"total": 0.25},
+        }
+
+    def test_sums_stream_when_agent_start_truncates_agent_end(self) -> None:
+        # An extra agent_start resets the message list, so agent_end carries only
+        # the final message. Reading it (the issue #157 bug) reported 40 output
+        # tokens for a 4-turn run; the stream holds all four.
+        events = _omp_events([self._usage(n) for n in (100, 200, 300, 40)], tail=1)
+        result = harness._pi_result_from_events(events, elapsed=9.0)
+        self.assertEqual(result["usage"]["output_tokens"], 640)
+        self.assertEqual(result["usage"]["input_tokens"], 8)
+        self.assertEqual(result["usage"]["cache_read_input_tokens"], 4000)
+        self.assertEqual(result["usage"]["cache_creation_input_tokens"], 40)
+        self.assertAlmostEqual(result["total_cost_usd"], 1.0)
+        self.assertEqual(result["num_turns"], 4)
+        self.assertEqual(result["subtype"], "success")
+
+    def test_turn_end_does_not_double_count(self) -> None:
+        # Every message_end has a matching turn_end carrying the same usage.
+        events = _omp_events([self._usage(100), self._usage(200)], tail=2)
+        result = harness._pi_result_from_events(events, elapsed=3.0)
+        self.assertEqual(result["usage"]["output_tokens"], 300)
+
+    def test_untruncated_stream_matches_agent_end_exactly(self) -> None:
+        # The 200 single-agent_start streams this was measured on agree to the
+        # token, so summing the stream must not change a healthy run.
+        usages = [self._usage(n) for n in (100, 200, 300)]
+        from_stream = harness._pi_result_from_events(_omp_events(usages, tail=3), 1.0)
+        from_agent_end = harness._pi_result_from_events(_pi_events_multi(usages), 1.0)
+        self.assertEqual(from_stream["usage"], from_agent_end["usage"])
+
+    def test_falls_back_to_agent_end_without_message_end_events(self) -> None:
+        # pi emits no message_end, so the settled conversation stays the source.
+        events = _pi_events_multi([self._usage(100), self._usage(200)])
+        result = harness._pi_result_from_events(events, elapsed=1.0)
+        self.assertEqual(result["usage"]["output_tokens"], 300)
