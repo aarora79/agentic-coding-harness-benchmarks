@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-opus-4-7",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 89,
+      "notes": "The issue provides unusually concrete acceptance criteria covering models, enforcement, API, CLI, UI, response headers, compatibility, and exclusions. Its largest defect is that the counter-key requirement still specifies a single-pipe delimiter, while the later review and implementation identify that shape as collision-prone and use `||`. Claims about `RateLimiter.check`, `_validate_caller_floor`, and the named repository files are consistent with the submitted diff context. Exact repository applicability could not be independently verified because command execution failed in the provided read-only sandbox."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 15,
+      "specificity": 24,
+      "risk_awareness": 20,
+      "total": 82,
+      "notes": "The LLD names concrete files, methods, data shapes, failure modes, cache behavior, response semantics, and rollout decisions at implementation-ready depth. Its critical contradiction is the admin-bypass matrix saying caller quarantine denies admins while the step-four pseudocode guards that check with `not is_admin`, directly preserving the implementation's security bug. The design correctly places quarantine headers in `RateLimitDecision.headers()` and specifies successful-only sentinel initialization and model-layer group pairing. Assertions about identity character validation, runtime cache configuration, and exact repository line locations could not be independently confirmed."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 85,
+      "notes": "The review surfaces concrete defects including delimiter collisions, model-layer pairing, sentinel retry behavior, cache propagation, auditability, log storms, and UI handling, then records actionable resolutions. Its largest miss is failing to notice the revised LLD's explicit `not is_admin` caller-quarantine condition despite repeatedly declaring that admins must also be denied. It also does not identify that quarantine PUT helpers overwrite a caller's existing normal groups, although the proposed unquarantine flow assumes those groups are preserved. Template and repository confirmations attributed to reviewers could not be independently reproduced in the unavailable local shell."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The plan has strong behavioral oracles for per-pair independence, early denial, admin handling, sentinel immutability, fail-closed behavior, wire headers, compatibility, CLI, and UI. It omits a crucial preservation test proving that quarantining a caller retains existing ordinary group memberships, and it does not explicitly test the targetless control-plane skip. The expected direct FastAPI body is likely wrong because `HTTPException(detail={...})` normally produces a `detail` envelope, while `bandit -r src/` and `mypy src/` do not match the shown `registry/` and `auth_server/` layout. Exact commands and endpoint behavior could not be executed in the provided environment."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 10,
+      "total": 47,
+      "notes": "The patch implements substantial backend model, repository, limiter, API, CLI, and frontend-hook plumbing, and the summary honestly discloses that the required UI components were omitted. The critical security defect is explicit in `RateLimiter.check`: `if not is_admin and ... is_caller_quarantined(...)` lets an admin caller bypass quarantine, contradicting the issue, matrix, comments, and planned test. Both `RegistryClient.quarantine_caller` and frontend `quarantineCaller` replace the complete groups list with only the reserved group, losing existing policy memberships, while sentinel seeding is not wired into membership listing as promised and no tests are included. The full Quarantine tab and target list are deferred despite being acceptance criteria, and exact patch applicability could not be checked because local repository commands failed before execution."
+    }
+  },
+  "task_score": 77.4,
+  "verdict": "The design package is detailed and largely thoughtful, but the implementation is incomplete and contains a critical admin quarantine bypass plus destructive membership-overwrite behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-02T05:29:31.421836Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 347560,
+      "cached_input_tokens": 275972,
+      "cache_write_input_tokens": 61688,
+      "output_tokens": 8834,
+      "reasoning_output_tokens": 7650
+    },
+    "duration_ms": 123893
+  }
+}

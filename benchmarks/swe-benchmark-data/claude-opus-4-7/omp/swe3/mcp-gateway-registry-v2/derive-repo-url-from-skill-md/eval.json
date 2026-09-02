@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-opus-4-7",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 85,
+      "notes": "The issue provides concrete URL shapes, UI behavior, explicit non-goals, and acceptance criteria that map directly to tests. It correctly names relevant surfaces such as `parse-skill-md`, `SkillCard.tsx`, `SemanticSearchResults.tsx`, and the existing `repository_url` field. Its largest gap is overlooking how existing semantic-search index records acquire the newly added metadata. Because no independent task statement was supplied, the enterprise-host requirement and related issue linkage cannot be independently established as required scope."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 71,
+      "notes": "The LLD gives unusually concrete file, symbol, response-field, data-flow, and frontend-state decisions, including the user-input preservation rule in `handleParseSkillMd`. However, it leaves some `SkillInfo` construction sites to an implementation-time grep and omits a reindex or fallback strategy for pre-existing DocumentDB semantic-search metadata. Its proposed regex accepts any trailing file rather than specifically `SKILL.md` and applies blob/raw path patterns across all GitHub-like hosts, making the claimed confidence boundary broader than described. The review later claims the LLD was updated with trimming, scheme guards, and ARIA labels, but the submitted LLD's modal examples still use the original simple conditionals."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 70,
+      "notes": "The review surfaces concrete concerns around URL schemes, whitespace, raw URL variants, API integration coverage, optional-field compatibility, and enterprise-host regression tests. Its largest correctness defect is the resolution section's assertion that Step 8 and Step 9 of the LLD were updated with `isHttpUrl`, trimming, and ARIA labels when the supplied LLD contains no such changes. It also misses the operational consequence that existing semantic-search index documents will lack `repository_url` until reindexed or rewritten. Claims that grep found no unsafe interpolation and that Docker necessarily regenerates the bundled SPA are asserted without supporting evidence in the artifacts."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 64,
+      "notes": "The helper tests have specific inputs and exact expected values, and the manual UX scenarios cover preservation of user input and conditional rendering in both modals. Despite the review promising a FastAPI `TestClient` integration test, Section 1.2 is only a network-dependent curl procedure, and no automated frontend or parser-wiring test is supplied. The `ruff check --fix` verification command can modify the working tree, while the GitLab parse case depends on an uncontrolled remote file and may fail before returning `repository_url: null`. Semantic-search validation selects `.skills[0]` rather than the registered entity and does not test the pre-existing-index metadata gap."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 70,
+      "notes": "The diff coherently wires the new field through `url_utils.py`, `_parse_skill_md_content`, both `SkillInfo` construction paths shown, DocumentDB search metadata, frontend types, auto-fill state, and both modal link bars. The largest end-to-end defect is that only newly written or refreshed search metadata receives `repository_url`; no reindex, migration, or database fallback is provided for existing semantic-search records. The helper also derives repositories from arbitrary trailing filenames and from mismatched host/path combinations, despite claiming it returns `None` when it cannot confidently map a SKILL.md URL, and only helper-level automated tests are added. The summary inaccurately describes `SkillSearchResult.skill_md_raw_url` as newly added although the diff context shows it already existed, while the claimed successful `git apply --check` and isolated smoke run remain unverifiable."
+    }
+  },
+  "task_score": 72.0,
+  "verdict": "A strong and mostly coherent proposal with a plausible implementation, materially limited by missing semantic-index migration handling, weak end-to-end automated coverage, and several overstated verification claims.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-02T04:55:02.390931Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 271930,
+      "cached_input_tokens": 212878,
+      "cache_write_input_tokens": 43199,
+      "output_tokens": 9618,
+      "reasoning_output_tokens": 7656
+    },
+    "duration_ms": 132341
+  }
+}
