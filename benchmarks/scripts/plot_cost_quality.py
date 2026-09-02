@@ -887,10 +887,17 @@ def _escape_dollars(text: str) -> str:
     return re.sub(r"(?<!\\)\$", r"\\$", text)
 
 
+# Every self-hosted point is priced on the p5en sweep -- the canonical arm, the
+# bare model slug -- so the fleet shares one basis even where a model was served
+# on a smaller g6e box. Naming g6e's rate here would imply some points carry it.
+# A chart that deliberately prices on the g6e arm (--throughput-arm) must pass
+# its own note via --cost-basis-note.
 _DEFAULT_COST_BASIS_NOTE = (
-    "Self-hosted cost basis: 3-year EC2 Instance Savings Plan rate for both "
-    "instance families (p5en.48xlarge $27.72/hr, g6e.12xlarge $4.533/hr), "
-    "prorated by TP for a partial-box run -- see self-hosted/vllm/pricing.json."
+    "Self-hosted cost basis: every self-hosted point is priced on the "
+    "p5en.48xlarge throughput sweep at $27.72/hr (3-year EC2 Instance Savings "
+    "Plan), prorated by TP for a partial-box run, so the fleet shares one basis "
+    "even where a model was served on a smaller box -- see "
+    "self-hosted/vllm/pricing.json."
 )
 
 

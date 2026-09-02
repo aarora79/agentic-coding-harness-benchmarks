@@ -1,7 +1,5 @@
 # Agentic coding: model comparison on /swe3 (quality, tokens, cost)
 
-> **Not the headline result.** The reported run is the **[oh-my-pi](omp-setup.md)** (`omp`) harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers Claude Code against pi on the v1 dataset. Different task sets and harnesses, so the scores here do not compare with it.
-
 How every benchmarked model compares as an **agentic coding** engine on real `/swe3` tasks against `mcp-gateway-registry`, under **both harnesses** (Claude Code and pi). Unlike the serving-economics view in [agentic-coding-throughput-comparison.md](agentic-coding-throughput-comparison.md) (synthetic throughput sweep), this doc is built from the actual benchmark runs and combines the three axes a buyer trades off -- **quality, tokens, and cost** -- plus wall-clock latency.
 
 Generated from the committed `run-summary.json` files; regenerate with `uv run scripts/gen_swe_comparison.py --skill swe3`. Numbers match the per-harness docs ([Claude Code](harness-claude-code-swe3.md), [pi](harness-pi-swe3.md)) and the charts below exactly.
@@ -11,7 +9,7 @@ Generated from the committed `run-summary.json` files; regenerate with `uv run s
 Two non-comparable cost bases share the cost columns; each row states which:
 
 - **metered (Bedrock)** -- a hosted API's real per-token bill, summed over the run. Benefits from Bedrock prompt caching.
-- **hardware-derived (self-hosted)** -- a rented GPU has no per-token bill, so cost is the model's blended $/token (measured by the throughput sweep at its true instance rate -- g6e.12xlarge for L40S, p5en.48xlarge for H200) times the tokens the run processed. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
+- **hardware-derived (self-hosted)** -- a rented GPU has no per-token bill, so cost is the model's blended $/token (measured by the p5en.48xlarge throughput sweep) times the tokens the run processed. Every self-hosted row uses that one sweep, including models served on a smaller g6e.12xlarge box, so the fleet shares a single basis -- a row is the cost of that model's work on p5en, not a quote for the box it ran on. See [cost-per-task-methodology.md](cost-per-task-methodology.md).
 
 `Cost/task` = run cost / scored tasks. `Cost/point` = run cost / mean score -- a value-efficiency figure (lower is more quality per dollar).
 
@@ -79,7 +77,7 @@ Cost vs. accuracy (Claude Code) -- bubble area = tokens processed, color = hosti
 | claude-opus-5 | Bedrock | 75.72 | 5/5 | 50.0M | $41.42 | $8.28 | $0.55 | 94m |
 | glm-5.2 | self-hosted | 70.76 | 5/5 | 41.5M | $20.15 | $4.03 | $0.28 | 105m |
 | claude-sonnet-5 | Bedrock | 66.52 | 5/5 | 67.0M | $19.07 | $3.81 | $0.29 | 74m |
-| qwen3.8-27b | self-hosted | 66.40 | 5/5 | 96.7M | $13.55 | $2.71 | $0.20 | 710m |
+| qwen3.8-27b | self-hosted | 66.40 | 5/5 | 75.7M | $10.60 | $2.12 | $0.16 | 710m |
 | claude-opus-4-8 | Bedrock | 60.68 | 5/5 | 22.5M | $22.99 | $4.60 | $0.38 | 63m |
 | kimi-k2.7-code | self-hosted | 60.68 | 5/5 | 51.0M | $18.58 | $3.72 | $0.31 | 57m |
 | grok-4.6 | Bedrock | 56.28 | 5/5 | 13.1M | $66.71 | $13.34 | $1.19 | 70m |
@@ -103,7 +101,7 @@ A practical way to read the tables: pick the cheapest model whose quality clears
 
 - **Top-quality tier (hard / high-stakes changes): `claude-opus-5`** -- highest score (76/100) at $8.28/task. Reach for it on security-sensitive, cross-cutting, or get-it-right-the-first-time work where a wrong design is expensive. You pay the most, but accuracy is the most.
 - **Open-weight workhorse (bulk of day-to-day coding): `glm-5.2`** -- best self-hosted quality (71/100) at $4.03/task. Strong on real refactors and features; the model to standardize on if you self-host and route most tickets to one engine.
-- **Best value (most quality per dollar): `qwen3.8-27b`** -- clears ~61/100 (80% of the top score) at just $2.71/task. The sweet spot for well-scoped tasks: most of the quality, a fraction of the cost.
+- **Best value (most quality per dollar): `qwen3.8-27b`** -- clears ~61/100 (80% of the top score) at just $2.12/task. The sweet spot for well-scoped tasks: most of the quality, a fraction of the cost.
 - **Budget tier (routine / high-volume edits): `minimax-m2.5`** -- cheapest full 5/5 run at $0.32/task (score 45/100). Good for boilerplate, small fixes, and throwaway scaffolding where you will review the output anyway.
 - **Reliability flag:** `qwen3.6-35b` (4/5), `qwen3-coder-30b` (2/5) did **not** finish every task under pi -- cheap per task, but a non-completion is a failure, not a discount. Do not route unattended work to a model that does not reliably finish.
 

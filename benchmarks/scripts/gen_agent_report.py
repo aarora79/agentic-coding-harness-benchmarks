@@ -244,7 +244,8 @@ def _row_cost(row: dict[str, Any]) -> tuple[str, str]:
         the summed ``total_cost_usd``.
       * **hardware-derived (throughput)** -- a self-hosted model has no per-token
         price, so cost is the model's blended cost-per-token (measured by the
-        throughput sweep at its true instance rate, peak concurrency) times the
+        p5en.48xlarge throughput sweep at peak concurrency -- one basis for the
+        whole fleet, whatever box a model was served on) times the
         tokens this run processed: ``blended_$/token x total_tokens``. This
         replaces the old ``$/hr x wall-clock`` estimate, which charged idle
         agent-thinking time and applied one instance's price to every model.
@@ -352,10 +353,13 @@ def _render(
         note.append(
             " _hardware-derived (throughput)_ (self-hosted vLLM): a rented GPU has no "
             "per-token bill, so cost is the model's blended cost-per-token -- measured "
-            "by the throughput sweep at its true instance rate (g6e.12xlarge for L40S, "
-            "p5en.48xlarge for H200) and peak concurrency -- times the tokens this run "
-            "processed. This prices the real work done, unlike a wall-clock estimate "
-            "that would also charge idle agent-thinking time."
+            "by the p5en.48xlarge throughput sweep at peak concurrency -- times the "
+            "tokens this run processed. EVERY self-hosted row is priced on that one "
+            "sweep, including models served on a smaller g6e.12xlarge box, so the "
+            "fleet shares a single basis and the dollars compare with each other. A "
+            "row is therefore the cost of that model's work on p5en, not a quote for "
+            "the box it happened to run on. This prices the real work done, unlike a "
+            "wall-clock estimate that would also charge idle agent-thinking time."
         )
     if any_metered:
         note.append(
