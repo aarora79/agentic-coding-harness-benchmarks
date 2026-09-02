@@ -47,6 +47,7 @@ import matplotlib
 
 matplotlib.use("Agg")  # headless: render to file, never a display
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -158,16 +159,31 @@ def _blended_cost_per_token(
     return min(rates) if rates else None
 
 
-# Palette (from the dataviz skill's validated reference instance). Marks are a
-# recessive dark neutral; the frontier is the warm accent. Text wears ink tokens.
+# Palette (from the dataviz skill's validated reference instance). Text always
+# wears ink tokens; a coloured mark beside a label carries identity, never the
+# label itself.
+# Categorical hues are the first three slots of the reference palette, in both
+# modes: blue for the metered-bill points, orange for the hardware-derived ones,
+# aqua for the frontier line and its fill. Those three are the set that clears
+# the ALL-PAIRS colourblind and normal-vision floors a scatter needs -- a fourth
+# slot would put yellow beside orange and fail. Validated with the palette
+# checker; light aqua sits at 2.74:1 against the surface, under the 3:1 bar, so
+# it carries the required relief: every point is directly labelled and the
+# frontier is named in the legend, never colour alone.
 _THEME = {
     "light": {
         "surface": "#fcfcfb",
         "ink": "#0b0b0b",
         "muted": "#52514e",
         "grid": "#e6e5e2",
+        # Leader lines are wayfinding, not data. Drawn in "muted" they read as
+        # dark elbows competing with the marks, so they get their own token a
+        # step above the grid: visible when traced, invisible when not.
+        "leader": "#c9c7c0",
         "dot": "#33322f",
-        "accent": "#eb6834",
+        "accent": "#1baf7a",
+        "bedrock": "#2a78d6",
+        "self_hosted": "#eb6834",
         "label_bg": "#ffffff",
     },
     "dark": {
@@ -175,8 +191,11 @@ _THEME = {
         "ink": "#ffffff",
         "muted": "#c3c2b7",
         "grid": "#333330",
+        "leader": "#4a4a46",
         "dot": "#d7d6cf",
-        "accent": "#d95926",
+        "accent": "#199e70",
+        "bedrock": "#3987e5",
+        "self_hosted": "#d95926",
         "label_bg": "#26262410",
     },
 }
@@ -961,8 +980,6 @@ def _plot(
             color=theme["accent"],
             linewidth=2,
             linestyle="--",
-            marker="o",
-            markersize=9,
             zorder=2,
             label=frontier_label,
         )
@@ -1039,7 +1056,7 @@ def _plot(
         ax.scatter(
             point.mean_cost,
             point.mean_score,
-            s=90,
+            s=140,
             marker=marker_for(point) if marker_for else "o",
             color=(
                 color_for(point)
@@ -1047,7 +1064,7 @@ def _plot(
                 else (theme["accent"] if on_frontier else theme["dot"])
             ),
             edgecolors=theme["surface"],
-            linewidths=1.5,
+            linewidths=2,
             zorder=3,
         )
 
@@ -1160,8 +1177,8 @@ def _plot(
             arrowprops=(
                 {
                     "arrowstyle": "-",
-                    "color": theme["muted"],
-                    "linewidth": 0.6,
+                    "color": theme["leader"],
+                    "linewidth": 0.8,
                     "shrinkA": 2,
                     "shrinkB": 3,
                     # Right-angle elbow so the segment meeting the label is
@@ -1392,6 +1409,50 @@ def main() -> None:
             stem=f"pareto-frontier-{output.stem}" if args.models else None,
             models_filter=args.models,
         )
+    # Colour carries the cost BASIS, which is the chart's main reading hazard: a
+    # metered Bedrock bill and a hardware-derived self-hosted figure are dollars
+    # measured differently (see cost-per-task-methodology.md). The legend names
+    # both so provenance is never inferred from position on the axis.
+    palette = _THEME[mode]
+    # Only when the chart actually mixes both bases. ModelPoint.hosting is a
+    # binary read of provider == "bedrock", so on a single-basis chart it says
+    # nothing true: a kiro-cli run is priced in Kiro credits, neither a metered
+    # Bedrock bill nor hardware-derived, and colouring it "self-hosted" against
+    # an empty Bedrock swatch states the opposite of the cost-basis note below.
+    hostings = {p.hosting for p in points}
+    hosting_legend = (
+        []
+        if len(hostings) < 2
+        else [
+            Line2D(
+                [],
+                [],
+                marker="o",
+                linestyle="",
+                markersize=11,
+                markerfacecolor=palette["bedrock"],
+                markeredgecolor=palette["surface"],
+                markeredgewidth=2,
+                label="Bedrock -- metered bill",
+            ),
+            Line2D(
+                [],
+                [],
+                marker="o",
+                linestyle="",
+                markersize=11,
+                markerfacecolor=palette["self_hosted"],
+                markeredgecolor=palette["surface"],
+                markeredgewidth=2,
+                label="Self-hosted -- hardware-derived",
+            ),
+        ]
+    )
+    color_for = (
+        (lambda p: palette["bedrock" if p.hosting == "Bedrock" else "self_hosted"])
+        if hosting_legend
+        else None
+    )
     _plot(
         points,
         frontier,
@@ -1401,6 +1462,8 @@ def main() -> None:
         output=output,
         frontier_label=frontier_label,
         cost_basis_note=cost_basis_note,
+        color_for=color_for,
+        extra_legend=hosting_legend or None,
     )
 
 
