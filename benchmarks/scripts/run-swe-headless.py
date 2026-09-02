@@ -1634,23 +1634,53 @@ def _pi_result_from_events(
     assistant_msgs = [
         m for m in messages if isinstance(m, dict) and m.get("role") == "assistant"
     ]
-    # Sum per-message usage across the whole conversation (see docstring: usage is
-    # per-message, not cumulative). stopReason comes from the LAST assistant message.
+    # Usage is summed from the WHOLE event stream, not from agent_end.messages.
+    #
+    # agent_end carries the SETTLED conversation, and omp resets that list on every
+    # extra agent_start (context compaction, and the todo reminder that nudges the
+    # agent to keep going). So agent_end reports only the messages since the last
+    # restart, and every token before it is silently dropped -- by 14x to 704x on
+    # output across the runs this was measured on (issue #157).
+    #
+    # Verified against 231 saved omp streams: on the 200 with a single agent_start
+    # the two sums are IDENTICAL per message, to the token; on the 30 with more,
+    # agent_end.messages is an exact SUFFIX of the stream. agent_end can only ever
+    # carry less, never anything different, so summing the stream is strictly safer.
+    #
+    # Only assistant messages carry a usage object (toolResult / user / custom
+    # message_end events have none), so no role filter is needed. turn_end mirrors
+    # message_end and is skipped, or every message would count twice.
     totals = {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "cost": 0.0}
-    for m in assistant_msgs:
-        u = m.get("usage") or {}
-        totals["input"] += u.get("input") or 0
-        totals["output"] += u.get("output") or 0
-        totals["cacheRead"] += u.get("cacheRead") or 0
-        totals["cacheWrite"] += u.get("cacheWrite") or 0
+
+    def _accumulate(usage: dict[str, Any]) -> None:
+        """Add one message's usage into ``totals`` (see enclosing docstring)."""
+        totals["input"] += usage.get("input") or 0
+        totals["output"] += usage.get("output") or 0
+        totals["cacheRead"] += usage.get("cacheRead") or 0
+        totals["cacheWrite"] += usage.get("cacheWrite") or 0
         # Cost, when present, is per-message and additive (pi accrues it into
         # UsageTotals.cost the same way). Shapes vary by pi version: a bare number
         # or a {"total": ...} object -- accept both.
-        mc = u.get("cost")
-        if isinstance(mc, dict):
-            mc = mc.get("total")
-        if isinstance(mc, (int, float)):
-            totals["cost"] += mc
+        cost = usage.get("cost")
+        if isinstance(cost, dict):
+            cost = cost.get("total")
+        if isinstance(cost, (int, float)):
+            totals["cost"] += cost
+
+    counted = 0
+    for event in events:
+        if event.get("type") != "message_end":
+            continue
+        usage = (event.get("message") or {}).get("usage")
+        if isinstance(usage, dict):
+            _accumulate(usage)
+            counted += 1
+    # Fall back to the settled conversation when the stream carried no per-message
+    # usage at all: pi emits no message_end, and for a single-agent_start run the
+    # two sources agree exactly anyway.
+    if not counted:
+        for m in assistant_msgs:
+            _accumulate(m.get("usage") or {})
     stop_reason = assistant_msgs[-1].get("stopReason") if assistant_msgs else None
     # remap onto the keys _metrics_from_result reads for claude.
     remapped_usage: dict[str, Any] = {
