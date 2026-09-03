@@ -45,6 +45,11 @@ logger = logging.getLogger(__name__)
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPTS_DIR.parent.parent
 DEFAULT_SOURCE = _REPO_ROOT / "docs" / "metrics" / "pareto-frontier-omp-swe3.json"
+# Per-task scores live in the committed run summaries, not the frontier JSON,
+# which only carries whole-dataset means. The vended file needs both: a mean
+# hides that qwen3.8-27b scores 80.9 on low-complexity work and 57.2 on high.
+DEFAULT_RUNS_DIR = _REPO_ROOT / "benchmarks" / "swe-benchmark-data"
+TIERS = ("trivial", "low", "medium", "high")
 DEFAULT_OUT = _REPO_ROOT / "vend" / "model-router" / "models.json"
 
 # Bumped when the shape of models.json changes in a way a consumer would notice.
@@ -164,7 +169,74 @@ def _relative_or_name(source: Path, repo_root: Path) -> str:
         return source.name
 
 
-def build(source: Path, repo_root: Path) -> dict[str, Any]:
+def per_tier_stats(
+    runs_dir: Path, harness: str, skill: str, dataset: str
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Return model -> {"score": tier->mean, "completion": tier->"n/m"}.
+
+    Two numbers, because difficulty affects two different things.
+
+    **Score.** The whole-dataset mean is the wrong number to compare a quality
+    floor against when the task is hard. Models do not degrade equally: on this
+    data ``claude-opus-5`` loses 3.1 points on high-complexity tasks while
+    ``qwen3.8-27b`` loses 17.6. A model clearing a floor of 70 on its overall
+    mean can sit at 57 on the tier that actually matters.
+
+    **Completion.** A model that fails a task outright is worse than one that
+    scores badly, and failures concentrate somewhere: ``devstral-2-123b``
+    finished 3 of 6 medium tasks. A mean over the ones it survived says nothing
+    about that.
+
+    Failed tasks are excluded from the mean rather than averaged in as zero,
+    matching how the frontier JSON computes ``mean_score``. Including them
+    would make the tier means disagree with the overall score they sit beside.
+
+    Args:
+        runs_dir: The swe-benchmark-data root.
+        harness: Harness folder, e.g. "omp".
+        skill: Skill folder, e.g. "swe3".
+        dataset: Dataset scope folder.
+
+    Returns:
+        Model slug -> {"score": {tier: mean}, "completion": {tier: "n/m"}}.
+    """
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    pattern = f"*/{harness}/{skill}/{dataset}/run-summary.json"
+    for path in sorted(runs_dir.glob(pattern)):
+        summary = json.loads(path.read_text(encoding="utf-8"))
+        model = summary.get("model_slug")
+        scored: dict[str, list[float]] = {}
+        attempted: dict[str, int] = {}
+        for row in summary.get("tasks", []):
+            tier = row.get("complexity")
+            if not tier:
+                continue
+            attempted[tier] = attempted.get(tier, 0) + 1
+            score = row.get("task_score")
+            # A failed task scores 0 and is excluded, not averaged in -- the
+            # completion counter is where that failure shows up instead.
+            if score and not row.get("failed"):
+                scored.setdefault(tier, []).append(score)
+        if not model or not attempted:
+            continue
+        out[model] = {
+            "score": {
+                tier: round(sum(v) / len(v), 2)
+                for tier in TIERS
+                if (v := scored.get(tier))
+            },
+            "completion": {
+                tier: f"{len(scored.get(tier, []))}/{attempted[tier]}"
+                for tier in TIERS
+                if tier in attempted
+            },
+        }
+    return out
+
+
+def build(
+    source: Path, repo_root: Path, runs_dir: Path | None = None
+) -> dict[str, Any]:
     """Build the vended payload from a frontier JSON.
 
     Args:
@@ -184,6 +256,12 @@ def build(source: Path, repo_root: Path) -> dict[str, Any]:
     if not models:
         raise SystemExit(f"{source} carries no all_models list")
 
+    by_tier = per_tier_stats(
+        runs_dir if runs_dir is not None else DEFAULT_RUNS_DIR,
+        data.get("harness", ""),
+        data.get("skill", ""),
+        data.get("repo", ""),
+    )
     combined = {
         m["model"] for m in data.get("combined_frontier_cross_hosting_directional", [])
     }
@@ -209,6 +287,11 @@ def build(source: Path, repo_root: Path) -> dict[str, Any]:
                 # over whatever the user can actually select.
                 "on_combined_frontier": name in combined,
                 "on_hosting_frontier": name in bedrock or name in self_hosted,
+                # Compare a quality floor against the tier the task actually
+                # sits in. Models degrade at very different rates, and some
+                # stop finishing hard tasks at all.
+                "score_by_complexity": by_tier.get(name, {}).get("score", {}),
+                "completion_by_complexity": by_tier.get(name, {}).get("completion", {}),
             }
         )
 
@@ -238,6 +321,14 @@ def build(source: Path, repo_root: Path) -> dict[str, Any]:
                 "these to a very different codebase is extrapolation."
             ),
             "runs_per_task": 1,
+            "complexity_tiers": (
+                "trivial / low / medium / high, assigned by the scope of the "
+                "change. The hardest tasks measured are bounded single-repo "
+                "changes -- a rate-limiting subsystem, server-side OAuth token "
+                "storage. Nothing here approaches a rewrite or a language port, "
+                "so a task far beyond that range is outside what these numbers "
+                "cover."
+            ),
             "cost_basis": COST_BASIS,
         },
         "models": out_models,

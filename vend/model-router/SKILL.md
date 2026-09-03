@@ -47,9 +47,40 @@ The repo map often answers this for you. A project that calls a directory securi
 
 Ask the developer only when the repo does not settle it. One question, not four.
 
-**Do not set the floor from how big the task looks.** This is the mistake the underlying data rules out. On the benchmark, how complex a task is explains **6%** of the difference between a strong model and a weaker one — five tasks all classed as trivial ranged from a 0.4-point gap to a 13.8-point gap. A one-line change that turns on one exact fact needs a good model. A three-file mechanical edit does not. Size is not the signal; consequence is.
+**The floor comes from consequence, not size.** A one-line change to an auth path needs a good model. A three-file mechanical edit does not. Do not raise the floor because the task looks big, or lower it because it looks small.
 
-**One adjustment worth making.** If the task hinges on getting a single specific thing right — an API contract, a portability trap, a security invariant, an exact version comparison — raise the floor by 5. That is where the measured gap between models actually opens up.
+**One adjustment worth making.** If the task hinges on getting a single specific thing right — an API contract, a portability trap, a security invariant, an exact version comparison — raise the floor by 5. That is where the measured gap between models opens up.
+
+### 1b. Also classify how hard the task is
+
+The floor is one half. The other half is **which measured score to compare it against**, and that depends on the difficulty of the work.
+
+Place the task in one of four tiers:
+
+| Tier | Looks like |
+|---|---|
+| `trivial` | a docs page, one render condition, two config passthroughs |
+| `low` | a default changed across a couple of files, one small feature |
+| `medium` | a feature touching several files, a config surface, a template rewrite |
+| `high` | a subsystem: rate limiting, server-side token storage, a new authenticated endpoint |
+
+Then read `score_by_complexity` for the task's tier rather than the overall `score`, and read `completion_by_complexity` beside it. Models do not degrade at the same rate, and some stop finishing hard tasks at all:
+
+| Model | overall | on `low` | on `high` | finished on `high` |
+|---|---:|---:|---:|:-:|
+| `claude-opus-5` | 82.83 | 86.2 | 79.8 | 5/5 |
+| `claude-sonnet-5` | 76.97 | 80.5 | 73.7 | 5/5 |
+| `qwen3.8-27b` | 78.48 | 80.9 | 71.5 | **4/5** |
+| `kimi-k2.7-code` | 69.98 | 74.9 | 63.1 | **4/5** |
+| `gemma-4-31b` | 59.74 | 63.3 | 50.0 | 5/5 |
+
+Two things the overall mean hides. `qwen3.8-27b` outscores `claude-sonnet-5` overall (78.48 against 76.97) and trails it by 2.2 points on hard work — the ranking between them flips with the tier. And it did not finish one hard task at all, which the mean cannot show because a failure is excluded from it rather than averaged in.
+
+**A completion rate below the full count is a warning, not a rounding detail.** A model that finishes 4 of 5 hard tasks fails one in five outright. Say so when you recommend it, and prefer a model that finishes when the floor is close either way.
+
+Where `score_by_complexity` has no entry for a tier, fall back to the overall `score` and say you did.
+
+**When the task is beyond the measured range, say so.** The hardest tasks here are bounded single-repo changes. A language port, a framework migration, a rewrite, or anything spanning many services is outside what these numbers cover. Do not extrapolate: recommend the strongest model available and tell the developer the measurements do not reach that far. A weak model on an out-of-range task is not a saving.
 
 ### 2. Find out what the assistant can actually select
 
@@ -68,7 +99,7 @@ Filtering to what they have before you rank is also what keeps the dollar figure
 
 ### 3. Recommend the cheapest candidate that clears the floor
 
-Among the candidates, drop any model that another candidate beats on **both** score and cost. From what is left, take the cheapest at or above the floor.
+Score each candidate at the task's tier, using `score_by_complexity`. Drop any model that another candidate beats on **both** that score and cost. From what is left, take the cheapest at or above the floor.
 
 Then say it plainly:
 
@@ -84,10 +115,11 @@ Most developers run the top model for everything. That is what this skill is for
 
 On the benchmark, if someone is on `claude-opus-5`, then `claude-sonnet-5` lands within 5 points on **10 of 21 tasks** at **61% lower cost**, and matches or beats it outright on 5. Recommending down is the common case, not the exception.
 
-Two cautions that go with it:
+Three cautions that go with it:
 
 - **Downward advice needs a wider margin.** Each model ran each task once. A 2-point difference is not a reliable measurement; a 10-point one is. Do not recommend a downgrade on a gap of 3 points or less unless the saving is large and the floor is comfortably cleared.
 - **Cheaper is not a free win at low floors.** The weakest models are far behind on every kind of task, easy ones included. On the benchmark the cheapest model scores 42.58 against the best at 82.83 — that is a different outcome, not the same result for less.
+- **Downgrades get riskier as the task gets harder.** How much a cheaper model costs you depends on the pair *and* the tier. `claude-sonnet-5` trails `claude-opus-5` by 5.7 points on easy work and 6.1 on hard, so that swap holds up everywhere. `qwen3.8-27b` beats `claude-sonnet-5` by 0.4 on easy work and trails it by 2.2 on hard, while also failing one hard task in five. Check the tier column and the completion count before recommending down on difficult work.
 
 ## Say what the recommendation rests on
 
@@ -103,14 +135,15 @@ State the measurement date from `provenance.measured_on` too. These numbers move
 Recommendation: switch to claude-sonnet-5
 
   Task           add an env passthrough to two compose files
+  Complexity     trivial
   Consequence    internal tooling, a human reviews it before it matters
   Floor          65
 
-  You are on     claude-opus-5   82.83 / $11.95 per task
-  Recommended    claude-sonnet-5 76.97 / $4.67 per task
-  Saving         61% per task, and 12.0 points of headroom above your floor
+  You are on     claude-opus-5   83.8 on trivial tasks / $11.95 per task
+  Recommended    claude-sonnet-5 76.1 on trivial tasks / $4.67 per task
+  Saving         61% per task, and 11.1 points of headroom above your floor
 
-  Next step up   claude-opus-5 buys 5.9 more points for $7.28 more per task
+  Next step up   claude-opus-5 buys 7.7 more points for $7.28 more per task
 
 Basis: 21 design-and-implement tasks on one Python/React service repo,
 omp harness, judged by an LLM. Measured 2026-09-01. Rankings travel
@@ -123,6 +156,8 @@ Short. The numbers they need to disagree with you, and nothing else.
 
 - Recommend a model. Do not switch it, do not run the task, do not write the code.
 - Do not quote a number that is not in `models.json`.
+- Do not compare a floor against an overall mean when `score_by_complexity` has the tier.
+- Do not recommend a cheaper model for a task beyond the measured range.
 - Do not score a model that was not measured.
 - Do not compare a self-hosted price against a hosted one to justify a recommendation.
 - Do not tell anyone to buy or provision hardware.

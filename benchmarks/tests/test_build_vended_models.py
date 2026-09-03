@@ -135,6 +135,44 @@ class CommittedArtifactTest(unittest.TestCase):
             "vend/model-router/models.json is stale; run build_vended_models.py",
         )
 
+    def test_score_by_complexity_is_present_for_every_model(self) -> None:
+        # The skill compares a floor against the tier, not the overall mean.
+        # A model without tier scores silently falls back to the mean, which is
+        # what recommends qwen3.8-27b (74.74 overall, 57.2 on high) for hard work.
+        payload = bvm.build(bvm.DEFAULT_SOURCE, _REPO_ROOT)
+        for m in payload["models"]:
+            self.assertTrue(
+                m["score_by_complexity"], f"{m['model']} has no per-tier scores"
+            )
+
+    def test_completion_by_complexity_is_present_for_every_model(self) -> None:
+        # A failure is excluded from the mean rather than averaged in, so the
+        # completion counter is the only place it shows.
+        payload = bvm.build(bvm.DEFAULT_SOURCE, _REPO_ROOT)
+        for m in payload["models"]:
+            self.assertTrue(
+                m["completion_by_complexity"], f"{m['model']} has no completion counts"
+            )
+
+    def test_failed_tasks_are_excluded_from_tier_means(self) -> None:
+        # devstral-2-123b failed 3 of 6 medium tasks. Averaging those zeros in
+        # would put its tier means below the overall score they sit beside.
+        payload = bvm.build(bvm.DEFAULT_SOURCE, _REPO_ROOT)
+        d = next(m for m in payload["models"] if m["model"] == "devstral-2-123b")
+        self.assertEqual(d["completion_by_complexity"]["medium"], "3/6")
+        self.assertGreater(d["score_by_complexity"]["medium"], 30.0)
+
+    def test_tier_scores_bracket_the_overall_mean(self) -> None:
+        # A sanity check on the join: per-tier means must straddle the overall
+        # mean, or the two came from different runs.
+        payload = bvm.build(bvm.DEFAULT_SOURCE, _REPO_ROOT)
+        for m in payload["models"]:
+            tiers = list(m["score_by_complexity"].values())
+            if len(tiers) < 2:
+                continue
+            self.assertLessEqual(min(tiers), m["score"] + 0.01, m["model"])
+            self.assertGreaterEqual(max(tiers), m["score"] - 0.01, m["model"])
+
     def test_source_commit_tracks_the_frontier_not_head(self) -> None:
         # Stamping HEAD would make the file differ after every unrelated commit
         # and turn --check into noise. It must identify the data's version.
