@@ -15,10 +15,11 @@ You do not run their task. You do not change a setting. You do not write code. T
 
 ## What you have to work with
 
-Two files sit beside this one:
+These sit beside this one:
 
 - **`models.json`** — 16 models measured on a 21-task benchmark: mean score out of 100, cost per task in dollars, hosting, and how many tasks each finished. Read the `provenance` block: it names the date, harness, dataset and judge.
 - **`model-aliases.json`** — the same models under the names different assistants use, plus the rules for matching them.
+- **`allowed-models.md`** — the organisation's approved model list, and a hard constraint when present. Look for it beside this file, at the repository root, and in `.claude/`; the copy nearest the developer's repository wins, since a team overriding the shipped default is the point. The version shipped here allows the five models on the measured frontier, which a platform team is expected to edit. `allowed-models.example.md` is a format guide, never a policy — ignore it when deciding what is allowed.
 
 Read both before you answer. Never quote a score or a price from memory; if a model is not in `models.json` it has not been measured, and you say so rather than guessing.
 
@@ -82,16 +83,25 @@ Where `score_by_complexity` has no entry for a tier, fall back to the overall `s
 
 **When the task is beyond the measured range, say so.** The hardest tasks here are bounded single-repo changes. A language port, a framework migration, a rewrite, or anything spanning many services is outside what these numbers cover. Do not extrapolate: recommend the strongest model available and tell the developer the measurements do not reach that far. A weak model on an out-of-range task is not a saving.
 
-### 2. Find out what the assistant can actually select
+### 2. Build the candidate set
 
-Ask the assistant you are running inside to list the models it can switch to. In Claude Code that is `/model`; elsewhere check the settings, the model picker, or the provider config.
+Three things have to be true of a model before it can be recommended: the organisation permits it, this benchmark measured it, and the assistant can select it. Intersect all three **before** ranking anything. Checking policy afterwards means recommending a model the developer is not allowed to use and then withdrawing it.
 
-If you cannot enumerate them, **ask the developer what they have**. Do not assume.
+**Allowed.** If `allowed-models.md` exists, read the bullets under its **Allowed** heading and take the backticked name from each, ignoring the prose after it. That set is a hard constraint: a model absent from it is never recommended, whatever it scores. With no such file, every model is permitted.
 
-Match what you get against `model-aliases.json` using the rules in that file. Then:
+**Measured.** Keep the models that appear in `models.json`. Name anything dropped here — a model the organisation permits but this benchmark never ran is one you cannot advise on, and the developer should know it was considered rather than silently ignored.
 
-- A model in their list **and** in `models.json` → a candidate.
-- A model in their list but **not** in `models.json` → not measured. Name it, exclude it, do not estimate a score for it.
+**Available.** Ask the assistant you are running inside to list the models it can switch to. In Claude Code that is `/model`; elsewhere check the settings, the model picker, or the provider config. If you cannot enumerate them, ask the developer. Do not assume.
+
+Match names through `model-aliases.json` at every step, so `us.anthropic.claude-sonnet-5` in a policy file and "Claude Sonnet 5" in a dropdown resolve to the same model.
+
+**When the intersection is empty, the reason decides what you say.** Work out which step emptied it:
+
+- **Nothing the organisation allows was measured** → say that, list what they are allowed, and tell them to stay on their current model. You have no basis for advice and should not invent one.
+- **Allowed and measured models exist, but the assistant cannot select any** → name them. The developer needs access, not a different recommendation, and that is a request to their platform team rather than a model switch.
+- **The assistant offers models, but none were measured** → name them and say the benchmark has no data on them. Stay put.
+
+In every case, stop there. Do not fall back to a model that failed one of the three tests.
 
 **Getting a model is not your problem.** If they have a self-hosted model wired up it appears in their list. If they do not, it does not. Never tell someone to stand up a GPU server.
 

@@ -24,7 +24,17 @@ curl -sL -o .claude/skills/model-router/model-aliases.json \
   https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/model-router/model-aliases.json
 ```
 
-The path differs by assistant. The skill has no dependencies and imports nothing — four files in a directory is the whole install.
+The path differs by assistant. The skill has no dependencies and imports nothing — a directory of files is the whole install.
+
+### Restricting it to models your organisation allows
+
+`allowed-models.md` ships with the skill, allowing the five models on the measured frontier. **Edit it.** As written it is a starting point, not a policy: four of those five are self-hosted, so a developer on a hosted API can reach exactly one of them and would be sent to `claude-opus-5` at $11.95 per task for everything, including a docs page. The file says so at the top and lists what to add.
+
+Put your own copy beside the skill, at your repository root, or in `.claude/`; the one nearest the developer's repository wins. `allowed-models.example.md` shows the format: one backticked model name per bullet under an **Allowed** heading, with any note you like after it.
+
+The list is a hard constraint. The skill intersects it with what the benchmark measured and what the assistant can select **before** it ranks anything, so it never recommends a model you are not permitted to use. When the intersection comes out empty it says which of the three tests emptied it — nothing allowed was measured, nothing allowed is selectable, or nothing selectable was measured — and tells the developer to stay put rather than inventing a recommendation.
+
+Delete the file and every model is permitted.
 
 Then ask it: *"which model should I use for this?"*
 
@@ -90,13 +100,19 @@ Keeping them apart is the whole trick. Collapsing them — treating a big task a
               FLOOR  ◀── compared against ── SCORE AT THAT TIER
                               │
                               ▼
-                    your assistant's model list
-                              │
-                    ┌─────────┴─────────┐
-                    ▼                   ▼
-              in models.json      not measured
-                    │              (named, excluded)
+         allowed-models.md ── if present, a hard filter
+                    │
                     ▼
+         your assistant's model list
+                    │
+          ┌─────────┴─────────┐
+          ▼                   ▼
+    in models.json      not measured
+          │              (named, excluded)
+          │
+          ├── empty? say which of the three
+          │   tests emptied it, then stop
+          ▼
         cheapest at or above the floor
         gaps under 3 pts count as ties
                     │
