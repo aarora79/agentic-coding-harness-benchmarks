@@ -1,6 +1,6 @@
 ---
 name: model-router
-description: "Checks whether the current model is the right one for the coding task about to be done, and names a cheaper or stronger one when it is not. Uses measured scores and cost per task from a real 21-task benchmark rather than vendor claims, and usually recommends switching DOWN, because most developers run the top model for everything. Advisory only: it recommends a model in a few lines and stops -- it does not run the task, change any setting, or write code. Run it BEFORE starting a substantial coding task (a feature, a bug fix, a refactor, a migration), and whenever someone asks which model to use, whether a cheaper one would do, or whether they are overpaying. Do NOT run it for trivial requests, for questions, or once work on a task has already started."
+description: "Checks whether the current model is the right one for the coding task about to be done, and names a cheaper or stronger one when it is not. Uses measured scores and cost per task from a real 21-task benchmark rather than vendor claims, and usually recommends switching DOWN, because most developers run the top model for everything. Advisory only: it recommends a model in a few lines and stops -- it does not run the task, change any setting, or write code. The recommendation ENDS the turn: print it and hand back, so the developer can switch model before any work starts. Run it BEFORE starting a substantial coding task (a feature, a bug fix, a refactor, a migration), and whenever someone asks which model to use, whether a cheaper one would do, or whether they are overpaying. Do NOT run it for trivial requests, for questions, or once work on a task has already started."
 license: Apache-2.0
 metadata:
   author: Amit Arora
@@ -9,9 +9,9 @@ metadata:
 
 # Model Router
 
-Tell the developer which model to switch to. Recommend, then stop.
+Tell the developer which model to switch to. Recommend, then stop — the recommendation is the end of your turn.
 
-You do not run their task. You do not change a setting. You do not write code. The output is a recommendation and the reasoning behind it.
+You do not run their task. You do not change a setting. You do not write code. The output is a recommendation, the reasoning behind it, and then control back to the developer.
 
 ## Do not run when
 
@@ -152,7 +152,7 @@ That is the whole selection rule. There is no separate step that drops dominated
 
 The ranking is worked out here in any case, over the models this developer can actually select, at the tier this task actually sits in. A published frontier answers neither question.
 
-Then say it plainly. **The first line names the recommended model**, every time — that is the output, and burying it under the reasoning wastes the developer's attention. Say the model `route.py` returned in `recommended`, not a hedge about what you would have picked under other conditions:
+Then say it plainly, in the block under *The format of the answer* — that layout is required, not a suggestion. **The first line names the recommended model**, every time — that is the output, and burying it under the reasoning wastes the developer's attention. Say the model `route.py` returned in `recommended`, not a hedge about what you would have picked under other conditions:
 
 - **A candidate clears the floor** → `Recommendation: switch to <model>`. Give its score at the task's tier and its cost per task, say what they are on now and what changes. Mention if it is on the frontier, as context. If a better model exists above it, say what the next step up would cost per extra point, so they can overrule you.
 - **They are already on it** → `Recommendation: stay on <model>`. Still name it, and still show the runners-up you ranked it against, so they can see the call was made rather than skipped. "Stay where you are" is a real answer and it is often the right one.
@@ -161,6 +161,16 @@ Then say it plainly. **The first line names the recommended model**, every time 
 The recommendation is the one `route.py` returned over the permitted models. Do not qualify it with a model you left out, and never present a model as unavailable on your own inference — if you narrowed the set at all, it was because the developer told you to, and you say which of their words you acted on.
 
 Never invent a switch. A router that always recommends a change is a router that recommends noise.
+
+## Then stop and hand back
+
+The recommendation ends the turn. Print it and stop: no tool call after it, no "meanwhile, I have started on...", no first file written while the developer is still reading which model to use.
+
+A recommendation they cannot act on is not a recommendation. Switching model costs them one command, but only before the work begins — carry straight on and the context is built under the old model, so the advice is dead the moment it is printed. It also reads as though you asked the question and then overruled the answer.
+
+So the basis line is the last thing in the turn. The developer switches or does not, and tells you to go. Then you work.
+
+This holds when the answer is to stay, too. `stay on <model>` still ends the turn: they may disagree with the floor, the tier, or the model, and they get the chance to say so before anything is written.
 
 ## Expect to recommend downward
 
@@ -182,7 +192,46 @@ Every recommendation carries its basis. Not a footnote, a line the developer rea
 
 State the measurement date from `provenance.measured_on` too. These numbers move: a fix to token accounting once changed `claude-opus-5` from $7.63 to $11.95 per task while every score stayed the same. A stale price with a visible date is honest; a stale price presented as current is not.
 
-## The shape of a good answer
+**Say that the numbers are not about this task.** Every score and every dollar figure in the block is a mean over the benchmark's 21 tasks — past work, on somebody else's repository, under a different harness. None of it is a forecast for the change in front of the developer. The cost especially: what this task costs depends on how long it runs, how much of the repo it reads and how many turns it takes, and that is not knowable before it starts. So put it in the basis, plainly:
+
+> Scores and costs are that benchmark's per-task averages, not an estimate for this task. What this one costs depends on how long it runs.
+
+A developer who reads `$11.95 per task` and expects a bill of $11.95 for their change has been misled, and it is the number in the block most likely to be taken literally. The comparison between two models is the point. The absolute figure is scaffolding under the comparison.
+
+## The format of the answer
+
+Use this layout. Not something in its spirit — this one, with these labels, in this order:
+
+```
+Recommendation: <switch to|stay on> <model>
+
+  Task           <one line: what is about to be built>
+  Complexity     <trivial|low|medium|high>
+  Consequence    <why the floor is where it is>
+  Floor          <number>
+
+  You are on     <model>   <score> on <tier> tasks / $<cost> per task
+  Recommended    <model>   <score> on <tier> tasks / $<cost> per task  (<n/n finished>)
+  Saving         <percent>% per task, <points> points of headroom above the floor
+
+  Next step up   <model>   <score> for $<cost>  (+<points> points over the pick)
+
+Basis: 21 design-and-implement tasks on one Python/React service repo, <harness>
+harness, judged by an LLM. Measured <date>. Scores and costs are that benchmark's
+per-task averages, not an estimate for this task. Rankings travel better than
+absolute scores.
+```
+
+Six rules hold it together:
+
+- **The first line names the model**, prefixed `Recommendation:`. Nothing above it.
+- **Two indented spaces, labels in one column, model names in the next, numbers after.** It is read by eye, in a terminal, in about four seconds.
+- **Every score carries its tier** — `86.2 on low tasks`, never a bare `86.2`. The reader has to know which table it came from.
+- **Show the completion count** beside a recommended model, and always when it is short of the full count: `(4/5 finished)` is a one-in-five outright failure and belongs in front of them.
+- **Drop a row with nothing to say.** No `Saving` when the answer is to stay, no `Next step up` when they are already on the strongest permitted model. Pluralise to `Next steps up` when you list more than one. Do not add rows of prose.
+- **The basis is the last thing in the turn.** Nothing after it — see *Then stop and hand back*.
+
+A worked one, where the answer is to switch:
 
 ```
 Recommendation: switch to claude-sonnet-5
@@ -193,19 +242,20 @@ Recommendation: switch to claude-sonnet-5
   Floor          65
 
   You are on     claude-opus-5   83.8 on trivial tasks / $11.95 per task
-  Recommended    claude-sonnet-5 76.1 on trivial tasks / $4.67 per task
-  Saving         61% per task, and 11.1 points of headroom above your floor
+  Recommended    claude-sonnet-5 76.1 on trivial tasks / $4.67 per task  (5/5 finished)
+  Saving         61% per task, 11.1 points of headroom above the floor
 
-  Next step up   claude-opus-5 buys 7.7 more points for $7.28 more per task
-                 (7.7 is outside the +/-3 noise band, so it is a real gap)
+  Next step up   claude-opus-5   83.8 for $11.95  (+7.7 points over the pick,
+                 outside the +/-3 noise band, so it is a real gap)
 
-Basis: 21 design-and-implement tasks on one Python/React service repo,
-omp harness, judged by an LLM. Measured 2026-09-01. Rankings travel
+Basis: 21 design-and-implement tasks on one Python/React service repo, omp
+harness, judged by an LLM. Measured 2026-09-01. Scores and costs are that
+benchmark's per-task averages, not an estimate for this task. Rankings travel
 better than absolute scores.
 ```
 
-And when the answer is to stay, it still names the model on the first line and
-still shows what it was ranked against:
+And when the answer is to stay. Same layout, same labels — it still names the
+model on the first line and still shows what it was ranked against:
 
 ```
 Recommendation: stay on glm-5.3
@@ -215,7 +265,7 @@ Recommendation: stay on glm-5.3
   Consequence    a security path, wrong is expensive and slow to find
   Floor          75
 
-  You are on     glm-5.3         77.2 on high tasks / $8.09 per task
+  You are on     glm-5.3         77.2 on high tasks / $8.09 per task  (5/5 finished)
                  cheapest permitted model above the floor, and it sits
                  2.2 above it -- inside the noise band, not clear of it
 
@@ -226,6 +276,11 @@ Recommendation: stay on glm-5.3
   Below the floor  qwen3.8-27b   71.5, and finished only 4 of 5 hard tasks
                    qwen3.6-35b   56.0
                    gemma-4-31b   50.0
+
+Basis: 21 design-and-implement tasks on one Python/React service repo, omp
+harness, judged by an LLM. Measured 2026-09-01. Scores and costs are that
+benchmark's per-task averages, not an estimate for this task. Rankings travel
+better than absolute scores.
 ```
 
 Short. The numbers they need to disagree with you, and nothing else.
@@ -233,7 +288,9 @@ Short. The numbers they need to disagree with you, and nothing else.
 ## Stay inside the lines
 
 - Recommend a model. Do not switch it, do not run the task, do not write the code.
+- End the turn on the recommendation. Do not start the task in the same turn, whether the answer was switch or stay.
 - Do not quote a number that is not in `models.json`.
+- Do not present a benchmark average as this task's cost or score. It is what the model averaged on 21 other tasks, not a forecast for this one.
 - Do not compare a floor against an overall mean when `score_by_complexity` has the tier.
 - Do not filter or rank on `on_combined_frontier` or `on_hosting_frontier`. Report them; select on the tier score.
 - Do not present a gap under 3 points at a tier as a difference. It is noise.
