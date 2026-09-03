@@ -38,6 +38,8 @@ Then ask it: *"which model should I use for this?"*
 | `cost_per_task_usd` | Mean cost of one task |
 | `hosting` | `Bedrock` (metered bill) or `self-hosted` (derived from GPU cost) |
 | `tasks_completed` / `tasks_total` | Three models did not finish all 21 |
+| `on_combined_frontier` | Nothing beats it on both axes across all 16 models. Context, not a selection key — it comes from overall means and can disagree with the per-tier ranking |
+| `on_hosting_frontier` | The same, computed within one hosting basis, which is the apples-to-apples version |
 | `score_by_complexity` | Mean score per tier — the number the floor is compared against |
 | `completion_by_complexity` | How many tasks it finished per tier, where failure shows |
 
@@ -47,7 +49,7 @@ Then ask it: *"which model should I use for this?"*
 
 **One run per model per task.** A 2-point difference between two models is not a reliable measurement. A 10-point one is. The skill is told not to recommend a downgrade on a thin margin.
 
-**Two cost bases that do not compare.** Hosted figures come from a metered bill. Self-hosted figures come from GPU-hour price divided by measured throughput, assuming the server stays busy. The skill avoids the problem by ranking only within models you can actually select.
+**Self-hosted costs assume a busy server.** Hosted figures come from a metered bill. Self-hosted figures come from GPU-hour price divided by measured throughput, which holds at high utilisation and understates the cost of an idle box. The skill ranks on cost either way and says so when it recommends a self-hosted model.
 
 **These numbers move.** A fix to token accounting once changed `claude-opus-5` from $7.63 to $11.95 per task while every score stayed identical. Check `provenance.measured_on` and refetch if it looks old.
 

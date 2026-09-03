@@ -9,13 +9,13 @@ raw, and this script is the only thing that writes it.
 Two differences from the internal ``docs/metrics/pareto-frontier-*.json`` it
 reads:
 
-* **Every measured model is included, and no frontier membership is recorded.**
-  The skill ranks over the models the user's assistant actually offers, at the
-  complexity tier the task sits in. A precomputed frontier answers neither
-  question: it is derived from whole-dataset means, where the order between two
-  models can differ from the order at a given tier, and it may contain none of
-  the models the user has. A membership flag nobody reads is a flag somebody
-  eventually filters on, so it is not written.
+* **Every measured model is included, not just the frontier.** The skill ranks
+  over the models the user's assistant actually offers, at the complexity tier
+  the task sits in, so it needs the full set: a published frontier is derived
+  from whole-dataset means and may contain none of the models a given user has.
+  Frontier membership still travels, as ``on_combined_frontier`` and
+  ``on_hosting_frontier``, because "nothing beats this on both axes" is useful
+  context to show a reader. It is not a selection key, and the payload says so.
 * **Provenance travels with the data.** The internal file assumes a reader who
   knows this repo. A vended file has no such reader, so it carries the schema
   version, when it was measured, the harness, the skill, the dataset and the
@@ -256,6 +256,12 @@ def build(
     if not models:
         raise SystemExit(f"{source} carries no all_models list")
 
+    combined = {
+        m["model"] for m in data.get("combined_frontier_cross_hosting_directional", [])
+    }
+    bedrock = {m["model"] for m in data.get("bedrock_frontier", [])}
+    self_hosted = {m["model"] for m in data.get("self_hosted_frontier", [])}
+
     by_tier = per_tier_stats(
         runs_dir if runs_dir is not None else DEFAULT_RUNS_DIR,
         data.get("harness", ""),
@@ -280,6 +286,14 @@ def build(
                 # Compare a quality floor against the tier the task actually
                 # sits in. Models degrade at very different rates, and some
                 # stop finishing hard tasks at all.
+                # Frontier membership as published, so a consumer can see which
+                # models are non-dominated across the whole dataset. Computed
+                # from overall means, so it can disagree with the per-tier
+                # ranking below: qwen3.8-27b is on the combined frontier and
+                # still trails claude-sonnet-5 on high-complexity work. Report
+                # it as context; select on score_by_complexity.
+                "on_combined_frontier": name in combined,
+                "on_hosting_frontier": name in bedrock or name in self_hosted,
                 "score_by_complexity": by_tier.get(name, {}).get("score", {}),
                 "completion_by_complexity": by_tier.get(name, {}).get("completion", {}),
             }
@@ -311,6 +325,17 @@ def build(
                 "these to a very different codebase is extrapolation."
             ),
             "runs_per_task": 1,
+            "frontier_flags": (
+                "on_combined_frontier and on_hosting_frontier mark models that "
+                "nothing else beats on both score and cost across the WHOLE "
+                "dataset. They are context for a reader, not a selection key: "
+                "they come from overall means, so they can disagree with the "
+                "per-tier ranking. Select on score_by_complexity at the task's "
+                "tier. on_hosting_frontier is computed within one hosting basis "
+                "(Bedrock or self-hosted), which is the apples-to-apples "
+                "comparison; on_combined_frontier mixes the two and is "
+                "directional."
+            ),
             "complexity_tiers": (
                 "trivial / low / medium / high, assigned by the scope of the "
                 "change. The hardest tasks measured are bounded single-repo "

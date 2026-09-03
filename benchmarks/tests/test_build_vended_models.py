@@ -75,15 +75,34 @@ class BuildTest(unittest.TestCase):
         out = bvm.build(_write(_frontier()), _REPO_ROOT)
         self.assertEqual({m["model"] for m in out["models"]}, {"big", "small"})
 
-    def test_no_frontier_membership_is_recorded(self) -> None:
-        # The skill ranks over the user's available models at the task's tier.
-        # A precomputed frontier answers neither question -- it comes from
-        # whole-dataset means and may contain none of their models -- so the
-        # flag is not written. A field nobody reads is one somebody filters on.
+    def test_frontier_membership_is_recorded(self) -> None:
         out = bvm.build(_write(_frontier()), _REPO_ROOT)
-        for m in out["models"]:
-            self.assertNotIn("on_combined_frontier", m)
-            self.assertNotIn("on_hosting_frontier", m)
+        by = {m["model"]: m for m in out["models"]}
+        self.assertTrue(by["small"]["on_combined_frontier"])
+        self.assertFalse(by["big"]["on_combined_frontier"])
+        # big is on the Bedrock frontier even though it is off the combined one.
+        self.assertTrue(by["big"]["on_hosting_frontier"])
+
+    def test_frontier_flags_are_documented_as_context_not_a_key(self) -> None:
+        # They come from overall means and can disagree with the per-tier
+        # ranking, so the payload has to say what they are for.
+        out = bvm.build(_write(_frontier()), _REPO_ROOT)
+        note = out["measurement_basis"]["frontier_flags"]
+        self.assertIn("not a selection key", note)
+        self.assertIn("score_by_complexity", note)
+
+    def test_a_frontier_model_can_still_lose_at_a_tier(self) -> None:
+        # The reason the flags are not a selection key, pinned against the real
+        # data: qwen3.8-27b is on the combined frontier and trails
+        # claude-sonnet-5, which is not, on high-complexity work.
+        payload = bvm.build(bvm.DEFAULT_SOURCE, _REPO_ROOT)
+        by = {m["model"]: m for m in payload["models"]}
+        q, s = by["qwen3.8-27b"], by["claude-sonnet-5"]
+        self.assertTrue(q["on_combined_frontier"])
+        self.assertFalse(s["on_combined_frontier"])
+        self.assertLess(
+            q["score_by_complexity"]["high"], s["score_by_complexity"]["high"]
+        )
 
     def test_models_are_ordered_by_score_descending(self) -> None:
         out = bvm.build(_write(_frontier()), _REPO_ROOT)

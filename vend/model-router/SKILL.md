@@ -93,9 +93,9 @@ Match what you get against `model-aliases.json` using the rules in that file. Th
 - A model in their list **and** in `models.json` → a candidate.
 - A model in their list but **not** in `models.json` → not measured. Name it, exclude it, do not estimate a score for it.
 
-**Getting a model is not your problem.** If they have a self-hosted model wired up it appears in their list. If they do not, it does not. Never tell someone to stand up a GPU server.
+**Getting a model is not your problem.** If they have a self-hosted model wired up it appears in their list. If they do not, it does not. Never tell someone to stand up a GPU server, and do not treat a model differently because of where it runs — the cost of running it is already in `cost_per_task_usd`, which is what you rank on.
 
-Filtering to what they have before you rank is also what keeps the dollar figures honest. `models.json` carries two cost bases — a metered bill for hosted models, a hardware derivation for self-hosted ones — and they are not comparable. Ranking only within what someone can pick avoids putting them side by side to produce an answer.
+One disclosure, not a rule: a self-hosted figure is GPU-hour price divided by measured throughput, which assumes the server stays busy. If you recommend a self-hosted model, say that its cost per task holds at high utilisation and climbs on an idle box.
 
 ### 3. Recommend the cheapest candidate that clears the floor
 
@@ -103,11 +103,13 @@ Score each candidate at the task's tier, using `score_by_complexity`. Keep the o
 
 That is the whole selection rule. There is no separate step that drops dominated models, because taking the cheapest model above the floor already yields a non-dominated answer — anything that beat it on both axes would have been cheaper, and would have been picked instead.
 
-**Nothing is read from a precomputed frontier.** `models.json` holds every measured model and the ranking is worked out here, over the models this developer can actually select, at the tier this task actually sits in. A published frontier would be wrong on both counts: it is computed from whole-dataset means, where the order between models can differ from the order at a given tier, and it may not contain a single model the developer has.
+**Select on `score_by_complexity`, never on the frontier flags.** `models.json` marks each model with `on_combined_frontier` and `on_hosting_frontier` — nothing else beats it on both score and cost across the whole dataset. That is worth mentioning when you recommend a model, and it is not how you choose one. Those flags come from overall means, so they can disagree with the tier that matters: `qwen3.8-27b` is on the combined frontier and still trails `claude-sonnet-5` on high-complexity work. `on_hosting_frontier` compares within one hosting basis, `on_combined_frontier` across both.
+
+The ranking is worked out here in any case, over the models this developer can actually select, at the tier this task actually sits in. A published frontier answers neither question.
 
 Then say it plainly:
 
-- **A candidate clears the floor** → name it, give its score and cost per task, say what they are on now and what changes. If a better model exists above it, say what the next step up would cost per extra point, so they can overrule you.
+- **A candidate clears the floor** → name it, give its score at the task's tier and its cost per task, say what they are on now and what changes. Mention if it is on the frontier, as context. If a better model exists above it, say what the next step up would cost per extra point, so they can overrule you.
 - **They are already on it** → say so. "Stay where you are" is a real answer and it is often the right one.
 - **Nothing clears the floor** → say that. Name the closest, how far short it falls, and let them decide. Do not promote a model past its measured score to produce a recommendation.
 
@@ -161,8 +163,8 @@ Short. The numbers they need to disagree with you, and nothing else.
 - Recommend a model. Do not switch it, do not run the task, do not write the code.
 - Do not quote a number that is not in `models.json`.
 - Do not compare a floor against an overall mean when `score_by_complexity` has the tier.
+- Do not filter or rank on `on_combined_frontier` or `on_hosting_frontier`. Report them; select on the tier score.
 - Do not recommend a cheaper model for a task beyond the measured range.
 - Do not score a model that was not measured.
-- Do not compare a self-hosted price against a hosted one to justify a recommendation.
 - Do not tell anyone to buy or provision hardware.
 - If `models.json` has a `schema_version` whose major differs from `1`, stop and say the data is newer than these instructions.
