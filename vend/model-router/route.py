@@ -14,7 +14,7 @@ excluded. Standard library only, so it runs wherever the skill is installed.
 The rule, in full:
 
 1. Start from every model in ``models.json``.
-2. Drop anything the organisation does not allow, if ``allowed-models.md`` is
+2. Drop anything the organisation does not allow, if ``allowed-models.txt`` is
    present beside this file, at the repository root, or in ``.claude/``.
 3. Drop anything the assistant cannot select, if ``--available`` was given.
 4. Read each survivor's score at the task's tier -- not its overall mean, which
@@ -45,7 +45,7 @@ TIERS = ("trivial", "low", "medium", "high")
 
 # Where an organisation's allow-list might sit, nearest the developer first: a
 # team overriding the shipped default is the point of having one.
-ALLOW_LIST_NAMES = ("allowed-models.md",)
+ALLOW_LIST_NAMES = ("allowed-models.txt",)
 ALLOW_LIST_DIRS = (Path.cwd(), Path.cwd() / ".claude", _HERE)
 
 
@@ -152,30 +152,34 @@ def find_allow_list(explicit: Path | None) -> Path | None:
 
 
 def parse_allow_list(path: Path) -> list[str]:
-    """Return the model names under the file's "Allowed" heading.
+    """Return the model names listed in an allow-list file.
 
-    The format is one backticked name per bullet; anything after it is a note
-    for humans. Sections other than "Allowed" are documentation and ignored, so
-    a "Not allowed" list cannot accidentally permit anything.
+    One model per line. Everything from a ``#`` to end of line is a comment,
+    and blank lines are skipped, so the file can carry as much explanation as
+    its maintainer wants without any of it being mistaken for policy. That last
+    property is why this is a plain list rather than markdown: a commented-out
+    example cannot accidentally permit a model.
 
     Args:
-        path: The allow-list markdown file.
+        path: The allow-list file.
 
     Returns:
-        The model names listed as allowed.
+        The model names, in file order.
 
     Raises:
-        RouteError: If the file has no Allowed section, or it is empty. Both
-            would silently permit nothing.
+        RouteError: If the file names no models. An empty list permits nothing,
+            which is almost never what someone meant to write.
     """
-    text = path.read_text(encoding="utf-8")
-    parts = re.split(r"^##\s+Allowed\s*$", text, maxsplit=1, flags=re.M | re.I)
-    if len(parts) < 2:
-        raise RouteError(f"{path} has no '## Allowed' section")
-    section = re.split(r"^##\s+", parts[1], maxsplit=1, flags=re.M)[0]
-    names = re.findall(r"^\s*[-*]\s+`([^`]+)`", section, flags=re.M)
+    names = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        name = line.split("#", 1)[0].strip()
+        if name:
+            names.append(name)
     if not names:
-        raise RouteError(f"{path} lists no models under '## Allowed'")
+        raise RouteError(
+            f"{path} lists no models. An allow-list with no entries permits "
+            "nothing; delete the file to permit everything."
+        )
     return names
 
 

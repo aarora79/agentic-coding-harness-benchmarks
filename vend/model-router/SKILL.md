@@ -20,7 +20,7 @@ These sit beside this one:
 - **`models.json`** — 16 models measured on a 21-task benchmark: mean score out of 100, cost per task in dollars, hosting, and how many tasks each finished. Read the `provenance` block: it names the date, harness, dataset and judge.
 - **`model-aliases.json`** — the same models under the names different assistants use, plus the rules for matching them.
 - **`route.py`** — runs the selection. Standard library only, so `python3 route.py` works wherever the skill is installed.
-- **`allowed-models.md`** — the organisation's approved model list, and a hard constraint when present. Look for it beside this file, at the repository root, and in `.claude/`; the copy nearest the developer's repository wins, since a team overriding the shipped default is the point. The version shipped here allows the five models on the measured frontier, which a platform team is expected to edit. `allowed-models.example.md` is a format guide, never a policy — ignore it when deciding what is allowed.
+- **`allowed-models.txt`** — the organisation's approved model list, and a hard constraint when present. One model per line, `#` starts a comment. `route.py` finds and reads it; you never open it. It ships allowing the five models on the measured frontier, which a platform team is expected to edit.
 
 Read both before you answer. Never quote a score or a price from memory; if a model is not in `models.json` it has not been measured, and you say so rather than guessing.
 
@@ -88,7 +88,7 @@ Where `score_by_complexity` has no entry for a tier, fall back to the overall `s
 
 ### 2. Build the candidate set
 
-Three things have to be true of a model before it can be recommended: the organisation permits it, this benchmark measured it, and the assistant can select it. **`route.py` applies all three** — it reads `allowed-models.md`, checks `models.json`, and intersects both with whatever you pass as `--available`. Do not parse those files yourself; a second reading of them is a second answer waiting to disagree with the first.
+Three things have to be true of a model before it can be recommended: the organisation permits it, this benchmark measured it, and the assistant can select it. **`route.py` applies all three** — it reads `allowed-models.txt`, checks `models.json`, and intersects both with whatever you pass as `--available`. Do not parse those files yourself; a second reading of them is a second answer waiting to disagree with the first.
 
 Your one job here is the list of models the assistant can select.
 
@@ -111,7 +111,7 @@ python3 route.py --tier high --floor 70 \
   --available "claude-opus-5,claude-sonnet-5,claude-haiku-4-5"
 ```
 
-Pass `--available` with the models the assistant listed, exactly as it spelled them — the script resolves aliases itself. Omit it only when you could not enumerate them and the developer could not tell you either. It finds `allowed-models.md` on its own; `--allowed-file` overrides the path and `--no-allow-list` ignores policy entirely, which you should not do unasked.
+Pass `--available` with the models the assistant listed, exactly as it spelled them — the script resolves aliases itself. Omit it only when you could not enumerate them and the developer could not tell you either. It finds `allowed-models.txt` on its own; `--allowed-file` overrides the path and `--no-allow-list` ignores policy entirely, which you should not do unasked.
 
 It prints JSON. The fields that matter:
 

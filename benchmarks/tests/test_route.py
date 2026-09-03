@@ -140,27 +140,31 @@ class SelectionTest(unittest.TestCase):
 class AllowListTest(unittest.TestCase):
     def _write(self, body: str) -> Path:
         tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False, encoding="utf-8"
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
         )
         tmp.write(body)
         tmp.close()
         return Path(tmp.name)
 
     def test_allow_list_is_a_hard_constraint(self) -> None:
-        p = self._write("## Allowed\n\n- `claude-haiku-4-5` — cheap\n")
+        p = self._write("claude-haiku-4-5  # cheap\n")
         r = _route(tier="low", floor=50, allowed_file=p, no_allow_list=False)
         self.assertEqual(r["candidates_considered"], ["claude-haiku-4-5"])
 
-    def test_not_allowed_section_never_permits(self) -> None:
-        # Only the Allowed heading counts; a second section is documentation.
+    def test_comments_and_blank_lines_are_ignored(self) -> None:
+        # The whole reason for a plain list: a commented-out model is a
+        # comment, and cannot be mistaken for policy.
         p = self._write(
-            "## Allowed\n\n- `claude-haiku-4-5`\n\n## Not allowed\n\n- `claude-opus-5`\n"
+            "# do not enable yet:\n"
+            "#   claude-opus-5\n"
+            "\n"
+            "claude-haiku-4-5  # approved for docs\n"
         )
         r = _route(tier="low", floor=50, allowed_file=p, no_allow_list=False)
         self.assertEqual(r["candidates_considered"], ["claude-haiku-4-5"])
 
     def test_allowed_but_unmeasured_models_are_named(self) -> None:
-        p = self._write("## Allowed\n\n- `some-model-we-never-ran`\n")
+        p = self._write("some-model-we-never-ran\n")
         r = _route(tier="low", floor=50, allowed_file=p, no_allow_list=False)
         self.assertEqual(r["status"], "no_candidates")
         self.assertIn(
@@ -174,32 +178,49 @@ class AllowListTest(unittest.TestCase):
             _route(
                 tier="low",
                 floor=50,
-                allowed_file=Path("/nope/allowed-models.md"),
+                allowed_file=Path("/nope/allowed-models.txt"),
                 no_allow_list=False,
             )
 
-    def test_an_allow_list_with_no_allowed_section_is_an_error(self) -> None:
-        p = self._write("# Models\n\nSome prose and no heading.\n")
-        with self.assertRaisesRegex(route.RouteError, "no '## Allowed' section"):
+    def test_an_allow_list_with_only_comments_is_an_error(self) -> None:
+        # Permitting nothing is almost never what someone meant to write.
+        p = self._write("# every model is commented out\n#claude-opus-5\n")
+        with self.assertRaisesRegex(route.RouteError, "lists no models"):
             _route(tier="low", floor=50, allowed_file=p, no_allow_list=False)
 
-    def test_the_example_block_in_the_shipped_list_is_not_policy(self) -> None:
-        # allowed-models.md argues for adding claude-sonnet-5 and shows the
-        # bullets to paste. They are formatted exactly like real entries, so a
-        # parser that ignored headings would silently permit them.
-        names = route.parse_allow_list(_VEND / "allowed-models.md")
+    def test_the_shipped_lists_commented_suggestions_are_not_policy(self) -> None:
+        # The file suggests adding claude-sonnet-5 and claude-haiku-4-5 as
+        # commented lines. A comment is a comment.
+        path = _VEND / "allowed-models.txt"
+        names = route.parse_allow_list(path)
         self.assertNotIn("claude-sonnet-5", names)
         self.assertNotIn("claude-haiku-4-5", names)
         self.assertIn(
-            "`claude-sonnet-5`",
-            (_VEND / "allowed-models.md").read_text(encoding="utf-8"),
-            "the file should still show sonnet as a suggested addition",
+            "claude-sonnet-5",
+            path.read_text(encoding="utf-8"),
+            "the file should still suggest sonnet as an addition",
         )
 
     def test_the_shipped_allow_list_parses(self) -> None:
-        names = route.parse_allow_list(_VEND / "allowed-models.md")
+        names = route.parse_allow_list(_VEND / "allowed-models.txt")
         self.assertEqual(len(names), 5)
         self.assertIn("claude-opus-5", names)
+
+    def test_the_shipped_allow_list_is_the_frontier(self) -> None:
+        # It is the frontier by construction, so a regenerated frontier must
+        # not leave the list quietly stale.
+        payload = json.loads((_VEND / "models.json").read_text(encoding="utf-8"))
+        frontier = {m["model"] for m in payload["models"] if m["on_combined_frontier"]}
+        names = set(route.parse_allow_list(_VEND / "allowed-models.txt"))
+        self.assertEqual(names, frontier)
+
+    def test_the_shipped_allow_list_says_what_it_excludes(self) -> None:
+        # Four of the five are self-hosted, so the list as written leaves a
+        # hosted-API developer with one option. Shipping that silently would be
+        # a trap.
+        text = (_VEND / "allowed-models.txt").read_text(encoding="utf-8")
+        self.assertIn("claude-sonnet-5", text)
+        self.assertIn("self-hosted", text)
 
     def test_the_shipped_allow_list_forces_opus_for_bedrock_users(self) -> None:
         # Recorded because it is the argument for editing the shipped list:
@@ -208,7 +229,7 @@ class AllowListTest(unittest.TestCase):
             tier="high",
             floor=70,
             available=["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
-            allowed_file=_VEND / "allowed-models.md",
+            allowed_file=_VEND / "allowed-models.txt",
             no_allow_list=False,
         )
         self.assertEqual(r["recommended"]["model"], "claude-opus-5")

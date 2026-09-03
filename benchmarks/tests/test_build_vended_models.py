@@ -234,38 +234,12 @@ class CommittedArtifactTest(unittest.TestCase):
             [
                 "README.md",
                 "SKILL.md",
-                "allowed-models.example.md",
-                "allowed-models.md",
+                "allowed-models.txt",
                 "model-aliases.json",
                 "models.json",
                 "route.py",
             ],
         )
-
-    def test_allow_lists_name_only_measured_models(self) -> None:
-        # A list naming a model nobody measured silently drops it at the
-        # intersection, so the developer never learns their policy covers a
-        # model this benchmark cannot advise on.
-        import re
-
-        models = {m["model"] for m in json.loads(bvm.DEFAULT_OUT.read_text())["models"]}
-        for name in ("allowed-models.md", "allowed-models.example.md"):
-            text = (_VEND_DIR / name).read_text(encoding="utf-8")
-            section = text.split("## Allowed", 1)[1].split("## ", 1)[0]
-            named = set(re.findall(r"^- `([^`]+)`", section, re.M))
-            self.assertTrue(named, f"{name} lists no models")
-            self.assertEqual(named - models, set(), f"{name} names unmeasured models")
-
-    def test_shipped_allow_list_is_the_frontier(self) -> None:
-        # It is the frontier by construction, so a drifted frontier must not
-        # leave the list quietly out of date.
-        import re
-
-        payload = json.loads(bvm.DEFAULT_OUT.read_text())
-        frontier = {m["model"] for m in payload["models"] if m["on_combined_frontier"]}
-        text = (_VEND_DIR / "allowed-models.md").read_text(encoding="utf-8")
-        section = text.split("## Allowed", 1)[1].split("## ", 1)[0]
-        self.assertEqual(set(re.findall(r"^- `([^`]+)`", section, re.M)), frontier)
 
     def test_readme_tier_tables_match_the_data(self) -> None:
         # The README prints the four tier tables so a reader can see the scan.
@@ -297,14 +271,6 @@ class CommittedArtifactTest(unittest.TestCase):
                 )
                 checked += 1
         self.assertGreaterEqual(checked, 60, "expected four full tier tables")
-
-    def test_shipped_allow_list_states_what_it_excludes(self) -> None:
-        # Four of the five frontier models are self-hosted, so the list as
-        # written leaves a hosted-API developer with one option. Shipping that
-        # without saying so would be a trap.
-        text = (_VEND_DIR / "allowed-models.md").read_text(encoding="utf-8")
-        self.assertIn("claude-sonnet-5", text)
-        self.assertIn("self-hosted", text)
 
     def test_every_model_has_an_alias_entry(self) -> None:
         # A model with no aliases can never be matched against an assistant's

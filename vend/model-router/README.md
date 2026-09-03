@@ -15,7 +15,7 @@ Knowing which tasks those are needs measurement. This skill carries the measurem
 ```bash
 BASE=https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/model-router
 mkdir -p .claude/skills/model-router
-for f in SKILL.md route.py models.json model-aliases.json allowed-models.md; do
+for f in SKILL.md route.py models.json model-aliases.json allowed-models.txt; do
   curl -sL -o ".claude/skills/model-router/$f" "$BASE/$f"
 done
 ```
@@ -28,15 +28,15 @@ Five files:
 | `route.py` | the selection, as code. Standard library only — no install step |
 | `models.json` | the measurements — 16 models, scores and cost per tier |
 | `model-aliases.json` | model names as different assistants spell them |
-| `allowed-models.md` | which models your organisation permits. **Edit this one.** |
+| `allowed-models.txt` | which models your organisation permits. **Edit this one.** |
 
 The path differs by assistant. The skill has no dependencies and imports nothing — a directory of files is the whole install.
 
 ### Restricting it to models your organisation allows
 
-`allowed-models.md` ships with the skill, allowing the five models on the measured frontier. **Edit it.** As written it is a starting point, not a policy: four of those five are self-hosted, so a developer on a hosted API can reach exactly one of them and would be sent to `claude-opus-5` at $11.95 per task for everything, including a docs page. The file says so at the top and lists what to add.
+`allowed-models.txt` ships with the skill, allowing the five models on the measured frontier. **Edit it.** As written it is a starting point, not a policy: four of those five are self-hosted, so a developer on a hosted API can reach exactly one of them and would be sent to `claude-opus-5` at $11.95 per task for everything, including a docs page. The file says so at the top and lists what to add.
 
-Put your own copy beside the skill, at your repository root, or in `.claude/`; the one nearest the developer's repository wins. `allowed-models.example.md` shows the format: one backticked model name per bullet under an **Allowed** heading, with any note you like after it.
+Put your own copy beside the skill, at your repository root, or in `.claude/`; the one nearest the developer's repository wins. The format is one model per line, with `#` starting a comment — so a model you are not ready to enable is commented out rather than described as forbidden somewhere a parser might read it.
 
 The list is a hard constraint. The skill intersects it with what the benchmark measured and what the assistant can select **before** it ranks anything, so it never recommends a model you are not permitted to use. When the intersection comes out empty it says which of the three tests emptied it — nothing allowed was measured, nothing allowed is selectable, or nothing selectable was measured — and tells the developer to stay put rather than inventing a recommendation.
 
@@ -106,7 +106,7 @@ Keeping them apart is the whole trick. Collapsing them — treating a big task a
               FLOOR  ◀── read against ── that tier's table
                               │
                               ▼
-         allowed-models.md ── if present, a hard filter
+        allowed-models.txt ── if present, a hard filter
                     │
                     ▼
          your assistant's model list
@@ -269,7 +269,7 @@ python3 route.py --tier high --floor 70 \
   --available "claude-opus-5,claude-sonnet-5,claude-haiku-4-5"
 ```
 
-It prints JSON with the pick, the runners-up cheapest-first, how far above the floor the pick sits and whether that margin beats the noise, whether the model finished every task at that tier, and what policy or availability excluded. `--no-allow-list` ignores `allowed-models.md`; `--allowed-file` points at another one.
+It prints JSON with the pick, the runners-up cheapest-first, how far above the floor the pick sits and whether that margin beats the noise, whether the model finished every task at that tier, and what policy or availability excluded. `--no-allow-list` ignores `allowed-models.txt`; `--allowed-file` points at another one.
 
 ### What it delivers, measured
 
