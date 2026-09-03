@@ -101,6 +101,12 @@ Match what you get against `model-aliases.json` using the rules in that file. Th
 
 Score each candidate at the task's tier, using `score_by_complexity`. Keep the ones at or above the floor. Take the cheapest of those; if two cost the same, take the higher-scoring one.
 
+**Treat a gap under 3 points at a tier as no gap at all.** Each tier holds 5 or 6 tasks, run once each, so a small difference between two models is sampling noise rather than a finding. Dropping a single task from a tier reverses the order of two models 82% of the time when they sit within 1 point, 53% within 2, and 47% within 3. Past 5 points it reverses 5% of the time, and past 8 it never does.
+
+So when the candidates are within 3 points of each other at the task's tier, they are indistinguishable: **take the cheaper one and say they were tied**. Do not present a 1.4-point difference as a reason to prefer a model.
+
+The same applies to the floor itself. A model scoring 71 against a floor of 70 has not reliably cleared it. Recommend it if nothing better is available, and say it sits inside the margin.
+
 That is the whole selection rule. There is no separate step that drops dominated models, because taking the cheapest model above the floor already yields a non-dominated answer — anything that beat it on both axes would have been cheaper, and would have been picked instead.
 
 **Select on `score_by_complexity`, never on the frontier flags.** `models.json` marks each model with `on_combined_frontier` and `on_hosting_frontier` — nothing else beats it on both score and cost across the whole dataset. That is worth mentioning when you recommend a model, and it is not how you choose one. Those flags come from overall means, so they can disagree with the tier that matters: `qwen3.8-27b` is on the combined frontier and still trails `claude-sonnet-5` on high-complexity work. `on_hosting_frontier` compares within one hosting basis, `on_combined_frontier` across both.
@@ -123,7 +129,7 @@ On the benchmark, if someone is on `claude-opus-5`, then `claude-sonnet-5` lands
 
 Three cautions that go with it:
 
-- **Downward advice needs a wider margin.** Each model ran each task once. A 2-point difference is not a reliable measurement; a 10-point one is. Do not recommend a downgrade on a gap of 3 points or less unless the saving is large and the floor is comfortably cleared.
+- **A downgrade inside the noise is a free saving, not a risk.** If the cheaper model is within 3 points at the tier, the measurements do not distinguish them, so the cheaper one is the right call and the saving is real. What needs care is the opposite: do not describe a 2-point difference as a quality loss the developer is accepting, because it is not measurable.
 - **Cheaper is not a free win at low floors.** The weakest models are far behind on every kind of task, easy ones included. On the benchmark the cheapest model scores 42.58 against the best at 82.83 — that is a different outcome, not the same result for less.
 - **Downgrades get riskier as the task gets harder.** How much a cheaper model costs you depends on the pair *and* the tier. `claude-sonnet-5` trails `claude-opus-5` by 5.7 points on easy work and 6.1 on hard, so that swap holds up everywhere. `qwen3.8-27b` beats `claude-sonnet-5` by 0.4 on easy work and trails it by 2.2 on hard, while also failing one hard task in five. Check the tier column and the completion count before recommending down on difficult work.
 
@@ -150,6 +156,7 @@ Recommendation: switch to claude-sonnet-5
   Saving         61% per task, and 11.1 points of headroom above your floor
 
   Next step up   claude-opus-5 buys 7.7 more points for $7.28 more per task
+                 (7.7 is outside the +/-3 noise band, so it is a real gap)
 
 Basis: 21 design-and-implement tasks on one Python/React service repo,
 omp harness, judged by an LLM. Measured 2026-09-01. Rankings travel
@@ -164,6 +171,7 @@ Short. The numbers they need to disagree with you, and nothing else.
 - Do not quote a number that is not in `models.json`.
 - Do not compare a floor against an overall mean when `score_by_complexity` has the tier.
 - Do not filter or rank on `on_combined_frontier` or `on_hosting_frontier`. Report them; select on the tier score.
+- Do not present a gap under 3 points at a tier as a difference. It is noise.
 - Do not recommend a cheaper model for a task beyond the measured range.
 - Do not score a model that was not measured.
 - Do not tell anyone to buy or provision hardware.

@@ -47,7 +47,7 @@ Then ask it: *"which model should I use for this?"*
 
 **One repository.** Every task comes from a Python/FastAPI and React service with nginx, Terraform, Helm and bash around it. Rankings travel better than absolute scores. If you write Rust game engines, treat the ordering as a starting point and the numbers as indicative.
 
-**One run per model per task.** A 2-point difference between two models is not a reliable measurement. A 10-point one is. The skill is told not to recommend a downgrade on a thin margin.
+**One run per model per task, 5 or 6 per tier.** Small differences are noise. Dropping a single task from a tier reverses the order of two models 82% of the time when they sit within 1 point of each other, 53% within 2, and 47% within 3 — but only 5% past 5 points, and never past 8. The skill treats anything under 3 points at a tier as a tie and takes the cheaper model.
 
 **Self-hosted costs are measured under load.** Hosted figures come from a metered bill. Self-hosted figures come from the server's hourly price divided by throughput measured at a stated concurrency — a platform team serving a group of developers, not one person with an idle GPU. Both are a cost per task, and the skill ranks them together.
 
@@ -98,7 +98,7 @@ Keeping them apart is the whole trick. Collapsing them — treating a big task a
                     │              (named, excluded)
                     ▼
         cheapest at or above the floor
-        ties break on the higher score
+        gaps under 3 pts count as ties
                     │
          ┌──────────┼──────────────┐
          ▼          ▼              ▼
