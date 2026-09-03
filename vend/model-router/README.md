@@ -15,16 +15,17 @@ Knowing which tasks those are needs measurement. This skill carries the measurem
 ```bash
 BASE=https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/model-router
 mkdir -p .claude/skills/model-router
-for f in SKILL.md models.json model-aliases.json allowed-models.md; do
+for f in SKILL.md route.py models.json model-aliases.json allowed-models.md; do
   curl -sL -o ".claude/skills/model-router/$f" "$BASE/$f"
 done
 ```
 
-Four files:
+Five files:
 
 | File | |
 |---|---|
 | `SKILL.md` | the skill itself |
+| `route.py` | the selection, as code. Standard library only — no install step |
 | `models.json` | the measurements — 16 models, scores and cost per tier |
 | `model-aliases.json` | model names as different assistants spell them |
 | `allowed-models.md` | which models your organisation permits. **Edit this one.** |
@@ -258,6 +259,44 @@ A bold completion count means the model failed at least one task at that tier, w
 The hardest tasks measured are bounded changes inside one repository — a rate-limiting subsystem, server-side OAuth token storage. Nothing here is a rewrite, a language port, or a change spanning several services.
 
 Asked about work beyond that range, the skill recommends the strongest model available and tells you the measurements do not reach that far. Extrapolating a cheap model onto a job three orders of magnitude larger than anything tested is not a saving.
+
+## Running the selection directly
+
+`route.py` is the whole decision procedure, and it works without the skill:
+
+```bash
+python3 route.py --tier high --floor 70 \
+  --available "claude-opus-5,claude-sonnet-5,claude-haiku-4-5"
+```
+
+It prints JSON with the pick, the runners-up cheapest-first, how far above the floor the pick sits and whether that margin beats the noise, whether the model finished every task at that tier, and what policy or availability excluded. `--no-allow-list` ignores `allowed-models.md`; `--allowed-file` points at another one.
+
+### What it delivers, measured
+
+Running the router over the 21 benchmark tasks, using each task's real difficulty and then checking the recommended model's **actual score on that specific task**:
+
+| Floor | $/task | Cleared the floor in reality |
+|---:|---:|---|
+| 55 | $0.26 | 16/21 (76%) |
+| 60 | $1.04 | 17/21 (81%) |
+| 65 | $1.33 | 17/21 (81%) |
+| 70 | $1.47 | 18/21 (86%) |
+| 75 | $3.05 | 18/21 (86%) |
+
+`claude-opus-5` on the same 21 tasks clears a floor of 70 on **21 of 21**, at **$11.95** per task.
+
+So the honest summary is not "the same quality for less". It is **86% of the bar for an eighth of the price**. Whether that trade is right depends on what a miss costs you, which is the question the floor was supposed to encode.
+
+The gap has a cause worth knowing: a tier score is a *mean*, so a model sitting near the floor will fall below it on the harder half of that tier by construction. Asking for headroom fixes most of it:
+
+| Floor | Headroom | Hit rate | $/task |
+|---:|---:|---|---:|
+| 70 | +0 | 18/21 (86%) | $1.47 |
+| 70 | +5 | 20/21 (95%) | $3.05 |
+| 65 | +3 | 19/21 (90%) | $1.47 |
+| 65 | +8 | 20/21 (95%) | $2.24 |
+
+Going from 86% to 95% at a floor of 70 costs $1.58 per task and still runs at a quarter of always-opus. If a miss is expensive for you, raise the floor rather than distrusting the router.
 
 ## Regenerating the data
 

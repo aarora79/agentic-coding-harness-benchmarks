@@ -19,6 +19,7 @@ These sit beside this one:
 
 - **`models.json`** — 16 models measured on a 21-task benchmark: mean score out of 100, cost per task in dollars, hosting, and how many tasks each finished. Read the `provenance` block: it names the date, harness, dataset and judge.
 - **`model-aliases.json`** — the same models under the names different assistants use, plus the rules for matching them.
+- **`route.py`** — runs the selection. Standard library only, so `python3 route.py` works wherever the skill is installed.
 - **`allowed-models.md`** — the organisation's approved model list, and a hard constraint when present. Look for it beside this file, at the repository root, and in `.claude/`; the copy nearest the developer's repository wins, since a team overriding the shipped default is the point. The version shipped here allows the five models on the measured frontier, which a platform team is expected to edit. `allowed-models.example.md` is a format guide, never a policy — ignore it when deciding what is allowed.
 
 Read both before you answer. Never quote a score or a price from memory; if a model is not in `models.json` it has not been measured, and you say so rather than guessing.
@@ -109,9 +110,32 @@ In every case, stop there. Do not fall back to a model that failed one of the th
 
 **Do not treat a model differently because of where it runs.** What it costs to run is already in `cost_per_task_usd`, which is what you rank on. A self-hosted figure comes from the server's hourly price divided by throughput measured under concurrent load — a platform team serving a group of developers, which is how self-hosting is actually done — so it is a cost per task on the same footing as a metered one. Rank them together and say nothing about hosting unless the developer asks.
 
-### 3. Recommend the cheapest candidate that clears the floor
+### 3. Run the selection
 
-Read the candidates out of the task's table — the one `score_by_complexity` holds for that tier. Sort them cheapest first, scan down, and take the first whose score is at or above the floor. If two cost the same, take the higher-scoring one.
+You have the two inputs. `route.py` does the rest, so the arithmetic is arithmetic rather than something you work out in prose:
+
+```bash
+python3 route.py --tier high --floor 70 \
+  --available "claude-opus-5,claude-sonnet-5,claude-haiku-4-5"
+```
+
+Pass `--available` with the models the assistant listed, exactly as it spelled them — the script resolves aliases itself. Omit it only when you could not enumerate them and the developer could not tell you either. It finds `allowed-models.md` on its own; `--allowed-file` overrides the path and `--no-allow-list` ignores policy entirely, which you should not do unasked.
+
+It prints JSON. The fields that matter:
+
+| Field | Use |
+|---|---|
+| `status` | `ok`, `nothing_clears_floor`, or `no_candidates` |
+| `recommended` | the model, its score at that tier, and cost per task |
+| `margin_over_floor` / `margin_is_meaningful` | how far above the floor, and whether that is more than noise |
+| `finished_every_task` / `completion` | whether it finished every task at this tier |
+| `cleared_floor` | the runners-up, cheapest first — the next step up is the second entry |
+| `reason` | why nothing was recommended, when nothing was |
+| `excluded` | what policy or availability removed, so you can name it |
+
+**Report what it returns; do not re-derive it.** If the numbers in the JSON disagree with your reading of `models.json`, the JSON is right.
+
+Run it once. If you find yourself running it twice with different floors to get a nicer answer, stop — the floor came from the consequence of being wrong, and that has not changed.
 
 **Treat a gap under 3 points at a tier as no gap at all.** Each tier holds 5 or 6 tasks, run once each, so a small difference between two models is sampling noise rather than a finding. Dropping a single task from a tier reverses the order of two models 82% of the time when they sit within 1 point, 53% within 2, and 47% within 3. Past 5 points it reverses 5% of the time, and past 8 it never does.
 
@@ -121,7 +145,7 @@ The same applies to the floor itself. A model scoring 71 against a floor of 70 h
 
 That is the whole selection rule. There is no separate step that drops dominated models, because taking the cheapest model above the floor already yields a non-dominated answer — anything that beat it on both axes would have been cheaper, and would have been picked instead.
 
-**Select on `score_by_complexity`, never on the frontier flags.** `models.json` marks each model with `on_combined_frontier` and `on_hosting_frontier` — nothing else beats it on both score and cost across the whole dataset. That is worth mentioning when you recommend a model, and it is not how you choose one. Those flags come from overall means, so they can disagree with the tier that matters: `qwen3.8-27b` is on the combined frontier and still trails `claude-sonnet-5` on high-complexity work. `on_hosting_frontier` compares within one hosting basis, `on_combined_frontier` across both.
+**Read the tier's table, never the frontier flags.** `models.json` marks each model with `on_combined_frontier` and `on_hosting_frontier` — nothing else beats it on both score and cost across the whole dataset. That is worth mentioning when you recommend a model, and it is not how you choose one. Those flags come from overall means, so they can disagree with the tier that matters: `qwen3.8-27b` is on the combined frontier and still trails `claude-sonnet-5` on high-complexity work. `on_hosting_frontier` compares within one hosting basis, `on_combined_frontier` across both.
 
 The ranking is worked out here in any case, over the models this developer can actually select, at the tier this task actually sits in. A published frontier answers neither question.
 

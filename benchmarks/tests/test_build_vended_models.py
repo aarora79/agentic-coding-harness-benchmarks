@@ -227,8 +227,10 @@ class CommittedArtifactTest(unittest.TestCase):
     def test_vend_dir_holds_exactly_the_portable_files(self) -> None:
         # The portability contract: the skill must work in a directory holding
         # only these. An extra file is a dependency someone will start relying on.
+        # Importing route.py in tests leaves a __pycache__; it is a build
+        # artifact of running the checks, not something anyone installs.
         self.assertEqual(
-            sorted(p.name for p in _VEND_DIR.iterdir()),
+            sorted(p.name for p in _VEND_DIR.iterdir() if p.is_file()),
             [
                 "README.md",
                 "SKILL.md",
@@ -236,6 +238,7 @@ class CommittedArtifactTest(unittest.TestCase):
                 "allowed-models.md",
                 "model-aliases.json",
                 "models.json",
+                "route.py",
             ],
         )
 
