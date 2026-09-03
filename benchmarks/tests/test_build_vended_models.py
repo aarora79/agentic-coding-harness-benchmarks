@@ -75,13 +75,15 @@ class BuildTest(unittest.TestCase):
         out = bvm.build(_write(_frontier()), _REPO_ROOT)
         self.assertEqual({m["model"] for m in out["models"]}, {"big", "small"})
 
-    def test_frontier_membership_is_an_annotation(self) -> None:
+    def test_no_frontier_membership_is_recorded(self) -> None:
+        # The skill ranks over the user's available models at the task's tier.
+        # A precomputed frontier answers neither question -- it comes from
+        # whole-dataset means and may contain none of their models -- so the
+        # flag is not written. A field nobody reads is one somebody filters on.
         out = bvm.build(_write(_frontier()), _REPO_ROOT)
-        by = {m["model"]: m for m in out["models"]}
-        self.assertTrue(by["small"]["on_combined_frontier"])
-        self.assertFalse(by["big"]["on_combined_frontier"])
-        # big is on the Bedrock frontier even though it is off the combined one.
-        self.assertTrue(by["big"]["on_hosting_frontier"])
+        for m in out["models"]:
+            self.assertNotIn("on_combined_frontier", m)
+            self.assertNotIn("on_hosting_frontier", m)
 
     def test_models_are_ordered_by_score_descending(self) -> None:
         out = bvm.build(_write(_frontier()), _REPO_ROOT)

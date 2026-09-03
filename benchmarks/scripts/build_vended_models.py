@@ -9,13 +9,13 @@ raw, and this script is the only thing that writes it.
 Two differences from the internal ``docs/metrics/pareto-frontier-*.json`` it
 reads:
 
-* **Every measured model is included, not the frontier.** The skill filters to
-  what the user's assistant actually offers before it ranks anything, and that
-  set may contain no frontier model at all -- somebody with only
-  ``claude-sonnet-5`` and ``claude-haiku-4-5`` has two models, neither on the
-  combined frontier, and still deserves an answer. Dominance is computed at
-  recommendation time over the available subset. ``on_combined_frontier`` rides
-  along as an annotation.
+* **Every measured model is included, and no frontier membership is recorded.**
+  The skill ranks over the models the user's assistant actually offers, at the
+  complexity tier the task sits in. A precomputed frontier answers neither
+  question: it is derived from whole-dataset means, where the order between two
+  models can differ from the order at a given tier, and it may contain none of
+  the models the user has. A membership flag nobody reads is a flag somebody
+  eventually filters on, so it is not written.
 * **Provenance travels with the data.** The internal file assumes a reader who
   knows this repo. A vended file has no such reader, so it carries the schema
   version, when it was measured, the harness, the skill, the dataset and the
@@ -262,12 +262,6 @@ def build(
         data.get("skill", ""),
         data.get("repo", ""),
     )
-    combined = {
-        m["model"] for m in data.get("combined_frontier_cross_hosting_directional", [])
-    }
-    bedrock = {m["model"] for m in data.get("bedrock_frontier", [])}
-    self_hosted = {m["model"] for m in data.get("self_hosted_frontier", [])}
-
     out_models = []
     for m in sorted(models, key=lambda x: -x["mean_score"]):
         name = m["model"]
@@ -283,10 +277,6 @@ def build(
                 "tasks_completed": m.get("n_scored"),
                 "tasks_total": m.get("n_tasks"),
                 "excluded_tasks": m.get("excluded_tasks") or [],
-                # Annotation, never a filter. The skill recomputes dominance
-                # over whatever the user can actually select.
-                "on_combined_frontier": name in combined,
-                "on_hosting_frontier": name in bedrock or name in self_hosted,
                 # Compare a quality floor against the tier the task actually
                 # sits in. Models degrade at very different rates, and some
                 # stop finishing hard tasks at all.

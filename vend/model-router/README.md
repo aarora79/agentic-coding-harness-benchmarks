@@ -38,7 +38,8 @@ Then ask it: *"which model should I use for this?"*
 | `cost_per_task_usd` | Mean cost of one task |
 | `hosting` | `Bedrock` (metered bill) or `self-hosted` (derived from GPU cost) |
 | `tasks_completed` / `tasks_total` | Three models did not finish all 21 |
-| `on_combined_frontier` | Annotation only — the skill recomputes this over your models |
+| `score_by_complexity` | Mean score per tier — the number the floor is compared against |
+| `completion_by_complexity` | How many tasks it finished per tier, where failure shows |
 
 ### Read these caveats before you trust a number
 
@@ -94,11 +95,8 @@ Keeping them apart is the whole trick. Collapsing them — treating a big task a
               in models.json      not measured
                     │              (named, excluded)
                     ▼
-            drop dominated models
-            (another beats it on score AND cost)
-                    │
-                    ▼
-            cheapest one at or above the floor
+       cheapest at or above the floor
+       (ties break on the higher score)
                     │
          ┌──────────┼──────────┐
          ▼          ▼          ▼

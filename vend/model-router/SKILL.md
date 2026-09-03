@@ -99,7 +99,11 @@ Filtering to what they have before you rank is also what keeps the dollar figure
 
 ### 3. Recommend the cheapest candidate that clears the floor
 
-Score each candidate at the task's tier, using `score_by_complexity`. Drop any model that another candidate beats on **both** that score and cost. From what is left, take the cheapest at or above the floor.
+Score each candidate at the task's tier, using `score_by_complexity`. Keep the ones at or above the floor. Take the cheapest of those; if two cost the same, take the higher-scoring one.
+
+That is the whole selection rule. There is no separate step that drops dominated models, because taking the cheapest model above the floor already yields a non-dominated answer — anything that beat it on both axes would have been cheaper, and would have been picked instead.
+
+**Nothing is read from a precomputed frontier.** `models.json` holds every measured model and the ranking is worked out here, over the models this developer can actually select, at the tier this task actually sits in. A published frontier would be wrong on both counts: it is computed from whole-dataset means, where the order between models can differ from the order at a given tier, and it may not contain a single model the developer has.
 
 Then say it plainly:
 
