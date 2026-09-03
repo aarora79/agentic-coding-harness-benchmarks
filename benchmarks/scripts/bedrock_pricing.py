@@ -27,17 +27,17 @@ PRICES_AS_OF = "2026-08-31"
 PRICES: dict[str, dict[str, float]] = {
     # GPT-5.6 Terra — high-capability variant
     "openai.gpt-5.6-terra": {
-        "input":       4.00,
+        "input": 4.00,
         "cache_write": 5.00,
-        "cache_read":  0.40,
-        "output":     18.00,
+        "cache_read": 0.40,
+        "output": 18.00,
     },
     # GPT-5.6 Luna — cost-efficient variant
     "openai.gpt-5.6-luna": {
-        "input":       0.40,
+        "input": 0.40,
         "cache_write": 0.50,
-        "cache_read":  0.04,
-        "output":      1.80,
+        "cache_read": 0.04,
+        "output": 1.80,
     },
 }
 
@@ -54,7 +54,7 @@ def _rates(model: str) -> dict[str, float] | None:
     clean = model
     for prefix in ("us.", "global.", "eu.", "ap."):
         if clean.startswith(prefix):
-            clean = clean[len(prefix):]
+            clean = clean[len(prefix) :]
             break
     return PRICES.get(clean) or PRICES.get(model)
 
@@ -85,9 +85,9 @@ def cost_usd(
     if rates is None:
         return None
     total = (
-        input_tokens       * rates["input"]       / _PER_1M
-        + output_tokens    * rates["output"]      / _PER_1M
-        + cache_read_tokens  * rates["cache_read"]  / _PER_1M
+        input_tokens * rates["input"] / _PER_1M
+        + output_tokens * rates["output"] / _PER_1M
+        + cache_read_tokens * rates["cache_read"] / _PER_1M
         + cache_write_tokens * rates["cache_write"] / _PER_1M
     )
     return round(total, 6)
