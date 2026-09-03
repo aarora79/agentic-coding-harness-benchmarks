@@ -95,16 +95,16 @@ Keeping them apart is the whole trick. Collapsing them — treating a big task a
               in models.json      not measured
                     │              (named, excluded)
                     ▼
-       cheapest at or above the floor
-       (ties break on the higher score)
+        cheapest at or above the floor
+        ties break on the higher score
                     │
-         ┌──────────┼──────────┐
-         ▼          ▼          ▼
-     switch to   already    nothing
-     model X     on it      clears it
-                    │          │
-                 stay put   stay put,
-                            name the shortfall
+         ┌──────────┼──────────────┐
+         ▼          ▼              ▼
+     switch to   already        nothing
+      model X    on it          clears it
+         │          │              │
+      say what   stay put      stay put, and
+      it costs                 name the shortfall
 ```
 
 ### Why the floor comes from consequence, not size
