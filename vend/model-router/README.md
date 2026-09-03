@@ -42,7 +42,9 @@ The list is a hard constraint. The skill intersects it with what the benchmark m
 
 Delete the file and every model is permitted.
 
-Then ask it: *"which model should I use for this?"*
+It fires on its own before a substantial coding task — a feature, a bug fix, a refactor, a migration — and stays quiet for typos, questions, and work already under way. You can also ask it directly: *"which model should I use for this?"*
+
+If it is firing when you do not want it, narrow the `Run it BEFORE…` sentence in `SKILL.md`; that one sentence is the whole trigger.
 
 ## What the numbers mean
 

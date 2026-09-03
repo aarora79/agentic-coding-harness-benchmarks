@@ -235,6 +235,37 @@ class AllowListTest(unittest.TestCase):
         self.assertEqual(r["recommended"]["model"], "claude-opus-5")
 
 
+class SkillTriggerTest(unittest.TestCase):
+    """The description is the only thing that decides whether the skill fires."""
+
+    def setUp(self) -> None:
+        self.text = (_VEND / "SKILL.md").read_text(encoding="utf-8")
+        self.desc = re.search(r'^description: "(.*)"$', self.text, re.M).group(1)
+
+    def test_description_names_when_to_run_and_when_not_to(self) -> None:
+        # A trigger with no negative half fires on typos and gets switched off.
+        self.assertIn("BEFORE starting a substantial coding task", self.desc)
+        self.assertIn("Do NOT run it", self.desc)
+
+    def test_description_fits_the_frontmatter_budget(self) -> None:
+        # Descriptions are read in bulk to decide which skill fires; a long one
+        # crowds out the others.
+        self.assertLess(len(self.desc), 1024, "description is getting long")
+
+    def test_skill_has_an_early_bail_out(self) -> None:
+        # Firing broadly is only safe if the first thing it does is check
+        # whether it should have.
+        self.assertIn("Do not run when", self.text)
+        self.assertLess(
+            self.text.index("Do not run when"),
+            self.text.index("Three steps"),
+            "the bail-out must come before the procedure",
+        )
+
+    def test_skill_states_it_runs_once_per_task(self) -> None:
+        self.assertIn("Once per task", self.text)
+
+
 class CliTest(unittest.TestCase):
     def test_runs_as_a_script_on_stdlib_alone(self) -> None:
         # The skill shells out to it wherever it is installed, with no venv.

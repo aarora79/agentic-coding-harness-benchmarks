@@ -1,6 +1,6 @@
 ---
 name: model-router
-description: "Recommends which model the developer should switch their coding assistant to for the task in front of them. Reads the repo and the task, asks what happens if the change is wrong to set a quality floor, lists the models this assistant can actually select, and names the cheapest one that clears the floor -- using measured scores and cost per task from a real 21-task benchmark rather than vendor claims. Often recommends switching DOWN, because most people run the top model for everything. Advisory only: it recommends a model and stops. It does not run the task, change any setting, or write code. Use when someone asks which model to use, whether a cheaper model would do, or whether they are overpaying for the work they are doing."
+description: "Checks whether the current model is the right one for the coding task about to be done, and names a cheaper or stronger one when it is not. Uses measured scores and cost per task from a real 21-task benchmark rather than vendor claims, and usually recommends switching DOWN, because most developers run the top model for everything. Advisory only: it recommends a model in a few lines and stops -- it does not run the task, change any setting, or write code. Run it BEFORE starting a substantial coding task (a feature, a bug fix, a refactor, a migration), and whenever someone asks which model to use, whether a cheaper one would do, or whether they are overpaying. Do NOT run it for trivial requests, for questions, or once work on a task has already started."
 license: Apache-2.0
 metadata:
   author: Amit Arora
@@ -12,6 +12,18 @@ metadata:
 Tell the developer which model to switch to. Recommend, then stop.
 
 You do not run their task. You do not change a setting. You do not write code. The output is a recommendation and the reasoning behind it.
+
+## Do not run when
+
+Stop immediately, say nothing, and get on with what was asked, if any of these hold:
+
+- **The request is small.** A typo, a rename, one obvious line. The advice would cost more attention than the task.
+- **Work has already started.** Switching model mid-task loses the context built so far, which is worth more than the price difference.
+- **It is a question, not a change.** "How does this work" needs an answer, not a model.
+- **The developer already chose.** If they named a model, they have decided. Do not second-guess it unasked.
+- **You ran already for this task.** Once per task. A second opinion on the same work is noise.
+
+Everything below assumes a substantial coding task about to begin: a feature, a bug fix, a refactor, a migration. When one is, be quick — the whole output is a few lines, and a developer who wanted a lecture would have asked for one.
 
 ## What you have to work with
 
