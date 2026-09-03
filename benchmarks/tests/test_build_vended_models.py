@@ -264,6 +264,37 @@ class CommittedArtifactTest(unittest.TestCase):
         section = text.split("## Allowed", 1)[1].split("## ", 1)[0]
         self.assertEqual(set(re.findall(r"^- `([^`]+)`", section, re.M)), frontier)
 
+    def test_readme_tier_tables_match_the_data(self) -> None:
+        # The README prints the four tier tables so a reader can see the scan.
+        # Hand-copied numbers drift; a regenerated models.json must not leave
+        # the documented tables quietly wrong.
+        import re
+
+        payload = json.loads(bvm.DEFAULT_OUT.read_text())
+        by = {m["model"]: m for m in payload["models"]}
+        text = (_VEND_DIR / "README.md").read_text(encoding="utf-8")
+        checked = 0
+        for tier in ("trivial", "low", "medium", "high"):
+            block = text.split(f"**`{tier}`** —", 1)
+            if len(block) < 2:
+                continue
+            table = block[1].split("\n\n", 2)[1]
+            rows = re.findall(
+                r"^\| \$([\d.]+) \| `([^`]+)` \| ([\d.]+) \|", table, re.M
+            )
+            self.assertTrue(rows, f"no rows parsed for {tier}")
+            costs = [float(c) for c, _, _ in rows]
+            self.assertEqual(costs, sorted(costs), f"{tier} table not cheapest-first")
+            for cost, model, score in rows:
+                self.assertAlmostEqual(
+                    float(score), by[model]["score_by_complexity"][tier], places=1
+                )
+                self.assertAlmostEqual(
+                    float(cost), by[model]["cost_per_task_usd"], places=2
+                )
+                checked += 1
+        self.assertGreaterEqual(checked, 60, "expected four full tier tables")
+
     def test_shipped_allow_list_states_what_it_excludes(self) -> None:
         # Four of the five frontier models are self-hosted, so the list as
         # written leaves a hosted-API developer with one option. Shipping that

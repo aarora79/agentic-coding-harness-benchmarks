@@ -98,11 +98,11 @@ Keeping them apart is the whole trick. Collapsing them — treating a big task a
         └────────────────┘    │ beyond range ──▶ strongest available,
                  │            └──────────────────┘  say so, stop
                  │                      │
-            +5 if it turns              │  picks the column
+            +5 if it turns              │  picks WHICH TABLE
             on one exact fact           │
                  │                      │
                  ▼                      ▼
-              FLOOR  ◀── compared against ── SCORE AT THAT TIER
+              FLOOR  ◀── read against ──  that tier's table
                               │
                               ▼
          allowed-models.md ── if present, a hard filter
@@ -138,7 +138,7 @@ On the benchmark, five tasks all classed as `trivial` — every one a single-fil
 
 Same size. Opposite answers. What separated them was whether the task hinged on getting one specific thing right, which is why that gets a +5 on the floor and size gets nothing.
 
-### Why difficulty picks the column
+### Why difficulty picks the table
 
 Models do not degrade in parallel. Comparing a floor against a whole-dataset average hides that, and the hiding is not small:
 
@@ -155,6 +155,96 @@ Models do not degrade in parallel. Comparing a floor against a whole-dataset ave
 It also failed one hard task outright. That never appears in a mean, because a failure is excluded rather than averaged in — which is what `completion_by_complexity` is for. A model finishing 4 of 5 hard tasks fails one in five, and the skill says so instead of quoting the average of the four that worked.
 
 How much difficulty matters depends on the pair. Between `claude-opus-5` and `claude-sonnet-5` it explains 4% of the gap; between `claude-opus-5` and `gemma-4-31b`, 43%. Two frontier models degrade together. A frontier model and a small one do not.
+
+### The four tables
+
+`score_by_complexity` is one table per tier, and this is what they look like. Each is sorted cheapest first, which is the order the skill reads them in: **scan down until the score clears your floor, and stop.** That first hit is the recommendation.
+
+A bold completion count means the model failed at least one task at that tier, which no score can show — a failure is excluded from the mean rather than averaged into it.
+
+**`trivial`** — scan down until the score clears your floor.
+
+| $/task | Model | Score | Finished |
+|---:|---|---:|:-:|
+| $0.26 | `qwen3.6-35b` | 58.4 | 5/5 |
+| $0.47 | `qwen3-coder-30b` | 45.6 | 5/5 |
+| $0.48 | `minimax-m2.5` | 50.2 | 5/5 |
+| $0.76 | `claude-haiku-4-5` | 55.4 | 5/5 |
+| $0.82 | `devstral-2-123b` | 46.9 | 5/5 |
+| $0.87 | `gemma-4-31b` | 66.5 | 5/5 |
+| $1.47 | `qwen3.8-27b` | 81.4 | 5/5 |
+| $2.61 | `deepseek-v3.2` | 64.9 | 5/5 |
+| $3.13 | `kimi-k2.7-code` | 70.7 | 5/5 |
+| $4.18 | `claude-opus-4-5` | 68.8 | 5/5 |
+| $4.67 | `claude-sonnet-5` | 76.1 | 5/5 |
+| $4.95 | `claude-opus-4-6-v1` | 74.2 | 5/5 |
+| $5.32 | `claude-opus-4-8` | 73.8 | 5/5 |
+| $7.35 | `claude-opus-4-7` | 77.8 | 5/5 |
+| $8.09 | `glm-5.3` | 81.5 | 5/5 |
+| $11.95 | `claude-opus-5` | 83.8 | 5/5 |
+
+**`low`** — scan down until the score clears your floor.
+
+| $/task | Model | Score | Finished |
+|---:|---|---:|:-:|
+| $0.26 | `qwen3.6-35b` | 62.5 | 5/5 |
+| $0.47 | `qwen3-coder-30b` | 48.4 | 5/5 |
+| $0.48 | `minimax-m2.5` | 52.0 | 5/5 |
+| $0.76 | `claude-haiku-4-5` | 57.8 | 5/5 |
+| $0.82 | `devstral-2-123b` | 58.1 | **4/5** |
+| $0.87 | `gemma-4-31b` | 63.3 | 5/5 |
+| $1.47 | `qwen3.8-27b` | 80.9 | 5/5 |
+| $2.61 | `deepseek-v3.2` | 65.2 | 5/5 |
+| $3.13 | `kimi-k2.7-code` | 74.9 | 5/5 |
+| $4.18 | `claude-opus-4-5` | 66.2 | 5/5 |
+| $4.67 | `claude-sonnet-5` | 80.5 | 5/5 |
+| $4.95 | `claude-opus-4-6-v1` | 75.4 | 5/5 |
+| $5.32 | `claude-opus-4-8` | 81.1 | 5/5 |
+| $7.35 | `claude-opus-4-7` | 77.0 | 5/5 |
+| $8.09 | `glm-5.3` | 84.4 | 5/5 |
+| $11.95 | `claude-opus-5` | 86.2 | 5/5 |
+
+**`medium`** — scan down until the score clears your floor.
+
+| $/task | Model | Score | Finished |
+|---:|---|---:|:-:|
+| $0.26 | `qwen3.6-35b` | 59.9 | 6/6 |
+| $0.47 | `qwen3-coder-30b` | 40.8 | 6/6 |
+| $0.48 | `minimax-m2.5` | 55.3 | 6/6 |
+| $0.76 | `claude-haiku-4-5` | 57.8 | 6/6 |
+| $0.82 | `devstral-2-123b` | 43.1 | **3/6** |
+| $0.87 | `gemma-4-31b` | 59.3 | 6/6 |
+| $1.47 | `qwen3.8-27b` | 78.7 | 6/6 |
+| $2.61 | `deepseek-v3.2` | 60.9 | 6/6 |
+| $3.13 | `kimi-k2.7-code` | 69.8 | 6/6 |
+| $4.18 | `claude-opus-4-5` | 67.9 | 6/6 |
+| $4.67 | `claude-sonnet-5` | 77.5 | 6/6 |
+| $4.95 | `claude-opus-4-6-v1` | 68.3 | 6/6 |
+| $5.32 | `claude-opus-4-8` | 73.3 | 6/6 |
+| $7.35 | `claude-opus-4-7` | 73.6 | 6/6 |
+| $8.09 | `glm-5.3` | 81.8 | 6/6 |
+| $11.95 | `claude-opus-5` | 81.8 | 6/6 |
+
+**`high`** — scan down until the score clears your floor.
+
+| $/task | Model | Score | Finished |
+|---:|---|---:|:-:|
+| $0.26 | `qwen3.6-35b` | 56.0 | 5/5 |
+| $0.47 | `qwen3-coder-30b` | 35.8 | 5/5 |
+| $0.48 | `minimax-m2.5` | 55.2 | 5/5 |
+| $0.76 | `claude-haiku-4-5` | 53.4 | 5/5 |
+| $0.82 | `devstral-2-123b` | 42.7 | 5/5 |
+| $0.87 | `gemma-4-31b` | 50.0 | 5/5 |
+| $1.47 | `qwen3.8-27b` | 71.5 | **4/5** |
+| $2.61 | `deepseek-v3.2` | 53.0 | 5/5 |
+| $3.13 | `kimi-k2.7-code` | 63.1 | **4/5** |
+| $4.18 | `claude-opus-4-5` | 62.0 | 5/5 |
+| $4.67 | `claude-sonnet-5` | 73.7 | 5/5 |
+| $4.95 | `claude-opus-4-6-v1` | 65.1 | 5/5 |
+| $5.32 | `claude-opus-4-8` | 70.8 | 5/5 |
+| $7.35 | `claude-opus-4-7` | 74.4 | 5/5 |
+| $8.09 | `glm-5.3` | 77.2 | 5/5 |
+| $11.95 | `claude-opus-5` | 79.8 | 5/5 |
 
 ### Where the numbers stop
 

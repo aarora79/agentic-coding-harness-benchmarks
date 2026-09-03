@@ -54,7 +54,9 @@ Ask the developer only when the repo does not settle it. One question, not four.
 
 ### 1b. Also classify how hard the task is
 
-The floor is one half. The other half is **which measured score to compare it against**, and that depends on the difficulty of the work.
+The floor is one half. The other half is **which table to read it against**.
+
+`score_by_complexity` is four tables, one per difficulty tier. Classifying the task picks the table; the floor then decides which row in it you take. A model has a different score in each, so reading the wrong table gives the wrong answer.
 
 Place the task in one of four tiers:
 
@@ -65,7 +67,7 @@ Place the task in one of four tiers:
 | `medium` | a feature touching several files, a config surface, a template rewrite |
 | `high` | a subsystem: rate limiting, server-side token storage, a new authenticated endpoint |
 
-Then read `score_by_complexity` for the task's tier rather than the overall `score`, and read `completion_by_complexity` beside it. Models do not degrade at the same rate, and some stop finishing hard tasks at all:
+Take that tier's table from `score_by_complexity`, and read `completion_by_complexity` for the same tier beside it. Models do not degrade at the same rate between tables, and some stop finishing tasks at all in the harder ones:
 
 | Model | overall | on `low` | on `high` | finished on `high` |
 |---|---:|---:|---:|:-:|
@@ -109,7 +111,7 @@ In every case, stop there. Do not fall back to a model that failed one of the th
 
 ### 3. Recommend the cheapest candidate that clears the floor
 
-Score each candidate at the task's tier, using `score_by_complexity`. Keep the ones at or above the floor. Take the cheapest of those; if two cost the same, take the higher-scoring one.
+Read the candidates out of the task's table — the one `score_by_complexity` holds for that tier. Sort them cheapest first, scan down, and take the first whose score is at or above the floor. If two cost the same, take the higher-scoring one.
 
 **Treat a gap under 3 points at a tier as no gap at all.** Each tier holds 5 or 6 tasks, run once each, so a small difference between two models is sampling noise rather than a finding. Dropping a single task from a tier reverses the order of two models 82% of the time when they sit within 1 point, 53% within 2, and 47% within 3. Past 5 points it reverses 5% of the time, and past 8 it never does.
 
