@@ -52,7 +52,7 @@ Then ask it: *"which model should I use for this?"*
 
 ## How it decides
 
-1. **Reads your repo and task, then asks what happens if the change is wrong.** That sets a quality floor — 55 for a prototype, 75 for a security path. Not how big the task is: on this data, task complexity explains only **6%** of the difference between models.
+1. **Reads your repo, then your task, then asks what happens if the change is wrong.** It starts from `AGENTS.md` (or `CLAUDE.md`) as a map of your codebase rather than crawling the tree, then sets a quality floor — 55 for a prototype, 75 for a security path. Not how big the task is: on this data, task complexity explains only **6%** of the difference between models.
 2. **Asks your assistant which models it can select.** A self-hosted model you have wired up appears; one you have not does not. Getting a model is not the skill's problem.
 3. **Recommends the cheapest of those that clears the floor** — or tells you to stay where you are, which is often the right answer.
 

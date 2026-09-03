@@ -24,9 +24,15 @@ Read both before you answer. Never quote a score or a price from memory; if a mo
 
 ## Three steps
 
-### 1. Understand the task, then set a quality floor
+### 1. Understand the repo, then the task, then set a quality floor
 
-Look at the repo and the task. What is being changed, which files, how much of the system it touches.
+**Start with the repo's own map.** Read `AGENTS.md` at the repository root. If there is none, read `CLAUDE.md`. If neither exists, fall back to `README.md` and `CONTRIBUTING.md`.
+
+That file is written for an agent working in this codebase, so it is the fastest route to what matters: the stack, the directory layout, where the tests live, what the project treats as risky. Use it to navigate rather than crawling the tree — a repo map read in one file beats twenty guesses at where things are.
+
+Two things to watch for. `AGENTS.md` sometimes points at other documents rather than holding the detail itself, so follow the links it names. And it describes the project's intent, not necessarily its current state — if it contradicts what you see in the code, trust the code.
+
+**Then look at the task.** What is being changed, which files, how much of the system it touches, and whether the repo map flags that area as sensitive.
 
 Then ask the question that decides the answer: **what happens if this change is wrong?**
 
@@ -37,7 +43,9 @@ Then ask the question that decides the answer: **what happens if this change is 
 | a production service, anything users touch | **70** | it ships; a defect reaches someone |
 | auth, payments, data deletion, a security path | **75** | wrong is expensive and slow to find |
 
-Ask the developer if the answer is not obvious from the repo. One question, not four.
+The repo map often answers this for you. A project that calls a directory security-critical, or names a path as user-facing, has already told you the consequence of getting it wrong there. Use its language.
+
+Ask the developer only when the repo does not settle it. One question, not four.
 
 **Do not set the floor from how big the task looks.** This is the mistake the underlying data rules out. On the benchmark, how complex a task is explains **6%** of the difference between a strong model and a weaker one — five tasks all classed as trivial ranged from a 0.4-point gap to a 13.8-point gap. A one-line change that turns on one exact fact needs a good model. A three-file mechanical edit does not. Size is not the signal; consequence is.
 
