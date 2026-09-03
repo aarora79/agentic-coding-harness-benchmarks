@@ -33,15 +33,13 @@ import re
 import shutil
 import subprocess  # nosec B404 - used with list args, no shell, hardcoded command
 import sys
-import threading
 import time
+import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import requests
-import yaml
 
 from dataset_loader import Dataset, DatasetError, Task, load_dataset
 from runner_config import (
@@ -50,7 +48,7 @@ from runner_config import (
     load_runner_config,
     model_to_wire_id,
 )
-from token_accounting import compute_total_tokens_processed
+from bedrock_pricing import cost_usd as _bedrock_cost_usd
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,25 +65,6 @@ IMPLEMENTATION_ARTIFACT_FILENAMES = ("patch.diff", "implementation.md")
 # Everything a full /swe2 run emits, in produced-count order.
 ARTIFACT_FILENAMES = DESIGN_ARTIFACT_FILENAMES + IMPLEMENTATION_ARTIFACT_FILENAMES
 GIT_CLONE_TIMEOUT_SECONDS = 300
-
-# A task's true cost is the sum of ALL its agent invocations -- every transient
-# retry and every top-up, not just the pass that happened to succeed. Each
-# _run_task call overwrites metrics.json with only that pass's numbers, so these
-# fields are accumulated across passes and the sums restored. Money and cache
-# tokens belong here as much as turns and tokens: for a retried or topped-up run
-# they are just as real and just as additive, and omitting them undercounts both
-# the cost and the tokens-processed total.
-ADDITIVE_COST_FIELDS = (
-    "input_tokens",
-    "output_tokens",
-    "num_turns",
-    "latency_seconds",
-    "total_cost_usd",
-    "cache_read_tokens",
-    "cache_creation_tokens",
-)
-# The normalized block renames cache-write; everything else keeps its name.
-MM_BLOCK_KEY = {"cache_creation_tokens": "cache_write_tokens"}
 
 # Sanity floor for output tokens per turn, used to catch a token-accounting bug at
 # run time rather than in PR review. An agent that edits files emits hundreds of
@@ -113,13 +92,31 @@ def _skill_path(config: RunnerConfig) -> Path:
     return _SKILLS_DIR / config.skill / "SKILL.md"
 
 
-# pi provider names (the `--provider` value pi expects). For a self-hosted vLLM
-# endpoint pi reads a "vllm" block from its models.json; for Amazon Bedrock pi
-# has a native provider backed by the bundled AWS SDK bedrock-runtime client.
-PI_PROVIDER_VLLM = "vllm"
+# pi provider names (the `--provider` value pi expects). For an OpenAI-compatible
+# endpoint (LiteLLM proxy) pi reads an "endpoint" block from its models.json; for
+# Amazon Bedrock pi has a native provider backed by the bundled AWS SDK.
+# A task's true cost is the sum of ALL its agent invocations -- every transient
+# retry and every top-up, not just the pass that happened to succeed. Each
+# _run_task call overwrites metrics.json with only that pass's numbers, so these
+# fields are accumulated across passes and the sums restored. Fix for upstream
+# issue #143: retried tasks previously underreported cost by ~2x.
+ADDITIVE_COST_FIELDS = (
+    "input_tokens",
+    "output_tokens",
+    "num_turns",
+    "latency_seconds",
+    "total_cost_usd",
+    "cache_read_tokens",
+    "cache_creation_tokens",
+)
+# The normalized block renames cache-write; everything else keeps its name.
+MM_BLOCK_KEY = {"cache_creation_tokens": "cache_write_tokens"}
+
+PI_PROVIDER_ENDPOINT = "endpoint"
 PI_PROVIDER_BEDROCK = "amazon-bedrock"
+
 # omp uses the same provider ids as pi; named separately so the two agents can
-# diverge without a silent coupling.
+# diverge without a silent name change.
 OMP_PROVIDER_VLLM = "vllm"
 OMP_PROVIDER_BEDROCK = "amazon-bedrock"
 
@@ -133,34 +130,6 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
 _KIRO_CREDITS_RE = re.compile(r"Credits:\s*([0-9]*\.?[0-9]+)")
 _KIRO_TIME_RE = re.compile(r"Time:\s*([0-9]+)\s*s")
 
-# The harness scrapes vLLM's entire Prometheus /metrics surface (every family
-# under this prefix) rather than a curated subset, so nothing is omitted and new
-# vLLM metrics appear automatically. These series are SERVER-WIDE and CUMULATIVE:
-# they aggregate every request from every client since the server started and
-# carry no per-request or per-session label. See _snapshot_vllm_metrics for the
-# loud single-tenant caveat that this implies. Note: in vLLM v1 a prefix-cache
-# hit IS the KV-cache reuse signal -- there is no separate "KV cache hit"
-# counter; the prefix-cache queries/hits counters are measured in tokens, not
-# lookup events. The counters used to derive the headline hit rates:
-VLLM_METRIC_PREFIX = "vllm:"
-PREFIX_CACHE_QUERIES_METRIC = "vllm:prefix_cache_queries_total"
-PREFIX_CACHE_HITS_METRIC = "vllm:prefix_cache_hits_total"
-PROMPT_TOKENS_METRIC = "vllm:prompt_tokens_total"
-PROMPT_TOKENS_CACHED_METRIC = "vllm:prompt_tokens_cached_total"
-KV_CACHE_USAGE_METRIC = "vllm:kv_cache_usage_perc"
-METRICS_SCRAPE_TIMEOUT_SECONDS = 10
-
-# Gauges are point-in-time, so a before/after snapshot misses what happened
-# DURING the run: KV-cache usage, for instance, reads its true value only while a
-# request is in flight and drains back to 0 once the run ends. A background
-# poller samples these while claude -p runs and reports the peak/mean instead.
-# See _GaugePoller. These are the load/pressure gauges that actually vary.
-SAMPLED_GAUGE_METRICS = (
-    KV_CACHE_USAGE_METRIC,
-    "vllm:num_requests_running",
-    "vllm:num_requests_waiting",
-)
-GAUGE_POLL_INTERVAL_SECONDS = 1.0
 
 
 def _repo_name(repo_url: str) -> str:
@@ -320,11 +289,11 @@ def _build_prompt(
         f"repo: {clone_path} problem: {task.id} model: {model} "
         f'tag: {ref} artifacts_dir: {artifacts_dir} answers: "{answers.strip()}"'
     )
-    if agent in ("pi", "kiro", "omp"):
-        # None of pi, kiro or omp has slash commands; name the skill in prose and
-        # hand it the payload. (pi loads SKILL.md via --skill; kiro and omp have no
-        # --skill flag, so their _build_*_cmd inlines the SKILL.md content ahead of
-        # this prompt.)
+    if agent in ("pi", "kiro", "codex", "omp"):
+        # These agents have no slash commands; name the skill in prose and hand
+        # it the payload. (pi loads SKILL.md via --skill; kiro and codex have no
+        # --skill flag, so their _build_*_cmd inlines the SKILL.md content ahead
+        # of this prompt.)
         invocation = f"Use the {skill} skill to complete this task. {payload}"
     else:
         invocation = f"/{skill} {payload}"
@@ -522,11 +491,7 @@ def _write_pi_models_json(config: RunnerConfig, agent_dir: Path) -> None:
     pi resolves providers from ``<agent_dir>/models.json`` (agent_dir defaults to
     ``~/.pi/agent`` but is overridden per run via ``PI_CODING_AGENT_DIR`` so the
     benchmark never mutates a developer's global pi config). This writes a single
-    ``vllm`` provider block -- the OpenAI-compatible ``/v1`` base URL and one
-    anchor model whose id matches ``config.model`` -- mirroring
-    ``self-hosted/vllm/scripts/run-pi.sh``. Cost is left at 0 because a
-    self-hosted model has no per-token price; the real cost is hardware-derived
-    separately (see cost-per-task-methodology.md).
+    ``endpoint`` provider block for the OpenAI-compatible LiteLLM proxy (Path 2).
 
     Args:
         config: The runner config (endpoint + model).
@@ -538,7 +503,7 @@ def _write_pi_models_json(config: RunnerConfig, agent_dir: Path) -> None:
     window = config.context_window or 200000
     models_json = {
         "providers": {
-            "vllm": {
+            "endpoint": {
                 "baseUrl": base_url,
                 "api": "openai-completions",
                 "apiKey": config.api_key,
@@ -549,7 +514,7 @@ def _write_pi_models_json(config: RunnerConfig, agent_dir: Path) -> None:
                 "models": [
                     {
                         "id": config.model,
-                        "name": f"vLLM: {config.model}",
+                        "name": config.model,
                         "reasoning": False,
                         "input": ["text"],
                         "contextWindow": window,
@@ -609,243 +574,14 @@ def _write_pi_settings(config: RunnerConfig, agent_dir: Path) -> None:
     )
 
 
-def _write_omp_config(config: RunnerConfig, agent_dir: Path) -> None:
-    """Write the per-run omp ``models.yml`` and ``config.yml`` into ``agent_dir``.
-
-    omp is a fork of pi and honours the same ``PI_CODING_AGENT_DIR`` override, but
-    its config is YAML rather than pi's ``models.json``: custom providers live in
-    ``models.yml`` and settings in ``config.yml``. Writing both per run keeps the
-    benchmark isolated from a developer's global ``~/.omp``.
-
-    Compaction is sized the same way as pi's (see ``_write_pi_settings``): omp
-    expresses the trigger as an absolute ``compaction.thresholdTokens`` instead of
-    pi's ``reserveTokens``, so we convert, reserving a full response plus ~8K of
-    headroom. Without it omp fills the window to within its default reserve and a
-    single capped response overflows, killing the run before the last artifacts
-    are written.
-
-    Args:
-        config: The runner config (endpoint, model, window, output cap).
-        agent_dir: The per-run omp agent dir to write both files into.
-    """
-    base = config.endpoint.rstrip("/")
-    base_url = base if base.endswith("/v1") else f"{base}/v1"
-    window = config.context_window or 200000
-    models_yml = {
-        "providers": {
-            OMP_PROVIDER_VLLM: {
-                "baseUrl": base_url,
-                "api": "openai-completions",
-                "apiKey": config.api_key,
-                "models": [
-                    {
-                        "id": config.model,
-                        "name": f"vLLM: {config.model}",
-                        "contextWindow": window,
-                        "maxTokens": config.max_output_tokens,
-                        "cost": {
-                            "input": 0,
-                            "output": 0,
-                            "cacheRead": 0,
-                            "cacheWrite": 0,
-                        },
-                    }
-                ],
-            }
-        }
-    }
-    # Compact once the context passes (window - one full response - headroom), the
-    # same effective trigger pi derives from reserveTokens.
-    threshold = max(window - (config.max_output_tokens + 8192), 1)
-    config_yml = {"compaction": {"enabled": True, "thresholdTokens": threshold}}
-    agent_dir.mkdir(parents=True, exist_ok=True)
-    (agent_dir / "models.yml").write_text(
-        yaml.safe_dump(models_yml, sort_keys=False), encoding="utf-8"
-    )
-    (agent_dir / "config.yml").write_text(
-        yaml.safe_dump(config_yml, sort_keys=False), encoding="utf-8"
-    )
-
-
-def _build_omp_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
-    """Build the environment for the omp subprocess.
-
-    Mirrors ``_build_pi_env``: ``PI_CODING_AGENT_DIR`` (which omp inherits from pi)
-    points at the per-run config dir, and the Bedrock path pins the region and
-    resolves the ambient credential chain into explicit keys.
-
-    Args:
-        config: The runner config (provider, aws region).
-        agent_dir: The per-run omp agent config dir.
-
-    Returns:
-        A copy of the environment with the omp agent dir pinned.
-    """
-    env = os.environ.copy()
-    env["PI_CODING_AGENT_DIR"] = str(agent_dir)
-    if config.is_bedrock:
-        region = config.resolved_region()
-        if region:
-            env["AWS_REGION"] = region
-        _ensure_aws_sigv4_env(env)
-    return env
-
-
-def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
-    """Assemble the ``omp -p --mode json`` argument vector.
-
-    omp has no ``--skill`` flag (its ``--skills`` is a glob filter over discovered
-    skills, not a path), so the SKILL.md the other agents load is inlined ahead of
-    the task payload exactly as ``_build_kiro_cmd`` does. ``--mode json`` gives the
-    pi-shaped event stream the harness already knows how to read, and
-    ``--no-session`` keeps the run ephemeral.
-
-    Args:
-        config: The runner config (model, provider).
-        prompt: The hydrated prompt (see ``_build_prompt`` agent="omp").
-
-    Returns:
-        The command as a list of arguments (never a shell string).
-    """
-    skill_md = _skill_path(config).read_text(encoding="utf-8")
-    full_prompt = (
-        f"{skill_md}\n\n"
-        "---\n\n"
-        "Follow the skill instructions above to complete the following task.\n\n"
-        f"{prompt}"
-    )
-    if config.is_bedrock:
-        model = f"{OMP_PROVIDER_BEDROCK}/{model_to_wire_id(config.model)}"
-    else:
-        model = f"{OMP_PROVIDER_VLLM}/{config.model}"
-    # A trailing "--" ends option parsing so the prompt is always treated as the
-    # positional INPUT -- essential here because the inlined SKILL.md begins with
-    # "---" (YAML frontmatter), which omp would otherwise reject as an unknown
-    # flag, exactly as kiro-cli does (see _build_kiro_cmd).
-    cmd = [
-        "omp",
-        "-p",
-        "--mode",
-        "json",
-        "--no-session",
-        "--auto-approve",
-        "--model",
-        model,
-    ]
-    # omp has no turn cap, so a model that finishes the work and then loops --
-    # emitting tokens without ever ending its turn -- would run until the
-    # harness's own timeout_seconds and then burn a retry on an already-complete
-    # task. --max-time makes omp stop itself first, which also lets the harness
-    # collect whatever the run produced instead of killing it mid-write.
-    if config.agent_max_time_seconds:
-        cmd += [f"--max-time={config.agent_max_time_seconds}"]
-    # A trailing "--" ends option parsing so the prompt is always the positional
-    # INPUT (see the note above).
-    return [*cmd, "--", full_prompt]
-
-
-def _run_omp(
-    cmd: list[str],
-    env: dict[str, str],
-    timeout: int,
-    stream_log: Path | None = None,
-) -> dict[str, Any]:
-    """Run ``omp -p --mode json`` and normalize its events to a result dict.
-
-    omp emits the same event stream as pi (``turn_start`` for turn counting, a
-    final ``agent_end`` carrying per-message ``usage``), so the pi normalizer is
-    reused verbatim rather than duplicated.
-
-    The one behavioural difference that matters: omp treats an inherited stdin as
-    a piped prompt and blocks waiting for EOF, ignoring the positional prompt
-    entirely. ``stdin=DEVNULL`` is therefore required, not cosmetic -- without it
-    the run hangs until the timeout with no output.
-
-    Args:
-        cmd: The omp command argument vector.
-        env: Environment for the subprocess (pins PI_CODING_AGENT_DIR).
-        timeout: Wall-clock timeout in seconds.
-        stream_log: Optional file to append omp's events to as they arrive. A
-            task runs for tens of minutes with no terminal output otherwise --
-            ``capture_output`` only yields once the process exits -- so this is
-            the only way to watch a run in flight (``tail -f`` it). omp's own
-            ``~/.omp/logs`` carries lifecycle debug lines, not the event stream.
-
-    Returns:
-        The claude-shaped result dict (see ``_pi_result_from_events``).
-
-    Raises:
-        RuntimeError: If omp times out, emits no output, or emits no agent_end.
-    """
-    start = time.time()
-    # Read stdout line by line rather than with subprocess.run so the stream can
-    # be mirrored to stream_log while the task runs; run() would withhold every
-    # line until exit, leaving a 30-60 minute task looking identical to a hang.
-    sink = None
-    if stream_log is not None:
-        stream_log.parent.mkdir(parents=True, exist_ok=True)
-        sink = stream_log.open("a", encoding="utf-8")
-    stdout_lines: list[str] = []
-    events: list[dict[str, Any]] = []
-    try:
-        proc = subprocess.Popen(  # nosec B603 - hardcoded 'omp', list args, no shell
-            cmd,
-            env=env,
-            cwd=str(REPO_ROOT),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            stdin=subprocess.DEVNULL,
-        )
-        try:
-            for line in proc.stdout or []:
-                stdout_lines.append(line)
-                if sink is not None:
-                    sink.write(line)
-                    sink.flush()
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                try:
-                    events.append(json.loads(stripped))
-                except json.JSONDecodeError:
-                    # omp interleaves human-readable startup notices; skip them.
-                    continue
-            proc.wait(timeout=max(timeout - (time.time() - start), 1))
-        except subprocess.TimeoutExpired as exc:
-            proc.kill()
-            raise RuntimeError(f"omp -p timed out after {timeout}s") from exc
-        stderr = (proc.stderr.read() if proc.stderr else "") or ""
-    finally:
-        if sink is not None:
-            sink.close()
-    elapsed = time.time() - start
-
-    if not "".join(stdout_lines).strip():
-        raise RuntimeError(
-            f"omp -p produced no output (exit {proc.returncode}): "
-            f"{stderr.strip()[:500]}"
-        )
-    if not events:
-        raise RuntimeError(
-            f"omp -p output had no JSON events: {''.join(stdout_lines).strip()[:500]}"
-        )
-    result = _pi_result_from_events(events, elapsed)
-    result["_elapsed_seconds"] = round(elapsed, 1)
-    return result
-
-
 def _build_pi_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
     """Build the environment for the pi subprocess.
 
     ``PI_CODING_AGENT_DIR`` points pi at the per-run config dir so the benchmark
-    stays isolated from a developer's global ``~/.pi`` setup. For a vLLM endpoint,
-    routing comes from the per-run ``models.json`` and no other override is needed.
-    For Amazon Bedrock, pi uses the ambient AWS credential chain (env/ini/sso/...)
-    and needs the region: we pin ``AWS_REGION`` from the resolved config so the run
-    is reproducible regardless of the caller's shell. Credentials themselves are
-    never injected here -- they come from the standard chain, so no secret is
-    written or logged.
+    stays isolated from a developer's global ``~/.pi`` setup. For an endpoint
+    (LiteLLM proxy), routing comes from the per-run ``models.json`` and no other
+    override is needed. For Amazon Bedrock, pi uses the ambient AWS credential
+    chain (env/ini/sso/...) and needs the region pinned from the resolved config.
 
     Args:
         config: The runner config (provider, aws region).
@@ -913,37 +649,32 @@ def _ensure_aws_sigv4_env(env: dict[str, str]) -> None:
 
 
 def _build_pi_cmd(config: RunnerConfig, prompt: str) -> list[str]:
-    """Assemble the ``pi -p`` argument vector for a /swe2 run.
+    """Assemble the ``pi -p`` argument vector for a /swe3 run.
 
     pi runs headless with ``-p`` (process the prompt and exit) and ``--mode json``
     (emit a stream of JSON-lines events the harness parses for metrics). Tools run
     without an approval gate in ``-p`` mode, which is what an unattended benchmark
-    needs. The ``/swe2`` behavior is delivered by loading the same SKILL.md Claude
+    needs. The ``/swe3`` behavior is delivered by loading the same SKILL.md Claude
     Code uses, via ``--skill``. ``--no-session`` keeps the run ephemeral (no
     session file written under the agent dir).
 
-    The ``--provider`` depends on routing: a self-hosted vLLM endpoint (resolved
-    from the per-run models.json) or native Amazon Bedrock (pi signs SigV4 via the
-    bundled AWS SDK; credentials come from the ambient chain, region from the env
-    set in ``_build_pi_env``). The model id is the Bedrock inference-profile id
-    (e.g. ``us.anthropic.claude-opus-5``) for bedrock, or the served-model-name
-    for vLLM.
+    The ``--provider`` depends on routing: native Amazon Bedrock (pi signs SigV4
+    via the bundled AWS SDK; credentials come from the ambient chain, region from
+    the env set in ``_build_pi_env``) or an OpenAI-compatible endpoint (the
+    LiteLLM proxy for Path 2, resolved from the per-run models.json).
 
     Args:
         config: The runner config (model, provider).
-        prompt: The hydrated /swe2 prompt (see ``_build_prompt`` agent="pi").
+        prompt: The hydrated /swe3 prompt (see ``_build_prompt`` agent="pi").
 
     Returns:
         The command as a list of arguments (never a shell string).
     """
     if config.is_bedrock:
-        # pi resolves the Bedrock inference profile itself, so pass the clean
-        # wire id (region prefix kept, harness "[1m]" hint stripped). For vLLM the
-        # served-model-name is used verbatim.
         provider = PI_PROVIDER_BEDROCK
         model = model_to_wire_id(config.model)
     else:
-        provider = PI_PROVIDER_VLLM
+        provider = PI_PROVIDER_ENDPOINT
         model = config.model
     return [
         "pi",
@@ -989,7 +720,7 @@ def _build_kiro_cmd(config: RunnerConfig, prompt: str) -> list[str]:
     same ``SKILL.md`` the other agents load is inlined ahead of the task payload
     in the prompt. ``--trust-all-tools`` pre-approves tool use (no operator is
     present in a benchmark); ``--model`` selects one of Kiro's managed models.
-    kiro-cli cannot target a self-hosted endpoint, so there is no provider or
+    kiro-cli cannot target a custom endpoint, so there is no provider or
     endpoint to pass. See docs/kiro-cli-setup.md.
 
     Args:
@@ -1165,9 +896,7 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
         # noise, not useful provenance. (Nothing downstream reads it.)
     }
     # Cache-token fields: from modelUsage (subagent-inclusive) when the backend
-    # reports them (Amazon Bedrock / Anthropic API). vLLM's OpenAI route reports
-    # none, so they stay absent here and the real prefix-cache utilization is
-    # recovered from vLLM's Prometheus /metrics ("vllm_prometheus" block) instead.
+    # reports them (Amazon Bedrock / Anthropic API).
     if tokens["cache_read_tokens"] or "cache_read_input_tokens" in usage:
         metrics["cache_read_tokens"] = tokens["cache_read_tokens"]
     if tokens["cache_creation_tokens"] or "cache_creation_input_tokens" in usage:
@@ -1189,361 +918,6 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
         metrics["error"] = str(result.get("result", ""))[:1000]
         metrics["api_error_status"] = result.get("api_error_status")
     return metrics
-
-
-def _parse_prometheus_counter(text: str, metric: str) -> float | None:
-    """Sum the values of a Prometheus counter across all its label sets.
-
-    vLLM exposes one series per (engine, model_name); we sum them so a
-    multi-engine server still yields a single total.
-
-    Args:
-        text: The raw text body of a Prometheus /metrics scrape.
-        metric: The metric name to sum (e.g. "vllm:prefix_cache_hits_total").
-
-    Returns:
-        The summed counter value, or None if the metric is absent.
-    """
-    return _parse_prometheus_metrics(text)[1].get(metric)
-
-
-def _parse_prometheus_metrics(
-    text: str,
-) -> tuple[dict[str, str], dict[str, float]]:
-    """Parse a Prometheus scrape into family types and summed sample values.
-
-    Handles the whole ``vllm:`` surface, not one metric: it reads the ``# TYPE``
-    declarations to learn each family's type (counter/gauge/histogram) and sums
-    every concrete sample across its label sets, so a multi-engine server still
-    yields one total per sample. ``_bucket`` lines are skipped -- histogram means
-    are derived from ``_sum``/``_count``, and raw buckets would only bloat output.
-
-    Args:
-        text: The raw text body of a Prometheus /metrics scrape.
-
-    Returns:
-        A ``(types, samples)`` pair. ``types`` maps each ``vllm:`` family name to
-        its declared type. ``samples`` maps each concrete sample name (including
-        ``_sum``/``_count`` suffixes) to its value summed across all label sets.
-    """
-    types: dict[str, str] = {}
-    samples: dict[str, float] = {}
-    for line in text.splitlines():
-        if line.startswith("# TYPE "):
-            parts = line.split()
-            if len(parts) >= 4 and parts[2].startswith(VLLM_METRIC_PREFIX):
-                types[parts[2]] = parts[3]
-            continue
-        if line.startswith("#") or not line.startswith(VLLM_METRIC_PREFIX):
-            continue
-        name = line.partition("{")[0].split()[0]
-        if name.endswith("_bucket"):
-            continue  # Raw histogram buckets; means come from _sum/_count.
-        try:
-            value = float(line.rsplit(None, 1)[-1])
-        except ValueError:
-            continue
-        samples[name] = samples.get(name, 0.0) + value
-    return types, samples
-
-
-def _snapshot_vllm_metrics(endpoint: str) -> dict[str, Any] | None:
-    """Scrape vLLM's full Prometheus /metrics surface into a comparable snapshot.
-
-    LOUD CAVEAT -- read before trusting the numbers this feeds into metrics.json:
-    these vLLM metrics are SERVER-WIDE and CUMULATIVE. They aggregate every
-    request from every client since the server started and carry no per-request
-    or per-session label. The per-run figures the harness derives are the DELTA
-    of these across a single task's window, so they are correct ONLY when that
-    benchmark task is the sole traffic hitting the endpoint during its run. Any
-    concurrent request (another task, a manual curl, a second claude -p, a
-    dashboard) is wrongly attributed to this run. The harness runs tasks
-    serially, so a run does not contend with itself, but do not run anything else
-    against the endpoint while a benchmark is going.
-
-    Args:
-        endpoint: The base URL of the vLLM server (e.g. http://127.0.0.1:8000).
-
-    Returns:
-        A ``{"types": ..., "samples": ...}`` snapshot, or None if the endpoint is
-        unreachable or exposes no ``vllm:`` metrics (e.g. a non-vLLM backend).
-    """
-    url = endpoint.rstrip("/") + "/metrics"
-    try:
-        response = requests.get(url, timeout=METRICS_SCRAPE_TIMEOUT_SECONDS)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        logger.debug("Could not scrape %s for vLLM metrics: %s", url, exc)
-        return None
-    types, samples = _parse_prometheus_metrics(response.text)
-    if not samples:
-        logger.debug("Endpoint %s did not expose any vLLM metrics", url)
-        return None
-    return {"types": types, "samples": samples}
-
-
-class _GaugePoller:
-    """Poll vLLM gauges in a background thread while a run is in flight.
-
-    Gauges (e.g. ``kv_cache_usage_perc``) are point-in-time readings: a
-    before/after snapshot taken around the run reads them idle, because the KV
-    cache drains once the request completes. This poller samples them every
-    ``GAUGE_POLL_INTERVAL_SECONDS`` while claude -p runs, so peak and mean reflect
-    what actually happened DURING the run -- matching what the vLLM server log
-    prints for an in-flight request.
-
-    Use as a context manager around the claude -p call:
-
-        with _GaugePoller(endpoint) as poller:
-            result = _run_claude(...)
-        summary = poller.summary()
-
-    The peak still carries the single-tenant caveat: on a shared endpoint it
-    reflects total server load, not this run alone.
-    """
-
-    def __init__(self, endpoint: str | None) -> None:
-        # A None endpoint (e.g. provider=bedrock) disables polling: the thread
-        # never starts and summary() reports the gauges as unavailable.
-        self._url = endpoint.rstrip("/") + "/metrics" if endpoint else None
-        self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        # Per-metric list of sampled values (only successful scrapes recorded).
-        self._samples: dict[str, list[float]] = {m: [] for m in SAMPLED_GAUGE_METRICS}
-
-    def __enter__(self) -> _GaugePoller:
-        if self._url:
-            self._thread.start()
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self._stop.set()
-        if self._url:
-            self._thread.join(timeout=METRICS_SCRAPE_TIMEOUT_SECONDS)
-
-    def _run(self) -> None:
-        # Sample immediately, then every interval until stopped. wait() returns
-        # True when the stop event is set, giving a prompt, drift-free exit.
-        while True:
-            self._sample_once()
-            if self._stop.wait(GAUGE_POLL_INTERVAL_SECONDS):
-                return
-
-    def _sample_once(self) -> None:
-        try:
-            response = requests.get(self._url, timeout=METRICS_SCRAPE_TIMEOUT_SECONDS)
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            logger.debug("Gauge poll of %s failed: %s", self._url, exc)
-            return
-        _, samples = _parse_prometheus_metrics(response.text)
-        for metric in SAMPLED_GAUGE_METRICS:
-            if metric in samples:
-                self._samples[metric].append(samples[metric])
-
-    def summary(self) -> dict[str, Any]:
-        """Return per-gauge peak/mean/sample-count, or an unavailable marker.
-
-        Returns:
-            A dict describing the sampled gauges. ``available`` is False when no
-            gauge was ever successfully sampled (endpoint unreachable or not
-            vLLM). Otherwise each sampled gauge maps to ``{"peak", "mean",
-            "samples"}``, with peak/mean None for a gauge the endpoint did not
-            expose.
-        """
-        if not any(self._samples.values()):
-            return {
-                "available": False,
-                "source": "vllm_prometheus_poll",
-                "note": (
-                    "No vLLM gauges were sampled during the run; endpoint "
-                    "unreachable or not a vLLM server."
-                ),
-                "interval_seconds": GAUGE_POLL_INTERVAL_SECONDS,
-                "gauges": {},
-            }
-        gauges: dict[str, Any] = {}
-        for metric, values in self._samples.items():
-            if values:
-                gauges[metric] = {
-                    "peak": round(max(values), 4),
-                    "mean": round(sum(values) / len(values), 4),
-                    "samples": len(values),
-                }
-            else:
-                gauges[metric] = {"peak": None, "mean": None, "samples": 0}
-        return {
-            "available": True,
-            "source": "vllm_prometheus_poll",
-            "note": (
-                "Peak/mean of gauges sampled every "
-                f"{GAUGE_POLL_INTERVAL_SECONDS}s while the run was in flight. "
-                "Peak still reflects total server load under the single-tenant "
-                "assumption, not this run in isolation."
-            ),
-            "interval_seconds": GAUGE_POLL_INTERVAL_SECONDS,
-            "gauges": gauges,
-        }
-
-
-def _sample_delta(
-    before: dict[str, float], after: dict[str, float], name: str
-) -> float | None:
-    """Return the non-negative window delta of one sample, or None if absent.
-
-    A sample missing from either snapshot yields None rather than 0, so the block
-    distinguishes "the endpoint does not expose this" from "it happened zero
-    times during the run".
-    """
-    if name not in before or name not in after:
-        return None
-    return max(0.0, after[name] - before[name])
-
-
-def _num(value: float | None) -> int | float | None:
-    """Render a metric value as an int when whole, else rounded, preserving None."""
-    if value is None:
-        return None
-    return int(value) if float(value).is_integer() else round(value, 4)
-
-
-def _rate(numerator: float | None, denominator: float | None) -> float | None:
-    """Return numerator/denominator rounded to 4 dp, or None if not computable."""
-    if numerator is None or not denominator:
-        return None
-    return round(numerator / denominator, 4)
-
-
-def _vllm_metrics(
-    before: dict[str, Any] | None, after: dict[str, Any] | None
-) -> dict[str, Any]:
-    """Derive the nested vLLM Prometheus block for a run -- the FULL surface.
-
-    This block is kept SEPARATE from the top-level metrics on purpose: the
-    top-level fields report only what the model API returned per request,
-    whereas these numbers come from a different source and a different method --
-    a window delta of vLLM's SERVER-WIDE, CUMULATIVE Prometheus metrics. See
-    _snapshot_vllm_metrics for the single-tenant caveat: each delta equals this
-    run's activity only when the run is the sole traffic on the endpoint.
-
-    Every ``vllm:`` metric is reported (duplicates of the top-level API numbers
-    included) under its own type-named group, so the source is unambiguous:
-
-    - ``counters``: window delta of each counter (e.g. generation/prompt tokens,
-      prefix-cache queries/hits, preemptions, request successes).
-    - ``histograms``: per-family ``count``/``sum`` window deltas plus the derived
-      window ``mean`` (e.g. mean TTFT, mean end-to-end latency).
-    - ``gauges``: an instantaneous post-run reading. Gauges are point-in-time, so
-      between serial tasks they typically read idle (0); continuous sampling
-      (the DuckDB collector) is the way to capture peaks.
-    - ``derived``: the headline cache hit rates computed from the counters. In
-      vLLM v1 a prefix-cache hit IS a KV-cache hit -- there is no separate KV-hit
-      counter, and vLLM does not publish the rate itself.
-
-    ``_created`` timestamp series are dropped as noise; histogram ``_bucket``
-    lines are omitted (means come from ``_sum``/``_count``).
-
-    Args:
-        before: Snapshot taken immediately before the claude -p call.
-        after: Snapshot taken immediately after it.
-
-    Returns:
-        A nested dict describing the run's vLLM-side activity. When snapshots are
-        missing (endpoint does not expose /metrics), ``available`` is False and
-        the groups are empty.
-    """
-    unavailable_note = (
-        "vLLM metrics were not reachable; run against a vLLM endpoint exposing "
-        "/metrics to populate this block."
-    )
-    available_note = (
-        "Window delta of server-wide vLLM metrics; accurate only if this run was "
-        "the sole traffic on the endpoint during its execution. Gauges are an "
-        "instantaneous post-run reading and typically read idle between tasks."
-    )
-    if before is None or after is None:
-        return {
-            "available": False,
-            "source": "vllm_prometheus_window",
-            "note": unavailable_note,
-            "derived": {
-                "prefix_cache_hit_rate": None,
-                "prompt_tokens_cached_rate": None,
-            },
-            "counters": {},
-            "histograms": {},
-            "gauges": {},
-        }
-    types: dict[str, str] = after["types"]
-    before_s: dict[str, float] = before["samples"]
-    after_s: dict[str, float] = after["samples"]
-    counters: dict[str, Any] = {}
-    histograms: dict[str, Any] = {}
-    gauges: dict[str, Any] = {}
-    for family, mtype in sorted(types.items()):
-        if family.endswith("_created"):
-            continue  # Prometheus per-series creation timestamps; pure noise.
-        if mtype == "counter":
-            counters[family] = _num(_sample_delta(before_s, after_s, family))
-        elif mtype == "histogram":
-            dcount = _sample_delta(before_s, after_s, family + "_count")
-            dsum = _sample_delta(before_s, after_s, family + "_sum")
-            histograms[family] = {
-                "count": _num(dcount),
-                "sum": _num(dsum),
-                "mean": round(dsum / dcount, 6)
-                if dcount and dsum is not None
-                else None,
-            }
-        elif mtype == "gauge":
-            gauges[family] = _num(after_s.get(family))
-    return {
-        "available": True,
-        # Windowed deltas of server-wide metrics (single-tenant assumption), NOT
-        # per-request accounting from the model API response.
-        "source": "vllm_prometheus_window",
-        "note": available_note,
-        "derived": {
-            "prefix_cache_hit_rate": _rate(
-                _sample_delta(before_s, after_s, PREFIX_CACHE_HITS_METRIC),
-                _sample_delta(before_s, after_s, PREFIX_CACHE_QUERIES_METRIC),
-            ),
-            "prompt_tokens_cached_rate": _rate(
-                _sample_delta(before_s, after_s, PROMPT_TOKENS_CACHED_METRIC),
-                _sample_delta(before_s, after_s, PROMPT_TOKENS_METRIC),
-            ),
-        },
-        "counters": counters,
-        "histograms": histograms,
-        "gauges": gauges,
-    }
-
-
-def _mark_aggregate(vllm_block: dict[str, Any]) -> None:
-    """Annotate a vLLM block in place as a concurrency-aggregated measurement.
-
-    Called only when the run overlapped other tasks (concurrency > 1). The window
-    deltas still measure REAL server/GPU activity -- they are not junk -- but they
-    are server-wide aggregates over a window shared by every concurrent task, not
-    this run in isolation: ratios (hit rates) become the aggregate rate across all
-    overlapping runs, while absolute counts (token/request deltas) are summed
-    across them, so each of the N overlapping files carries a near-identical,
-    inflated figure. The per-run API fields in metrics_that_matter are unaffected
-    and stay correct. No-op when the block is unavailable.
-
-    Args:
-        vllm_block: The dict returned by _vllm_metrics, mutated in place.
-    """
-    if not vllm_block.get("available"):
-        return
-    vllm_block["single_tenant"] = False
-    vllm_block["note"] = (
-        "AGGREGATE (concurrency > 1): server-wide window deltas over a period "
-        "shared by other in-flight tasks. Ratios are the real aggregate rate "
-        "across all overlapping runs; absolute counts are summed across them "
-        "(inflated and near-duplicated per file). Not isolated to this run. Use "
-        "concurrency 1 for per-run vLLM metrics. " + vllm_block["note"]
-    )
 
 
 def _run_claude(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any]:
@@ -1657,11 +1031,8 @@ def _pi_result_from_events(
         "input_tokens": totals["input"],
         "output_tokens": totals["output"],
     }
-    # Cache tokens: against a vLLM endpoint pi reports 0 (real reuse comes from the
-    # Prometheus block, so we omit them rather than record a misleading 0). Against
-    # Amazon Bedrock pi DOES report native prompt-cache usage (cacheRead/cacheWrite)
-    # -- pass those through under the keys _metrics_from_result expects, but only
-    # when non-zero so the vLLM path stays clean.
+    # Cache tokens: pi reports native prompt-cache usage (cacheRead/cacheWrite)
+    # on the Bedrock path; pass through only when non-zero.
     if totals["cacheRead"]:
         remapped_usage["cache_read_input_tokens"] = totals["cacheRead"]
     if totals["cacheWrite"]:
@@ -1674,10 +1045,6 @@ def _pi_result_from_events(
     return {
         "usage": remapped_usage,
         "num_turns": num_turns,
-        # pi reports 0 cost against a local vLLM endpoint (the real per-task cost is
-        # hardware-derived; see cost-per-task-methodology.md), so keep None there
-        # rather than a misleading 0. Against Amazon Bedrock pi reports a REAL
-        # metered cost -- pass it through unchanged.
         "total_cost_usd": cost if cost else None,
         "is_error": is_error,
         # Map pi's stopReason onto the subtype the retry logic keys on. pi has no
@@ -1688,23 +1055,13 @@ def _pi_result_from_events(
     }
 
 
-def _run_pi(
-    cmd: list[str],
-    env: dict[str, str],
-    timeout: int,
-    stream_log: Path | None = None,
-) -> dict[str, Any]:
+def _run_pi(cmd: list[str], env: dict[str, str], timeout: int) -> dict[str, Any]:
     """Run ``pi -p --mode json`` and normalize its event stream to a result dict.
 
     Args:
         cmd: The pi command argument vector.
         env: Environment for the subprocess (pins PI_CODING_AGENT_DIR).
         timeout: Wall-clock timeout in seconds.
-        stream_log: Optional file to append pi's events to as they arrive. A task
-            runs for hours with no output otherwise, and -- worse -- a timeout
-            discards the buffered stdout entirely, so a run that hits the wall
-            leaves NO evidence of what the agent did. Mirroring as we read keeps
-            that evidence, and lets a run in flight be followed with tail -f.
 
     Returns:
         The claude-shaped result dict (see ``_pi_result_from_events``).
@@ -1713,59 +1070,40 @@ def _run_pi(
         RuntimeError: If pi times out, emits no output, or emits no agent_end.
     """
     start = time.time()
-    # Read stdout line by line rather than with subprocess.run so the stream can
-    # be mirrored to stream_log while the task runs. run() buffers everything
-    # until exit and drops it on timeout, which is how a 2-hour task can fail
-    # leaving nothing to diagnose.
-    sink = None
-    if stream_log is not None:
-        stream_log.parent.mkdir(parents=True, exist_ok=True)
-        sink = stream_log.open("a", encoding="utf-8")
-    stdout_lines: list[str] = []
-    events: list[dict[str, Any]] = []
     try:
-        proc = subprocess.Popen(  # nosec B603 - hardcoded 'pi', list args, no shell
+        proc = subprocess.run(  # nosec B603 - hardcoded 'pi', list args, no shell
             cmd,
             env=env,
             # Run from the repo root so the skill's artifact paths resolve, exactly
             # as for the claude path (see the note in _run_claude).
             cwd=str(REPO_ROOT),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
-            stdin=subprocess.DEVNULL,
+            timeout=timeout,
+            check=False,
         )
-        try:
-            for line in proc.stdout or []:
-                stdout_lines.append(line)
-                if sink is not None:
-                    sink.write(line)
-                    sink.flush()
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                try:
-                    events.append(json.loads(stripped))
-                except json.JSONDecodeError:
-                    # pi may interleave non-JSON diagnostics; skip them.
-                    continue
-            proc.wait(timeout=max(timeout - (time.time() - start), 1))
-        except subprocess.TimeoutExpired as exc:
-            proc.kill()
-            raise RuntimeError(f"pi -p timed out after {timeout}s") from exc
-        stderr = (proc.stderr.read() if proc.stderr else "") or ""
-    finally:
-        if sink is not None:
-            sink.close()
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"pi -p timed out after {timeout}s") from exc
     elapsed = time.time() - start
 
-    if not "".join(stdout_lines).strip():
+    if not proc.stdout.strip():
         raise RuntimeError(
-            f"pi -p produced no output (exit {proc.returncode}): {stderr.strip()[:500]}"
+            f"pi -p produced no output (exit {proc.returncode}): "
+            f"{proc.stderr.strip()[:500]}"
         )
+    events: list[dict[str, Any]] = []
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            # pi may interleave non-JSON diagnostics; skip them, keep the events.
+            continue
     if not events:
         raise RuntimeError(
-            f"pi -p output had no JSON events: {''.join(stdout_lines).strip()[:500]}"
+            f"pi -p output had no JSON events: {proc.stdout.strip()[:500]}"
         )
     # Debug aid: dump the raw event stream when PI_RAW_EVENTS_DUMP is set, so the
     # usage-summation logic can be validated against real pi output.
@@ -1882,6 +1220,353 @@ def _run_kiro(
     result = _kiro_result_from_output(
         combined, proc.returncode, elapsed, dollars_per_credit
     )
+    result["_elapsed_seconds"] = round(elapsed, 1)
+    return result
+
+
+def _write_omp_config(config: RunnerConfig, agent_dir: Path) -> None:
+    """Write the per-run omp ``models.yml`` and ``config.yml`` into ``agent_dir``.
+
+    omp is a fork of pi; its config is YAML rather than pi's ``models.json``.
+    Writing both per run keeps the benchmark isolated from ``~/.omp``.
+
+    Args:
+        config: The runner config (endpoint, model, window, output cap).
+        agent_dir: The per-run omp agent dir to write both files into.
+    """
+    base = config.endpoint.rstrip("/")
+    base_url = base if base.endswith("/v1") else f"{base}/v1"
+    window = config.context_window or 200000
+    models_yml = {
+        "providers": {
+            OMP_PROVIDER_VLLM: {
+                "baseUrl": base_url,
+                "api": "openai-completions",
+                "apiKey": config.api_key,
+                "models": [
+                    {
+                        "id": config.model,
+                        "name": config.model,
+                        "contextWindow": window,
+                        "maxTokens": config.max_output_tokens,
+                        "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+                    }
+                ],
+            }
+        }
+    }
+    threshold = max(window - (config.max_output_tokens + 8192), 1)
+    config_yml = {"compaction": {"enabled": True, "thresholdTokens": threshold}}
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    (agent_dir / "models.yml").write_text(
+        yaml.safe_dump(models_yml, sort_keys=False), encoding="utf-8"
+    )
+    (agent_dir / "config.yml").write_text(
+        yaml.safe_dump(config_yml, sort_keys=False), encoding="utf-8"
+    )
+
+
+def _build_omp_env(config: RunnerConfig, agent_dir: Path) -> dict[str, str]:
+    """Build the environment for the omp subprocess.
+
+    Mirrors ``_build_pi_env``: ``PI_CODING_AGENT_DIR`` (which omp inherits from pi)
+    points at the per-run config dir, and the Bedrock path pins the region.
+
+    Args:
+        config: The runner config (provider, aws region).
+        agent_dir: The per-run omp agent config dir.
+
+    Returns:
+        A copy of the environment with the omp agent dir pinned.
+    """
+    env = os.environ.copy()
+    env["PI_CODING_AGENT_DIR"] = str(agent_dir)
+    if config.is_bedrock:
+        region = config.resolved_region()
+        if region:
+            env["AWS_REGION"] = region
+        _ensure_aws_sigv4_env(env)
+    return env
+
+
+def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
+    """Assemble the ``omp -p --mode json`` argument vector.
+
+    omp has no ``--skill`` flag so the SKILL.md is inlined into the prompt,
+    exactly as ``_build_kiro_cmd`` does.
+
+    Args:
+        config: The runner config (model, provider).
+        prompt: The hydrated prompt (see ``_build_prompt`` agent="omp").
+
+    Returns:
+        The command as a list of arguments (never a shell string).
+    """
+    skill_md = _skill_path(config).read_text(encoding="utf-8")
+    full_prompt = (
+        f"{skill_md}\n\n"
+        "---\n\n"
+        "Follow the skill instructions above to complete the following task.\n\n"
+        f"{prompt}"
+    )
+    if config.is_bedrock:
+        model = f"{OMP_PROVIDER_BEDROCK}/{model_to_wire_id(config.model)}"
+    else:
+        model = f"{OMP_PROVIDER_VLLM}/{config.model}"
+    cmd = [
+        "omp",
+        "-p",
+        "--mode",
+        "json",
+        "--no-session",
+        "--auto-approve",
+        "--model",
+        model,
+    ]
+    if config.agent_max_time_seconds:
+        cmd += [f"--max-time={config.agent_max_time_seconds}"]
+    return [*cmd, "--", full_prompt]  # nosec B603 B607 - hardcoded command
+
+
+def _run_omp(
+    cmd: list[str],
+    env: dict[str, str],
+    timeout: int,
+) -> dict[str, Any]:
+    """Run ``omp -p --mode json`` and normalize its events to a result dict.
+
+    omp emits the same event stream as pi, so ``_pi_result_from_events`` is
+    reused. stdin=DEVNULL is required -- without it omp blocks waiting for EOF.
+
+    Args:
+        cmd: The omp command argument vector.
+        env: Environment for the subprocess.
+        timeout: Wall-clock timeout in seconds.
+
+    Returns:
+        The claude-shaped result dict (see ``_pi_result_from_events``).
+
+    Raises:
+        RuntimeError: If omp times out or produces no output.
+    """
+    start = time.time()
+    events: list[dict[str, Any]] = []
+    stdout_lines: list[str] = []
+    proc = subprocess.Popen(  # nosec B603 B607 - hardcoded 'omp', list args, no shell
+        cmd,
+        env=env,
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
+    try:
+        for line in proc.stdout or []:
+            stdout_lines.append(line)
+            sys.stderr.write(line)
+            sys.stderr.flush()
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                events.append(json.loads(stripped))
+            except json.JSONDecodeError:
+                continue
+        proc.wait(timeout=max(timeout - (time.time() - start), 1))
+    except subprocess.TimeoutExpired as exc:
+        proc.kill()
+        raise RuntimeError(f"omp -p timed out after {timeout}s") from exc
+    elapsed = time.time() - start
+
+    if not "".join(stdout_lines).strip():
+        stderr = (proc.stderr.read() if proc.stderr else "") or ""
+        raise RuntimeError(
+            f"omp -p produced no output (exit {proc.returncode}): {stderr.strip()[:500]}"
+        )
+    result = _pi_result_from_events(events, elapsed)
+    result["_elapsed_seconds"] = round(elapsed, 1)
+    return result
+
+
+CODEX_BIN = "codex"
+
+
+def _build_codex_env(config: RunnerConfig) -> dict[str, str]:
+    """Build the environment for a codex exec run.
+
+    For provider=bedrock, pins AWS_REGION so codex uses the right region.
+    For provider=endpoint, sets OPENAI_BASE_URL and OPENAI_API_KEY so codex
+    routes through the LiteLLM proxy.
+
+    Args:
+        config: The runner config.
+
+    Returns:
+        A copy of the current environment with routing vars set.
+    """
+    env = os.environ.copy()
+    if config.is_bedrock:
+        region = config.resolved_region()
+        if region:
+            env["AWS_REGION"] = region
+    else:
+        env["OPENAI_BASE_URL"] = config.endpoint.rstrip("/") + "/v1"
+        env["OPENAI_API_KEY"] = config.api_key or "local"
+    return env
+
+
+def _build_codex_cmd(config: RunnerConfig, clone_path: Path, prompt: str) -> list[str]:
+    """Assemble the ``codex exec`` argument vector.
+
+    codex exec runs non-interactively, outputs JSON lines, and supports
+    ``--model`` to select any Bedrock or OpenAI-compatible model. ``--cd``
+    sets the working directory to the cloned repo so codex file tools operate
+    on the task. The SKILL.md is inlined ahead of the task payload (codex has
+    no ``--skill`` flag, same as kiro).
+
+    Args:
+        config: The runner config (model, provider).
+        clone_path: Path to the cloned task repo.
+        prompt: The hydrated task prompt (from ``_build_prompt`` agent="codex").
+
+    Returns:
+        The command as a list of arguments (never a shell string).
+    """
+    skill_md = _skill_path(config).read_text(encoding="utf-8")
+    full_prompt = (
+        f"{skill_md}\n\n"
+        "===TASK===\n"
+        "Follow the skill instructions above to complete the following task.\n\n"
+        f"{prompt}"
+    )
+    cmd = [
+        CODEX_BIN,
+        "exec",
+        "--json",
+        "--skip-git-repo-check",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--cd", str(clone_path),
+        "--model", model_to_wire_id(config.model),
+    ]
+    if config.is_bedrock:
+        cmd += ["-c", "model_provider=amazon-bedrock"]
+    cmd += ["--", full_prompt]
+    return cmd  # nosec B603 B607 - hardcoded command, no user input in cmd args
+
+
+def _codex_result_from_events(
+    events: list[dict[str, Any]],
+    returncode: int,
+    elapsed: float,
+    model: str = "",
+) -> dict[str, Any]:
+    """Normalize codex JSON-lines output to the claude-shaped result dict.
+
+    codex exec emits JSON-lines events. The ``turn.completed`` event carries
+    full token usage (input, output, cache read/write). Cost is derived from
+    the token counts using the local Bedrock price table in ``bedrock_pricing``.
+
+    Args:
+        events: Parsed JSON event dicts from codex exec stdout.
+        returncode: The process exit code.
+        elapsed: Wall-clock seconds measured by the harness.
+        model: The model id used for cost derivation.
+
+    Returns:
+        The claude-shaped result dict.
+    """
+    usage: dict[str, int] = {}
+    last_message = ""
+    for event in events:
+        if event.get("type") == "turn.completed":
+            u = event.get("usage", {})
+            usage = {
+                "input_tokens": u.get("input_tokens", 0),
+                "output_tokens": u.get("output_tokens", 0),
+                "cache_read_input_tokens": u.get("cached_input_tokens", 0),
+                "cache_creation_input_tokens": u.get("cache_write_input_tokens", 0),
+            }
+        if event.get("type") == "item.completed":
+            item = event.get("item", {})
+            if item.get("type") == "agent_message":
+                last_message = item.get("text", "")
+
+    cost = _bedrock_cost_usd(
+        model,
+        input_tokens=usage.get("input_tokens", 0),
+        output_tokens=usage.get("output_tokens", 0),
+        cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+        cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
+    ) if model else None
+
+    is_error = returncode != 0
+    return {
+        "usage": usage,
+        "num_turns": 1,
+        "total_cost_usd": cost,
+        "is_error": is_error,
+        "subtype": "success" if not is_error else f"exit_{returncode}",
+        "duration_ms": round(elapsed * 1000),
+        "result": last_message if not is_error else f"exit_{returncode}",
+    }
+
+
+def _run_codex(
+    cmd: list[str],
+    env: dict[str, str],
+    timeout: int,
+    model: str = "",
+) -> dict[str, Any]:
+    """Run ``codex exec --json`` and normalize its JSON-lines output.
+
+    codex exec streams JSON-lines events to stdout. We accumulate them and
+    parse on completion. Each line is also echoed to stderr as a live trace.
+
+    Args:
+        cmd: The codex exec command argument vector.
+        env: Environment for the subprocess.
+        timeout: Wall-clock timeout in seconds.
+
+    Returns:
+        The claude-shaped result dict (see ``_codex_result_from_events``).
+
+    Raises:
+        RuntimeError: If codex times out or produces no output.
+    """
+    start = time.time()
+    proc = subprocess.Popen(  # nosec B603 B607 - hardcoded 'codex', list args, no shell
+        cmd,
+        env=env,
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if proc.stdout is None:  # pragma: no cover
+        raise RuntimeError("codex produced no stdout stream")
+    events: list[dict[str, Any]] = []
+    for line in proc.stdout:
+        if time.time() - start > timeout:
+            proc.kill()
+            raise RuntimeError(f"codex timed out after {timeout}s")
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        line = line.strip()
+        if line:
+            try:
+                parsed = json.loads(line)
+                if isinstance(parsed, dict):
+                    events.append(parsed)
+            except json.JSONDecodeError:
+                pass
+    proc.wait()
+    elapsed = time.time() - start
+
+    if not events:
+        raise RuntimeError(f"codex produced no output (exit {proc.returncode}).")
+    result = _codex_result_from_events(events, proc.returncode, elapsed, model=model)
     result["_elapsed_seconds"] = round(elapsed, 1)
     return result
 
@@ -2081,24 +1766,18 @@ def _run_claude_streaming(
     return final
 
 
-def _artifact_dir(config: RunnerConfig, dataset: Dataset, task: Task) -> Path:
+def _artifact_dir(config: RunnerConfig, task: Task) -> Path:
     """Return the directory where the skill writes a task's artifacts.
 
-    Layout: ``benchmarks/<output_dir>/<model>/<harness>/<skill>/<scope>/<task>/``.
+    Layout: ``benchmarks/<output_dir>/<model>/<harness>/<skill>/<repo>/<task>/``.
     Model, harness (coding agent), and skill are each their own path level, so
     runs never collide: a pi run never overwrites a Claude Code run, and a swe3
     run never overwrites a swe2 run of the same model. swe2 and swe3 are sibling
     folders under the harness -- they differ materially in token use and accuracy,
     so each is its own dimension rather than a suffix.
 
-    The ``<scope>`` level is the repository name, unless the dataset sets
-    ``output_scope`` -- which two datasets over the *same* repository must do, or
-    they share a folder and the folder-level run-summary.json of one is rebuilt
-    over the other's tasks.
-
     Args:
         config: The runner config.
-        dataset: The loaded dataset, which decides the scope folder.
         task: The task being run.
 
     Returns:
@@ -2111,121 +1790,53 @@ def _artifact_dir(config: RunnerConfig, dataset: Dataset, task: Task) -> Path:
         / config.model_slug
         / config.harness_slug
         / config.skill
-        / dataset.scope_for(_repo_name(task.repo))
+        / _repo_name(task.repo)
         / task.id
     )
 
 
 def _summary_metrics(
     metrics: dict[str, Any],
-    vllm_prometheus: dict[str, Any],
     generation_tokens_per_sec: float,
-    include_vllm: bool = True,
     agent: str = "claude",
 ) -> dict[str, Any]:
     """Build the headline "metrics that matter" block for a run.
 
-    This is a curated, source-resolved summary: for each metric it picks the best
-    available number and records where it came from, so a reader never has to
-    know whether a value lives in the top-level API fields or the nested
-    ``vllm_prometheus`` block. Cache tokens prefer the model API when it reports
-    them (Amazon Bedrock, the Anthropic API) and fall back to vLLM's server-side
-    counters when it does not (vLLM's Anthropic route omits per-request cache
-    fields). Everything sourced from ``vllm_prometheus`` inherits its single-
-    tenant caveat.
-
-    KV-cache utilization is intentionally NOT a headline metric: on a serial,
-    single-tenant benchmark it barely varies (it tracks one request's working set
-    as a fraction of the pool, not anything the benchmark controls), so it has no
-    power to discriminate between runs. The sampled peak/mean still lives in
-    ``vllm_prometheus.gauges_sampled`` as capacity telemetry -- useful alongside
-    ``num_preemptions`` to judge whether a run was memory-clean, and it becomes a
-    headline concern only under concurrent load.
+    Reports what the model API returned for the run plus derived totals.
 
     Args:
         metrics: The API-reported metrics from _metrics_from_result.
-        vllm_prometheus: The nested vLLM Prometheus block from _vllm_metrics.
         generation_tokens_per_sec: Output-token throughput (output_tokens /
-            latency_seconds), computed once by the caller so it matches the
-            top-level field.
-        include_vllm: When False (e.g. provider=bedrock, which has no vLLM
-            server), the vLLM-derived cache fallbacks and the prefix-cache-hit
-            headline are omitted, so the summary reports only what the model API
-            returned.
+            latency_seconds), computed once by the caller.
+        agent: The coding agent name (claude, pi, kiro).
 
     Returns:
         A flat summary dict of headline numbers plus a ``sources`` map naming the
         provenance of each. Values are None when no source could supply them.
     """
-    counters = vllm_prometheus.get("counters", {})
-    derived = vllm_prometheus.get("derived", {})
-    prompt_total = counters.get(PROMPT_TOKENS_METRIC)
-    prompt_cached = counters.get(PROMPT_TOKENS_CACHED_METRIC)
-
-    # Provenance label for the agent's own reported usage (Claude Code vs pi).
     api = f"{agent}_api"
-
-    # Cache-read: the API number if the backend reported it, else (only when a
-    # vLLM server backs the run) vLLM's cached prompt tokens. Cache-write has no
-    # direct vLLM counter; the freshly computed (uncached) prefill tokens are the
-    # closest equivalent.
-    if "cache_read_tokens" in metrics:
-        cache_read: int | None = metrics["cache_read_tokens"]
-        cache_read_src = f"{api}.usage.cache_read_input_tokens"
-    elif include_vllm:
-        cache_read = prompt_cached
-        cache_read_src = f"vllm_prometheus.counters.{PROMPT_TOKENS_CACHED_METRIC}"
-    else:
-        cache_read = None
-        cache_read_src = f"{api}.usage.cache_read_input_tokens (not reported)"
-    if "cache_creation_tokens" in metrics:
-        cache_write: int | None = metrics["cache_creation_tokens"]
-        cache_write_src = f"{api}.usage.cache_creation_input_tokens"
-    elif include_vllm and prompt_total is not None and prompt_cached is not None:
-        cache_write = prompt_total - prompt_cached
-        cache_write_src = (
-            f"vllm_prometheus derived: {PROMPT_TOKENS_METRIC} - "
-            f"{PROMPT_TOKENS_CACHED_METRIC} (uncached prefill tokens)"
-        )
-    else:
-        cache_write = None
-        cache_write_src = "unavailable (backend reports no cache-write signal)"
-
-    note = (
-        "Headline metrics resolved to the best available source for each; see "
-        "'sources'. Values drawn from vllm_prometheus carry its single-tenant, "
-        "server-wide caveat."
-        if include_vllm
-        else (
-            "Headline metrics as reported by the model API (claude -p); there is "
-            "no vLLM server for this provider, so no server-side cache telemetry."
-        )
+    cache_read: int | None = metrics.get("cache_read_tokens")
+    cache_write: int | None = metrics.get("cache_creation_tokens")
+    cache_read_src = (
+        f"{api}.usage.cache_read_input_tokens"
+        if cache_read is not None
+        else f"{api}.usage.cache_read_input_tokens (not reported)"
     )
-    # total_tokens is the total tokens processed once each, from
-    # compute_total_tokens_processed (issue #136). It detects whether the cache
-    # fields are a PARTITION of input_tokens (self-hosted vLLM: cache already
-    # inside input, so total = input + output) or ADDITIVE (Bedrock prompt
-    # caching: total = input + output + cache_read + cache_write, so a
-    # heavily-cached run is not understated ~100x). Adding the cache
-    # unconditionally, as this used to, ~2x double-counted self-hosted partition
-    # runs. total_cost_usd is the agent's own metered bill (null for a
-    # self-hosted model, which has no per-token price).
+    cache_write_src = (
+        f"{api}.usage.cache_creation_input_tokens"
+        if cache_write is not None
+        else "unavailable (backend reports no cache-write signal)"
+    )
     inp = metrics.get("input_tokens") or 0
     out = metrics.get("output_tokens") or 0
-    total_tokens = compute_total_tokens_processed(
-        inp,
-        out,
-        cache_read or 0,
-        cache_write or 0,
-        context=f"run-swe-headless:_summary_metrics/{agent}",
-    )
+    total_tokens = inp + out + (cache_read or 0) + (cache_write or 0)
     token_src = (
         f"{api}.modelUsage (per-model rollup; INCLUDES subagent tokens)"
         if agent == "claude"
         else f"{api}.usage"
     )
     summary = {
-        "note": note,
+        "note": "Headline metrics as reported by the model API.",
         "input_tokens": metrics.get("input_tokens"),
         "output_tokens": metrics.get("output_tokens"),
         "cache_read_tokens": cache_read,
@@ -2235,79 +1846,52 @@ def _summary_metrics(
         "latency_seconds": metrics.get("latency_seconds"),
         "num_turns": metrics.get("num_turns"),
         "generation_tokens_per_sec": generation_tokens_per_sec,
+        "sources": {
+            "input_tokens": f"{token_src}.input",
+            "output_tokens": f"{token_src}.output",
+            "cache_read_tokens": cache_read_src,
+            "cache_write_tokens": cache_write_src,
+            "total_tokens": "sum(input + output + cache_read + cache_write)",
+            "total_cost_usd": (
+                f"{api}.total_cost_usd (metered)"
+                if metrics.get("total_cost_usd") is not None
+                else "null (no per-token bill available)"
+            ),
+            "latency_seconds": f"harness wall-clock (or {api}.duration_ms)",
+            "num_turns": f"{api}.num_turns",
+            "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
+        },
     }
-    sources = {
-        "input_tokens": f"{token_src}.input",
-        "output_tokens": f"{token_src}.output",
-        "cache_read_tokens": cache_read_src,
-        "cache_write_tokens": cache_write_src,
-        "total_tokens": (
-            "total tokens processed once each (issue #136): input + output, plus "
-            "cache_read + cache_write ONLY when the cache is additive (not a "
-            "partition of input)"
-        ),
-        "total_cost_usd": (
-            f"{api}.total_cost_usd (metered)"
-            if metrics.get("total_cost_usd") is not None
-            else "null (self-hosted: no per-token bill; cost is hardware-derived)"
-        ),
-        "latency_seconds": f"harness wall-clock (or {api}.duration_ms)",
-        "num_turns": f"{api}.num_turns",
-        "generation_tokens_per_sec": "derived: output_tokens / latency_seconds",
-    }
-    # The prefix-cache hit rate is a vLLM-only signal; omit it entirely rather
-    # than emit a permanently-null field for a provider that has no vLLM server.
-    if include_vllm:
-        summary["prefix_cache_hit_rate"] = derived.get("prefix_cache_hit_rate")
-        sources["prefix_cache_hit_rate"] = (
-            "vllm_prometheus.derived.prefix_cache_hit_rate"
-        )
-    summary["sources"] = sources
     return summary
 
 
 def _save_metrics(
     config: RunnerConfig,
-    dataset: Dataset,
     task: Task,
     ref: str,
     metrics: dict[str, Any],
-    vllm_prometheus: dict[str, Any],
 ) -> Path:
     """Write the run metrics to metrics.json in the artifact directory.
-
-    The top-level fields report what the model API returned for the run
-    (tokens, latency, turns, cost) plus the harness-observed UTC wall-clock
-    bounds (``run_started_at`` / ``run_ended_at``). For provider=endpoint, cache
-    utilization measured out-of-band from vLLM's Prometheus /metrics is kept in
-    its own ``vllm_prometheus`` block, so the two sources -- and their different
-    accuracy assumptions -- never mix. For provider=bedrock there is no vLLM
-    server, so that block is omitted entirely and the run is limited to what
-    claude -p itself reports.
 
     Args:
         config: The runner config.
         task: The task that was run.
         ref: The git ref used.
         metrics: The API-reported metrics from _metrics_from_result.
-        vllm_prometheus: The nested vLLM Prometheus block from _vllm_metrics.
 
     Returns:
         Path to the written metrics.json.
     """
-    out_dir = _artifact_dir(config, dataset, task)
+    out_dir = _artifact_dir(config, task)
     out_dir.mkdir(parents=True, exist_ok=True)
     produced = [f for f in ARTIFACT_FILENAMES if (out_dir / f).exists()]
     latency = metrics["latency_seconds"] or 0
     generation_tokens_per_sec = (
         round(metrics["output_tokens"] / latency, 1) if latency > 0 else 0
     )
-    # Persist the token-accounting verdict alongside the numbers it judges, so a
-    # suspect run is self-identifying on disk and not only in the run log.
     token_accounting_warning = _check_token_accounting(
         metrics, config.agent, f"[task={task.id}]"
     )
-    include_vllm = not config.is_bedrock
     record = {
         "task": task.id,
         "repo": task.repo,
@@ -2317,16 +1901,10 @@ def _save_metrics(
         "model": config.model,
         "model_slug": config.model_slug,
         "agent": config.agent,
-        # The SWE skill that drove the run (swe2 multi-agent / swe3 single-agent).
-        # Recorded so a result self-identifies its skill regardless of folder path.
         "skill": config.skill,
         "provider": config.provider,
         "endpoint": config.endpoint if not config.is_bedrock else None,
         "aws_region": config.resolved_region() if config.is_bedrock else None,
-        # Serving provenance: the hardware and how the model was served. Grouped
-        # in one block rather than scattered top-level fields. context_window is
-        # the served window (0 in config means "unset"); null values mean unknown
-        # (e.g. tensor_parallel_size / precision on the Bedrock path).
         "serving": {
             "instance_type": config.resolved_instance_type(),
             "tensor_parallel_size": config.tensor_parallel_size,
@@ -2336,32 +1914,15 @@ def _save_metrics(
         "artifacts_produced": len(produced),
         "artifacts_expected": len(ARTIFACT_FILENAMES),
         "generation_tokens_per_sec": generation_tokens_per_sec,
-        # Null on a healthy run. A string here means output-tokens-per-turn fell
-        # below MIN_PLAUSIBLE_OUTPUT_TOKENS_PER_TURN, i.e. the token/cost figures in
-        # this file are suspect (scores/turns/latency are not). Never publish a
-        # token or cost column from a run where this is set.
         "token_accounting_warning": token_accounting_warning,
-        # The normalized, cross-agent metric block -- the single source of truth
-        # for tokens/cost/turns/latency + provenance. summarize_run and the charts
-        # read this. Filled to whatever extent the agent reports (nulls where a
-        # signal is unavailable, never a misleading 0).
         "metrics": _summary_metrics(
             metrics,
-            vllm_prometheus,
             generation_tokens_per_sec,
-            include_vllm,
             agent=config.agent,
         ),
         **metrics,
     }
-    # Back-compat alias: older tooling / committed readers referenced
-    # "metrics_that_matter". Keep it pointing at the same normalized block for one
-    # release so nothing breaks; new code should read "metrics".
     record["metrics_that_matter"] = record["metrics"]
-    # vLLM Prometheus telemetry only exists for an HTTP endpoint; omit the block
-    # for Amazon Bedrock rather than write a permanently-unavailable stub.
-    if include_vllm:
-        record["vllm_prometheus"] = vllm_prometheus
     path = out_dir / "metrics.json"
     path.write_text(json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8")
     return path
@@ -2372,7 +1933,6 @@ def _run_task(
     dataset: Dataset,
     task: Task,
     stream: bool = False,
-    concurrent: bool = False,
     position: int = 1,
     total: int = 1,
     verbose: bool = False,
@@ -2385,11 +1945,6 @@ def _run_task(
         dataset: The loaded dataset (for default-ref resolution).
         task: The task to run.
         stream: If True, print a live event trace while claude -p runs.
-        concurrent: True when other tasks may run on the endpoint at the same
-            time (concurrency > 1). The single-tenant assumption behind the
-            window-delta metrics no longer holds, so the vLLM block is annotated
-            as a server-wide aggregate (ratios blended, absolute counts summed
-            across the overlapping runs) rather than passed off as per-run.
         position: This task's 1-based position in the run (for legible logs).
         total: Total number of tasks in the run.
         verbose: When True (and streaming), print assistant text and tool
@@ -2410,7 +1965,7 @@ def _run_task(
             clone_path,
             ref,
             config.model_slug,
-            _artifact_dir(config, dataset, task),
+            _artifact_dir(config, task),
             agent=config.agent,
             skill=config.skill,
             topup_missing=topup_missing,
@@ -2424,8 +1979,8 @@ def _run_task(
             # Per-run pi config dir under the clone parent so it is cleaned up
             # with the clone and never touches the developer's global ~/.pi.
             pi_agent_dir = clone_parent / "pi-agent"
-            # vLLM routing needs a models.json pointing at the endpoint; the
-            # native Amazon Bedrock provider is built into pi, so skip it there.
+            # Endpoint routing (LiteLLM proxy) needs a models.json; Bedrock is
+            # built into pi so only settings.json is written there.
             if config.is_bedrock:
                 pi_agent_dir.mkdir(parents=True, exist_ok=True)
                 _write_pi_settings(config, pi_agent_dir)
@@ -2435,28 +1990,6 @@ def _run_task(
             env = _build_pi_env(config, pi_agent_dir)
             logger.info(
                 "  %s Running pi -p %s (agent=pi, no turn cap)...", label, run_kind
-            )
-        elif config.is_omp:
-            # Per-run omp config dir under the clone parent, same isolation as pi.
-            # The endpoint path needs models.yml + config.yml; omp's native Bedrock
-            # provider needs neither, but the compaction setting still applies.
-            omp_agent_dir = clone_parent / "omp-agent"
-            if config.is_bedrock:
-                omp_agent_dir.mkdir(parents=True, exist_ok=True)
-            else:
-                _write_omp_config(config, omp_agent_dir)
-            cmd = _build_omp_cmd(config, prompt)
-            env = _build_omp_env(config, omp_agent_dir)
-            omp_cap = (
-                f"max-time {config.agent_max_time_seconds}s"
-                if config.agent_max_time_seconds
-                else "no time cap"
-            )
-            logger.info(
-                "  %s Running omp -p %s (agent=omp, no turn cap, %s)...",
-                label,
-                run_kind,
-                omp_cap,
             )
         elif config.is_kiro:
             # kiro-cli uses its own global sign-in (~/.kiro); there is no per-run
@@ -2469,6 +2002,45 @@ def _run_task(
                 label,
                 run_kind,
             )
+        elif config.is_codex:
+            # codex exec runs non-interactively with --json output and full token
+            # counts. It supports bedrock and endpoint providers.
+            cmd = _build_codex_cmd(config, clone_path, prompt)
+            env = _build_codex_env(config)
+            logger.info(
+                "  %s Running codex exec %s (agent=codex, no turn cap)...",
+                label,
+                run_kind,
+            )
+        elif config.is_omp:
+            # omp is a fork of pi with a different binary and YAML config.
+            # The SKILL.md is inlined into the prompt (omp has no --skill flag).
+            omp_agent_dir = clone_parent / "omp-agent"
+            if config.is_bedrock:
+                # Bedrock path: no models.yml needed (routing is built-in),
+                # but config.yml is still needed for compaction settings.
+                window = config.context_window or 200000
+                threshold = max(window - (config.max_output_tokens + 8192), 1)
+                config_yml = {"compaction": {"enabled": True, "thresholdTokens": threshold}}
+                omp_agent_dir.mkdir(parents=True, exist_ok=True)
+                (omp_agent_dir / "config.yml").write_text(
+                    yaml.safe_dump(config_yml, sort_keys=False), encoding="utf-8"
+                )
+            else:
+                _write_omp_config(config, omp_agent_dir)
+            cmd = _build_omp_cmd(config, prompt)
+            env = _build_omp_env(config, omp_agent_dir)
+            max_time_note = (
+                f", max-time {config.agent_max_time_seconds}s"
+                if config.agent_max_time_seconds
+                else ""
+            )
+            logger.info(
+                "  %s Running omp -p %s (agent=omp, no turn cap%s)...",
+                label,
+                run_kind,
+                max_time_note,
+            )
         else:
             cmd = _build_claude_cmd(
                 config, prompt, stream=stream, clone_path=clone_path
@@ -2480,70 +2052,38 @@ def _run_task(
                 run_kind,
                 config.max_turns,
             )
-        # vLLM Prometheus scraping only applies to an HTTP endpoint; Amazon
-        # Bedrock exposes no such surface, so skip it and leave the block marked
-        # unavailable. metrics_endpoint is None for provider=bedrock.
-        metrics_endpoint = config.endpoint if not config.is_bedrock else None
-        # Snapshot vLLM's full server-wide metrics surface as tightly around the
-        # claude -p call as possible. Each delta is this run's activity ONLY if
-        # the run is the sole traffic on the endpoint (see _snapshot_vllm_metrics).
-        # Keep the reads adjacent to the call to minimize the window in which
-        # other traffic could be misattributed.
-        vllm_before = (
-            _snapshot_vllm_metrics(metrics_endpoint) if metrics_endpoint else None
-        )
-        # Gauges (KV-cache usage, running/waiting requests) drain to idle the
-        # moment a request finishes, so a before/after snapshot always reads them
-        # at ~0. Sample them in a background thread WHILE claude -p runs to capture
-        # the in-flight peak/mean instead.
-        # Wall-clock UTC bounds of the run, captured as tightly around the
-        # claude -p call as the metric snapshots. ISO 8601 with a trailing Z.
+        # Wall-clock UTC bounds of the run. ISO 8601 with a trailing Z.
         run_started_at = _utc_now_iso()
-        with _GaugePoller(metrics_endpoint) as poller:
-            if config.is_pi:
-                # pi emits a JSON-lines event stream; _run_pi normalizes it to the
-                # same result shape. It has no separate streaming trace mode.
-                result = _run_pi(
-                    cmd,
-                    env,
-                    config.timeout_seconds,
-                    stream_log=_artifact_dir(config, dataset, task) / "pi-stream.jsonl",
-                )
-            elif config.is_omp:
-                result = _run_omp(
-                    cmd,
-                    env,
-                    config.timeout_seconds,
-                    stream_log=_artifact_dir(config, dataset, task)
-                    / "omp-stream.jsonl",
-                )
-            elif config.is_kiro:
-                # kiro-cli streams ANSI text and prints a Credits/Time summary on
-                # stderr; _run_kiro normalizes that to the same result shape.
-                result = _run_kiro(
-                    cmd, env, config.timeout_seconds, config.kiro_dollars_per_credit
-                )
-            elif stream:
-                result = _run_claude_streaming(
-                    cmd, env, config.timeout_seconds, verbose=verbose
-                )
-            else:
-                result = _run_claude(cmd, env, config.timeout_seconds)
+        if config.is_pi:
+            # pi emits a JSON-lines event stream; _run_pi normalizes it to the
+            # same result shape. It has no separate streaming trace mode.
+            result = _run_pi(cmd, env, config.timeout_seconds)
+        elif config.is_kiro:
+            # kiro-cli streams ANSI text and prints a Credits/Time summary on
+            # stderr; _run_kiro normalizes that to the same result shape.
+            result = _run_kiro(
+                cmd, env, config.timeout_seconds, config.kiro_dollars_per_credit
+            )
+        elif config.is_codex:
+            # codex exec outputs JSON-lines events; _run_codex normalizes them.
+            result = _run_codex(cmd, env, config.timeout_seconds, model=config.model or "")
+        elif config.is_omp:
+            # omp emits the same JSON-lines event stream as pi.
+            result = _run_omp(cmd, env, config.timeout_seconds)
+        elif stream:
+            result = _run_claude_streaming(
+                cmd, env, config.timeout_seconds, verbose=verbose
+            )
+        else:
+            result = _run_claude(cmd, env, config.timeout_seconds)
         run_ended_at = _utc_now_iso()
-        vllm_after = (
-            _snapshot_vllm_metrics(metrics_endpoint) if metrics_endpoint else None
-        )
         metrics = _metrics_from_result(result, result.get("_elapsed_seconds", 0))
         metrics["run_started_at"] = run_started_at
         metrics["run_ended_at"] = run_ended_at
-        vllm_block = _vllm_metrics(vllm_before, vllm_after)
-        vllm_block["gauges_sampled"] = poller.summary()
-        if concurrent:
-            _mark_aggregate(vllm_block)
     finally:
         shutil.rmtree(clone_parent, ignore_errors=True)
 
-    metrics_path = _save_metrics(config, dataset, task, ref, metrics, vllm_block)
+    metrics_path = _save_metrics(config, task, ref, metrics)
     out_dir = metrics_path.parent
     produced = [f for f in ARTIFACT_FILENAMES if (out_dir / f).exists()]
     # Completeness is gated on the four DESIGN artifacts plus the implementation
@@ -2554,20 +2094,8 @@ def _run_task(
     patch_done = (out_dir / "patch.diff").exists()
     ok = design_done and patch_done and not metrics["is_error"]
 
-    # One-line outcome banner: artifacts, turns, tokens, latency, and (when
-    # available) the vLLM prefix-cache hit rate for the run's window.
+    # One-line outcome banner: artifacts, turns, tokens, latency.
     cache_suffix = ""
-    hit_rate = vllm_block.get("derived", {}).get("prefix_cache_hit_rate")
-    if hit_rate is not None:
-        queries = vllm_block["counters"].get(PREFIX_CACHE_QUERIES_METRIC)
-        hits = vllm_block["counters"].get(PREFIX_CACHE_HITS_METRIC)
-        scope = "aggregate" if concurrent else "single-tenant"
-        cache_suffix = (
-            f", prefix cache {hit_rate * 100:.1f}% hit "
-            f"({hits:,}/{queries:,} tokens, {scope})"
-            if hits is not None and queries is not None
-            else f", prefix cache {hit_rate * 100:.1f}% hit ({scope})"
-        )
     thinking_suffix = ""
     if metrics.get("thinking_tokens_estimate"):
         thinking_suffix = f" (~{metrics['thinking_tokens_estimate']:,} thinking)"
@@ -2645,16 +2173,18 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
             placeholder,
             ref,
             config.model_slug,
-            _artifact_dir(config, dataset, task),
+            _artifact_dir(config, task),
             agent=config.agent,
             skill=config.skill,
         )
         if config.is_pi:
             cmd = _build_pi_cmd(config, prompt)
-        elif config.is_omp:
-            cmd = _build_omp_cmd(config, prompt)
         elif config.is_kiro:
             cmd = _build_kiro_cmd(config, prompt)
+        elif config.is_codex:
+            cmd = _build_codex_cmd(config, placeholder, prompt)
+        elif config.is_omp:
+            cmd = _build_omp_cmd(config, prompt)
         else:
             cmd = _build_claude_cmd(config, prompt, clone_path=placeholder)
         print(f"\n=== {task.id} [{task.complexity}] ref={ref} ===")
@@ -2705,118 +2235,22 @@ def _summary_is_retryable(summary: dict[str, Any]) -> bool:
     return True
 
 
-def _clear_partial_artifacts(
-    config: RunnerConfig, dataset: Dataset, task: Task
-) -> None:
+def _clear_partial_artifacts(config: RunnerConfig, task: Task) -> None:
     """Remove a task's partially-written artifacts before a retry.
 
     A transiently-failed attempt may have left some artifacts (and a
     metrics.json) behind. Clearing them keeps the retry a clean run and prevents
     a stale partial file from masking what the retry actually produced.
     """
-    out_dir = _artifact_dir(config, dataset, task)
+    out_dir = _artifact_dir(config, task)
     for filename in (*ARTIFACT_FILENAMES, "metrics.json"):
         (out_dir / filename).unlink(missing_ok=True)
 
 
-def _missing_artifacts(config: RunnerConfig, dataset: Dataset, task: Task) -> list[str]:
+def _missing_artifacts(config: RunnerConfig, task: Task) -> list[str]:
     """Return the ARTIFACT_FILENAMES not yet present in the task's output dir."""
-    out_dir = _artifact_dir(config, dataset, task)
+    out_dir = _artifact_dir(config, task)
     return [f for f in ARTIFACT_FILENAMES if not (out_dir / f).exists()]
-
-
-def _pass_cost_value(record: dict[str, Any], key: str) -> float:
-    """Read one additive cost field from a single pass's metrics record.
-
-    Args:
-        record: A parsed metrics.json (or an in-memory summary) for one pass.
-        key: A member of :data:`ADDITIVE_COST_FIELDS`.
-
-    Returns:
-        The field's value, or 0 when the pass did not report it. The normalized
-        block is preferred over the top-level mirror because it is what
-        ``summarize_run`` reads.
-    """
-    block = record.get("metrics") or record.get("metrics_that_matter") or {}
-    val = block.get(MM_BLOCK_KEY.get(key, key))
-    if val is None:
-        val = record.get(key)
-    return val or 0
-
-
-def _fold_pass_into_totals(
-    totals: dict[str, Any],
-    record: dict[str, Any],
-) -> dict[str, Any]:
-    """Add one pass's additive cost fields into a running total.
-
-    Args:
-        totals: The running totals, keyed by :data:`ADDITIVE_COST_FIELDS`.
-        record: The pass to fold in.
-
-    Returns:
-        The same ``totals`` dict, mutated.
-    """
-    for key in ADDITIVE_COST_FIELDS:
-        totals[key] = (totals.get(key) or 0) + _pass_cost_value(record, key)
-    return totals
-
-
-def _write_cost_totals(
-    path: Path,
-    totals: dict[str, Any],
-    invocations: int,
-    context: str,
-    topped_up: list[str] | None = None,
-) -> None:
-    """Restore summed multi-invocation cost into a task's metrics.json.
-
-    The final pass left metrics.json holding only its own numbers. This writes
-    the summed additive fields to the top-level fields AND to the normalized
-    block ("metrics", plus its "metrics_that_matter" alias), because
-    ``summarize_run`` reads the normalized block -- writing only one place would
-    leave the summary showing a single pass. Best-effort: a write failure is
-    logged, not fatal.
-
-    Args:
-        path: The task's metrics.json.
-        totals: Summed additive fields across every agent invocation.
-        invocations: How many agent invocations the task actually took.
-        context: Label for the token-accounting trace.
-        topped_up: Artifacts produced by a top-up pass, when any.
-    """
-    record = _read_json_file(path)
-    if record is None:
-        return
-    record.update(totals)
-    for block_name in ("metrics", "metrics_that_matter"):
-        block = record.get(block_name)
-        if not isinstance(block, dict):
-            continue
-        for key, value in totals.items():
-            target = MM_BLOCK_KEY.get(key, key)
-            if target in block:
-                block[target] = value
-        # total_tokens is derived, not additive; recompute it from the summed
-        # parts so the partition-vs-additive rule (issue #136) is applied
-        # consistently and does not ~2x double-count self-hosted partition runs.
-        if "total_tokens" in block:
-            block["total_tokens"] = compute_total_tokens_processed(
-                totals.get("input_tokens") or 0,
-                totals.get("output_tokens") or 0,
-                totals.get("cache_read_tokens") or 0,
-                totals.get("cache_creation_tokens") or 0,
-                context=f"{context}/{block_name}",
-            )
-    record["agent_invocations"] = invocations
-    if topped_up is not None:
-        record["topped_up_artifacts"] = topped_up
-    try:
-        path.write_text(
-            json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8"
-        )
-    except OSError:
-        logger.warning("could not write summed cost totals to %s", path)
 
 
 def _maybe_topup(
@@ -2826,7 +2260,6 @@ def _maybe_topup(
     summary: dict[str, Any],
     *,
     stream: bool,
-    concurrent: bool,
     position: int,
     total: int,
     verbose: bool,
@@ -2856,11 +2289,10 @@ def _maybe_topup(
     """
     invocations = summary.get("attempts", 1)
     topped_up: list[str] = []
-    # Seed the running cost from what is already on disk. That record ALREADY
-    # holds the sum across any transient retries (_run_task_with_retries folded
-    # them in before we were called), so top-ups accumulate on top of it rather
-    # than restarting the count. See ADDITIVE_COST_FIELDS for why these fields.
-    base = _read_json_file(_artifact_dir(config, dataset, task) / "metrics.json") or {}
+    # Seed running totals from what is already on disk. That record already holds
+    # the sum across any transient retries (_run_task_safe folded them in before
+    # we were called), so top-ups accumulate on top of it. Fix for upstream #143.
+    base = _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
     totals = {k: _pass_cost_value(base, k) for k in ADDITIVE_COST_FIELDS}
     for topup in range(1, config.max_topups + 1):
         if summary.get("ok"):
@@ -2868,10 +2300,10 @@ def _maybe_topup(
         # Only design-complete tasks are eligible; a missing design doc is a real
         # failure, not a truncation to top up.
         design_done = all(
-            (_artifact_dir(config, dataset, task) / f).exists()
+            (_artifact_dir(config, task) / f).exists()
             for f in DESIGN_ARTIFACT_FILENAMES
         )
-        missing = _missing_artifacts(config, dataset, task)
+        missing = _missing_artifacts(config, task)
         if not design_done or not missing:
             break
         logger.warning(
@@ -2889,7 +2321,6 @@ def _maybe_topup(
                 dataset,
                 task,
                 stream=stream,
-                concurrent=concurrent,
                 position=position,
                 total=total,
                 verbose=verbose,
@@ -2904,50 +2335,36 @@ def _maybe_topup(
         # This top-up overwrote metrics.json with only its own pass; fold its
         # additive cost into the running totals.
         pass_metrics = (
-            _read_json_file(_artifact_dir(config, dataset, task) / "metrics.json") or {}
+            _read_json_file(_artifact_dir(config, task) / "metrics.json") or {}
         )
         _fold_pass_into_totals(totals, pass_metrics)
-        topped_up = [
-            f for f in missing if (_artifact_dir(config, dataset, task) / f).exists()
-        ]
+        topped_up = [f for f in missing if (_artifact_dir(config, task) / f).exists()]
 
-    # Record top-up provenance so the run is honestly flagged as assisted, both on
-    # the in-memory summary and in the on-disk metrics.json.
+    # Record top-up provenance so the run is honestly flagged as assisted.
     summary["max_turns"] = config.max_turns
     summary["agent_invocations"] = invocations
     summary["topped_up_artifacts"] = topped_up
     if invocations > 1:
-        _annotate_metrics_topup(config, dataset, task, invocations, topped_up, totals)
+        _annotate_metrics_topup(config, task, invocations, topped_up, totals)
     return summary
 
 
 def _annotate_metrics_topup(
     config: RunnerConfig,
-    dataset: Dataset,
     task: Task,
     invocations: int,
     topped_up: list[str],
     totals: dict[str, Any],
 ) -> None:
-    """Record top-up provenance and summed cost into the task's metrics.json.
+    """Record top-up provenance + summed cost into the task's metrics.json.
 
-    Thin wrapper over :func:`_write_cost_totals` that also records which
-    artifacts a top-up produced, so a completed-but-assisted run stays
-    distinguishable from a clean one.
-
-    Args:
-        config: The runner config.
-        dataset: The loaded dataset.
-        task: The task whose metrics.json to annotate.
-        invocations: Total agent invocations across retries and top-ups.
-        topped_up: Artifacts produced by a top-up pass.
-        totals: Summed additive cost fields across every invocation.
+    Thin wrapper over :func:`_write_cost_totals`. Refactored as part of
+    upstream fix #143 to reuse the same cost-accumulation logic as retries.
     """
     _write_cost_totals(
-        _artifact_dir(config, dataset, task) / "metrics.json",
+        _artifact_dir(config, task) / "metrics.json",
         totals,
         invocations,
-        context="run-swe-headless:_annotate_metrics_topup",
         topped_up=topped_up,
     )
 
@@ -2960,12 +2377,94 @@ def _read_json_file(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def _pass_cost_value(record: dict[str, Any], key: str) -> float:
+    """Read one additive cost field from a single pass's metrics record.
+
+    The normalized block is preferred over the top-level mirror because it is
+    what ``summarize_run`` reads.
+    """
+    block = record.get("metrics") or record.get("metrics_that_matter") or {}
+    val = block.get(MM_BLOCK_KEY.get(key, key))
+    if val is None:
+        val = record.get(key)
+    return val or 0
+
+
+def _fold_pass_into_totals(
+    totals: dict[str, Any],
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    """Add one pass's additive cost fields into a running total dict (mutated)."""
+    for key in ADDITIVE_COST_FIELDS:
+        totals[key] = (totals.get(key) or 0) + _pass_cost_value(record, key)
+    return totals
+
+
+def _write_cost_totals(
+    path: Path,
+    totals: dict[str, Any],
+    invocations: int,
+    topped_up: list[str] | None = None,
+) -> None:
+    """Restore summed multi-invocation cost into a task's metrics.json.
+
+    The final pass left metrics.json holding only its own numbers. This writes
+    the summed additive fields to both the top-level fields AND the normalized
+    block, because ``summarize_run`` reads the normalized block. Best-effort:
+    a write failure is logged, not fatal. Fix for upstream issue #143.
+
+    Args:
+        path: The task's metrics.json.
+        totals: Summed additive fields across every agent invocation.
+        invocations: How many agent invocations the task actually took.
+        topped_up: Artifacts produced by a top-up pass, when any.
+    """
+    record = _read_json_file(path)
+    if record is None:
+        return
+    record.update(totals)
+    # Recompute top-level generation_tokens_per_sec from summed parts.
+    latency = totals.get("latency_seconds") or 0
+    out = totals.get("output_tokens") or 0
+    if "generation_tokens_per_sec" in record:
+        record["generation_tokens_per_sec"] = round(out / latency, 1) if latency > 0 else 0
+    for block_name in ("metrics", "metrics_that_matter"):
+        block = record.get(block_name)
+        if not isinstance(block, dict):
+            continue
+        for key, value in totals.items():
+            target = MM_BLOCK_KEY.get(key, key)
+            if target in block:
+                block[target] = value
+        # Recompute derived fields from the summed parts.
+        if "total_tokens" in block:
+            inp = totals.get("input_tokens") or 0
+            out = totals.get("output_tokens") or 0
+            cr = totals.get("cache_read_tokens") or 0
+            cw = totals.get("cache_creation_tokens") or 0
+            block["total_tokens"] = inp + out + cr + cw
+        if "generation_tokens_per_sec" in block:
+            latency = totals.get("latency_seconds") or 0
+            out = totals.get("output_tokens") or 0
+            block["generation_tokens_per_sec"] = (
+                round(out / latency, 1) if latency > 0 else 0
+            )
+    record["agent_invocations"] = invocations
+    if topped_up is not None:
+        record["topped_up_artifacts"] = topped_up
+    try:
+        path.write_text(
+            json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8"
+        )
+    except OSError:
+        logger.warning("could not write summed cost totals to %s", path)
+
+
 def _run_task_safe(
     config: RunnerConfig,
     dataset: Dataset,
     task: Task,
     stream: bool,
-    concurrent: bool,
     position: int,
     total: int,
     verbose: bool = False,
@@ -2984,12 +2483,11 @@ def _run_task_safe(
     attempts = config.max_retries + 1
     last: dict[str, Any] = {"task": task.id, "ok": False, "artifacts": 0}
     # Cost carried over from attempts that were discarded. A failed attempt still
-    # burned real tokens, turns and wall-clock on the GPU, so dropping it would
-    # understate the task's true cost by roughly the number of attempts it took.
-    # _clear_partial_artifacts deletes metrics.json, so each attempt is folded in
-    # BEFORE the wipe; the sum is restored onto the final record after the loop.
+    # burned real tokens/turns/cost, so dropping it understates the task's true
+    # cost. metrics.json is read BEFORE the wipe; the sum is restored onto the
+    # final record after the loop. Fix for upstream issue #143.
     carried: dict[str, Any] = {}
-    metrics_path = _artifact_dir(config, dataset, task) / "metrics.json"
+    metrics_path = _artifact_dir(config, task) / "metrics.json"
     for attempt in range(1, attempts + 1):
         if attempt > 1:
             logger.warning(
@@ -3003,14 +2501,13 @@ def _run_task_safe(
             prior = _read_json_file(metrics_path)
             if prior is not None:
                 _fold_pass_into_totals(carried, prior)
-            _clear_partial_artifacts(config, dataset, task)
+            _clear_partial_artifacts(config, task)
         try:
             summary = _run_task(
                 config,
                 dataset,
                 task,
                 stream=stream,
-                concurrent=concurrent,
                 position=position,
                 total=total,
                 verbose=verbose,
@@ -3038,19 +2535,31 @@ def _run_task_safe(
             total,
             attempts,
         )
-    # Fold the discarded attempts back in so metrics.json reports what the task
-    # actually cost, not just its final pass. Done before any top-up, which seeds
-    # its own running total from this record.
+    # Fold discarded attempts' costs back so metrics.json reports the task's
+    # true total cost, not just the final pass.
     if carried:
-        totals = _fold_pass_into_totals(
-            dict(carried), _read_json_file(metrics_path) or {}
-        )
-        _write_cost_totals(
-            metrics_path,
-            totals,
-            last.get("attempts", attempts),
-            context="run-swe-headless:_run_task_safe",
-        )
+        existing = _read_json_file(metrics_path) or {}
+        # If no metrics.json exists (all attempts raised RuntimeError and were
+        # wiped), seed a minimal record on disk so costs are not silently dropped.
+        if not existing:
+            existing = {
+                "task": task.id,
+                "is_error": True,
+                "artifacts_produced": 0,
+                "artifacts_expected": len(ARTIFACT_FILENAMES),
+                "metrics": {},
+                "metrics_that_matter": {},
+            }
+            try:
+                metrics_path.parent.mkdir(parents=True, exist_ok=True)
+                metrics_path.write_text(
+                    json.dumps(existing, indent=2, default=str) + "\n",
+                    encoding="utf-8",
+                )
+            except OSError:
+                logger.warning("could not seed metrics.json for carried costs on %s", task.id)
+        totals = _fold_pass_into_totals(dict(carried), existing)
+        _write_cost_totals(metrics_path, totals, last.get("attempts", attempts))
 
     # Outer completion loop: if the task is design-complete but missing the
     # implementation artifacts, try focused top-ups to finish it (see _maybe_topup).
@@ -3061,7 +2570,6 @@ def _run_task_safe(
             task,
             last,
             stream=stream,
-            concurrent=concurrent,
             position=position,
             total=total,
             verbose=verbose,
@@ -3079,9 +2587,7 @@ def _run(
     """Run every selected task and log a final pass/fail summary.
 
     Tasks run serially when ``config.concurrency`` is 1 (the default) and in a
-    thread pool of that width otherwise. Concurrency > 1 overlaps runs on the
-    endpoint, which invalidates the single-tenant vLLM window-delta metrics; the
-    per-run blocks are flagged unreliable and a warning is logged here.
+    thread pool of that width otherwise.
     """
     concurrency = max(1, min(config.concurrency, len(tasks)))
     target = (
@@ -3096,14 +2602,6 @@ def _run(
         target,
         concurrency,
     )
-    if concurrency > 1:
-        logger.warning(
-            "Concurrency is %s: per-run API metrics (tokens, latency, turns) stay "
-            "correct, but the vllm_prometheus block becomes a server-wide "
-            "AGGREGATE over the shared window (ratios blended across runs, "
-            "absolute counts summed). Use concurrency 1 for per-run vLLM metrics.",
-            concurrency,
-        )
 
     total = len(tasks)
     if concurrency == 1:
@@ -3113,7 +2611,6 @@ def _run(
                 dataset,
                 task,
                 stream,
-                False,
                 position=i,
                 total=total,
                 verbose=verbose,
@@ -3159,7 +2656,7 @@ def _run_concurrent(
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
         future_to_index = {
             executor.submit(
-                _run_task_safe, config, dataset, task, False, True, index + 1, total
+                _run_task_safe, config, dataset, task, False, index + 1, total
             ): index
             for index, task in enumerate(tasks)
         }
@@ -3218,7 +2715,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tensor-parallel-size",
         type=int,
-        help="Override: tensor-parallel size (vLLM TP) the model is served with. "
+        help="Override: tensor-parallel size the model is served with. "
         "Recorded in the metrics.json serving block.",
     )
     parser.add_argument(
@@ -3277,7 +2774,7 @@ def _parse_args() -> argparse.Namespace:
         "--concurrency",
         type=int,
         help="Override: how many tasks to run at once (default 1 = serial). "
-        "Values above 1 invalidate the single-tenant vLLM metrics.",
+        "Values above 1 overlap runs on the endpoint.",
     )
     parser.add_argument(
         "--kiro-dollars-per-credit",

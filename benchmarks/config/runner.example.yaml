@@ -25,17 +25,14 @@
 # Fields
 # -----------------------------------------------------------------------------
 #   provider          str   How claude -p reaches the model:
-#                             endpoint (default) - route through a base URL
-#                               (a local vLLM server, a gateway, or the
-#                               Anthropic API). Uses `endpoint` and `api_key`.
-#                             bedrock - drive models directly on Amazon Bedrock
+#                             bedrock  - drive models directly on Amazon Bedrock
 #                               (CLAUDE_CODE_USE_BEDROCK=1). Uses `aws_region`
-#                               and ambient AWS credentials; `endpoint`/`api_key`
-#                               are ignored, and the vLLM Prometheus block is
-#                               left unavailable (Bedrock exposes no /metrics).
-#   endpoint          str   Base URL of the OpenAI/Anthropic-compatible endpoint
-#                           the model is served on (e.g. a local vLLM server).
-#                           Required for provider=endpoint.
+#                               and ambient AWS credentials.
+#                             endpoint - route through an OpenAI-compatible base
+#                               URL (e.g. the LiteLLM proxy for Path 2). Uses
+#                               `endpoint` and `api_key`.
+#   endpoint          str   Base URL of the OpenAI-compatible endpoint (Path 2,
+#                           LiteLLM proxy). Required for provider=endpoint.
 #   model             str   Model name/id passed to `claude --model` and used as
 #                           the {model-name} artifact subfolder. For
 #                           provider=bedrock this is a Bedrock model id or
@@ -56,9 +53,8 @@
 #   tasks             list  Task ids to run. Omit or leave empty to run them all.
 #   concurrency       int   How many tasks to run at once. 1 (default) runs them
 #                           serially. Values above 1 overlap runs on the endpoint,
-#                           which turns the per-run vllm_prometheus metrics into a
-#                           server-wide aggregate (see the README); the per-run API
-#                           metrics stay correct.
+#                           which overlaps runs on the endpoint; per-run API
+#                           metrics (tokens, latency, turns) stay correct.
 #   permission_mode   str   claude -p permission mode: default | acceptEdits |
 #                           plan | bypassPermissions. Use bypassPermissions for
 #                           /swe2: the repos are throwaway clones, and the built-in
@@ -68,29 +64,21 @@
 #                           narrow: read the repo, write the four artifacts.
 #   max_turns         int   Cap on the agent loop (claude --max-turns).
 #   max_output_tokens int   Per-response output-token cap for the model.
-#   context_window    int   The model's true context window, in tokens. Claude
-#                           Code cannot detect the window of a custom model on a
-#                           custom base URL, so without this it never triggers
-#                           auto-compaction and the conversation grows until the
-#                           endpoint rejects the request (500 "maximum context
-#                           length is N tokens"), which the client then retries
-#                           forever. Set this to the served window (for vLLM, the
-#                           MAX_MODEL_LEN you booted with) to calibrate
-#                           auto-compaction (CLAUDE_CODE_AUTO_COMPACT_WINDOW).
-#                           0 (default) leaves it unset -- correct for known
-#                           Claude models / Bedrock, whose window is built in.
-#                           The orchestrator (run-e2e-benchmark.sh) passes the
-#                           live vLLM window automatically on the vllm path.
+#   context_window    int   The model's true context window, in tokens. For
+#                           known Claude models and Bedrock, Claude Code already
+#                           knows the window so leave this at 0. Set it for
+#                           custom endpoint models (provider=endpoint) to
+#                           calibrate auto-compaction
+#                           (CLAUDE_CODE_AUTO_COMPACT_WINDOW).
 #   auto_compact_fraction float  Fraction of context_window at which to compact
 #                           (default 0.9), leaving headroom above the output
 #                           reserve. Only applies when context_window > 0.
 #   timeout_seconds   int   Wall-clock timeout for a single task's claude -p run.
-#   settings_file     str   Optional claude --settings JSON (e.g. the vLLM
-#                           config that pins ANTHROPIC_BASE_URL). Optional.
+#   settings_file     str   Optional claude --settings JSON file. Optional.
 #   kiro_dollars_per_credit float  agent=kiro only. USD per kiro-cli credit, used
 #                           to turn the credits kiro-cli reports into a dollar
 #                           cost per task. 0.04 = Kiro add-on/overage rate;
-#                           0.02 = blended included rate. See docs/kiro-cli-setup.md.
+#                           0.02 = blended included rate.
 # =============================================================================
 
 # Coding agent that drives the task: "claude" (Claude Code, the default) or "pi"
@@ -111,10 +99,9 @@ agent: claude
 # other. Switch per run with --skill swe2.
 skill: swe3
 
-# Routing provider: "endpoint" (a base URL, the default) or "bedrock" (native
-# Amazon Bedrock). Usually left at the default and switched per run with
-# --provider bedrock when you want to benchmark a model straight off Bedrock.
-provider: endpoint
+# Routing provider: "bedrock" (Amazon Bedrock, recommended) or "endpoint"
+# (OpenAI-compatible base URL, e.g. the LiteLLM proxy for Path 2).
+provider: bedrock
 
 # provider=endpoint routing. Ignored when provider=bedrock.
 endpoint: http://127.0.0.1:8000
@@ -124,36 +111,18 @@ api_key: local
 # when running against Amazon Bedrock. Requires ambient AWS credentials.
 # aws_region: us-east-1
 
-# Serving provenance, recorded verbatim in each run's metrics.json serving block
-# (they do not change how the model is served). Usually supplied per run on the
-# CLI (--instance-type / --tensor-parallel-size / --precision); on the vllm path
-# the orchestrator fills instance_type from EC2 metadata. Uncomment to pin:
-# instance_type: p5en.48xlarge
+# Serving provenance, recorded in each run's metrics.json (does not affect
+# how the model is served). Uncomment to pin:
+# instance_type: my-instance
 # tensor_parallel_size: 8
-# precision: FP8
+# precision: BF16
 
 # model and dataset are supplied on the CLI (--model / --dataset) so this one
 # file serves every model and dataset. Uncomment to pin a default instead:
-# model: qwen3-coder-30b
+# model: us.anthropic.claude-haiku-4-5-20251001-v1:0
 # dataset: dataset/mcp-gateway-registry.yaml
-#
-# For Amazon Bedrock, model is a Bedrock model id or inference profile, e.g.:
-#   uv run scripts/run-swe-headless.py --config config/runner.yaml \
-#       --provider bedrock --aws-region us-east-1  \
-#       --model us.anthropic.claude-opus-4-8 \
-#       --dataset dataset/mcp-gateway-registry.yaml
 
 output_dir: swe-benchmark-data
-# Per-task repo clones. /tmp is the portable default, but CHECK IT FITS: a clone
-# transiently reaches ~1.8 GB once a task builds a venv inside it, and on a node
-# whose / is small this fills the root disk. On the 8xH200 DLAMI (29 GB /) that
-# is exactly what happened on 2026-08-30 -- the active model died with ENOSPC
-# writing its event stream and the next model's vLLM failed in Triton
-# compilation. Note TMPDIR does NOT cover this: the path comes from this config.
-# On a node with a big scratch volume, point it there instead, e.g.
-#   clone_dir: /opt/dlami/nvme/tmp/swe-clones
-# and prefer a 0755 dir you own over one directly under a 1777 scratch root,
-# which another local user could pre-create as a symlink.
 clone_dir: /tmp
 
 # Run every task in the dataset. To run a subset, list task ids, e.g.:
@@ -162,10 +131,7 @@ clone_dir: /tmp
 #   - ssrf-hardening-outbound-url-validation
 tasks: []
 
-# Run tasks serially (1) by default. Raise to run several at once, e.g. 3. Note
-# that concurrency > 1 makes the vllm_prometheus block a server-wide aggregate
-# over the overlapping window; per-run API metrics (tokens, latency, turns) are
-# unaffected. Use 1 when you need per-run vLLM cache metrics.
+# Run tasks serially (1) by default. Raise to overlap tasks on the endpoint (e.g. 3).
 concurrency: 1
 
 permission_mode: bypassPermissions
@@ -210,10 +176,8 @@ max_retries: 1
 max_topups: 1
 max_output_tokens: 16000
 
-# Model context window, in tokens, used to calibrate Claude Code's
-# auto-compaction for custom models it cannot introspect. 0 = leave unset (right
-# for known Claude models / Bedrock). On the vllm path the orchestrator passes
-# the live server's MAX_MODEL_LEN via --context-window, which overrides this.
+# Model context window in tokens. 0 = leave unset (correct for Bedrock /
+# known Claude models). Set for custom endpoint models (provider=endpoint).
 context_window: 0
 auto_compact_fraction: 0.9
 
@@ -223,22 +187,8 @@ auto_compact_fraction: 0.9
 # a heavy task; a task that finishes sooner still exits as soon as it is done, and
 # one that overruns 2h is killed and marked failed.
 timeout_seconds: 7200
-# Wall-clock budget handed to the AGENT itself, so it stops on its own before the
-# harness's timeout_seconds kills it. An agent that finishes the work and then
-# loops -- emitting tokens forever without ending its turn -- otherwise burns the
-# full timeout_seconds AND its retry (hours) on a task that was already complete.
-# Only agents with a native duration flag use it (omp --max-time); 0 disables it,
-# leaving only the harness timeout.
-agent_max_time_seconds: 1800
-
-
-# Point claude -p at the local vLLM server's Claude Code settings. Relative to
-# the repo root. Uncomment to use it; leave commented to rely on the
-# endpoint/api_key fields above.
-# settings_file: self-hosted/vllm/config/claude-code.json
 
 # agent=kiro only: USD per kiro-cli credit. kiro-cli reports credits (its billing
 # unit), not tokens, so the harness turns credits x this rate into a dollar cost
-# per task. 0.04 = Kiro add-on/overage rate; 0.02 = blended included-allotment
-# rate. Set to your plan's effective rate. See docs/kiro-cli-setup.md.
+# per task. 0.04 = Kiro add-on/overage rate; 0.02 = blended included-allotment rate.
 kiro_dollars_per_credit: 0.04
