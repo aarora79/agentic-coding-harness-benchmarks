@@ -90,19 +90,19 @@ Keeping them apart is the whole trick. Collapsing them — treating a big task a
       this is wrong?                    │
                  │                      │
                  ▼                      ▼
-        ┌────────────────┐    ┌──────────────────┐
-        │ prototype   55 │    │ trivial          │
-        │ internal    65 │    │ low              │
-        │ production  70 │    │ medium           │
-        │ security    75 │    │ high             │
-        └────────────────┘    │ beyond range ──▶ strongest available,
-                 │            └──────────────────┘  say so, stop
+        ┌────────────────┐   one table per tier, pick the matching one
+        │ prototype   55 │   ┌──────┐┌──────┐┌──────┐┌──────┐
+        │ internal    65 │   │triv. ││ low  ││medium││ high │
+        │ production  70 │   │      ││      ││      ││      │
+        │ security    75 │   └──────┘└──────┘└──────┘└──────┘
+        └────────────────┘   beyond that range ──▶ strongest available,
+                 │                                  say so, stop
                  │                      │
-            +5 if it turns              │  picks WHICH TABLE
+            +5 if it turns              │  picks which table
             on one exact fact           │
                  │                      │
                  ▼                      ▼
-              FLOOR  ◀── read against ──  that tier's table
+              FLOOR  ◀── read against ── that tier's table
                               │
                               ▼
          allowed-models.md ── if present, a hard filter
@@ -140,19 +140,26 @@ Same size. Opposite answers. What separated them was whether the task hinged on 
 
 ### Why difficulty picks the table
 
-Models do not degrade in parallel. Comparing a floor against a whole-dataset average hides that, and the hiding is not small:
+Models do not degrade in parallel, so the running order changes from one table to the next. Six of the sixteen, ranked within each tier (`!` marks a tier where the model failed at least one task):
 
-| Model | overall | on `low` | on `high` | finished `high` |
-|---|---:|---:|---:|:-:|
-| `claude-opus-5` | 82.83 | 86.2 | 79.8 | 5/5 |
-| `claude-sonnet-5` | 76.97 | 80.5 | 73.7 | 5/5 |
-| `qwen3.8-27b` | 78.48 | 80.9 | 71.5 | **4/5** |
-| `kimi-k2.7-code` | 69.98 | 74.9 | 63.1 | **4/5** |
-| `gemma-4-31b` | 59.74 | 63.3 | 50.0 | 5/5 |
+```
+  trivial              low                  medium               high
+  ─────────────────    ─────────────────    ─────────────────    ─────────────────
+  opus-5     83.8      opus-5     86.2      glm-5.3    81.8      opus-5     79.8
+  glm-5.3    81.5      glm-5.3    84.4      opus-5     81.8      glm-5.3    77.2
+  qwen3.8    81.4      qwen3.8    80.9      qwen3.8    78.7      sonnet-5   73.7
+  sonnet-5   76.1      sonnet-5   80.5      sonnet-5   77.5      qwen3.8    71.5 !
+  kimi-k2.7  70.7      kimi-k2.7  74.9      kimi-k2.7  69.8      kimi-k2.7  63.1 !
+  gemma-4    66.5      gemma-4    63.3      gemma-4    59.3      gemma-4    50.0
+```
 
-`qwen3.8-27b` outscores `claude-sonnet-5` overall, 78.48 against 76.97. On hard work it trails by 2.2 points. **The ranking between them flips with the tier**, so a recommendation built on the overall column is wrong for half the tasks it covers.
+Read `qwen3.8` across the four. Third on trivial, third on low, third on medium — then **fourth on high, behind `sonnet-5`**, having failed one hard task. Its whole-dataset average of 78.48 beats sonnet's 76.97, which is why it sits on the published frontier and sonnet does not. On hard work that ordering is reversed.
 
-It also failed one hard task outright. That never appears in a mean, because a failure is excluded rather than averaged in — which is what `completion_by_complexity` is for. A model finishing 4 of 5 hard tasks fails one in five, and the skill says so instead of quoting the average of the four that worked.
+`glm-5.3` does the same thing in the other direction, overtaking `opus-5` on medium and dropping back on high.
+
+**A recommendation built on the overall average is reading a table that does not exist.** There is no tier where those averages are the ranking.
+
+The `!` marks carry information no score can. A failure is excluded from the mean rather than averaged in, so `qwen3.8` scoring 71.5 on `high` is its average over the four hard tasks it finished — the fifth is simply absent. `completion_by_complexity` is where that shows, and the skill reports it rather than quoting the average of the ones that worked.
 
 How much difficulty matters depends on the pair. Between `claude-opus-5` and `claude-sonnet-5` it explains 4% of the gap; between `claude-opus-5` and `gemma-4-31b`, 43%. Two frontier models degrade together. A frontier model and a small one do not.
 
