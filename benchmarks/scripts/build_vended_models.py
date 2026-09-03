@@ -70,18 +70,33 @@ COST_BASIS = {
 }
 
 
-def _git_commit(repo_root: Path) -> str | None:
-    """Return the short HEAD sha, or None outside a git checkout.
+def _git_commit(source: Path) -> str | None:
+    """Return the short sha of the commit that last changed ``source``.
+
+    Deliberately not HEAD. HEAD moves with every commit to the repository, so
+    stamping it would make the generated file differ after any unrelated change
+    and turn the --check guard into noise. The commit that last touched the
+    source is what actually identifies this version of the data.
 
     Args:
-        repo_root: The repository to describe.
+        source: The frontier JSON.
 
     Returns:
-        The abbreviated commit, or None if git is unavailable.
+        The abbreviated commit, or None outside a git checkout or for a file
+        that has never been committed.
     """
     try:
         out = subprocess.run(
-            ["git", "-C", str(repo_root), "rev-parse", "--short", "HEAD"],
+            [
+                "git",
+                "-C",
+                str(source.parent),
+                "log",
+                "-1",
+                "--format=%h",
+                "--",
+                source.name,
+            ],
             capture_output=True,
             text=True,
             timeout=10,
@@ -203,7 +218,7 @@ def build(source: Path, repo_root: Path) -> dict[str, Any]:
         "provenance": {
             "measured_on": _measured_on(source),
             "source_file": _relative_or_name(source, repo_root),
-            "source_commit": _git_commit(repo_root),
+            "source_commit": _git_commit(source),
             "harness": data.get("harness"),
             "skill": data.get("skill"),
             "dataset": data.get("repo"),

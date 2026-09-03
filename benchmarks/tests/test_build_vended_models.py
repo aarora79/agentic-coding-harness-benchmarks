@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -133,6 +134,36 @@ class CommittedArtifactTest(unittest.TestCase):
             expected,
             "vend/model-router/models.json is stale; run build_vended_models.py",
         )
+
+    def test_source_commit_tracks_the_frontier_not_head(self) -> None:
+        # Stamping HEAD would make the file differ after every unrelated commit
+        # and turn --check into noise. It must identify the data's version.
+        payload = bvm.build(bvm.DEFAULT_SOURCE, _REPO_ROOT)
+        stamped = payload["provenance"]["source_commit"]
+        head = subprocess.run(
+            ["git", "-C", str(_REPO_ROOT), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        last_touch = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(_REPO_ROOT),
+                "log",
+                "-1",
+                "--format=%h",
+                "--",
+                str(bvm.DEFAULT_SOURCE.relative_to(_REPO_ROOT)),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        self.assertEqual(stamped, last_touch)
+        if head != last_touch:
+            self.assertNotEqual(stamped, head)
 
     def test_vend_dir_has_exactly_the_four_portable_files(self) -> None:
         # The portability contract: the skill must work in a directory holding
