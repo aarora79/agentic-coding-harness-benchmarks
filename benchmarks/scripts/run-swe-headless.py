@@ -131,7 +131,6 @@ _KIRO_CREDITS_RE = re.compile(r"Credits:\s*([0-9]*\.?[0-9]+)")
 _KIRO_TIME_RE = re.compile(r"Time:\s*([0-9]+)\s*s")
 
 
-
 def _repo_name(repo_url: str) -> str:
     """Derive the kebab-case repo name from a clone URL.
 
@@ -1249,7 +1248,12 @@ def _write_omp_config(config: RunnerConfig, agent_dir: Path) -> None:
                         "name": config.model,
                         "contextWindow": window,
                         "maxTokens": config.max_output_tokens,
-                        "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+                        "cost": {
+                            "input": 0,
+                            "output": 0,
+                            "cacheRead": 0,
+                            "cacheWrite": 0,
+                        },
                     }
                 ],
             }
@@ -1446,8 +1450,10 @@ def _build_codex_cmd(config: RunnerConfig, clone_path: Path, prompt: str) -> lis
         "--json",
         "--skip-git-repo-check",
         "--dangerously-bypass-approvals-and-sandbox",
-        "--cd", str(clone_path),
-        "--model", model_to_wire_id(config.model),
+        "--cd",
+        str(clone_path),
+        "--model",
+        model_to_wire_id(config.model),
     ]
     if config.is_bedrock:
         cmd += ["-c", "model_provider=amazon-bedrock"]
@@ -1492,13 +1498,17 @@ def _codex_result_from_events(
             if item.get("type") == "agent_message":
                 last_message = item.get("text", "")
 
-    cost = _bedrock_cost_usd(
-        model,
-        input_tokens=usage.get("input_tokens", 0),
-        output_tokens=usage.get("output_tokens", 0),
-        cache_read_tokens=usage.get("cache_read_input_tokens", 0),
-        cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
-    ) if model else None
+    cost = (
+        _bedrock_cost_usd(
+            model,
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+            cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
+        )
+        if model
+        else None
+    )
 
     is_error = returncode != 0
     return {
@@ -2021,7 +2031,9 @@ def _run_task(
                 # but config.yml is still needed for compaction settings.
                 window = config.context_window or 200000
                 threshold = max(window - (config.max_output_tokens + 8192), 1)
-                config_yml = {"compaction": {"enabled": True, "thresholdTokens": threshold}}
+                config_yml = {
+                    "compaction": {"enabled": True, "thresholdTokens": threshold}
+                }
                 omp_agent_dir.mkdir(parents=True, exist_ok=True)
                 (omp_agent_dir / "config.yml").write_text(
                     yaml.safe_dump(config_yml, sort_keys=False), encoding="utf-8"
@@ -2066,7 +2078,9 @@ def _run_task(
             )
         elif config.is_codex:
             # codex exec outputs JSON-lines events; _run_codex normalizes them.
-            result = _run_codex(cmd, env, config.timeout_seconds, model=config.model or "")
+            result = _run_codex(
+                cmd, env, config.timeout_seconds, model=config.model or ""
+            )
         elif config.is_omp:
             # omp emits the same JSON-lines event stream as pi.
             result = _run_omp(cmd, env, config.timeout_seconds)
@@ -2427,7 +2441,9 @@ def _write_cost_totals(
     latency = totals.get("latency_seconds") or 0
     out = totals.get("output_tokens") or 0
     if "generation_tokens_per_sec" in record:
-        record["generation_tokens_per_sec"] = round(out / latency, 1) if latency > 0 else 0
+        record["generation_tokens_per_sec"] = (
+            round(out / latency, 1) if latency > 0 else 0
+        )
     for block_name in ("metrics", "metrics_that_matter"):
         block = record.get(block_name)
         if not isinstance(block, dict):
@@ -2557,7 +2573,9 @@ def _run_task_safe(
                     encoding="utf-8",
                 )
             except OSError:
-                logger.warning("could not seed metrics.json for carried costs on %s", task.id)
+                logger.warning(
+                    "could not seed metrics.json for carried costs on %s", task.id
+                )
         totals = _fold_pass_into_totals(dict(carried), existing)
         _write_cost_totals(metrics_path, totals, last.get("attempts", attempts))
 
