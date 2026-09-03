@@ -69,8 +69,10 @@ JUDGE = {
 COST_BASIS = {
     "Bedrock": ("Metered Amazon Bedrock token pricing -- what the invoice says."),
     "self-hosted": (
-        "Derived: GPU-hour price divided by measured throughput, assuming the "
-        "server stays busy. Not directly comparable with a metered bill."
+        "The server's hourly price divided by throughput measured at a stated "
+        "concurrency -- a shared server under load, which is how a platform "
+        "team runs one for a group of developers. A cost per task on the same "
+        "footing as a metered bill."
     ),
 }
 

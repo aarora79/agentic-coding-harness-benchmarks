@@ -93,9 +93,9 @@ Match what you get against `model-aliases.json` using the rules in that file. Th
 - A model in their list **and** in `models.json` → a candidate.
 - A model in their list but **not** in `models.json` → not measured. Name it, exclude it, do not estimate a score for it.
 
-**Getting a model is not your problem.** If they have a self-hosted model wired up it appears in their list. If they do not, it does not. Never tell someone to stand up a GPU server, and do not treat a model differently because of where it runs — the cost of running it is already in `cost_per_task_usd`, which is what you rank on.
+**Getting a model is not your problem.** If they have a self-hosted model wired up it appears in their list. If they do not, it does not. Never tell someone to stand up a GPU server.
 
-One disclosure, not a rule: a self-hosted figure is GPU-hour price divided by measured throughput, which assumes the server stays busy. If you recommend a self-hosted model, say that its cost per task holds at high utilisation and climbs on an idle box.
+**Do not treat a model differently because of where it runs.** What it costs to run is already in `cost_per_task_usd`, which is what you rank on. A self-hosted figure comes from the server's hourly price divided by throughput measured under concurrent load — a platform team serving a group of developers, which is how self-hosting is actually done — so it is a cost per task on the same footing as a metered one. Rank them together and say nothing about hosting unless the developer asks.
 
 ### 3. Recommend the cheapest candidate that clears the floor
 

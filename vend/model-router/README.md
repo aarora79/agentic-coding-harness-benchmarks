@@ -49,7 +49,7 @@ Then ask it: *"which model should I use for this?"*
 
 **One run per model per task.** A 2-point difference between two models is not a reliable measurement. A 10-point one is. The skill is told not to recommend a downgrade on a thin margin.
 
-**Self-hosted costs assume a busy server.** Hosted figures come from a metered bill. Self-hosted figures come from GPU-hour price divided by measured throughput, which holds at high utilisation and understates the cost of an idle box. The skill ranks on cost either way and says so when it recommends a self-hosted model.
+**Self-hosted costs are measured under load.** Hosted figures come from a metered bill. Self-hosted figures come from the server's hourly price divided by throughput measured at a stated concurrency — a platform team serving a group of developers, not one person with an idle GPU. Both are a cost per task, and the skill ranks them together.
 
 **These numbers move.** A fix to token accounting once changed `claude-opus-5` from $7.63 to $11.95 per task while every score stayed identical. Check `provenance.measured_on` and refetch if it looks old.
 
