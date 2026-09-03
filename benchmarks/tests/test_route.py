@@ -183,6 +183,19 @@ class AllowListTest(unittest.TestCase):
         with self.assertRaisesRegex(route.RouteError, "no '## Allowed' section"):
             _route(tier="low", floor=50, allowed_file=p, no_allow_list=False)
 
+    def test_the_example_block_in_the_shipped_list_is_not_policy(self) -> None:
+        # allowed-models.md argues for adding claude-sonnet-5 and shows the
+        # bullets to paste. They are formatted exactly like real entries, so a
+        # parser that ignored headings would silently permit them.
+        names = route.parse_allow_list(_VEND / "allowed-models.md")
+        self.assertNotIn("claude-sonnet-5", names)
+        self.assertNotIn("claude-haiku-4-5", names)
+        self.assertIn(
+            "`claude-sonnet-5`",
+            (_VEND / "allowed-models.md").read_text(encoding="utf-8"),
+            "the file should still show sonnet as a suggested addition",
+        )
+
     def test_the_shipped_allow_list_parses(self) -> None:
         names = route.parse_allow_list(_VEND / "allowed-models.md")
         self.assertEqual(len(names), 5)

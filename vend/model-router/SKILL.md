@@ -88,23 +88,15 @@ Where `score_by_complexity` has no entry for a tier, fall back to the overall `s
 
 ### 2. Build the candidate set
 
-Three things have to be true of a model before it can be recommended: the organisation permits it, this benchmark measured it, and the assistant can select it. Intersect all three **before** ranking anything. Checking policy afterwards means recommending a model the developer is not allowed to use and then withdrawing it.
+Three things have to be true of a model before it can be recommended: the organisation permits it, this benchmark measured it, and the assistant can select it. **`route.py` applies all three** — it reads `allowed-models.md`, checks `models.json`, and intersects both with whatever you pass as `--available`. Do not parse those files yourself; a second reading of them is a second answer waiting to disagree with the first.
 
-**Allowed.** If `allowed-models.md` exists, read the bullets under its **Allowed** heading and take the backticked name from each, ignoring the prose after it. That set is a hard constraint: a model absent from it is never recommended, whatever it scores. With no such file, every model is permitted.
+Your one job here is the list of models the assistant can select.
 
-**Measured.** Keep the models that appear in `models.json`. Name anything dropped here — a model the organisation permits but this benchmark never ran is one you cannot advise on, and the developer should know it was considered rather than silently ignored.
+Ask the assistant you are running inside. In Claude Code that is `/model`; elsewhere check the settings, the model picker, or the provider config. Pass what you get through verbatim, however it spelled them — `route.py` resolves `us.anthropic.claude-sonnet-5[1m]` and "Claude Sonnet 5" to the same model through `model-aliases.json`.
 
-**Available.** Ask the assistant you are running inside to list the models it can switch to. In Claude Code that is `/model`; elsewhere check the settings, the model picker, or the provider config. If you cannot enumerate them, ask the developer. Do not assume.
+If you cannot enumerate them, ask the developer. Do not assume, and do not omit `--available` to sidestep the question: without it the script considers every measured model, including ones they cannot reach.
 
-Match names through `model-aliases.json` at every step, so `us.anthropic.claude-sonnet-5` in a policy file and "Claude Sonnet 5" in a dropdown resolve to the same model.
-
-**When the intersection is empty, the reason decides what you say.** Work out which step emptied it:
-
-- **Nothing the organisation allows was measured** → say that, list what they are allowed, and tell them to stay on their current model. You have no basis for advice and should not invent one.
-- **Allowed and measured models exist, but the assistant cannot select any** → name them. The developer needs access, not a different recommendation, and that is a request to their platform team rather than a model switch.
-- **The assistant offers models, but none were measured** → name them and say the benchmark has no data on them. Stay put.
-
-In every case, stop there. Do not fall back to a model that failed one of the three tests.
+**When nothing survives the intersection, `route.py` says which filter emptied it** and returns `status: "no_candidates"` with a `reason`. Read that reason out. The three causes need different things from the developer — no measured model is permitted, none permitted is selectable, or nothing selectable was measured — and only the second is fixed by talking to a platform team. Stop there either way. Do not fall back to a model that failed one of the tests.
 
 **Getting a model is not your problem.** If they have a self-hosted model wired up it appears in their list. If they do not, it does not. Never tell someone to stand up a GPU server.
 
