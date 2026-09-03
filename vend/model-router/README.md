@@ -12,17 +12,22 @@ Knowing which tasks those are needs measurement. This skill carries the measurem
 
 ## Install
 
-Copy the four files into your assistant's skills directory:
-
 ```bash
+BASE=https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/model-router
 mkdir -p .claude/skills/model-router
-curl -sL -o .claude/skills/model-router/SKILL.md \
-  https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/model-router/SKILL.md
-curl -sL -o .claude/skills/model-router/models.json \
-  https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/model-router/models.json
-curl -sL -o .claude/skills/model-router/model-aliases.json \
-  https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/model-router/model-aliases.json
+for f in SKILL.md models.json model-aliases.json allowed-models.md; do
+  curl -sL -o ".claude/skills/model-router/$f" "$BASE/$f"
+done
 ```
+
+Four files:
+
+| File | |
+|---|---|
+| `SKILL.md` | the skill itself |
+| `models.json` | the measurements — 16 models, scores and cost per tier |
+| `model-aliases.json` | model names as different assistants spell them |
+| `allowed-models.md` | which models your organisation permits. **Edit this one.** |
 
 The path differs by assistant. The skill has no dependencies and imports nothing — a directory of files is the whole install.
 
@@ -44,9 +49,9 @@ Then ask it: *"which model should I use for this?"*
 
 | Field | Meaning |
 |---|---|
-| `score` | Mean 0-100 across the tasks the model completed |
+| `score` | Mean 0-100 across the tasks the model completed. Context; the skill selects on `score_by_complexity` |
 | `cost_per_task_usd` | Mean cost of one task |
-| `hosting` | `Bedrock` (metered bill) or `self-hosted` (derived from GPU cost) |
+| `hosting` | `Bedrock` or `self-hosted`. Reported, never used to rank |
 | `tasks_completed` / `tasks_total` | Three models did not finish all 21 |
 | `on_combined_frontier` | Nothing beats it on both axes across all 16 models. Context, not a selection key — it comes from overall means and can disagree with the per-tier ranking |
 | `on_hosting_frontier` | The same, computed within one hosting basis, which is the apples-to-apples version |
