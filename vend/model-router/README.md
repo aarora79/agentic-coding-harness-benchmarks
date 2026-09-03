@@ -34,11 +34,13 @@ The path differs by assistant. The skill has no dependencies and imports nothing
 
 ### Restricting it to models your organisation allows
 
-`allowed-models.txt` ships with the skill, allowing the five models on the measured frontier. **Edit it.** As written it is a starting point, not a policy: four of those five are self-hosted, so a developer on a hosted API can reach exactly one of them and would be sent to `claude-opus-5` at $11.95 per task for everything, including a docs page. The file says so at the top and lists what to add.
+`allowed-models.txt` ships with the skill, allowing the five models on the measured frontier. **Edit it.** As written it is a starting point, not a policy: four of those five are self-hosted, and if you do not serve them the skill will recommend a model nobody can select. The file says so at the top and lists what to add.
+
+The file is also the candidate set, not just a filter. The skill treats every entry as a model the developer can actually select, and does not inspect the agent's model picker or provider config to check — a model reached through a proxy or driven by a second agent is invisible to that kind of check, so second-guessing the list mostly costs developers the cheaper option. That puts the whole promise on whoever maintains the file: **list a model and a developer can select it; if they cannot reach it, it does not belong on the list.**
 
 Put your own copy beside the skill, at your repository root, or in `.claude/`; the one nearest the developer's repository wins. The format is one model per line, with `#` starting a comment — so a model you are not ready to enable is commented out rather than described as forbidden somewhere a parser might read it.
 
-The list is a hard constraint. The skill intersects it with what the benchmark measured and what the assistant can select **before** it ranks anything, so it never recommends a model you are not permitted to use. When the intersection comes out empty it says which of the three tests emptied it — nothing allowed was measured, nothing allowed is selectable, or nothing selectable was measured — and tells the developer to stay put rather than inventing a recommendation.
+The list is a hard constraint. The skill intersects it with what the benchmark measured **before** it ranks anything, so it never recommends a model you are not permitted to use. When the intersection comes out empty it says which test emptied it — nothing allowed was measured, or nothing measured is allowed — and tells the developer to stay put rather than inventing a recommendation.
 
 Delete the file and every model is permitted.
 
@@ -108,18 +110,15 @@ Keeping them apart is the whole trick. Collapsing them — treating a big task a
               FLOOR  ◀── read against ── that tier's table
                               │
                               ▼
-        allowed-models.txt ── if present, a hard filter
-                    │
-                    ▼
-         your assistant's model list
-                    │
+        allowed-models.txt ── the candidate set: what you
+                    │           permit AND can select
           ┌─────────┴─────────┐
           ▼                   ▼
     in models.json      not measured
           │              (named, excluded)
           │
-          ├── empty? say which of the three
-          │   tests emptied it, then stop
+          ├── empty? say which test
+          │   emptied it, then stop
           ▼
         cheapest at or above the floor
         gaps under 3 pts count as ties
@@ -267,11 +266,10 @@ Asked about work beyond that range, the skill recommends the strongest model ava
 `route.py` is the whole decision procedure, and it works without the skill:
 
 ```bash
-python3 route.py --tier high --floor 70 \
-  --available "claude-opus-5,claude-sonnet-5,claude-haiku-4-5"
+python3 route.py --tier high --floor 70
 ```
 
-It prints JSON with the pick, the runners-up cheapest-first, how far above the floor the pick sits and whether that margin beats the noise, whether the model finished every task at that tier, and what policy or availability excluded. `--no-allow-list` ignores `allowed-models.txt`; `--allowed-file` points at another one.
+It prints JSON with the pick, the runners-up cheapest-first, how far above the floor the pick sits and whether that margin beats the noise, whether the model finished every task at that tier, and what policy excluded. `--allowed-file` points at another allow-list and `--no-allow-list` ignores it; `--available` narrows the set further, for the case where a developer says one permitted model is not wired up for them.
 
 ### What it delivers, measured
 

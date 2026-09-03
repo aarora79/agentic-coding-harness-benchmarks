@@ -100,17 +100,17 @@ Where `score_by_complexity` has no entry for a tier, fall back to the overall `s
 
 ### 2. Build the candidate set
 
-Three things have to be true of a model before it can be recommended: the organisation permits it, this benchmark measured it, and the assistant can select it. **`route.py` applies all three** — it reads `allowed-models.txt`, checks `models.json`, and intersects both with whatever you pass as `--available`. Do not parse those files yourself; a second reading of them is a second answer waiting to disagree with the first.
+Two things have to be true of a model before it can be recommended: the organisation permits it, and this benchmark measured it. **`route.py` applies both** — it reads `allowed-models.txt` and checks each name against `models.json`. Do not parse those files yourself; a second reading of them is a second answer waiting to disagree with the first.
 
-Your one job here is the list of models the assistant can select.
+**Take `allowed-models.txt` as the list of models this assistant can select.** That is the contract with whoever maintains it: a platform team putting a model on that list is saying developers can reach it from the agent they run. Every entry is a candidate, whatever it is and wherever it runs.
 
-Ask the assistant you are running inside. In Claude Code that is `/model`; elsewhere check the settings, the model picker, or the provider config. Pass what you get through verbatim, however it spelled them — `route.py` resolves `us.anthropic.claude-sonnet-5[1m]` and "Claude Sonnet 5" to the same model through `model-aliases.json`.
+So do not narrow the list a second time. Do not ask the assistant what its picker offers, do not go looking at the provider config, and **do not pass `--available`**. Guessing at what is reachable is how a permitted model gets dropped for no reason — and the guess is usually wrong, because a self-hosted model reached through a proxy or a second agent does not show up anywhere you would think to look.
 
-If you cannot enumerate them, ask the developer. Do not assume, and do not omit `--available` to sidestep the question: without it the script considers every measured model, including ones they cannot reach.
+The one exception is the developer telling you otherwise. If they say a listed model is not wired up for them, pass the ones that are through `--available` and say you did. Their word overrides the file; your inference does not.
 
-**When nothing survives the intersection, `route.py` says which filter emptied it** and returns `status: "no_candidates"` with a `reason`. Read that reason out. The three causes need different things from the developer — no measured model is permitted, none permitted is selectable, or nothing selectable was measured — and only the second is fixed by talking to a platform team. Stop there either way. Do not fall back to a model that failed one of the tests.
+**When nothing survives, `route.py` returns `status: "no_candidates"` with a `reason`.** Read it out. Either nothing permitted was measured, or nothing measured is permitted — both belong to whoever maintains the list, and neither is something you route around. Stop there. Do not fall back to a model that failed one of the tests.
 
-**Getting a model is not your problem.** If they have a self-hosted model wired up it appears in their list. If they do not, it does not. Never tell someone to stand up a GPU server.
+**Getting a model is not your problem.** If a self-hosted model is on the list, someone stood up the server. If it is not, it is not a candidate. Never tell anyone to provision hardware.
 
 **Do not treat a model differently because of where it runs.** What it costs to run is already in `cost_per_task_usd`, which is what you rank on. A self-hosted figure comes from the server's hourly price divided by throughput measured under concurrent load — a platform team serving a group of developers, which is how self-hosting is actually done — so it is a cost per task on the same footing as a metered one. Rank them together and say nothing about hosting unless the developer asks.
 
@@ -119,11 +119,10 @@ If you cannot enumerate them, ask the developer. Do not assume, and do not omit 
 You have the two inputs. `route.py` does the rest, so the arithmetic is arithmetic rather than something you work out in prose:
 
 ```bash
-python3 route.py --tier high --floor 70 \
-  --available "claude-opus-5,claude-sonnet-5,claude-haiku-4-5"
+python3 route.py --tier high --floor 70
 ```
 
-Pass `--available` with the models the assistant listed, exactly as it spelled them — the script resolves aliases itself. Omit it only when you could not enumerate them and the developer could not tell you either. It finds `allowed-models.txt` on its own; `--allowed-file` overrides the path and `--no-allow-list` ignores policy entirely, which you should not do unasked.
+Two arguments, and that is the whole invocation. It finds `allowed-models.txt` on its own and ranks every permitted model that the benchmark measured. `--allowed-file` overrides the path; `--available` narrows the set further, for the one case in step 2 where the developer says a listed model is not reachable; `--no-allow-list` ignores policy entirely, which you should not do unasked.
 
 It prints JSON. The fields that matter:
 
@@ -153,11 +152,13 @@ That is the whole selection rule. There is no separate step that drops dominated
 
 The ranking is worked out here in any case, over the models this developer can actually select, at the tier this task actually sits in. A published frontier answers neither question.
 
-Then say it plainly:
+Then say it plainly. **The first line names the recommended model**, every time — that is the output, and burying it under the reasoning wastes the developer's attention. Say the model `route.py` returned in `recommended`, not a hedge about what you would have picked under other conditions:
 
-- **A candidate clears the floor** → name it, give its score at the task's tier and its cost per task, say what they are on now and what changes. Mention if it is on the frontier, as context. If a better model exists above it, say what the next step up would cost per extra point, so they can overrule you.
-- **They are already on it** → say so. "Stay where you are" is a real answer and it is often the right one.
-- **Nothing clears the floor** → say that. Name the closest, how far short it falls, and let them decide. Do not promote a model past its measured score to produce a recommendation.
+- **A candidate clears the floor** → `Recommendation: switch to <model>`. Give its score at the task's tier and its cost per task, say what they are on now and what changes. Mention if it is on the frontier, as context. If a better model exists above it, say what the next step up would cost per extra point, so they can overrule you.
+- **They are already on it** → `Recommendation: stay on <model>`. Still name it, and still show the runners-up you ranked it against, so they can see the call was made rather than skipped. "Stay where you are" is a real answer and it is often the right one.
+- **Nothing clears the floor** → say that on the first line. Name the closest, how far short it falls, and let them decide. Do not promote a model past its measured score to produce a recommendation.
+
+The recommendation is the one `route.py` returned over the permitted models. Do not qualify it with a model you left out, and never present a model as unavailable on your own inference — if you narrowed the set at all, it was because the developer told you to, and you say which of their words you acted on.
 
 Never invent a switch. A router that always recommends a change is a router that recommends noise.
 
@@ -201,6 +202,30 @@ Recommendation: switch to claude-sonnet-5
 Basis: 21 design-and-implement tasks on one Python/React service repo,
 omp harness, judged by an LLM. Measured 2026-09-01. Rankings travel
 better than absolute scores.
+```
+
+And when the answer is to stay, it still names the model on the first line and
+still shows what it was ranked against:
+
+```
+Recommendation: stay on glm-5.3
+
+  Task           move OAuth tokens to server-side storage
+  Complexity     high
+  Consequence    a security path, wrong is expensive and slow to find
+  Floor          75
+
+  You are on     glm-5.3         77.2 on high tasks / $8.09 per task
+                 cheapest permitted model above the floor, and it sits
+                 2.2 above it -- inside the noise band, not clear of it
+
+  Next step up   claude-opus-5   79.8 on high tasks / $11.95 per task
+                 2.5 points for $3.87 more, which is inside +/-3: no
+                 measurable gain
+
+  Below the floor  qwen3.8-27b   71.5, and finished only 4 of 5 hard tasks
+                   qwen3.6-35b   56.0
+                   gemma-4-31b   50.0
 ```
 
 Short. The numbers they need to disagree with you, and nothing else.

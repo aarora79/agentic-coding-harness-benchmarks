@@ -6,7 +6,7 @@ The skill decides two things by reading the repo: how good the output has to be
 selection is arithmetic rather than something a language model works out in
 prose and might get wrong.
 
-    python3 route.py --floor 70 --tier high --available claude-opus-5,claude-sonnet-5
+    python3 route.py --floor 70 --tier high
 
 It prints JSON: the recommendation, the runners-up, and why anything was
 excluded. Standard library only, so it runs wherever the skill is installed.
@@ -15,8 +15,12 @@ The rule, in full:
 
 1. Start from every model in ``models.json``.
 2. Drop anything the organisation does not allow, if ``allowed-models.txt`` is
-   present beside this file, at the repository root, or in ``.claude/``.
-3. Drop anything the assistant cannot select, if ``--available`` was given.
+   present beside this file, at the repository root, or in ``.claude/``. That
+   file is also the availability list: whoever maintains it is saying every
+   entry is a model the developer's agent can select.
+3. Drop anything ``--available`` leaves out, if it was given. It rarely is --
+   it exists for the case where a developer says one listed model is not
+   wired up for them.
 4. Read each survivor's score at the task's tier -- not its overall mean, which
    is a ranking that holds at no tier.
 5. Keep the ones at or above the floor and take the cheapest. Models within
@@ -398,8 +402,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--floor", required=True, type=float)
     p.add_argument(
         "--available",
-        help="Comma-separated models the assistant can select. Omit to consider "
-        "every measured model.",
+        help="Comma-separated models to narrow the allow-list further. Omit "
+        "unless the developer says a permitted model is not reachable; the "
+        "allow-list is already the set of models they can select.",
     )
     p.add_argument("--allowed-file", type=Path, help="Override the allow-list path.")
     p.add_argument(
