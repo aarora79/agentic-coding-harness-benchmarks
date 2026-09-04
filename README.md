@@ -49,7 +49,47 @@ Quality alone tells you which model is best; cost alone tells you which is cheap
 
 **Crucially, the two benchmarks must be combined over the *real agentic coding tasks*, not over a synthetic input:output token ratio.** Agentic coding is a **prefill-heavy, long-horizon** workload: each task replays a large, growing transcript as fresh input on every turn and emits a comparatively tiny edit, so the real input:output ratio runs ~150:1 up to ~660:1 -- far more lopsided than the ~3:1 or ~4:1 assumed by generic pricing. A model's cost per task therefore depends on *how* it drives the task (how many turns, how much context it re-reads, whether prefix caching hits), which a lab-style token-count estimate cannot capture. This repo measures throughput on that same prefill-heavy shape and multiplies it by the tokens each real run actually processed, so the cost on the frontier is the cost of the *work as it happens* -- see [cost-per-task-methodology.md](docs/cost-per-task-methodology.md).
 
-**Where this is headed:** the frontier is the lookup table for a coding harness that, given a task, **automatically routes to the right model** -- plan with a frontier model, execute with a cheaper workhorse or budget model, and switch back up when a run needs it -- so a developer gets frontier-quality results at a fraction of the cost without ever managing model selection. See [the vision](docs/vision.md), and the concrete first step, [`/swe-auto` (#123)](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/123) -- a router skill that triages a task, consults this frontier, and runs the chosen model.
+## What the frontier is for
+
+A frontier you only look at is a chart. The point is to spend less on every coding task your team does, and that takes two things: a frontier measured on **your** code, and something that reads it during **their** work.
+
+Both exist. The measurement side is this repository; the spending side is [**`swe-router`**](vend/swe-router/), a skill that installs into any coding assistant and names the cheapest model that clears the bar for the task in front of the developer.
+
+```
+  PART 1 — MEASURE                              │  PART 2 — SPEND LESS
+  a platform team, on a schedule                │  every developer, every task
+                                                │
+  your model list        your repository        │      a coding task starts
+  security-approved,     your language,         │              │
+  contract-cleared,      your patterns,         │              ▼
+  what you can host      your conventions       │      swe-router engages
+          │                     │               │              │
+          └──────────┬──────────┘               │      ┌───────┴───────┐
+                     ▼                          │      ▼               ▼
+            run the benchmark                   │  how bad if      how hard
+       every model × every task, judged         │  it's wrong?     is it?
+                     │                          │      │               │
+                     ▼                          │   a floor        a table
+        YOUR cost/quality frontier              │      └───────┬───────┘
+    not a vendor claim, not a public set        │              ▼
+                     │                          │     cheapest model that
+                     ▼                          │      clears the floor
+      commit it — models.json + the skill       │              │
+    versioned · reviewable · revertable         │              ▼
+                     │                          │    "switch to X, save 61%"
+                     └────────── vend ──────────┼──────────────┘
+                                                │              │
+   re-run on a schedule: models appear,         │              ▼
+   prices move, the frontier moves with them    │      measured saving
+```
+
+**Why measure it yourself.** A vendor's benchmark tells you how their model does on their tasks. A public dataset tells you how every model does on problems that have been in training data for a year. Neither tells you what a model costs to run *your* code, which is the only number a budget cares about. Part 1 takes your model list -- whatever security approved and procurement cleared -- and your repository, and produces a frontier that is true for you.
+
+**Why version it.** A frontier is a fact with a date on it. New models arrive, prices move, and a fix to token accounting once moved `claude-opus-5` from $7.63 to $11.95 per task without changing a single score. Committing `models.json` beside the skill makes it reviewable, diffable and revertable, and gives every developer the same numbers on the same day. Re-run on a schedule and the file updates like any other dependency.
+
+**What Part 2 costs to adopt.** Five files copied into a skills directory. `swe-router` runs in Claude Code, Codex, pi, or anything that reads a skill, engages on its own before a substantial task, and prints a few lines. It changes no settings and writes no code -- the developer switches model, or does not.
+
+Measured over the 21 benchmark tasks, routing this way clears a quality floor of 70 on 18 of them at **$1.47 per task**, against `claude-opus-5` clearing it on all 21 at **$11.95**. That trade is the product: see [what it delivers, measured](vend/swe-router/README.md#what-it-delivers-measured) for the floors, the hit rates and the headroom that buys back most of the gap.
 
 **This is not a static, single-shot benchmark.** Most model evaluations measure one prompt and one response. Here the unit of work is a **long-horizon, multi-turn agentic task**: the model drives Claude Code through an open-ended tool-use loop -- reading files, editing code, running commands, and reacting to results over **tens to hundreds of LLM turns** (typically ~50-250, up to 300+) that run **anywhere from ~10 minutes to over an hour** per task. What we measure is whether a model can *sustain* coherent engineering work across that horizon -- staying on task, using tools correctly, and landing a working change -- not whether it can answer a single question well. That is a fundamentally different (and harder) thing to be good at, and it is where models that look similar on conventional benchmarks pull apart.
 
@@ -116,7 +156,7 @@ Three caveats decide how much to trust that, and all three come from the judgmen
 
 Read the full working: **[what the model judged each task to need](docs/swe-router-judged-inputs.md)** (floor, tier and reasoning per task, with the spread across repeats) and **[the routing result joined to the measured runs](docs/swe-router-evaluation-judged.md)** (per-task picks, costs and score deltas). A script writes both -- see [Reproducing the routing evaluation](benchmarks/README.md#reproducing-the-routing-evaluation).
 
-[docs/vision.md](docs/vision.md) describes where this goes next: a harness that switches the model itself. Today a person reads the recommendation and does it.
+One thing is still a person's job: `swe-router` recommends, and the developer switches. [docs/vision.md](docs/vision.md) describes the step past that, a harness that changes model on its own.
 
 ## The three hosting paths
 
@@ -206,7 +246,7 @@ The point of this repo is to help you **pick the right coding agent and model fo
 1. **Use the frontier we already published.** The cost/quality results here (across harnesses, models, and hosting paths) are a strong, ready-made baseline -- read the [harness comparison](docs/agentic-coding-swe-comparison-swe3.md) and per-harness docs and pick from the models on the frontier. No runs of your own required.
 2. **Build your own frontier on your own code.** When you want numbers on **work that looks like yours** rather than our example repo, use the benchmarking harness in this repo: write a dataset YAML pointing at your repositories and run it -- the models, harnesses, judge, and cost math are identical to what produced the results above. This is the rest of this section.
 
-**We are also working on making this automatic.** [`/swe-auto` (#123)](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/123) is a planned router skill that will triage a task, consult the cost/quality frontier, and **select and run the right model for the job for you** -- so you get frontier-quality results at a fraction of the cost without managing model selection by hand.
+**Then put it in front of developers.** [`swe-router`](vend/swe-router/) reads whichever frontier you point it at -- ours or the one you just built -- and names the cheapest model clearing the bar for each task. Five files, no dependencies, works in any assistant that reads a skill. Point it at your own `models.json` and the recommendations are grounded in your code rather than our example repo.
 
 ### Benchmark your own code repositories
 
