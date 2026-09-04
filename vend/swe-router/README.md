@@ -1,4 +1,4 @@
-# Model Router
+# SWE Router
 
 A skill that tells you which model to switch your coding assistant to, based on measured scores and cost rather than vendor claims.
 
@@ -13,10 +13,10 @@ Knowing which tasks those are needs measurement. This skill carries the measurem
 ## Install
 
 ```bash
-BASE=https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/model-router
-mkdir -p .claude/skills/model-router
+BASE=https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router
+mkdir -p .claude/skills/swe-router
 for f in SKILL.md route.py models.json model-aliases.json allowed-models.txt; do
-  curl -sL -o ".claude/skills/model-router/$f" "$BASE/$f"
+  curl -sL -o ".claude/skills/swe-router/$f" "$BASE/$f"
 done
 ```
 

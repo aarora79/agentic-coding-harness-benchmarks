@@ -66,8 +66,8 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │   │   ├── run-swe-headless.py   # drives Claude Code over the dataset
 │   │   ├── runner_config.py      # RunnerConfig Pydantic model (config source of truth)
 │   │   ├── codex_judge.py        # scores artifacts (the judge)
-│   │   ├── run-router-headless.py # drives /model-router's judgment step over a dataset
-│   │   ├── eval_model_router.py  # routes on those judgments, joins to measured runs
+│   │   ├── run-swe-router-headless.py # drives /swe-router's judgment step over a dataset
+│   │   ├── eval_swe_router.py  # routes on those judgments, joins to measured runs
 │   │   └── plot_*.py             # result charts
 │   ├── tests/                    # unittest suite for the harness
 │   └── docs/                     # harness-specific docs
@@ -81,7 +81,7 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │       ├── pricing.json          # instance pricing for cost derivation
 │       └── tests/                # unittest suite
 ├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
-├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, model-router)
+├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router)
 └── .github/                      # CI workflows and repo metadata
 ```
 
@@ -316,7 +316,7 @@ def calculate_metrics(data: list[float], threshold: float = 0.5) -> dict[str, fl
 
 ### Prose style for explainers and design docs
 
-- **Write every explainer to the writing skill: [.claude/skills/writing/SKILL.md](.claude/skills/writing/SKILL.md), invocable as `/writing`.** This governs all design docs, explainers, READMEs and results docs under `docs/` and `benchmarks/docs/`, plus PR bodies, issue text and commit bodies. It applies Orwell's six rules and cuts the machine tells: passive voice, `-ly` padding, corrective negation ("this isn't X, it's Y"), contrasting pairs, punchy landing lines, and the em-dash reveal. Run its revision pass (step 1-9) before you commit a doc.
+- **Write every explainer to the writing skill: [.claude/skills/writing/SKILL.md](.claude/skills/writing/SKILL.md), invocable as `/writing`.** This governs **every Markdown file in the repository**, the root [README.md](README.md) included, along with design docs, explainers and results docs under `docs/`, `benchmarks/docs/` and `vend/`, plus PR bodies, issue text and commit bodies. Prose you move between files carries the rule with it: run the pass on a section after you relocate it, not only when you first write it. It applies Orwell's six rules and cuts the machine tells: passive voice, `-ly` padding, corrective negation ("this isn't X, it's Y"), contrasting pairs, punchy landing lines, and the em-dash reveal. Run its revision pass (step 1-9) before you commit a doc.
 - **Keep the technical words. Introduce the new ones.** The plain-English rule targets padding, not precision. `KV cache`, `prefill`, `TPOT`, `tensor parallelism`, `MTP` and `blended cost` are the exact names of the things and stay; `synergy`, `holistic` and `leverage` as a verb do not. When a doc introduces a term, metric or unit the reader has not met, define it once where it first appears: a `> [!NOTE]` callout listing the terms, a parenthetical gloss, or a short table near the top. A reader should not have to open another file to learn what a column heading means.
 - **Check every number against its source** before shipping the doc, and say where it came from. Cite the file that holds it (a `performance-summary.json`, a run log) so the next person can re-derive it. Mark a projection as a projection.
 

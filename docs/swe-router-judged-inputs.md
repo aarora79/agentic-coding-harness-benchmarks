@@ -1,6 +1,6 @@
 # What omp + us.anthropic.claude-opus-5 judges each task to need
 
-The `model-router` skill opens by reading the repository and the task and deciding two things: a **quality floor**, from the consequence of the change being wrong, and a **complexity tier**. Everything the skill does afterwards is arithmetic on those two numbers. It is also the only step with no measurement behind it.
+The `swe-router` skill opens by reading the repository and the task and deciding two things: a **quality floor**, from the consequence of the change being wrong, and a **complexity tier**. Everything the skill does afterwards is arithmetic on those two numbers. It is also the only step with no measurement behind it.
 
 This is that step, run for real: `omp` driving `us.anthropic.claude-opus-5` over every task in `benchmarks/dataset/mcp-gateway-registry-v2.yaml`, each one in its own clone of the target repository at the task's pinned ref, 3 independent time(s) per task. Each run got the skill verbatim and a request for steps 1 and 1b only. None of them selected a model.
 

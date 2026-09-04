@@ -1,4 +1,4 @@
-"""Tests for the headless model-router judgment driver.
+"""Tests for the headless swe-router judgment driver.
 
 The parsing and consolidation are where a silent wrong answer could enter: a
 mis-read floor or a mis-consolidated repeat becomes a plausible number that the
@@ -18,8 +18,8 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 
 
 def _load_driver():
-    """Import run-router-headless.py by path (its filename carries a dash)."""
-    path = _SCRIPTS_DIR / "run-router-headless.py"
+    """Import run-swe-router-headless.py by path (its filename carries a dash)."""
+    path = _SCRIPTS_DIR / "run-swe-router-headless.py"
     spec = importlib.util.spec_from_file_location("router_driver", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -147,7 +147,7 @@ class PromptTest(unittest.TestCase):
             problem_statement = "Do the thing."
 
         prompt = rr._build_prompt(_Task(), Path("/tmp/clone"))
-        self.assertIn("Model Router", prompt)
+        self.assertIn("SWE Router", prompt)
         self.assertIn("Do NOT run route.py", prompt)
         self.assertIn("/tmp/clone", prompt)
         self.assertIn("Do the thing.", prompt)

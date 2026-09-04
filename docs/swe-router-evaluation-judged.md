@@ -1,4 +1,4 @@
-# Does the model router pay for itself?
+# Does the swe-router pay for itself?
 
 > Across the 21 tasks the router selected **4 different models**: **qwen3.8-27b** 13x, **claude-opus-5** 2x, **claude-opus-4-8** 1x, **glm-5.3** 1x. On 4 further task(s) nothing cleared the floor, so the skill's answer was to stay on `claude-opus-5`.
 >
@@ -6,10 +6,10 @@
 >
 > The saving is total-over-total, which is what lands on a bill. The mean of the per-task percentages is 61.9%, higher because it weights a cheap task the same as an expensive one.
 
-Replays the `model-router` skill over all 21 tasks of `mcp-gateway-registry-v2`, then looks up what the model it picked ACTUALLY scored and cost on that task, against running `claude-opus-5` on everything.
+Replays the `swe-router` skill over all 21 tasks of `mcp-gateway-registry-v2`, then looks up what the model it picked ACTUALLY scored and cost on that task, against running `claude-opus-5` on everything.
 
 - **Sampling.** Leave-one-out: each task routes from tier means recomputed with that task excluded, so no pick knows the run it is scored against.
-- **Floor.** Judged per task by omp + us.anthropic.claude-opus-5 running the skill's step 1 against the cloned repo -- the real judgment the skill asks for, not a policy constant. See `model-router-judged-inputs.md`.
+- **Floor.** Judged per task by omp + us.anthropic.claude-opus-5 running the skill's step 1 against the cloned repo -- the real judgment the skill asks for, not a policy constant. See `swe-router-judged-inputs.md`.
 - **Tier.** Classified per task by the same judged run, NOT read from the dataset. Each row carries the dataset's own `complexity` label beside it so disagreement is visible.
 - **Candidates.** 16 model(s) the developer could select: claude-haiku-4-5, claude-opus-4-5, claude-opus-4-6-v1, claude-opus-4-7, claude-opus-4-8, claude-opus-5, claude-sonnet-5, deepseek-v3.2, devstral-2-123b, gemma-4-31b, glm-5.3, kimi-k2.7-code, minimax-m2.5, qwen3-coder-30b, qwen3.6-35b, qwen3.8-27b. The organisational allow-list was ignored (`--no-allow-list`).
 - **Cost basis.** Metered provider bills for Bedrock models; hardware-derived ($/token from the throughput sweep x tokens the server processed) for self-hosted ones. Mixing the two on one axis is directional -- see `docs/cost-per-task-methodology.md`.
