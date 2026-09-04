@@ -31,7 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import subprocess
+import subprocess  # nosec B404 - used with list args, no shell, hardcoded 'git'
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -93,7 +93,7 @@ def _git_commit(source: Path) -> str | None:
         that has never been committed.
     """
     try:
-        out = subprocess.run(
+        out = subprocess.run(  # nosec B603 B607 - hardcoded 'git', list args, no shell
             [
                 "git",
                 "-C",
@@ -128,7 +128,7 @@ def _measured_on(source: Path) -> str:
         An ISO date string.
     """
     try:
-        out = subprocess.run(
+        out = subprocess.run(  # nosec B603 B607 - hardcoded 'git', list args, no shell
             [
                 "git",
                 "-C",

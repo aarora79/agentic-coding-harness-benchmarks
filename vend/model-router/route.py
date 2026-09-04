@@ -235,16 +235,14 @@ def select(
             and abs(s - cheapest[0]) <= tie_band
         ]
         pick = max(band, key=lambda x: x[0]) if band else cheapest
-        tied = [
-            m["model"]
-            for s, m in band
-            if m["model"] != pick[1]["model"]
-        ]
+        tied = [m["model"] for s, m in band if m["model"] != pick[1]["model"]]
 
     def row(entry: tuple[float, dict]) -> dict[str, Any]:
         score, m = entry
         completion = (m.get("completion_by_complexity") or {}).get(tier)
-        done, total = (completion.split("/") + [None])[:2] if completion else (None, None)
+        done, total = (
+            (completion.split("/") + [None])[:2] if completion else (None, None)
+        )
         return {
             "model": m["model"],
             "score": round(score, 2),
@@ -261,7 +259,9 @@ def select(
     return {
         "recommended": row(pick) if pick else None,
         "tied_with": tied,
-        "cleared_floor": [row(e) for e in sorted(clears, key=lambda x: x[1]["cost_per_task_usd"])],
+        "cleared_floor": [
+            row(e) for e in sorted(clears, key=lambda x: x[1]["cost_per_task_usd"])
+        ],
         "below_floor": [row(e) for e in misses],
         "scored_from_overall_mean": unscored,
     }
@@ -289,7 +289,6 @@ def route(
     data = load_models(models_path)
     all_models = data["models"]
     index = build_alias_index(all_models, aliases_path)
-    by_slug = {m["model"]: m for m in all_models}
 
     def resolve(names: list[str]) -> tuple[list[str], list[str]]:
         known, unknown = [], []
