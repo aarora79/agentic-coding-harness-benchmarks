@@ -1,0 +1,1767 @@
+{
+  "judged_by": {
+    "harness": "omp",
+    "model": "us.anthropic.claude-opus-5",
+    "provider": "bedrock",
+    "skill": "model-router",
+    "step": "1 and 1b (consequence floor + complexity tier) only; route.py is run separately by eval_model_router.py",
+    "dataset": "benchmarks/dataset/mcp-gateway-registry-v2.yaml",
+    "repeats": 3,
+    "started_at": "2026-09-04T00:17:26.016862Z",
+    "finished_at": "2026-09-04T00:29:44.394287Z",
+    "judging_cost_usd": 27.8991,
+    "runs_ok": 63,
+    "runs_failed": 0
+  },
+  "consolidation": "median floor, modal tier across repeats; per-task spread kept in floors_seen / tiers_seen",
+  "tasks": {
+    "default-create-in-idp-checkbox-unchecked": {
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Getting the default wrong either keeps silently mutating the operator's identity provider (and failing outright where the admin lacks IdP write scopes), or flips too far and leaves operators who tick the box with a local-only group whose group-based authorization silently never resolves in Keycloak/Entra/Okta/Auth0.",
+      "reason": "The 75 row applies because this is an IAM/identity-provider write path -- the project's own README frames IAM groups as fine-grained access control and permission management -- and the failure mode is a silent authorization mismatch discovered long after the fact, not a visible break. The +5 applies because the task hinges on one specific thing, the API-contract default: management_routes.py:422 is documented as True (default), server_routes.py repeats that default on public and internal endpoints with CLI examples, registry_client.py already defaults False, and tests/unit/api/test_management_routes.py:698 pins the current default, so the flip must land consistently without silently changing documented CLI/import behaviour. Tier is low because it is a default changed across a couple of files -- state initialization, payload default, one route default, one new frontend test in the existing frontend/src/components/__tests__ suite and one inverted backend test -- with the opt-in IdP path already implemented and left intact.",
+      "attempts": 3,
+      "floors_seen": [
+        75.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 5.0,
+      "floor_unanimous": false,
+      "tiers_seen": {
+        "low": 3
+      },
+      "tier_unanimous": true
+    },
+    "build-docker-images-from-uv-lock": {
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong change ships or breaks the publicly published, provenance-attested production registry and auth-server images \u2014 either failing the ECR build outright or silently altering image contents (CUDA torch instead of the deliberate CPU-only wheels, dev dependencies baked into runtime) for the gateway and its JWT auth service.",
+      "reason": "Floor row 70 because docker/Dockerfile.registry and docker/Dockerfile.auth feed build-registry.yml and build-auth-server.yml, which push multi-arch images to public.ecr.aws that users pull and run \u2014 it ships, and a defect reaches someone; it is not the 75 row because no authentication or authorization code path is edited, only the images' dependency install. The +5 applies because the task hinges on exact uv semantics rather than general care: uv sync prunes the venv and would wipe the intentional CPU-only torch/torchvision layer, installs the dev group unless --no-dev is passed, will not install the project itself given [tool.uv] package = false, and fails unless uv.lock joins pyproject.toml in the COPY. Medium tier because it spans several files and a CI surface \u2014 two Dockerfiles, four new lockfiles for auth_server and three servers/*, and a uv lock --check job over nine project roots \u2014 but adds no runtime logic or new subsystem.",
+      "attempts": 3,
+      "floors_seen": [
+        75.0,
+        75.0,
+        75.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "medium": 3
+      },
+      "tier_unanimous": true
+    },
+    "honor-cloud-provider-override-in-ui": {
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "The admin UI keeps reporting the wrong deployment cloud to operators on every on-premises install, or the endpoint regresses and the Uptime tooltip breaks for all users of the shipped registry service.",
+      "reason": "Floor 70 because this is a production FastAPI route rendered in the operator-facing registry UI (UptimeDisplay.tsx), not an internal tool or docs page; it is not an auth, payment or data-deletion path, and the nginx_proxied_auth dependency is untouched, so 75 does not apply. Tier low because the production fix is a single awaited call swap in one file onto the already-correct _resolve_cloud() resolver, whose unset-override fall-through preserves backwards compatibility for free, with the remaining work being a two-case regression test in an existing test file that already has the auth-override and cache-reset patterns. No +5: the response shape, frontend types and precedence logic are all unchanged, so nothing hinges on authoring an API contract, version comparison or security invariant.",
+      "attempts": 3,
+      "floors_seen": [
+        70.0,
+        70.0,
+        75.0
+      ],
+      "floor_spread": 5.0,
+      "floor_unanimous": false,
+      "tiers_seen": {
+        "low": 2,
+        "trivial": 1
+      },
+      "tier_unanimous": false
+    },
+    "fix-reserved-groups-var-in-service-account-script": {
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix makes the verification step report success while the agent service account is actually in the wrong Keycloak group or missing its groups mapper, silently blessing a broken authorization grant that gates which MCP servers an agent can see.",
+      "reason": "Floor row 75 because verify_setup() is a security path: it is the only check that the M2M service account's group membership and groups protocol mapper \u2014 the authorization boundary for agent visibility \u2014 were provisioned correctly, and CLAUDE.md's standing security invariants explicitly cover any change touching auth/authorization and credential handling. +5 because the task hinges on one exact thing: replacing a substring grep with a real group-name comparison (the SC2128 latent bug, where mcp-servers-restricted matches mcp-servers-unrestricted) while handling bash's special GROUPS array under set -e. Tier low, not trivial, because it is more than one condition \u2014 a variable rename plus corrected array/exact-match semantics in verify_setup, repeated in setup-m2m-service-account.sh and cli/user_mgmt.sh after a sweep \u2014 but it adds no feature or config surface, so it falls short of medium.",
+      "attempts": 3,
+      "floors_seen": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "low": 3
+      },
+      "tier_unanimous": true
+    },
+    "cli-custom-egress-oauth-provider-flags": {
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A mis-wired flag writes a wrong or blanked egress OAuth config for a server -- the authorize/token endpoints the operator client_secret is POSTed to -- so per-user credential flows for that server break or point somewhere unintended, and an omitted flag on an edit can silently null a stored URL.",
+      "reason": "Floor 75 because the change is the admin write path for egress OAuth credentials and outbound token/authorize endpoints, which CLAUDE.md's security invariants explicitly govern as auth/credential-handling and outbound-request territory; it does not sit lower even though the server re-validates every value and fails closed. Plus 5 because the task hinges on exact API-contract fidelity: five field names must match EgressConfigRequest verbatim, the client's None-sentinel 'only send what was supplied' convention must be preserved, and the token auth style flag must be constrained to exactly the TokenEndpointAuthStyle members post_body/basic_header. Tier low because it is two source files and a test module adding argparse flags and passthrough parameters against a pattern already present in the adjacent code, with no new endpoint, schema, or subsystem.",
+      "attempts": 3,
+      "floors_seen": [
+        75.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 5.0,
+      "floor_unanimous": false,
+      "tiers_seen": {
+        "low": 3
+      },
+      "tier_unanimous": true
+    },
+    "derive-repo-url-from-skill-md": {
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong derivation silently prefills or renders a broken repository link in the production skill registration form and detail modals \u2014 enterprise-host users get dead 'View Repo' links or a guessed repo URL persisted against non-GitHub skills.",
+      "reason": "Floor 70 because this is the shipped user-facing registry UI and a public parse-skill-md API response, not an internal tool and not a security or data-deletion path; +5 because the task hinges on one specific thing \u2014 exact inversion of the two SKILL.md URL shapes including the GitHub Enterprise raw-host convention already encoded in registry/utils/url_utils.py, with non-GitHub hosts left empty rather than guessed. Tier medium because it is two related features across roughly eight files (url_utils derivation, skill_service parse result, skill_routes response, Dashboard parse handler, SkillCard and SemanticSearchResults modals, Skill type and its mapping) with each edit small and patterned on existing code, rather than a new subsystem.",
+      "attempts": 3,
+      "floors_seen": [
+        75.0,
+        75.0,
+        75.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "medium": 3
+      },
+      "tier_unanimous": true
+    },
+    "consistent-csrf-across-toggle-endpoints": {
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Getting it wrong either leaves every /toggle endpoint CSRF-bypassable from a cookie-bearing browser -- letting a cross-site request enable or disable servers, agents, skills and virtual servers, which also regenerates nginx config -- or leaves OAuth M2M registration pipelines permanently broken at the enable step, and a silent CSRF hole is expensive and slow to find.",
+      "reason": "Floor 75: this is the CSRF/auth path itself (registry/auth/csrf.py plus the four toggle routes), which README documents as an Application Security hardening deliverable (#600) in a SOC 2/GDPR-audited, zero-trust posture, so a defect is a security regression rather than a visible bug. +5 because the whole change hinges on one specific invariant being exact -- the exemption predicate must key off absence of the session cookie, not a client-influenceable Authorization or nginx-injected X-Auth-Method header, or the fix becomes the bypass. Tier high: it rewrites a shared auth dependency's contract and applies it consistently across server, agent, skill and virtual-server routes (only three of four currently carry it), requires justifying a design among alternatives, and must be covered for both browser-cookie and bearer-token paths -- subsystem scope, like the skill's authenticated-endpoint and token-storage examples.",
+      "attempts": 3,
+      "floors_seen": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "high": 3
+      },
+      "tier_unanimous": true
+    },
+    "configurable-ui-title": {
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A production, user-facing title regression: get the unset-vs-empty-string handling wrong and every existing deployment that never sets UI_TITLE silently renders a blank or wrong product name, while a bad compose/ECS/Helm edit can break the deploy itself.",
+      "reason": "Floor starts at 70 because this ships in a production service and the title is on surfaces users see including the pre-login page, and it modifies the Docker, Terraform/ECS and Helm deploy definitions rather than just frontend strings; it is not the 75 row because no auth, payment or data-deletion path is involved. The +5 applies because the task turns on one specific invariant -- 'deployments that do not set UI_TITLE must see no change' -- where an empty env var rendered by a compose file, task definition or Helm template must behave as unset, and because CLAUDE.md states the chart reservedEnvNames list and the extra_env_test index assertions are a matched pair that only helm unittest enforces. Tier is medium and not high: roughly twenty files, but each change is shallow plumbing of one optional setting through an existing settings object, the existing /api/config response and the existing System Config panel, with no new subsystem or endpoint.",
+      "attempts": 3,
+      "floors_seen": [
+        70.0,
+        75.0,
+        75.0
+      ],
+      "floor_spread": 5.0,
+      "floor_unanimous": false,
+      "tiers_seen": {
+        "medium": 3
+      },
+      "tier_unanimous": true
+    },
+    "configurable-mcp-proxy-upstream-timeout": {
+      "floor": 70.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "A wrong change misconfigures or breaks the auth-server /mcp-proxy hop that every proxied MCP tool call traverses in production, so real user traffic either keeps dying at 30s or starts failing/hanging on a bad timeout value.",
+      "reason": "Floor 70 because this is a shipped, user-facing request path in the auth-server, but not the auth/security row: the diff adds no authn/authz logic, only an upstream-timeout knob whose 30s default preserves existing behavior, with the connection-holding risk bounded by the enforced minimum. No +5 adjustment because nothing hinges on a single narrow invariant -- the settings field, MCP_PROXY_* env fallback, clamp, admin row and deployment wiring are all direct clones of the live mcp_proxy_max_body_bytes pattern, and the requested tests cover default/override/floor. Tier medium because it is a config surface threaded through ~14 files (config.py, server.py reader plus httpx call site, config_routes.py, three compose files, .env.example, Helm secret/values/reserved-env-names, five Terraform files, the unified parameter reference) -- more than a couple-of-file default change, far short of a new subsystem or authenticated endpoint.",
+      "attempts": 3,
+      "floors_seen": [
+        70.0,
+        70.0,
+        75.0
+      ],
+      "floor_spread": 5.0,
+      "floor_unanimous": false,
+      "tiers_seen": {
+        "medium": 3
+      },
+      "tier_unanimous": true
+    },
+    "nginx-location-trailing-slash-route-hijack": {
+      "floor": 80.0,
+      "tier": "medium",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix either leaves the auth_request-bearing location block attached to sibling routes it does not own -- so unauthenticated navigation to /api/..., /auth or SPA routes keeps returning an auth error, invisible to anyone holding a session cookie -- or breaks the /name/mcp and /name/sse endpoints every registered MCP client depends on, including on deployments whose nginx config is already written to disk.",
+      "reason": "Floor 75 because the project's own agent map (CLAUDE.md:727-728) lists config generation alongside auth and authorization as the areas governed by its security-review rules, and the generated block at nginx_service.py:2262 is what enforces auth_request /validate, so a mistake misplaces an authorization boundary and stays hidden while a session cookie is present. +5 because the fix hinges on getting one exact thing right: nginx location-match semantics and precedence (prefix vs = vs ^~) while preserving the /name/mcp and /name/sse client contract -- a security invariant and an API contract decided by a single character of emitted config. Tier medium because it is a config surface touching the generator (nginx_service.py:2362-2368), the ^~ guards in the same template, the already-written-config migration path, and new tests -- several files around one bounded surface, not a new subsystem like rate limiting or an authenticated endpoint.",
+      "attempts": 3,
+      "floors_seen": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "high": 1,
+        "medium": 2
+      },
+      "tier_unanimous": false
+    },
+    "registration-admission-control-gate": {
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong gate either fails open or misses a registration path, so an organization believes its naming, compliance and approval rules are enforced while assets are persisted unchecked; get the default wrong instead and every existing deployment's registrations are blocked.",
+      "reason": "Floor 75 because this is a security/compliance enforcement path on the write side of the registry, which the codebase itself already treats as a blocking control (security_block_unsafe_servers/agents/skills, *_scan_on_registration in registry/core/config.py); +5 because correctness hinges on one specific invariant, fail-closed on timeout and unreachable gate, with no ungated path left, including POST /internal/register. Tier high because it is a new subsystem rather than an edit: config surface (enable flag, URL, timeout, gate auth), an outbound HTTP client with a request/response contract, wiring into 7 handlers across three large route files, distinct deny-versus-gate-failure errors surfaced to callers, logging, deployment wiring across .env.example, four compose files, Helm values and Terraform ECS, and four new test scenarios.",
+      "attempts": 3,
+      "floors_seen": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "high": 3
+      },
+      "tier_unanimous": true
+    },
+    "server-side-oauth-token-storage": {
+      "floor": 75.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A defect either lets one authenticated user resolve another user's stored OAuth access/refresh tokens (or leaves expired/revoked tokens redeemable), or breaks the session cookie contract and locks every OAuth user out of the registry \u2014 both silent until exploited or until login fails in production.",
+      "reason": "The 75 row applies because this is squarely a security path: OAuth access and refresh tokens encrypted at rest, a key-management choice, and a reference lookup that must be scoped to the authenticated user, in a repo whose own security-posture doc treats session encryption keys and the session cookie threat model as controls. No +5 adjustment: the risk is spread across schema, indexes, key derivation, callback wiring, endpoint authorization, TTL/revocation and the cookie-only-validation constraint rather than hinging on one contract or invariant. Tier is high because the skill's own high row names server-side token storage, and the change spans a new MongoDB collection with TTL and lookup indexes, the OAuth callback in auth_server/server.py, a new authenticated retrieval endpoint, backwards compatibility with the existing flow, and expired-and-revoked tests.",
+      "attempts": 3,
+      "floors_seen": [
+        75.0,
+        75.0,
+        75.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "high": 3
+      },
+      "tier_unanimous": true
+    },
+    "lifecycle-workflow-webhooks": {
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong HMAC or a mis-scoped permission gate silently disables a forgery control and an authorization boundary, letting a forged scan_complete event or a register-only scope promote an unscanned or unsafe asset to active in an external orchestrator.",
+      "reason": "Floor 75 because this is squarely a security path: the signature exists to stop event forgery, and the new lifecycle permission is an authorization split enforced in four places including a batch processor that bypasses the HTTP handlers, matching the repo's own 'fine-grained authorization' and 'supply chain security' pillars in docs/security-posture.md. The +5 applies because the whole control hinges on one exact invariant \u2014 the HMAC must cover the exact transmitted bytes, and the current webhook_service.py posts via httpx json=payload, so a separately-serialized digest would mismatch with no runtime symptom. Tier high because it is a subsystem, not a feature: a signing scheme plus a new event plus a new permission plus a mandated-status config gate plus status= filters, replicated across servers, agents and skills, over 15+ existing webhook callsites and a LifecycleStatus model whose defaults already disagree between cards and registration requests.",
+      "attempts": 3,
+      "floors_seen": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "high": 3
+      },
+      "tier_unanimous": true
+    },
+    "per-caller-per-target-rate-limits-and-quarantine": {
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong implementation either lets a compromised caller or a pulled-from-rotation target keep serving traffic while the admin UI shows it quarantined, or unconditionally denies real data-plane traffic through an undeletable reserved group at the single /validate hop every authenticated call crosses.",
+      "reason": "Floor 75 because quarantine is a security path by the repo's own framing: it is an absolute kill switch for a compromised caller, sitting inside an auth chokepoint the design doc marks as the critical path of every call and as a documented exception to the project's 'admission fails closed' principle. +5 because the feature hinges on one specific security invariant -- that a quarantine deny is unconditional, evaluated before any counter work, not subject to the existing admin bypass for a quarantined caller, and not swallowed by the RATE_LIMIT_FAIL_OPEN default when DocumentDB is unreachable. Tier high because it is a subsystem change spanning the models, limiter gate-building, both repositories, startup seeding, admin API delete-protection, the auth-server enforcement hook, the CLI and the React IAM surfaces, and it must resolve the composite-key delimiter hazard the design doc already flags for exactly this kind of extension.",
+      "attempts": 3,
+      "floors_seen": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "high": 3
+      },
+      "tier_unanimous": true
+    },
+    "idp-authenticated-embedding-endpoint": {
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A defect leaks the OAuth client secret into logs or the config UI, or silently breaks the static-key path so every embedding call and semantic-search query 401s across existing production deployments.",
+      "reason": "Floor row 75 because this is credential handling and an OAuth2 auth path, which CLAUDE.md:727-731 names as a hard-rule area with explicit never-log-secrets and no-default-for-a-required-secret invariants; +5 because the task hinges on one specific invariant - byte-for-byte identical behaviour for all existing providers when the new settings are unset, across code and the chart reserved-name/order assertions CLAUDE.md:1679-1685 flags as easy to drift. High tier because it is a subsystem rather than a feature: a new thread-safe client-credentials token manager with caching, expiry buffer and pre-emptive refresh, fail-fast startup validation, UI secret masking, and wiring through Docker, Terraform/ECS, Helm and two doc surfaces - matching the skill's own high examples of server-side token storage and a new authenticated endpoint.",
+      "attempts": 3,
+      "floors_seen": [
+        75.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 5.0,
+      "floor_unanimous": false,
+      "tiers_seen": {
+        "high": 3
+      },
+      "tier_unanimous": true
+    },
+    "index-demo-videos-in-one-page": {
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 65,
+      "adjustment": 5,
+      "consequence": "A reader lands on an index that is incomplete or has dead links -- some demos stay undiscoverable and a broken github user-attachment URL looks unmaintained -- but no running service, API or security path changes, and a reviewer plus the rendered docs site catch it before it reaches anyone.",
+      "reason": "The 65 row applies because this is a documentation-only page: mkdocs.yml has an explicit nav that already omits comparable docs pages and docs.yml runs mkdocs build --clean without strict, so nothing ships or breaks and a human reviews it first. +5 because the change hinges on one exact-value detail -- exhaustively enumerating 13 opaque asset UUIDs across 10 markdown files, including two distinct URLs (cee1847d... and cee25b31...) both labelled 'Dynamic Tool Discovery' that a label-based dedup would silently collapse. Tier is low rather than trivial since it needs a repo-wide scan and dedup across README.md, seven docs/ pages, docs/design/ and release-notes/, but only two files are written and no code, config surface or template is touched.",
+      "attempts": 3,
+      "floors_seen": [
+        65.0,
+        70.0,
+        70.0
+      ],
+      "floor_spread": 5.0,
+      "floor_unanimous": false,
+      "tiers_seen": {
+        "low": 3
+      },
+      "tier_unanimous": true
+    },
+    "hide-register-button-on-virtual-and-skills-tabs": {
+      "floor": 70.0,
+      "tier": "trivial",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "A wrong condition leaves the redundant Register button on the Virtual/Skills tabs or, worse, hides it from the MCP Servers and Agents tabs where registration is the correct action, blocking a shipped user-facing entry point to the registration flow.",
+      "reason": "Floor 70 because this is the production dashboard that users touch, but not the 75 security row: the button only navigates to /servers/register, and RegisterPage independently gates on ui_permissions.register_service/publish_agent, so no authorization boundary depends on the button's visibility. Trivial tier because the entire change is narrowing one JSX render condition around Dashboard.tsx lines 2410-2416 against the existing viewFilter state, with no new state, API, or component. No +5 adjustment: the only precise detail is the tab-value list, and a mistake there is immediately visible on screen rather than a hidden contract or invariant.",
+      "attempts": 3,
+      "floors_seen": [
+        70.0,
+        70.0,
+        70.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "trivial": 3
+      },
+      "tier_unanimous": true
+    },
+    "pass-ssrf-allowlist-env-to-registry-container": {
+      "floor": 75.0,
+      "tier": "trivial",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A wrong default or hardcoded value in the passthrough would silently widen or disable the registry's default-deny SSRF guard across every compose deployment, an expensive failure that no health check surfaces.",
+      "reason": "The 75 row applies because CLAUDE.md's standing security invariants name SSRF and deployment/config explicitly, and these two variables are the opt-in bypass for a default-deny egress control, so getting the default wrong weakens a security boundary rather than breaking a feature. The tier is trivial because the work is two config passthroughs added to two files, mirroring the identical pattern already present at docker-compose.yml:206-207 and the sibling TRUSTED_REAL_IP_CIDRS line in all three files; the Helm and Terraform surfaces already carry the pair, and one grep bounds the file set. No adjustment: the task's only hinge, preserving the empty default, is copyable verbatim from the existing canonical line rather than a judgement call where models diverge.",
+      "attempts": 3,
+      "floors_seen": [
+        75.0,
+        75.0,
+        75.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "low": 1,
+        "trivial": 2
+      },
+      "tier_unanimous": false
+    },
+    "macos-setup-python-version-precheck": {
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 65,
+      "adjustment": 5,
+      "consequence": "A wrong check either lets an under-version interpreter through (leaving the original late, misattributed uv sync failure) or falsely blocks a developer whose python3 is fine, on an installer whose output a human reads phase by phase before anything is built.",
+      "reason": "Floor row 65: the change lands only in the developer-facing macos-setup skill instructions, an internal setup tool a human supervises interactively, not in the registry's shipped service, auth or secrets paths that CLAUDE.md marks sensitive. Plus 5 because it hinges on one exact thing: reading requires-python = \">=3.14\" from pyproject.toml and comparing versions correctly, where lexical comparison ranks 3.9 above 3.14 and Phase 1 runs before the Phase 2 clone so the metadata is not yet local. Tier low: a handful of lines in one markdown file \u2014 the Python check, its PYTHON_FAIL remediation row, and the gate sentence \u2014 with genuine version-parsing logic but no new surface or multi-file reach.",
+      "attempts": 3,
+      "floors_seen": [
+        70.0,
+        70.0,
+        70.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "low": 3
+      },
+      "tier_unanimous": true
+    },
+    "portable-env-secret-generation-in-build-script": {
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "On macOS/BSD the script still reports every secret as added while the effective values stay empty or guessable, so operators deploy with an empty JWT signing key, an empty proxy token-minting marker secret, a blank Mongo root password and a blank OpenBao root token \u2014 a silent auth-bypass-class deployment, and a wrong fix re-hides the failure or clobbers an operator-supplied secret.",
+      "reason": "The 75 row applies because the code path generates the repo's signing and root credentials (SECRET_KEY, AUTH_SERVER_NGINX_MARKER_SECRET, OPENBAO_TOKEN, DOCUMENTDB_PASSWORD) and CLAUDE.md names credential handling and config generation as security-critical with a fail-closed requirement, so being wrong is expensive and slow to find. The +5 applies because correctness hinges on one specific thing done exactly right \u2014 the GNU-vs-BSD `sed -i` suffix semantics, and error propagation under `set -e` instead of `2>/dev/null || true`. Tier is low: it is one file, one repeated pattern at 11 sites, fixed by a single portable helper plus loud failure \u2014 no new subsystem or cross-service surface, but more than a one-line trivial edit and it must preserve the existing 'operator-provided value is left untouched' behaviour.",
+      "attempts": 3,
+      "floors_seen": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "low": 3
+      },
+      "tier_unanimous": true
+    },
+    "logout-id-token-hint-out-of-browser-url": {
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Get it wrong and logout breaks after the local session is already cleared -- the user appears logged out while the IdP SSO session and its live ID token survive -- or the new server-side hint path leaks a still-valid ID token to an unauthenticated caller, trading a URL disclosure for a worse one.",
+      "reason": "The 75 row applies because this is squarely a security path: OIDC RP-initiated logout, credential revocation, and the encrypted server-side id_token that CLAUDE.md's always-apply security invariants explicitly cover (OAuth/OIDC, tokens/JWT, internal tokens needing jti + single-use). The +5 applies because the whole change turns on one specific thing being exactly right -- a new registry-to-auth_server contract that carries an opaque authenticated reference instead of the JWT while the provider still receives a genuine id_token_hint, with the legacy query-param path preserved for mixed-version deployments. Tier is high because it is a subsystem change across two services -- registry/auth/routes.py logout_handler, auth_server/server.py oauth2_logout with its four provider branches, the shared session store, internal service auth, and the logout meters -- which matches the tier's own examples of server-side token storage and a new authenticated endpoint.",
+      "attempts": 3,
+      "floors_seen": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "floor_spread": 0.0,
+      "floor_unanimous": true,
+      "tiers_seen": {
+        "high": 3
+      },
+      "tier_unanimous": true
+    }
+  },
+  "judgments": [
+    {
+      "task": "build-docker-images-from-uv-lock",
+      "attempt": 1,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:17:27.829623Z",
+      "metrics": {
+        "input_tokens": 12,
+        "output_tokens": 5701,
+        "cache_read_tokens": 251014,
+        "cache_creation_tokens": 37193,
+        "num_turns": 6,
+        "latency_seconds": 82.6,
+        "total_cost_usd": 0.50054825
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong change ships or breaks the publicly published, provenance-attested production registry and auth-server images \u2014 either failing the ECR build outright or silently altering image contents (CUDA torch instead of the deliberate CPU-only wheels, dev dependencies baked into runtime) for the gateway and its JWT auth service.",
+      "reason": "Floor row 70 because docker/Dockerfile.registry and docker/Dockerfile.auth feed build-registry.yml and build-auth-server.yml, which push multi-arch images to public.ecr.aws that users pull and run \u2014 it ships, and a defect reaches someone; it is not the 75 row because no authentication or authorization code path is edited, only the images' dependency install. The +5 applies because the task hinges on exact uv semantics rather than general care: uv sync prunes the venv and would wipe the intentional CPU-only torch/torchvision layer, installs the dev group unless --no-dev is passed, will not install the project itself given [tool.uv] package = false, and fails unless uv.lock joins pyproject.toml in the COPY. Medium tier because it spans several files and a CI surface \u2014 two Dockerfiles, four new lockfiles for auth_server and three servers/*, and a uv lock --check job over nine project roots \u2014 but adds no runtime logic or new subsystem."
+    },
+    {
+      "task": "build-docker-images-from-uv-lock",
+      "attempt": 2,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:21:02.443851Z",
+      "metrics": {
+        "input_tokens": 1812,
+        "output_tokens": 4532,
+        "cache_read_tokens": 301635,
+        "cache_creation_tokens": 21049,
+        "num_turns": 7,
+        "latency_seconds": 69.2,
+        "total_cost_usd": 0.40473375
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "The auth-server and registry images published to public.ecr.aws and consumed by the ECS/Terraform and Helm deployments either fail to build, blocking releases, or build with a silently different dependency set than before -- changing the runtime surface of the service that terminates authentication.",
+      "reason": "Base row 70: these Dockerfiles produce the production images pushed to public ECR by build-auth-server.yml, build-registry.yml and release-images.yml and deployed via terraform/aws-ecs and the Helm chart, so a defect ships to users rather than being caught by a reviewer. +5 because the task hinges on one exact thing: uv sync --frozen manages the environment and installs the project itself, which can evict the CPU-only torch wheel pre-installed from download.pytorch.org/whl/cpu (Dockerfile.registry:36-40) or pull dev groups into the runtime image, breaking the 'build and run exactly as before' requirement in a way CI and the healthcheck would not catch. Medium tier: two install steps across a family of six Dockerfiles, four new lockfiles (auth_server, servers/fininfo, servers/realserverfaketools, servers/example-server) and one new CI workflow -- a multi-file build/config surface, not a new subsystem."
+    },
+    {
+      "task": "build-docker-images-from-uv-lock",
+      "attempt": 3,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:25:00.409025Z",
+      "metrics": {
+        "input_tokens": 7351,
+        "output_tokens": 5240,
+        "cache_read_tokens": 250204,
+        "cache_creation_tokens": 19956,
+        "num_turns": 6,
+        "latency_seconds": 77.0,
+        "total_cost_usd": 0.41758200000000006
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong change either breaks the images published to public ECR on every push to main, or silently ships different container contents than intended \u2014 most likely swapping the deliberately CPU-only torch/torchvision for default-PyPI CUDA wheels, or dropping the editable mcp-registry install, in images that include the JWT/Cognito auth server.",
+      "reason": "Floor row 70 because these Dockerfiles produce the production, provenance-attested images pushed to public.ecr.aws on merge to main, so a defect reaches users rather than a reviewer; +5 because the task turns on exact behaviors rather than volume \u2014 `uv sync --frozen` reconciles the venv to the lock and will undo the pre-installed CPU-only torch from download.pytorch.org/whl/cpu unless that index is encoded in the lock, `[tool.uv] package = false` in every root means sync installs deps only so the registry's `uv pip install -e .` must remain, and the locks must resolve universally for both linux/amd64 and linux/arm64. Medium tier because the work spans a build and config surface across several files \u2014 four new lockfiles for auth_server and three servers/* roots, two Dockerfile dependency stages, and a new per-root `uv lock --check` CI job \u2014 without adding runtime behavior or a new subsystem."
+    },
+    {
+      "task": "cli-custom-egress-oauth-provider-flags",
+      "attempt": 1,
+      "ref": "1.28.0",
+      "judged_at": "2026-09-04T00:17:28.060582Z",
+      "metrics": {
+        "input_tokens": 5362,
+        "output_tokens": 4396,
+        "cache_read_tokens": 223624,
+        "cache_creation_tokens": 64282,
+        "num_turns": 6,
+        "latency_seconds": 68.1,
+        "total_cost_usd": 0.6502845
+      },
+      "floor": 75.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A wrong change either leaves `--provider custom` still unusable from the CLI or, worse, sends empty strings where fields should be omitted and silently nulls a server's stored authorize/token URLs or auth style on an edit, breaking every user's egress consent flow on that server with a failure that only surfaces later at token exchange.",
+      "reason": "The 75 row applies because this is the admin path that configures per-user egress OAuth -- client credentials plus the authorize/token URLs that carry the client_secret outbound -- and CLAUDE.md's security invariants name 'auth, authorization, outbound requests, credential handling' as the areas requiring that care; wrong here is expensive and slow to find because breakage appears at consent time, not configure time. Tier is low: five argparse flags in api/registry_management.py plus five forwarded params in api/registry_client.py, following the existing `if x is not None` convention already used for client_id/scopes/target_audience, with no server-side change (the SSRF guard, RFC 8707 check and resolve_provider validation in egress_auth_routes.py already exist and stay untouched). It is more than a couple of config passthroughs because of the omission semantics and the enum-constrained token-auth-style flag, but well short of a multi-file feature or a config surface, so it reads against the low table."
+    },
+    {
+      "task": "cli-custom-egress-oauth-provider-flags",
+      "attempt": 2,
+      "ref": "1.28.0",
+      "judged_at": "2026-09-04T00:21:39.194731Z",
+      "metrics": {
+        "input_tokens": 6025,
+        "output_tokens": 5461,
+        "cache_read_tokens": 297901,
+        "cache_creation_tokens": 20105,
+        "num_turns": 7,
+        "latency_seconds": 84.2,
+        "total_cost_usd": 0.44125675000000003
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A mis-wired flag writes a wrong or blanked egress OAuth config for a server -- the authorize/token endpoints the operator client_secret is POSTed to -- so per-user credential flows for that server break or point somewhere unintended, and an omitted flag on an edit can silently null a stored URL.",
+      "reason": "Floor 75 because the change is the admin write path for egress OAuth credentials and outbound token/authorize endpoints, which CLAUDE.md's security invariants explicitly govern as auth/credential-handling and outbound-request territory; it does not sit lower even though the server re-validates every value and fails closed. Plus 5 because the task hinges on exact API-contract fidelity: five field names must match EgressConfigRequest verbatim, the client's None-sentinel 'only send what was supplied' convention must be preserved, and the token auth style flag must be constrained to exactly the TokenEndpointAuthStyle members post_body/basic_header. Tier low because it is two source files and a test module adding argparse flags and passthrough parameters against a pattern already present in the adjacent code, with no new endpoint, schema, or subsystem."
+    },
+    {
+      "task": "cli-custom-egress-oauth-provider-flags",
+      "attempt": 3,
+      "ref": "1.28.0",
+      "judged_at": "2026-09-04T00:25:39.715826Z",
+      "metrics": {
+        "input_tokens": 5352,
+        "output_tokens": 3430,
+        "cache_read_tokens": 252113,
+        "cache_creation_tokens": 20690,
+        "num_turns": 6,
+        "latency_seconds": 51.1,
+        "total_cost_usd": 0.36787899999999996
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong forwarding on the admin egress-OAuth write path either leaves `--provider custom` still unusable or, worse, sends nulls on an edit that clobber a stored authorize/token URL or client-secret-bearing config, silently breaking a live per-user consent flow.",
+      "reason": "Floor 75 because this is the CLI write path for per-user egress OAuth credentials and registrant-supplied token endpoints, which CLAUDE.md's security invariants explicitly scope as auth/credential-handling/outbound-request territory; +5 because the task turns on two exact contracts -- the client's `is not None` omit-don't-null convention at registry_client.py:3913-3922 and matching the server's TokenEndpointAuthStyle enum values -- rather than on volume. Tier low because the work is five parallel flag/param/body additions across api/registry_management.py and api/registry_client.py plus tests, copying a pattern already in the same function, with the API model, persistence schema, and route validation all already accepting the fields."
+    },
+    {
+      "task": "configurable-mcp-proxy-upstream-timeout",
+      "attempt": 1,
+      "ref": "1.25.0",
+      "judged_at": "2026-09-04T00:18:44.445674Z",
+      "metrics": {
+        "input_tokens": 3745,
+        "output_tokens": 6305,
+        "cache_read_tokens": 480174,
+        "cache_creation_tokens": 38978,
+        "num_turns": 10,
+        "latency_seconds": 94.4,
+        "total_cost_usd": 0.6600495
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "Every authenticated MCP tool call in production flows through this auth-server proxy hop, so a wrong change either keeps killing long-running upstream calls at 30s, silently caps them at nginx's inherited 60s, or shifts the default and breaks operators who never opted in.",
+      "reason": "Floor row 70: this is a production service on the user-facing MCP data path, but the change is an availability/resource parameter, not an authz decision - the hop's security invariants (internal-token upstream pinning) are untouched, so the 75 security row does not apply on its own. The +5 applies because correctness hinges on one specific thing: two timeouts sit in series and the generated /mcp-proxy nginx locations set no proxy_read_timeout, so they inherit nginx's 60s default and defeat any larger setting, while the default must stay exactly 30s and the pydantic ge must agree with the runtime max() clamp. Tier medium: it is a config surface plus roughly sixteen deployment and docs surfaces mirroring the existing MCP_PROXY_MAX_BODY_BYTES knob - well past 'a couple of files', but no new subsystem, endpoint, or state, which is what would make it high."
+    },
+    {
+      "task": "configurable-mcp-proxy-upstream-timeout",
+      "attempt": 2,
+      "ref": "1.25.0",
+      "judged_at": "2026-09-04T00:22:16.028716Z",
+      "metrics": {
+        "input_tokens": 2401,
+        "output_tokens": 4735,
+        "cache_read_tokens": 209532,
+        "cache_creation_tokens": 18555,
+        "num_turns": 5,
+        "latency_seconds": 70.0,
+        "total_cost_usd": 0.35111475000000003
+      },
+      "floor": 70.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "A wrong change misconfigures or breaks the auth-server /mcp-proxy hop that every proxied MCP tool call traverses in production, so real user traffic either keeps dying at 30s or starts failing/hanging on a bad timeout value.",
+      "reason": "Floor 70 because this is a shipped, user-facing request path in the auth-server, but not the auth/security row: the diff adds no authn/authz logic, only an upstream-timeout knob whose 30s default preserves existing behavior, with the connection-holding risk bounded by the enforced minimum. No +5 adjustment because nothing hinges on a single narrow invariant -- the settings field, MCP_PROXY_* env fallback, clamp, admin row and deployment wiring are all direct clones of the live mcp_proxy_max_body_bytes pattern, and the requested tests cover default/override/floor. Tier medium because it is a config surface threaded through ~14 files (config.py, server.py reader plus httpx call site, config_routes.py, three compose files, .env.example, Helm secret/values/reserved-env-names, five Terraform files, the unified parameter reference) -- more than a couple-of-file default change, far short of a new subsystem or authenticated endpoint."
+    },
+    {
+      "task": "configurable-mcp-proxy-upstream-timeout",
+      "attempt": 3,
+      "ref": "1.25.0",
+      "judged_at": "2026-09-04T00:26:33.417059Z",
+      "metrics": {
+        "input_tokens": 2581,
+        "output_tokens": 4586,
+        "cache_read_tokens": 247970,
+        "cache_creation_tokens": 18002,
+        "num_turns": 6,
+        "latency_seconds": 68.1,
+        "total_cost_usd": 0.3640525
+      },
+      "floor": 70.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "A wrong value or wrong plumbing degrades every proxied MCP tool call in production -- long delegations keep dying at 30s, or behavior silently changes for operators who never opted in, or an unbounded timeout holds upstream connections open until the pool exhausts.",
+      "reason": "Floor 70 is the production-service row: the /mcp-proxy hop is a shipping path that every user tool call traverses, but the knob is a transport deadline, so being wrong costs availability rather than access -- the repo's own security language (fail-closed audience checks, replay-window token caps) attaches to token minting, not timeouts, so the 75 row does not apply. No +5 adjustment: the task replicates an established in-repo pattern (settings Field with ge= floor, MCP_PROXY_* env fallback, admin config entry) and hinges on no single exact contract. Tier medium because it is exactly the 'config surface' case -- one Pydantic field and one httpx call site, then the same knob mirrored across ~15 files spanning three compose files, two Helm values plus secret template and reserved-env list, five Terraform files, the admin config route and the parameter-reference table -- broad and mechanical, but well short of the subsystem work that defines high."
+    },
+    {
+      "task": "configurable-ui-title",
+      "attempt": 1,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:18:38.474125Z",
+      "metrics": {
+        "input_tokens": 7091,
+        "output_tokens": 5008,
+        "cache_read_tokens": 375082,
+        "cache_creation_tokens": 26774,
+        "num_turns": 8,
+        "latency_seconds": 76.0,
+        "total_cost_usd": 0.5155335
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A production, user-facing title regression: get the unset-vs-empty-string handling wrong and every existing deployment that never sets UI_TITLE silently renders a blank or wrong product name, while a bad compose/ECS/Helm edit can break the deploy itself.",
+      "reason": "Floor starts at 70 because this ships in a production service and the title is on surfaces users see including the pre-login page, and it modifies the Docker, Terraform/ECS and Helm deploy definitions rather than just frontend strings; it is not the 75 row because no auth, payment or data-deletion path is involved. The +5 applies because the task turns on one specific invariant -- 'deployments that do not set UI_TITLE must see no change' -- where an empty env var rendered by a compose file, task definition or Helm template must behave as unset, and because CLAUDE.md states the chart reservedEnvNames list and the extra_env_test index assertions are a matched pair that only helm unittest enforces. Tier is medium and not high: roughly twenty files, but each change is shallow plumbing of one optional setting through an existing settings object, the existing /api/config response and the existing System Config panel, with no new subsystem or endpoint."
+    },
+    {
+      "task": "configurable-ui-title",
+      "attempt": 2,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:22:13.964541Z",
+      "metrics": {
+        "input_tokens": 2376,
+        "output_tokens": 4118,
+        "cache_read_tokens": 201833,
+        "cache_creation_tokens": 26060,
+        "num_turns": 5,
+        "latency_seconds": 61.4,
+        "total_cost_usd": 0.3786215
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong or empty UI_TITLE renders a blank or incorrect product name in the top-left header and on the login page of every existing deployment, so the defect ships straight to all users of a production service.",
+      "reason": "Base floor 70 because the change lands on a production, user-facing surface (Layout/Login/Logout headers plus the public /api/config payload) but touches no auth, payment, deletion or security invariant. +5 because the whole acceptance criterion hinges on one exact thing: the unset/empty-versus-set precedence rule (explicit UI_TITLE wins, otherwise derive from DEPLOYMENT_MODE) holding identically across compose ${VAR:-}, Terraform empty-string tfvars and Helm | default, which is precisely where existing deployments would silently regress. Tier medium because it is a config parameter across several files and three deployment surfaces, closely mirroring the already-plumbed DEPLOYMENT_MODE/SHOW_*_TAB pattern, with no new endpoint or subsystem, so it is broader than low but well short of the high tier's subsystem work."
+    },
+    {
+      "task": "configurable-ui-title",
+      "attempt": 3,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:26:26.166055Z",
+      "metrics": {
+        "input_tokens": 2586,
+        "output_tokens": 4172,
+        "cache_read_tokens": 258650,
+        "cache_creation_tokens": 21815,
+        "num_turns": 6,
+        "latency_seconds": 60.4,
+        "total_cost_usd": 0.38289875
+      },
+      "floor": 70.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "A wrong, blank, or unrendered title ships to every user of the registry web UI on its header, login and logout screens, and a botched env/values plumbing edit could break a Helm or ECS deployment's rendering.",
+      "reason": "Production user-facing row (70): the title is the first thing every UI user sees and it ships, but it is a cosmetic label on an already-public /api/config field with no auth, data or security invariant riding on it, so it does not reach the 75 row. No +5, because nothing pivotal hinges on one exact item -- the no-change guarantee follows from an unset default plus the existing DEPLOYMENT_MODE derivation, and the Helm reserved-list pairing CLAUDE.md warns about is covered by charts/registry/tests/extra_env_test.yaml. Medium tier: a config surface plumbed across several files (settings, two config routes, three frontend components plus hook types and ConfigPanel, four compose files, four Terraform files, three Helm files) that mirrors the existing DEPLOYMENT_MODE/SHOW_*_TAB parameter pattern exactly -- broad and repetitive rather than a new subsystem."
+    },
+    {
+      "task": "consistent-csrf-across-toggle-endpoints",
+      "attempt": 1,
+      "ref": "v1.0.20",
+      "judged_at": "2026-09-04T00:18:24.843939Z",
+      "metrics": {
+        "input_tokens": 9098,
+        "output_tokens": 3449,
+        "cache_read_tokens": 225765,
+        "cache_creation_tokens": 33487,
+        "num_turns": 6,
+        "latency_seconds": 54.3,
+        "total_cost_usd": 0.45389125
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Getting it wrong either leaves every /toggle endpoint CSRF-bypassable from a cookie-bearing browser -- letting a cross-site request enable or disable servers, agents, skills and virtual servers, which also regenerates nginx config -- or leaves OAuth M2M registration pipelines permanently broken at the enable step, and a silent CSRF hole is expensive and slow to find.",
+      "reason": "Floor 75: this is the CSRF/auth path itself (registry/auth/csrf.py plus the four toggle routes), which README documents as an Application Security hardening deliverable (#600) in a SOC 2/GDPR-audited, zero-trust posture, so a defect is a security regression rather than a visible bug. +5 because the whole change hinges on one specific invariant being exact -- the exemption predicate must key off absence of the session cookie, not a client-influenceable Authorization or nginx-injected X-Auth-Method header, or the fix becomes the bypass. Tier high: it rewrites a shared auth dependency's contract and applies it consistently across server, agent, skill and virtual-server routes (only three of four currently carry it), requires justifying a design among alternatives, and must be covered for both browser-cookie and bearer-token paths -- subsystem scope, like the skill's authenticated-endpoint and token-storage examples."
+    },
+    {
+      "task": "consistent-csrf-across-toggle-endpoints",
+      "attempt": 2,
+      "ref": "v1.0.20",
+      "judged_at": "2026-09-04T00:21:57.452730Z",
+      "metrics": {
+        "input_tokens": 474,
+        "output_tokens": 3952,
+        "cache_read_tokens": 311027,
+        "cache_creation_tokens": 25277,
+        "num_turns": 7,
+        "latency_seconds": 59.5,
+        "total_cost_usd": 0.41466475
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Get it wrong and either cookie-bearing browsers can be CSRF-forged into enabling/disabling gateway servers, agents and skills, or bearer-token M2M registration pipelines stay permanently broken at the enable step.",
+      "reason": "Floor 75 because this is an auth/CSRF security path that the repo itself treats as security-critical (README #600 CSRF hardening, docs/security-posture.md CSRF validation coverage, security-engineer PR persona), where a mistake is expensive and slow to detect. The +5 applies because the whole change hinges on one exact security invariant: CSRF enforcement must be conditioned on cookie-borne authentication rather than on the absence of an attacker-suppressible Authorization header. Tier high because it reworks shared auth machinery (registry/auth/csrf.py, 8+ callsites including ans_routes, the server edit form and logout), harmonises four toggle endpoints across server/agent/skill/virtual-server routes, demands a justified design choice, and requires new tests for both the browser and bearer-token paths where none exist today."
+    },
+    {
+      "task": "consistent-csrf-across-toggle-endpoints",
+      "attempt": 3,
+      "ref": "v1.0.20",
+      "judged_at": "2026-09-04T00:26:19.619406Z",
+      "metrics": {
+        "input_tokens": 10,
+        "output_tokens": 4069,
+        "cache_read_tokens": 220972,
+        "cache_creation_tokens": 24369,
+        "num_turns": 5,
+        "latency_seconds": 58.0,
+        "total_cost_usd": 0.36456725
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Getting the cookie-versus-bearer predicate wrong silently removes CSRF protection from every /toggle endpoint that enables or disables gateway servers, agents, skills and virtual servers, letting a malicious page flip a victim admin's registry state - and the existing tests stub the CSRF dependency out, so the regression ships undetected.",
+      "reason": "The 75 row applies because this is a security path the project itself tracks as such (README #600 'Application Security - CSRF protection'; the security-engineer review persona lists CSRF as a standing criterion), and +5 applies because the whole change turns on one exact invariant: enforce when a session cookie is present, exempt bearer-only clients, without weakening the browser threat model. Tier is high because the fix alters the contract of the shared verify_csrf_token_flexible dependency in registry/auth/csrf.py used by server, agent, skill, ans and logout routes, adds the missing coverage on virtual_server_routes.py toggle_virtual_server, and needs new tests for both the browser and bearer paths where every current test overrides CSRF to a no-op. That is subsystem-level auth work, matching the tier's rate-limiting and authenticated-endpoint examples rather than a multi-file feature."
+    },
+    {
+      "task": "default-create-in-idp-checkbox-unchecked",
+      "attempt": 1,
+      "ref": "v1.0.21",
+      "judged_at": "2026-09-04T00:17:27.843577Z",
+      "metrics": {
+        "input_tokens": 2187,
+        "output_tokens": 6197,
+        "cache_read_tokens": 246819,
+        "cache_creation_tokens": 39193,
+        "num_turns": 6,
+        "latency_seconds": 88.2,
+        "total_cost_usd": 0.53422575
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Getting the default wrong either keeps silently mutating the operator's identity provider (and failing outright where the admin lacks IdP write scopes), or flips too far and leaves operators who tick the box with a local-only group whose group-based authorization silently never resolves in Keycloak/Entra/Okta/Auth0.",
+      "reason": "The 75 row applies because this is an IAM/identity-provider write path -- the project's own README frames IAM groups as fine-grained access control and permission management -- and the failure mode is a silent authorization mismatch discovered long after the fact, not a visible break. The +5 applies because the task hinges on one specific thing, the API-contract default: management_routes.py:422 is documented as True (default), server_routes.py repeats that default on public and internal endpoints with CLI examples, registry_client.py already defaults False, and tests/unit/api/test_management_routes.py:698 pins the current default, so the flip must land consistently without silently changing documented CLI/import behaviour. Tier is low because it is a default changed across a couple of files -- state initialization, payload default, one route default, one new frontend test in the existing frontend/src/components/__tests__ suite and one inverted backend test -- with the opt-in IdP path already implemented and left intact."
+    },
+    {
+      "task": "default-create-in-idp-checkbox-unchecked",
+      "attempt": 2,
+      "ref": "v1.0.21",
+      "judged_at": "2026-09-04T00:20:48.778418Z",
+      "metrics": {
+        "input_tokens": 6250,
+        "output_tokens": 4293,
+        "cache_read_tokens": 248571,
+        "cache_creation_tokens": 22973,
+        "num_turns": 6,
+        "latency_seconds": 66.4,
+        "total_cost_usd": 0.40644175
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong default in this admin-only IAM path either keeps silently mutating the operator's configured identity provider (or failing the create where admins lack IdP write scopes), or, if the documented server-side default is flipped carelessly, silently stops creating IdP groups for existing CLI/API callers so group-to-scope authorization quietly breaks in deployed environments.",
+      "reason": "The 75 row applies because this is a security path in the project's own terms: group creation is admin-gated (_require_admin) on the IAM/IdP surface, and groups plus group_mappings are what IdP token claims resolve into MCP access scopes, so a wrong default writes to a customer identity provider or leaves authorization non-functional. The +5 applies because the change hinges on one specific API-contract judgement: create_in_idp is documented as default true on the public endpoints (registry/api/server_routes.py:2248/3389/3464/3800) and consumed by api/registry_client.py and JSON import, while the frontend already sends the flag explicitly (IAMGroups.tsx:322), so the backend default flip must be scoped correctly or it changes behaviour for non-UI callers. The tier is low because mechanically it is the skill's own low example -- a default changed across a couple of files (one useState initializer, a few server-side defaults, one new frontend test in an existing __tests__ suite) -- with no new endpoint, config surface, or subsystem."
+    },
+    {
+      "task": "default-create-in-idp-checkbox-unchecked",
+      "attempt": 3,
+      "ref": "v1.0.21",
+      "judged_at": "2026-09-04T00:24:49.738399Z",
+      "metrics": {
+        "input_tokens": 15468,
+        "output_tokens": 4750,
+        "cache_read_tokens": 193076,
+        "cache_creation_tokens": 30227,
+        "num_turns": 5,
+        "latency_seconds": 70.4,
+        "total_cost_usd": 0.48154675
+      },
+      "floor": 75.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A wrong change either leaves the registry silently mutating the operator's identity provider on every group create, or breaks the opt-in path so groups exist only locally and never in the IdP -- which shows up later as users missing access rather than as an error at create time.",
+      "reason": "Floor 75 because this is the IAM/identity-provider path the project itself frames as security and permission management: group_mappings resolve to scopes and server access, so a mis-provisioned group is an authorization defect that is expensive and slow to trace back. Tier low because the work is a default flipped across a couple of files -- useState in IAMGroups.tsx, the create_in_idp default and docstring in management_routes.py, the existing backend test that asserts the old default, and one new frontend assertion -- with no new feature, config surface or subsystem. The several other create_in_idp defaults in server_routes.py and the published 'default: true' contract widen the reading, not the edit."
+    },
+    {
+      "task": "derive-repo-url-from-skill-md",
+      "attempt": 1,
+      "ref": "v1.0.19",
+      "judged_at": "2026-09-04T00:17:27.755371Z",
+      "metrics": {
+        "input_tokens": 154,
+        "output_tokens": 5039,
+        "cache_read_tokens": 362953,
+        "cache_creation_tokens": 67608,
+        "num_turns": 8,
+        "latency_seconds": 75.8,
+        "total_cost_usd": 0.7307715
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong derivation silently prefills or renders a broken repository link in the production skill registration form and detail modals \u2014 enterprise-host users get dead 'View Repo' links or a guessed repo URL persisted against non-GitHub skills.",
+      "reason": "Floor 70 because this is the shipped user-facing registry UI and a public parse-skill-md API response, not an internal tool and not a security or data-deletion path; +5 because the task hinges on one specific thing \u2014 exact inversion of the two SKILL.md URL shapes including the GitHub Enterprise raw-host convention already encoded in registry/utils/url_utils.py, with non-GitHub hosts left empty rather than guessed. Tier medium because it is two related features across roughly eight files (url_utils derivation, skill_service parse result, skill_routes response, Dashboard parse handler, SkillCard and SemanticSearchResults modals, Skill type and its mapping) with each edit small and patterned on existing code, rather than a new subsystem."
+    },
+    {
+      "task": "derive-repo-url-from-skill-md",
+      "attempt": 2,
+      "ref": "v1.0.19",
+      "judged_at": "2026-09-04T00:21:49.453519Z",
+      "metrics": {
+        "input_tokens": 3477,
+        "output_tokens": 4655,
+        "cache_read_tokens": 256773,
+        "cache_creation_tokens": 23540,
+        "num_turns": 6,
+        "latency_seconds": 68.7,
+        "total_cost_usd": 0.4092715
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong derivation silently stores and renders a plausible-but-incorrect repository link on a shipped, user-facing registry surface and in the public parse-skill-md API response, misdirecting anyone who clicks 'View Repo'.",
+      "reason": "Floor 70 because this is a production service users touch \u2014 the skill registration form, the public /api/skills/parse-skill-md response, and the skill detail modals \u2014 and not an auth, payments or deletion path, since URL admission control stays in the existing SkillUrlValidationError flow and repository_url is metadata rendered as an href. The +5 applies because the task turns on one exact parsing rule: distinguishing blob/<branch> from refs/heads/<branch>, matching GitHub Enterprise hostnames the way url_utils._is_github_hostname already does, and leaving non-GitHub URLs empty rather than guessing \u2014 a portability trap that fails silently. Medium tier because it spans roughly seven files across backend and frontend (a new url_utils helper, the parse response, handleParseSkillMd, SkillCard and SemanticSearchResults modals, the Skill type and its hook mappings) while needing no new endpoint or schema change, as repository_url already exists on SkillModel and SkillCreate."
+    },
+    {
+      "task": "derive-repo-url-from-skill-md",
+      "attempt": 3,
+      "ref": "v1.0.19",
+      "judged_at": "2026-09-04T00:26:02.278243Z",
+      "metrics": {
+        "input_tokens": 3052,
+        "output_tokens": 3114,
+        "cache_read_tokens": 248994,
+        "cache_creation_tokens": 20623,
+        "num_turns": 6,
+        "latency_seconds": 49.1,
+        "total_cost_usd": 0.34650075
+      },
+      "floor": 75.0,
+      "tier": "medium",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong derivation silently pre-fills or stores a bad repository URL that users register and then click from the skill detail modal, sending them to a nonexistent or wrong repo \u2014 visible to every user of a shipped registry, though editable and non-destructive.",
+      "reason": "Base floor 70 because this lands in a production, user-facing service surface (skill registration form and the detail/semantic-search modals) rather than an internal tool, while touching none of the areas CLAUDE.md flags as security-critical (auth, secrets, subprocess, SQL). +5 because correctness hinges on one specific thing: exact URL-shape parsing that must handle both the blob and raw refs/heads forms, hold up on GitHub Enterprise hostnames, and refuse to guess for non-GitHub hosts. Medium tier because it is a multi-file feature spanning a backend URL util, the parse service and its route response, plus two modals, a form handler, the frontend Skill type and its mappings \u2014 extending existing helpers rather than building a new subsystem."
+    },
+    {
+      "task": "fix-reserved-groups-var-in-service-account-script",
+      "attempt": 1,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:17:28.048149Z",
+      "metrics": {
+        "input_tokens": 164,
+        "output_tokens": 3561,
+        "cache_read_tokens": 164767,
+        "cache_creation_tokens": 52307,
+        "num_turns": 5,
+        "latency_seconds": 54.5,
+        "total_cost_usd": 0.49914725
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix makes the verification step report success while the agent service account is actually in the wrong Keycloak group or missing its groups mapper, silently blessing a broken authorization grant that gates which MCP servers an agent can see.",
+      "reason": "Floor row 75 because verify_setup() is a security path: it is the only check that the M2M service account's group membership and groups protocol mapper \u2014 the authorization boundary for agent visibility \u2014 were provisioned correctly, and CLAUDE.md's standing security invariants explicitly cover any change touching auth/authorization and credential handling. +5 because the task hinges on one exact thing: replacing a substring grep with a real group-name comparison (the SC2128 latent bug, where mcp-servers-restricted matches mcp-servers-unrestricted) while handling bash's special GROUPS array under set -e. Tier low, not trivial, because it is more than one condition \u2014 a variable rename plus corrected array/exact-match semantics in verify_setup, repeated in setup-m2m-service-account.sh and cli/user_mgmt.sh after a sweep \u2014 but it adds no feature or config surface, so it falls short of medium."
+    },
+    {
+      "task": "fix-reserved-groups-var-in-service-account-script",
+      "attempt": 2,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:21:34.267437Z",
+      "metrics": {
+        "input_tokens": 1694,
+        "output_tokens": 3989,
+        "cache_read_tokens": 196345,
+        "cache_creation_tokens": 15372,
+        "num_turns": 5,
+        "latency_seconds": 58.3,
+        "total_cost_usd": 0.30244250000000006
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix leaves the verification step passing when the service account is in the wrong authorization group -- an agent silently provisioned with unrestricted access -- or, if written with mapfile/readarray, re-breaks the script on macOS bash 3.2, which is the platform whose setup skill reported the bug.",
+      "reason": "Base row 75: keycloak/README.md:62 marks this script production (against setup-m2m-service-account.sh, dev/test only), and it provisions M2M client secrets and the restricted/unrestricted group that lands in the groups JWT claim -- a security path. +5 because the fix turns on one specific thing: exact group-name equality, since the current unanchored grep lets mcp-servers-unrestricted satisfy a check for mcp-servers-restricted, and the natural array idiom (mapfile) is absent in macOS bash 3.2, a constraint this repo already codes around in infra/scripts/post-deploy.sh. Tier low, not trivial: two files with a small behavioural rewrite plus a bounded reserved-variable sweep, no new surface or subsystem."
+    },
+    {
+      "task": "fix-reserved-groups-var-in-service-account-script",
+      "attempt": 3,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:25:31.088063Z",
+      "metrics": {
+        "input_tokens": 2224,
+        "output_tokens": 3634,
+        "cache_read_tokens": 196162,
+        "cache_creation_tokens": 16729,
+        "num_turns": 5,
+        "latency_seconds": 52.8,
+        "total_cost_usd": 0.30460725
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix either leaves Keycloak agent provisioning falsely exiting 1 (halting the macos-setup skill on a setup that worked), or \u2014 worse \u2014 replaces the broken check with a loose one (substring grep or first-array-element compare) so an M2M service account in the wrong authorization group passes verification silently, granting an agent broader MCP server access than intended.",
+      "reason": "The 75 row applies because this is an auth path: verify_setup() is the gate asserting that an agent's M2M service account landed in its intended authorization group, and CLAUDE.md's security invariants explicitly cover 'every change touching auth, authorization' and name 'no substring matching for privilege decisions' \u2014 the exact defect in the surviving grep -q check. The +5 applies because the whole task turns on one specific thing done exactly right: bash special-variable semantics under set -e plus exact group-name comparison instead of SC2128 first-element/substring matching. Tier is low, not medium: the edits are small and localized to verify_setup() in setup-agent-service-account.sh plus the identical copy in setup-m2m-service-account.sh and a directed sweep (cli/user_mgmt.sh:109), with no new feature, config surface, or subsystem \u2014 but the non-obvious bash reasoning puts it above trivial."
+    },
+    {
+      "task": "hide-register-button-on-virtual-and-skills-tabs",
+      "attempt": 1,
+      "ref": "v1.0.18",
+      "judged_at": "2026-09-04T00:19:58.802217Z",
+      "metrics": {
+        "input_tokens": 2517,
+        "output_tokens": 2924,
+        "cache_read_tokens": 248293,
+        "cache_creation_tokens": 50329,
+        "num_turns": 7,
+        "latency_seconds": 47.8,
+        "total_cost_usd": 0.52438775
+      },
+      "floor": 70.0,
+      "tier": "trivial",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "A wrong condition leaves the redundant Register button on the Virtual/Skills tabs or, worse, hides it from the MCP Servers and Agents tabs where registration is the correct action, blocking a shipped user-facing entry point to the registration flow.",
+      "reason": "Floor 70 because this is the production dashboard that users touch, but not the 75 security row: the button only navigates to /servers/register, and RegisterPage independently gates on ui_permissions.register_service/publish_agent, so no authorization boundary depends on the button's visibility. Trivial tier because the entire change is narrowing one JSX render condition around Dashboard.tsx lines 2410-2416 against the existing viewFilter state, with no new state, API, or component. No +5 adjustment: the only precise detail is the tab-value list, and a mistake there is immediately visible on screen rather than a hidden contract or invariant."
+    },
+    {
+      "task": "hide-register-button-on-virtual-and-skills-tabs",
+      "attempt": 2,
+      "ref": "v1.0.18",
+      "judged_at": "2026-09-04T00:23:56.635455Z",
+      "metrics": {
+        "input_tokens": 16,
+        "output_tokens": 2537,
+        "cache_read_tokens": 342431,
+        "cache_creation_tokens": 18933,
+        "num_turns": 8,
+        "latency_seconds": 43.9,
+        "total_cost_usd": 0.35305175
+      },
+      "floor": 70.0,
+      "tier": "trivial",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "The Register entry point is hidden on a tab where registration is the correct action (or still duplicated on Virtual/Skills), leaving users on the production dashboard without the visible path to the registration flow.",
+      "reason": "Floor 70 because this is the shipped user-facing dashboard (frontend/src/pages/Dashboard.tsx) rather than internal tooling, so a defect reaches real users; it is not an auth/payments/deletion path, since RegisterPage separately enforces ui_permissions.register_service and publish_agent, so button visibility carries no security invariant. Tier trivial because the whole change is narrowing one render condition on the existing viewFilter enum around lines 2410-2416, in a single file, with no data flow, API or state changes. No +5 adjustment: the risky detail is just which viewFilter values to list, not an exact contract, portability trap or security invariant."
+    },
+    {
+      "task": "hide-register-button-on-virtual-and-skills-tabs",
+      "attempt": 3,
+      "ref": "v1.0.18",
+      "judged_at": "2026-09-04T00:27:55.077315Z",
+      "metrics": {
+        "input_tokens": 4044,
+        "output_tokens": 3017,
+        "cache_read_tokens": 297339,
+        "cache_creation_tokens": 18121,
+        "num_turns": 7,
+        "latency_seconds": 47.0,
+        "total_cost_usd": 0.35757075000000005
+      },
+      "floor": 70.0,
+      "tier": "trivial",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "The Register button ends up hidden on the servers/agents tabs or still duplicated on the virtual/skills tabs, degrading the dashboard's add-action affordance for every user, though registration itself stays reachable via /servers/register and the empty-state CTAs.",
+      "reason": "Floor 70 because Dashboard.tsx is the production, user-facing dashboard that ships to all users, but the change touches no auth, payment or data-deletion path that CLAUDE.md treats as security-sensitive, so the 75 row does not apply. No +5: the crux is which values of the visible six-member viewFilter union keep the button, not an API contract or security invariant, and a wrong tab list is obvious on first render. Trivial tier because it is a single JSX render condition in one file, matching the skill's own 'one render condition' example, with the tab-specific buttons and the registration flow already in place."
+    },
+    {
+      "task": "honor-cloud-provider-override-in-ui",
+      "attempt": 1,
+      "ref": "1.24.7",
+      "judged_at": "2026-09-04T00:17:28.031217Z",
+      "metrics": {
+        "input_tokens": 7079,
+        "output_tokens": 5001,
+        "cache_read_tokens": 217565,
+        "cache_creation_tokens": 59049,
+        "num_turns": 6,
+        "latency_seconds": 73.9,
+        "total_cost_usd": 0.63825875
+      },
+      "floor": 75.0,
+      "tier": "low",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A production admin UI keeps misreporting the deployment's cloud provider, so operators reading the Uptime tooltip draw wrong conclusions about their own install and distrust the telemetry it disagrees with.",
+      "reason": "Floor row 70: the endpoint and its UptimeDisplay tooltip are shipped product surface that operators of a production service read, not an internal tool or docs page, and no auth, payment, deletion, or security path is involved since the value is display-only. The +5 applies because the task turns on one exact contract point -- calling _resolve_cloud() instead of the raw cascade while the override-unset path must still return the identical auto-detected result, and the response now admits method values (explicit, operator_declared, operator_declined) outside the set the endpoint documents and the UI renders verbatim. Tier low: the fix is a single call swap in one already-async handler with the resolved helper already existing, but it spans source plus a two-case regression test that must defeat an lru_cache on the cascade and a 60s TTL hint cache, putting it past trivial's one-render-condition examples and short of a multi-file feature."
+    },
+    {
+      "task": "honor-cloud-provider-override-in-ui",
+      "attempt": 2,
+      "ref": "1.24.7",
+      "judged_at": "2026-09-04T00:21:21.962434Z",
+      "metrics": {
+        "input_tokens": 358,
+        "output_tokens": 3443,
+        "cache_read_tokens": 204265,
+        "cache_creation_tokens": 14291,
+        "num_turns": 5,
+        "latency_seconds": 51.4,
+        "total_cost_usd": 0.27931625000000004
+      },
+      "floor": 70.0,
+      "tier": "trivial",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "The shipped admin UI keeps showing operators the wrong deployment cloud in the Uptime tooltip -- a visible but non-destructive misreport on a diagnostic field, with no effect on auth, data, or telemetry payloads.",
+      "reason": "Floor 70 because the change lands on a production, operator-facing surface (frontend/src/components/UptimeDisplay.tsx via /api/system/telemetry-detection), so a defect reaches a real user, yet the field is a diagnostic cloud label rather than an auth, payments, or data-deletion path that would justify 75. No +5 adjustment: the one correctness requirement (fall through to the cascade when MCP_CLOUD_PROVIDER is unset) is already guaranteed inside _resolve_cloud at telemetry.py:341, so nothing hinges on reconstructing a contract or invariant. Tier trivial because the fix is a single call substitution in one already-async handler (system_routes.py:351-353 -> await _resolve_cloud()), the awaited-resolver pattern is already demonstrated at registry_routes.py:734, the response shape is unchanged so the frontend needs no edit, and the regression test drops into the existing tests/unit/test_stats_endpoint.py."
+    },
+    {
+      "task": "honor-cloud-provider-override-in-ui",
+      "attempt": 3,
+      "ref": "1.24.7",
+      "judged_at": "2026-09-04T00:25:19.637404Z",
+      "metrics": {
+        "input_tokens": 781,
+        "output_tokens": 5325,
+        "cache_read_tokens": 351579,
+        "cache_creation_tokens": 18463,
+        "num_turns": 8,
+        "latency_seconds": 83.7,
+        "total_cost_usd": 0.42821325
+      },
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 70,
+      "adjustment": 0,
+      "consequence": "The admin UI keeps reporting the wrong deployment cloud to operators on every on-premises install, or the endpoint regresses and the Uptime tooltip breaks for all users of the shipped registry service.",
+      "reason": "Floor 70 because this is a production FastAPI route rendered in the operator-facing registry UI (UptimeDisplay.tsx), not an internal tool or docs page; it is not an auth, payment or data-deletion path, and the nginx_proxied_auth dependency is untouched, so 75 does not apply. Tier low because the production fix is a single awaited call swap in one file onto the already-correct _resolve_cloud() resolver, whose unset-override fall-through preserves backwards compatibility for free, with the remaining work being a two-case regression test in an existing test file that already has the auth-override and cache-reset patterns. No +5: the response shape, frontend types and precedence logic are all unchanged, so nothing hinges on authoring an API contract, version comparison or security invariant."
+    },
+    {
+      "task": "idp-authenticated-embedding-endpoint",
+      "attempt": 1,
+      "ref": "1.28.0",
+      "judged_at": "2026-09-04T00:19:55.099652Z",
+      "metrics": {
+        "input_tokens": 81,
+        "output_tokens": 3199,
+        "cache_read_tokens": 288291,
+        "cache_creation_tokens": 32590,
+        "num_turns": 7,
+        "latency_seconds": 49.7,
+        "total_cost_usd": 0.428213
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A defect leaks the OAuth client secret into logs or the config UI, or silently breaks the static-key path so every embedding call and semantic-search query 401s across existing production deployments.",
+      "reason": "Floor row 75 because this is credential handling and an OAuth2 auth path, which CLAUDE.md:727-731 names as a hard-rule area with explicit never-log-secrets and no-default-for-a-required-secret invariants; +5 because the task hinges on one specific invariant - byte-for-byte identical behaviour for all existing providers when the new settings are unset, across code and the chart reserved-name/order assertions CLAUDE.md:1679-1685 flags as easy to drift. High tier because it is a subsystem rather than a feature: a new thread-safe client-credentials token manager with caching, expiry buffer and pre-emptive refresh, fail-fast startup validation, UI secret masking, and wiring through Docker, Terraform/ECS, Helm and two doc surfaces - matching the skill's own high examples of server-side token storage and a new authenticated endpoint."
+    },
+    {
+      "task": "idp-authenticated-embedding-endpoint",
+      "attempt": 2,
+      "ref": "1.28.0",
+      "judged_at": "2026-09-04T00:23:28.708253Z",
+      "metrics": {
+        "input_tokens": 10,
+        "output_tokens": 3383,
+        "cache_read_tokens": 231255,
+        "cache_creation_tokens": 27909,
+        "num_turns": 5,
+        "latency_seconds": 48.8,
+        "total_cost_usd": 0.37468375
+      },
+      "floor": 75.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A mishandled client secret (logged, unmasked in the config UI, or on argv) leaks a credential to an enterprise identity provider, and a wrong expiry-buffer or non-thread-safe refresh silently 401s every embedding call and semantic-search query until someone traces it back to token expiry.",
+      "reason": "CLAUDE.md's security invariants explicitly govern any change touching credential handling, outbound requests, config generation, and logging, and this change touches all four while adding an OAuth2 client-credentials secret and a bearer token to the embeddings path, so it takes the auth/security row at 75 rather than the 70 production row. No +5: the task hinges on several invariants (secret never logged, refresh-before-expiry, byte-for-byte default behaviour) rather than one specific contract, and the skill's own calibration puts an equivalent OAuth-token-storage change at 75 unadjusted. Tier is high because it is a subsystem, not an edit: a new thread-safe token manager mirroring registry/services/federation/federation_auth.py, per-call auth replacing LiteLLMClient._set_api_key_env, fail-fast startup validation, config-UI masking, and new settings threaded through three compose files, the entrypoint script, Terraform/ECS, Helm (including the reserved-env-name lists and index-based extra_env order assertions CLAUDE.md warns about), and the parameter reference."
+    },
+    {
+      "task": "idp-authenticated-embedding-endpoint",
+      "attempt": 3,
+      "ref": "1.28.0",
+      "judged_at": "2026-09-04T00:27:43.914315Z",
+      "metrics": {
+        "input_tokens": 4164,
+        "output_tokens": 3826,
+        "cache_read_tokens": 314697,
+        "cache_creation_tokens": 26310,
+        "num_turns": 7,
+        "latency_seconds": 57.7,
+        "total_cost_usd": 0.438256
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A defect either leaks the OAuth2 client secret into logs or the config UI, or silently breaks authentication so every embedding call and semantic-search query fails 401 and degrades to lexical-only search that reports itself as working.",
+      "reason": "The 75 row applies because CLAUDE.md's security invariants explicitly cover changes touching auth, outbound requests, credential handling, config generation and logging, and this change touches all of them while adding a client secret across Docker, Terraform/ECS, CDK Secrets Manager and Helm. The +5 applies for a specific hinge invariant beyond the general security consequence: existing providers must remain byte-for-byte identical with the new settings unset, and that path runs through the shared env-var mutation in LiteLLMClient._set_api_key_env, which the new per-call bearer must bypass without perturbing. It is high complexity because it is a new opt-in auth subsystem -- thread-safe token manager with expiry buffer and automatic refresh, fail-fast startup validation, secret masking in config_routes.py -- fanned across four deployment surfaces and the parameter reference doc."
+    },
+    {
+      "task": "index-demo-videos-in-one-page",
+      "attempt": 1,
+      "ref": "1.24.3",
+      "judged_at": "2026-09-04T00:19:57.047951Z",
+      "metrics": {
+        "input_tokens": 177,
+        "output_tokens": 4178,
+        "cache_read_tokens": 212560,
+        "cache_creation_tokens": 49936,
+        "num_turns": 6,
+        "latency_seconds": 63.1,
+        "total_cost_usd": 0.523715
+      },
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 65,
+      "adjustment": 5,
+      "consequence": "A reader lands on an index that is incomplete or has dead links -- some demos stay undiscoverable and a broken github user-attachment URL looks unmaintained -- but no running service, API or security path changes, and a reviewer plus the rendered docs site catch it before it reaches anyone.",
+      "reason": "The 65 row applies because this is a documentation-only page: mkdocs.yml has an explicit nav that already omits comparable docs pages and docs.yml runs mkdocs build --clean without strict, so nothing ships or breaks and a human reviews it first. +5 because the change hinges on one exact-value detail -- exhaustively enumerating 13 opaque asset UUIDs across 10 markdown files, including two distinct URLs (cee1847d... and cee25b31...) both labelled 'Dynamic Tool Discovery' that a label-based dedup would silently collapse. Tier is low rather than trivial since it needs a repo-wide scan and dedup across README.md, seven docs/ pages, docs/design/ and release-notes/, but only two files are written and no code, config surface or template is touched."
+    },
+    {
+      "task": "index-demo-videos-in-one-page",
+      "attempt": 2,
+      "ref": "1.24.3",
+      "judged_at": "2026-09-04T00:23:54.698342Z",
+      "metrics": {
+        "input_tokens": 1854,
+        "output_tokens": 3322,
+        "cache_read_tokens": 202023,
+        "cache_creation_tokens": 12991,
+        "num_turns": 5,
+        "latency_seconds": 52.8,
+        "total_cost_usd": 0.27452525
+      },
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 65,
+      "adjustment": 5,
+      "consequence": "A wrong page publishes to the public GitHub Pages docs site with dead or missing video links, so a visitor is sent to a broken URL or still cannot find a demo that exists \u2014 visible and cheap to correct, since a reviewer reads it before it matters and no code, build, or security path is touched.",
+      "reason": "Floor row is the docs-page/internal row at 65: this is documentation only, the MkDocs build is non-strict so an omission cannot break CI, and a human reviews the page before any reader depends on it. The +5 applies because success hinges on one exact thing \u2014 an exhaustive inventory with verbatim opaque asset URLs, where the same demo already exists under two different user-attachment UUIDs and release-notes prose must not be mistaken for live links. Tier is low rather than trivial: writing the page is easy, but the content must be derived from a repo-wide scan of a dozen markdown files with duplicate and near-duplicate links reconciled, and it lands across a new docs page, the README, and a nav/index decision."
+    },
+    {
+      "task": "index-demo-videos-in-one-page",
+      "attempt": 3,
+      "ref": "1.24.3",
+      "judged_at": "2026-09-04T00:27:47.067218Z",
+      "metrics": {
+        "input_tokens": 1198,
+        "output_tokens": 3156,
+        "cache_read_tokens": 198384,
+        "cache_creation_tokens": 10893,
+        "num_turns": 5,
+        "latency_seconds": 47.1,
+        "total_cost_usd": 0.25216325
+      },
+      "floor": 65.0,
+      "tier": "low",
+      "base_floor": 65,
+      "adjustment": 0,
+      "consequence": "A public docs page and a README link ship with a video missed, a duplicate listed twice, or a dead link, which a reader hits on the GitHub Pages site until someone notices and fixes the markdown.",
+      "reason": "Floor 65 is the docs-page row: the change is markdown only, touches no code, build system, or security path, and a human reviews the PR before it reaches a reader, so being wrong is cheap and recoverable. No +5 adjustment, because the task turns on exhaustive enumeration across roughly ninety markdown files rather than one API contract, portability trap, or invariant. Tier low rather than trivial: only two files change (one new docs/demo-videos.md plus a README link), but the work is preceded by a real repo-wide scan and dedup of scattered user-attachment, YouTube, and Vidcast links, including two near-identical tool-discovery assets, which is more than the single page or one-condition edit trivial describes."
+    },
+    {
+      "task": "lifecycle-workflow-webhooks",
+      "attempt": 1,
+      "ref": "1.24.7",
+      "judged_at": "2026-09-04T00:19:21.523935Z",
+      "metrics": {
+        "input_tokens": 8601,
+        "output_tokens": 4221,
+        "cache_read_tokens": 279386,
+        "cache_creation_tokens": 52073,
+        "num_turns": 6,
+        "latency_seconds": 66.7,
+        "total_cost_usd": 0.61367925
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong HMAC or a mis-scoped permission gate silently disables a forgery control and an authorization boundary, letting a forged scan_complete event or a register-only scope promote an unscanned or unsafe asset to active in an external orchestrator.",
+      "reason": "Floor 75 because this is squarely a security path: the signature exists to stop event forgery, and the new lifecycle permission is an authorization split enforced in four places including a batch processor that bypasses the HTTP handlers, matching the repo's own 'fine-grained authorization' and 'supply chain security' pillars in docs/security-posture.md. The +5 applies because the whole control hinges on one exact invariant \u2014 the HMAC must cover the exact transmitted bytes, and the current webhook_service.py posts via httpx json=payload, so a separately-serialized digest would mismatch with no runtime symptom. Tier high because it is a subsystem, not a feature: a signing scheme plus a new event plus a new permission plus a mandated-status config gate plus status= filters, replicated across servers, agents and skills, over 15+ existing webhook callsites and a LifecycleStatus model whose defaults already disagree between cards and registration requests."
+    },
+    {
+      "task": "lifecycle-workflow-webhooks",
+      "attempt": 2,
+      "ref": "1.24.7",
+      "judged_at": "2026-09-04T00:23:06.275299Z",
+      "metrics": {
+        "input_tokens": 11487,
+        "output_tokens": 5666,
+        "cache_read_tokens": 406832,
+        "cache_creation_tokens": 38901,
+        "num_turns": 8,
+        "latency_seconds": 273.0,
+        "total_cost_usd": 0.64563225
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A defect here lets a forged or mis-signed scan_complete event, or an unguarded status PATCH, promote an asset the registry's own supply-chain scan marked unsafe into active use by AI agents \u2014 a broken access-control and authenticity failure that is expensive and slow to detect.",
+      "reason": "Floor 75 because this is a security path by the project's own framing: it sits on the Supply Chain Security scan-gating control and the fine-grained authorization control that docs/security-posture.md maps to OWASP A01, and it adds an HMAC authenticity boundary whose stated purpose is preventing a forged 'scan passed'. The +5 applies because deliverable (2) hinges on one exact contract \u2014 the HMAC must cover the precise transmitted body, and webhook_service.py currently posts via httpx `json=` rather than the `content=payload_json` pattern the registration gate already uses, so signing a re-serialized dict silently yields an unverifiable header. Tier high because it is a subsystem rather than a feature: a new async event wired into 3 scan-orchestration paths and 2 rescan endpoints where no completion hook exists, signing retrofitted over 10 webhook callsites, status filters absent from every list surface, a mandated-status flag contradicting per-asset-type defaults, and a new permission in a model with no enum that must land on PATCH for servers and agents while skills expose only PUT full-replace."
+    },
+    {
+      "task": "lifecycle-workflow-webhooks",
+      "attempt": 3,
+      "ref": "1.24.7",
+      "judged_at": "2026-09-04T00:27:29.139190Z",
+      "metrics": {
+        "input_tokens": 20569,
+        "output_tokens": 8249,
+        "cache_read_tokens": 1418148,
+        "cache_creation_tokens": 68647,
+        "num_turns": 21,
+        "latency_seconds": 134.7,
+        "total_cost_usd": 1.44718775
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong implementation lets a forged or unverifiable scan_complete event, or a scope that can register but should not promote, drive an external orchestrator into marking an unscanned or unsafe asset active in the production registry - an authorization/integrity failure that is expensive and slow to detect.",
+      "reason": "Floor row 75: the change lands directly on the project's security paths - it adds a new authorization permission into the fine-grained UI-permission model the repo documents under OWASP A01 and guards in registry/auth/privileged_constants.py, and it makes an HMAC signature the only thing distinguishing a genuine scan outcome from a forged one. The +5 applies because correctness hinges on one exact thing: the signature must be computed over the byte-exact transmitted body (today send_registration_webhook posts with json=payload, so it must switch to content=body_bytes) and must cover every outbound async event, or verification silently fails open. Tier high: it is a subsystem, not a feature - new lifecycle-event service, webhook signing, two config settings threaded through .env/compose/Helm/Terraform/config viewer, status filters and status-permission checks across the server, agent, and skill register/PUT/PATCH paths, scan-complete emission on the safe, auto-disabled, and scan-error branches of three scanners, a new metric, and consumer-contract docs."
+    },
+    {
+      "task": "logout-id-token-hint-out-of-browser-url",
+      "attempt": 1,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:20:47.188685Z",
+      "metrics": {
+        "input_tokens": 6243,
+        "output_tokens": 3490,
+        "cache_read_tokens": 242294,
+        "cache_creation_tokens": 30526,
+        "num_turns": 6,
+        "latency_seconds": 60.1,
+        "total_cost_usd": 0.43039950000000005
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Get it wrong and logout breaks after the local session is already cleared -- the user appears logged out while the IdP SSO session and its live ID token survive -- or the new server-side hint path leaks a still-valid ID token to an unauthenticated caller, trading a URL disclosure for a worse one.",
+      "reason": "The 75 row applies because this is squarely a security path: OIDC RP-initiated logout, credential revocation, and the encrypted server-side id_token that CLAUDE.md's always-apply security invariants explicitly cover (OAuth/OIDC, tokens/JWT, internal tokens needing jti + single-use). The +5 applies because the whole change turns on one specific thing being exactly right -- a new registry-to-auth_server contract that carries an opaque authenticated reference instead of the JWT while the provider still receives a genuine id_token_hint, with the legacy query-param path preserved for mixed-version deployments. Tier is high because it is a subsystem change across two services -- registry/auth/routes.py logout_handler, auth_server/server.py oauth2_logout with its four provider branches, the shared session store, internal service auth, and the logout meters -- which matches the tier's own examples of server-side token storage and a new authenticated endpoint."
+    },
+    {
+      "task": "logout-id-token-hint-out-of-browser-url",
+      "attempt": 2,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:24:42.991396Z",
+      "metrics": {
+        "input_tokens": 1742,
+        "output_tokens": 3594,
+        "cache_read_tokens": 204670,
+        "cache_creation_tokens": 15830,
+        "num_turns": 5,
+        "latency_seconds": 54.3,
+        "total_cost_usd": 0.2998325
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong change breaks RP-initiated logout at the identity provider while the local session and cookie are already cleared, so users appear logged out but their IdP SSO session survives -- a silent auth failure, and any mishandled hint handle becomes a new replay or disclosure path for a credential mid-revocation.",
+      "reason": "Floor row 75: CLAUDE.md:727-731 flags auth and credential handling as the security-review-hardened surface and docs/security-posture.md:628 treats OIDC logout with id_token_hint as a posture guarantee, so wrong here is expensive and slow to find. Plus 5 because the change hinges on one exact contract -- the new registry-to-auth_server handoff and its backward-compatible fallback for deployments without the new path -- and getting that boundary wrong reproduces the same silent-failure mode. Tier high because it spans two services (registry/auth/routes.py logout_handler and auth_server/server.py oauth2_logout with its four provider-specific branches), needs a new server-side token-handoff path over the encrypted session store, and carries version negotiation plus existing OTel counter and test contracts -- the skill's 'server-side token storage / new authenticated endpoint' subsystem shape."
+    },
+    {
+      "task": "logout-id-token-hint-out-of-browser-url",
+      "attempt": 3,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:28:44.113423Z",
+      "metrics": {
+        "input_tokens": 528,
+        "output_tokens": 3566,
+        "cache_read_tokens": 263362,
+        "cache_creation_tokens": 25387,
+        "num_turns": 6,
+        "latency_seconds": 53.9,
+        "total_cost_usd": 0.38213975
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "Getting it wrong either silently breaks RP-initiated logout so IdP-side SSO sessions survive a user clicking log out, or leaves the live ID token exposed in browser history and proxy/CDN logs while it is being revoked, or reopens the cookie-replay window that the delete-before-redirect ordering exists to close.",
+      "reason": "Floor 75 because this is squarely the auth/security row: the repo encrypts id_token at rest with a KMS-derived key used solely for logout, and security-posture.md lists OIDC logout with id_token_hint as a security control, so a defect is both expensive and slow to find. +5 because correctness hinges on two exact things rather than general competence: the documented ordering invariant that the server-side session is deleted before the IdP redirect (so the hint cannot simply be re-resolved afterwards), and a versioned registry-to-auth_server contract that must still work against an old auth server on the query-param interface. Tier high because it is a subsystem change spanning registry/auth/routes.py, the /oauth2/logout/{provider} endpoint in auth_server/server.py with its four provider-specific param builders, the shared encrypted session store, backward-compat negotiation, and the existing logout metrics and their tests."
+    },
+    {
+      "task": "macos-setup-python-version-precheck",
+      "attempt": 1,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:20:30.614323Z",
+      "metrics": {
+        "input_tokens": 125,
+        "output_tokens": 2907,
+        "cache_read_tokens": 229236,
+        "cache_creation_tokens": 19682,
+        "num_turns": 6,
+        "latency_seconds": 48.8,
+        "total_cost_usd": 0.3109305
+      },
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 65,
+      "adjustment": 5,
+      "consequence": "A wrong check either lets an under-version interpreter through (leaving the original late, misattributed uv sync failure) or falsely blocks a developer whose python3 is fine, on an installer whose output a human reads phase by phase before anything is built.",
+      "reason": "Floor row 65: the change lands only in the developer-facing macos-setup skill instructions, an internal setup tool a human supervises interactively, not in the registry's shipped service, auth or secrets paths that CLAUDE.md marks sensitive. Plus 5 because it hinges on one exact thing: reading requires-python = \">=3.14\" from pyproject.toml and comparing versions correctly, where lexical comparison ranks 3.9 above 3.14 and Phase 1 runs before the Phase 2 clone so the metadata is not yet local. Tier low: a handful of lines in one markdown file \u2014 the Python check, its PYTHON_FAIL remediation row, and the gate sentence \u2014 with genuine version-parsing logic but no new surface or multi-file reach."
+    },
+    {
+      "task": "macos-setup-python-version-precheck",
+      "attempt": 2,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:24:09.915416Z",
+      "metrics": {
+        "input_tokens": 125,
+        "output_tokens": 2941,
+        "cache_read_tokens": 236812,
+        "cache_creation_tokens": 9921,
+        "num_turns": 6,
+        "latency_seconds": 48.2,
+        "total_cost_usd": 0.25456225
+      },
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 65,
+      "adjustment": 5,
+      "consequence": "A developer running the macOS setup skill either gets the same late, misdirected failure at the dependency-sync step that the task is meant to eliminate, or is falsely blocked at Phase 1 on a machine whose interpreter is actually fine \u2014 annoying and confusing for the human running it, but caught by that human immediately and reaching no user or production system.",
+      "reason": "Base floor 65 is the internal-tool row: the change lands only in .claude/skills/macos-setup/SKILL.md, a guided setup script a developer runs interactively and reads as it goes, and CLAUDE.md reserves its risk language for the auth/Keycloak/credential paths this does not touch. The +5 applies because the task hinges on two single specific things being exactly right \u2014 an ordered version comparison where the naive lexical form inverts 3.9 against the required 3.14, and sourcing that requirement from pyproject.toml at a phase that runs before the repo is cloned and can be invoked with no local checkout at all. Tier is low rather than trivial because it is not a prose edit: it replaces one check with metadata lookup, parsing, comparison and a new distinct failure state, while keeping the existing PYTHON_FAIL remediation row reachable \u2014 all inside one file, so well short of medium."
+    },
+    {
+      "task": "macos-setup-python-version-precheck",
+      "attempt": 3,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:28:36.693232Z",
+      "metrics": {
+        "input_tokens": 2160,
+        "output_tokens": 2906,
+        "cache_read_tokens": 237176,
+        "cache_creation_tokens": 10384,
+        "num_turns": 6,
+        "latency_seconds": 48.6,
+        "total_cost_usd": 0.266938
+      },
+      "floor": 70.0,
+      "tier": "low",
+      "base_floor": 65,
+      "adjustment": 5,
+      "consequence": "A wrong check either keeps waving through an unsupported interpreter \u2014 leaving the original late, misattributed uv sync failure in place \u2014 or falsely blocks a perfectly valid machine at Phase 1, but either way a developer reads the terminal output before anything is installed or shipped.",
+      "reason": "The change lands only in .claude/skills/macos-setup/SKILL.md, a developer-facing setup skill whose output a human reads at the terminal, so it takes the internal-tool row at 65 rather than a production or security row \u2014 CLAUDE.md names auth and merge/test gating as this project's sensitive areas, not the setup skills. The +5 applies because the task hinges on one specific thing being exactly right: a numeric version comparison against requires-python = \">=3.14\" (naive lexicographic ordering makes 3.9 look newer than 3.14) sourced from pyproject.toml, which is not yet on disk at Phase 1 since Phase 2 does the clone and the skill supports running from its GitHub URL with no repo present. Tier is low, not trivial, because it is a single-file edit but replaces a bare presence probe with real version-extraction and comparison logic plus its remediation wiring, and not medium because no second file, config surface or template is involved."
+    },
+    {
+      "task": "nginx-location-trailing-slash-route-hijack",
+      "attempt": 1,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:18:45.988442Z",
+      "metrics": {
+        "input_tokens": 12,
+        "output_tokens": 3876,
+        "cache_read_tokens": 257027,
+        "cache_creation_tokens": 37119,
+        "num_turns": 6,
+        "latency_seconds": 58.4,
+        "total_cost_usd": 0.45746725
+      },
+      "floor": 80.0,
+      "tier": "medium",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix either leaves the auth_request-bearing location block attached to sibling routes it does not own -- so unauthenticated navigation to /api/..., /auth or SPA routes keeps returning an auth error, invisible to anyone holding a session cookie -- or breaks the /name/mcp and /name/sse endpoints every registered MCP client depends on, including on deployments whose nginx config is already written to disk.",
+      "reason": "Floor 75 because the project's own agent map (CLAUDE.md:727-728) lists config generation alongside auth and authorization as the areas governed by its security-review rules, and the generated block at nginx_service.py:2262 is what enforces auth_request /validate, so a mistake misplaces an authorization boundary and stays hidden while a session cookie is present. +5 because the fix hinges on getting one exact thing right: nginx location-match semantics and precedence (prefix vs = vs ^~) while preserving the /name/mcp and /name/sse client contract -- a security invariant and an API contract decided by a single character of emitted config. Tier medium because it is a config surface touching the generator (nginx_service.py:2362-2368), the ^~ guards in the same template, the already-written-config migration path, and new tests -- several files around one bounded surface, not a new subsystem like rate limiting or an authenticated endpoint."
+    },
+    {
+      "task": "nginx-location-trailing-slash-route-hijack",
+      "attempt": 2,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:22:34.978548Z",
+      "metrics": {
+        "input_tokens": 6127,
+        "output_tokens": 5458,
+        "cache_read_tokens": 270562,
+        "cache_creation_tokens": 33209,
+        "num_turns": 6,
+        "latency_seconds": 82.3,
+        "total_cost_usd": 0.50992225
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix leaves a registrant-chosen short path owning sibling gateway routes, so unauthenticated navigation breaks and a logged-in user's Authorization header and session cookie are proxied to an attacker-registered upstream, silently, because a valid session masks it.",
+      "reason": "Floor 75 because this is an auth/security path: the generated blocks gate routes with auth_request /validate and forward the caller's credentials to a registrant-controlled (project's own words: not fully trusted) backend, and registration accepts arbitrary short paths with no reserved-prefix check. +5 because it hinges on one exact invariant, nginx prefix-location matching and longest-prefix precedence, where an approximately-right directive either still hijacks siblings or breaks live /name/mcp and /name/sse clients and bare GET /name. Tier high because it is not a single-template edit: it spans the block generator, precedence against the ^~ guards and registry-only regex location in three static confs, backward compatibility for existing clients, migration of already-written hash-skipped config on live deployments, and new collision tests."
+    },
+    {
+      "task": "nginx-location-trailing-slash-route-hijack",
+      "attempt": 3,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:26:45.733477Z",
+      "metrics": {
+        "input_tokens": 12,
+        "output_tokens": 3872,
+        "cache_read_tokens": 265352,
+        "cache_creation_tokens": 25731,
+        "num_turns": 6,
+        "latency_seconds": 59.0,
+        "total_cost_usd": 0.39035475
+      },
+      "floor": 80.0,
+      "tier": "medium",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix either strips or bypasses the auth_request /validate enforcement that every generated MCP location block relies on, or silently changes the upstream URI so all existing clients' /name/mcp and /name/sse calls break against a live gateway.",
+      "reason": "Floor row 75: the generated blocks are the auth enforcement point (auth_request /validate, internal-token minting), and CLAUDE.md's security invariants name config generation and deny-by-default authorization as hard rules for this area. +5 because the change hinges on one exact semantic -- nginx prefix-location matched-prefix replacement against a proxy_pass target that already ends in '/' -- which is what the stated /name/mcp and /name/sse compatibility contract rides on. Medium tier: a config-surface rewrite in one generator plus its sibling blocks, tests and stale-config-on-existing-deployment handling, larger than a couple-of-files default change but not a new subsystem."
+    },
+    {
+      "task": "pass-ssrf-allowlist-env-to-registry-container",
+      "attempt": 1,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:20:21.189044Z",
+      "metrics": {
+        "input_tokens": 1323,
+        "output_tokens": 5267,
+        "cache_read_tokens": 266317,
+        "cache_creation_tokens": 33045,
+        "num_turns": 6,
+        "latency_seconds": 75.4,
+        "total_cost_usd": 0.47797975
+      },
+      "floor": 75.0,
+      "tier": "trivial",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A wrong default or hardcoded value in the passthrough would silently widen or disable the registry's default-deny SSRF guard across every compose deployment, an expensive failure that no health check surfaces.",
+      "reason": "The 75 row applies because CLAUDE.md's standing security invariants name SSRF and deployment/config explicitly, and these two variables are the opt-in bypass for a default-deny egress control, so getting the default wrong weakens a security boundary rather than breaking a feature. The tier is trivial because the work is two config passthroughs added to two files, mirroring the identical pattern already present at docker-compose.yml:206-207 and the sibling TRUSTED_REAL_IP_CIDRS line in all three files; the Helm and Terraform surfaces already carry the pair, and one grep bounds the file set. No adjustment: the task's only hinge, preserving the empty default, is copyable verbatim from the existing canonical line rather than a judgement call where models diverge."
+    },
+    {
+      "task": "pass-ssrf-allowlist-env-to-registry-container",
+      "attempt": 2,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:23:59.704146Z",
+      "metrics": {
+        "input_tokens": 12732,
+        "output_tokens": 5926,
+        "cache_read_tokens": 280611,
+        "cache_creation_tokens": 39372,
+        "num_turns": 6,
+        "latency_seconds": 89.0,
+        "total_cost_usd": 0.5981905000000001
+      },
+      "floor": 75.0,
+      "tier": "low",
+      "base_floor": 70,
+      "adjustment": 5,
+      "consequence": "A wrong default or a mis-placed variable in the shipped compose files silently widens a default-deny SSRF allowlist on real deployments, or leaves internal upstreams unreachable with the misleading 'url blocked by SSRF guard' symptom still unfixed.",
+      "reason": "Base 70 because docker-compose.yml, docker-compose.podman.yml and docker-compose.prebuilt.yml are the deployment surface users actually run, and tests/security/test_container_security.py already treats those three as a security surface; +5 because the change hinges on one specific invariant the repo states explicitly -- the SSRF allowlist is opt-in, default deny, so the passthrough must use the empty-default ${VAR:-} form and must land on the registry service in every compose file that starts it. Tier low rather than trivial: the edit itself is two env lines mirroring the existing block at docker-compose.yml:206-207, but it spans a couple of files and requires deciding which compose files start the registry (podman and prebuilt do; dhi is an image-only override, agents/a2a are separate stacks)."
+    },
+    {
+      "task": "pass-ssrf-allowlist-env-to-registry-container",
+      "attempt": 3,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:28:26.080741Z",
+      "metrics": {
+        "input_tokens": 4162,
+        "output_tokens": 5396,
+        "cache_read_tokens": 259984,
+        "cache_creation_tokens": 21006,
+        "num_turns": 6,
+        "latency_seconds": 77.8,
+        "total_cost_usd": 0.4169895
+      },
+      "floor": 75.0,
+      "tier": "trivial",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A wrong edit either leaves the SSRF allowlist silently inert on compose deployments (internal upstreams stay unreachable, the exact bug being fixed) or, if the empty default or the reserved variable name is botched, loosens a default-deny security guard on stacks that run published images.",
+      "reason": "Floor 75 because the repo's own SECURITY_GUIDELINES.md calls the SSRF allowlist an opt-in, default-deny security control, reserves both names in the Helm chart, and guards these same compose files from tests/security/ -- this is a security path's configuration surface, not internal tooling, and docker-compose.prebuilt.yml deploys published ECR images. No +5 adjustment: docker-compose.yml:201-207 already contains the correct pattern to copy, so the one thing that must be right (the ${VAR:-} empty default and the exact variable names) is available rather than derived. Tier trivial because the work is two config passthroughs added to two registry environment blocks plus a short survey confirming docker-compose.dhi.yml is an image-override overlay and the agents/a2a compose files do not start the registry."
+    },
+    {
+      "task": "per-caller-per-target-rate-limits-and-quarantine",
+      "attempt": 1,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:19:46.979765Z",
+      "metrics": {
+        "input_tokens": 13577,
+        "output_tokens": 3368,
+        "cache_read_tokens": 199640,
+        "cache_creation_tokens": 30966,
+        "num_turns": 5,
+        "latency_seconds": 50.2,
+        "total_cost_usd": 0.4454425
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong implementation either lets a compromised caller or a pulled-from-rotation target keep serving traffic while the admin UI shows it quarantined, or unconditionally denies real data-plane traffic through an undeletable reserved group at the single /validate hop every authenticated call crosses.",
+      "reason": "Floor 75 because quarantine is a security path by the repo's own framing: it is an absolute kill switch for a compromised caller, sitting inside an auth chokepoint the design doc marks as the critical path of every call and as a documented exception to the project's 'admission fails closed' principle. +5 because the feature hinges on one specific security invariant -- that a quarantine deny is unconditional, evaluated before any counter work, not subject to the existing admin bypass for a quarantined caller, and not swallowed by the RATE_LIMIT_FAIL_OPEN default when DocumentDB is unreachable. Tier high because it is a subsystem change spanning the models, limiter gate-building, both repositories, startup seeding, admin API delete-protection, the auth-server enforcement hook, the CLI and the React IAM surfaces, and it must resolve the composite-key delimiter hazard the design doc already flags for exactly this kind of extension."
+    },
+    {
+      "task": "per-caller-per-target-rate-limits-and-quarantine",
+      "attempt": 2,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:23:17.860279Z",
+      "metrics": {
+        "input_tokens": 11308,
+        "output_tokens": 3267,
+        "cache_read_tokens": 245138,
+        "cache_creation_tokens": 21843,
+        "num_turns": 6,
+        "latency_seconds": 49.6,
+        "total_cost_usd": 0.39730275
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong quarantine decision either lets a compromised caller or a pulled backend keep taking authenticated traffic, or turns an empty reserved group plus a counter-store blip into a gateway-wide deny that locks operators out of the admin API that manages it.",
+      "reason": "Floor 75 is the security-path row: the change lands inside the auth-server /validate chokepoint that CLAUDE.md governs with 'on error, missing config, or ambiguity, DENY' and that the rate-limiting design doc calls the critical path of every call with explicit anti-lockout safeguards. The +5 applies because the task hinges on one security invariant -- quarantine must deny unbypassably and must invert the limiter's documented fail-open default without inheriting the admin bypass -- and that is exactly where models diverge. Tier is high because it is a subsystem change: a third counter axis with a composite subject plus reserved undeletable groups and an early-deny path, threaded through models, limiter, memberships storage, the admin API, CLI, and UI, with new response semantics distinct from throttle 403-to-429 rewriting and no new config or nginx changes permitted."
+    },
+    {
+      "task": "per-caller-per-target-rate-limits-and-quarantine",
+      "attempt": 3,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:27:41.720414Z",
+      "metrics": {
+        "input_tokens": 3938,
+        "output_tokens": 3708,
+        "cache_read_tokens": 209712,
+        "cache_creation_tokens": 30524,
+        "num_turns": 5,
+        "latency_seconds": 56.8,
+        "total_cost_usd": 0.4080210000000001
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong quarantine either passes traffic from a compromised caller while appearing to block it, or hard-denies legitimate callers at the /validate chokepoint every data-plane call traverses -- both are security-path failures that are expensive and slow to detect.",
+      "reason": "Floor 75 is the security row: quarantine is an absolute kill switch invoked on compromise, sitting on the same authorization path whose existing safeguards (admin bypass, data-plane-only scope, config-time floors) exist because operator lockout has already bitten this codebase, and CLAUDE.md holds hard invariants for any change touching auth/authorization. +5 because the whole feature hinges on one invariant -- quarantine must be an early unconditional deny that neither inherits the limiter's documented fail-open default nor is bypassable -- and getting only that wrong leaves a kill switch that looks installed but is inert. Tier high because it is a subsystem change matching the skill's own 'rate limiting' exemplar: a new composite counter axis plus a new deny path with reserved auto-seeded undeletable groups, distinct response semantics at the nginx 403-to-429 boundary, and required parity across the limiter, admin API, CLI, client and UI with no new configuration or infrastructure."
+    },
+    {
+      "task": "portable-env-secret-generation-in-build-script",
+      "attempt": 1,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:20:39.650997Z",
+      "metrics": {
+        "input_tokens": 6063,
+        "output_tokens": 3186,
+        "cache_read_tokens": 238807,
+        "cache_creation_tokens": 30550,
+        "num_turns": 6,
+        "latency_seconds": 52.0,
+        "total_cost_usd": 0.42030599999999996
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "On macOS/BSD the script still reports every secret as added while the effective values stay empty or guessable, so operators deploy with an empty JWT signing key, an empty proxy token-minting marker secret, a blank Mongo root password and a blank OpenBao root token \u2014 a silent auth-bypass-class deployment, and a wrong fix re-hides the failure or clobbers an operator-supplied secret.",
+      "reason": "The 75 row applies because the code path generates the repo's signing and root credentials (SECRET_KEY, AUTH_SERVER_NGINX_MARKER_SECRET, OPENBAO_TOKEN, DOCUMENTDB_PASSWORD) and CLAUDE.md names credential handling and config generation as security-critical with a fail-closed requirement, so being wrong is expensive and slow to find. The +5 applies because correctness hinges on one specific thing done exactly right \u2014 the GNU-vs-BSD `sed -i` suffix semantics, and error propagation under `set -e` instead of `2>/dev/null || true`. Tier is low: it is one file, one repeated pattern at 11 sites, fixed by a single portable helper plus loud failure \u2014 no new subsystem or cross-service surface, but more than a one-line trivial edit and it must preserve the existing 'operator-provided value is left untouched' behaviour."
+    },
+    {
+      "task": "portable-env-secret-generation-in-build-script",
+      "attempt": 2,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:24:20.005123Z",
+      "metrics": {
+        "input_tokens": 1142,
+        "output_tokens": 3860,
+        "cache_read_tokens": 249852,
+        "cache_creation_tokens": 19503,
+        "num_turns": 6,
+        "latency_seconds": 57.2,
+        "total_cost_usd": 0.34902974999999997
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix leaves required credentials (SECRET_KEY, AUTH_SERVER_NGINX_MARKER_SECRET, OPENBAO_TOKEN, DOCUMENTDB_PASSWORD, METRICS_KEY_PEPPER) empty or weak in a deployed stack, or clobbers/leaks the operator's .env via a stray backup file, so token minting and the OpenBao/Mongo root credentials are compromised or the stack crash-loops with the failure still hidden.",
+      "reason": "The 75 row applies because every value written here is a signing secret, root token, or DB root password, and CLAUDE.md's security invariants name exactly this area ('no working default for a required secret', 'fail closed', 'a check that can be silently skipped is equivalent to no check', 'writing a credential to disk atomically'). The +5 applies because the task hinges on one specific thing being right -- BSD's mandatory backup-suffix argument to sed -i versus GNU's optional one -- and on the edit failing loudly instead of being swallowed by 2>/dev/null || true. Tier is low: six near-identical call sites in build_and_run.sh (plus the same silent-sed pattern in keycloak/setup/clean-keycloak.sh) collapse into one portable helper, which is a repeated small edit across a couple of files rather than a new subsystem or config surface."
+    },
+    {
+      "task": "portable-env-secret-generation-in-build-script",
+      "attempt": 3,
+      "ref": "1.27.1",
+      "judged_at": "2026-09-04T00:28:41.024745Z",
+      "metrics": {
+        "input_tokens": 4891,
+        "output_tokens": 3886,
+        "cache_read_tokens": 195588,
+        "cache_creation_tokens": 13644,
+        "num_turns": 5,
+        "latency_seconds": 56.0,
+        "total_cost_usd": 0.304674
+      },
+      "floor": 80.0,
+      "tier": "low",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong fix leaves the auth signing key, the mcp-proxy token-minting marker secret, the OpenBao root token and the MongoDB root password empty or weak in .env while the script logs success, so the stack either crash-loops or comes up with its forged-header and vault-access guards effectively disabled.",
+      "reason": "Floor 75 because the values being generated are the project's security path by its own words -- CLAUDE.md's invariants demand no working default for a required secret and weak-check validation at every signing entrypoint, and the script's own comments say the marker secret guards all proxy token minting and the OpenBao token grants root access to every stored egress credential. Plus 5 because the task turns on one specific thing being exactly right: the BSD-vs-GNU sed -i backup-suffix trap, and the rule that a failed edit must surface rather than be swallowed by 2>/dev/null || true. Tier low because it is a bounded repeated-pattern bug fix -- one portable rewrite helper replacing ~11 sed -i call sites in build_and_run.sh plus 2 in clean-keycloak.sh, with no new module, interface or subsystem."
+    },
+    {
+      "task": "registration-admission-control-gate",
+      "attempt": 1,
+      "ref": "v1.0.19",
+      "judged_at": "2026-09-04T00:18:52.722190Z",
+      "metrics": {
+        "input_tokens": 3246,
+        "output_tokens": 3835,
+        "cache_read_tokens": 355670,
+        "cache_creation_tokens": 31984,
+        "num_turns": 8,
+        "latency_seconds": 60.0,
+        "total_cost_usd": 0.48983999999999994
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A wrong gate either fails open or misses a registration path, so an organization believes its naming, compliance and approval rules are enforced while assets are persisted unchecked; get the default wrong instead and every existing deployment's registrations are blocked.",
+      "reason": "Floor 75 because this is a security/compliance enforcement path on the write side of the registry, which the codebase itself already treats as a blocking control (security_block_unsafe_servers/agents/skills, *_scan_on_registration in registry/core/config.py); +5 because correctness hinges on one specific invariant, fail-closed on timeout and unreachable gate, with no ungated path left, including POST /internal/register. Tier high because it is a new subsystem rather than an edit: config surface (enable flag, URL, timeout, gate auth), an outbound HTTP client with a request/response contract, wiring into 7 handlers across three large route files, distinct deny-versus-gate-failure errors surfaced to callers, logging, deployment wiring across .env.example, four compose files, Helm values and Terraform ECS, and four new test scenarios."
+    },
+    {
+      "task": "registration-admission-control-gate",
+      "attempt": 2,
+      "ref": "v1.0.19",
+      "judged_at": "2026-09-04T00:22:59.494597Z",
+      "metrics": {
+        "input_tokens": 12832,
+        "output_tokens": 3446,
+        "cache_read_tokens": 246295,
+        "cache_creation_tokens": 18742,
+        "num_turns": 6,
+        "latency_seconds": 55.2,
+        "total_cost_usd": 0.390595
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A gate that fails open, or that is omitted from any one of the six registration/update paths (notably the machine-authenticated /internal/register route), silently admits assets the organization's compliance policy rejected, while an over-eager or misconfigured gate blocks all registrations across every asset type in a deployment that expects the feature off by default.",
+      "reason": "Floor 75 because this is a security/compliance enforcement path in a product that markets itself as a governance control plane, and the repo already classes the equivalent pre-persistence scan gates (security_block_unsafe_servers/agents/skills in registry/core/config.py) as security controls; a bypass is invisible at the callsite and slow to discover. +5 because correctness turns on one specific invariant, fail-closed on timeout and unreachable, applied uniformly across all six handlers, which is exactly the kind of single-detail security guarantee where models diverge. Tier high because it is a subsystem, not an edit: new config surface, a gate client with auth and timeout, endpoint-identifying payload contract, deny-versus-failure error paths and logging, six call sites in three route files of 934 to 4,228 lines, deployment wiring across four compose files plus Helm and Terraform, and four test scenarios."
+    },
+    {
+      "task": "registration-admission-control-gate",
+      "attempt": 3,
+      "ref": "v1.0.19",
+      "judged_at": "2026-09-04T00:26:53.516085Z",
+      "metrics": {
+        "input_tokens": 4210,
+        "output_tokens": 3549,
+        "cache_read_tokens": 357109,
+        "cache_creation_tokens": 23716,
+        "num_turns": 8,
+        "latency_seconds": 59.6,
+        "total_cost_usd": 0.43655449999999996
+      },
+      "floor": 80.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 5,
+      "consequence": "A defect lets registrations that organizational policy would deny be persisted anyway - either because one of the seven register/update paths was left un-gated, or because a gate timeout or connection error is swallowed and treated as allow - so a security and compliance control silently does nothing in production while appearing enabled.",
+      "reason": "Floor row 75: this is an admission-control security path guarding what enters the registry, and a bypass is expensive and slow to find because the deployment looks correctly configured while assets flow through un-gated; +5 because correctness hinges on one specific invariant - fail-closed on unreachable and timeout across every one of the seven persist endpoints in agent_routes.py, server_routes.py (including internal/register) and skill_routes.py - which is exactly the kind of narrow exception-handling and coverage detail that is easy to get subtly wrong. Tier high: it is a subsystem, not an edit - new outbound HTTP client with its own auth, new config block plus off-by-default flag, a request/response contract with per-endpoint identification, distinct deny vs gate-failure errors surfaced to the caller, logging, wiring through the six deployment surfaces the existing scanner flags occupy, and tests for allow, deny, timeout and unreachable."
+    },
+    {
+      "task": "server-side-oauth-token-storage",
+      "attempt": 1,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:18:58.328171Z",
+      "metrics": {
+        "input_tokens": 5205,
+        "output_tokens": 3640,
+        "cache_read_tokens": 196878,
+        "cache_creation_tokens": 33896,
+        "num_turns": 5,
+        "latency_seconds": 58.5,
+        "total_cost_usd": 0.427314
+      },
+      "floor": 75.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A defect either lets one authenticated user resolve another user's stored OAuth access/refresh tokens (or leaves expired/revoked tokens redeemable), or breaks the session cookie contract and locks every OAuth user out of the registry \u2014 both silent until exploited or until login fails in production.",
+      "reason": "The 75 row applies because this is squarely a security path: OAuth access and refresh tokens encrypted at rest, a key-management choice, and a reference lookup that must be scoped to the authenticated user, in a repo whose own security-posture doc treats session encryption keys and the session cookie threat model as controls. No +5 adjustment: the risk is spread across schema, indexes, key derivation, callback wiring, endpoint authorization, TTL/revocation and the cookie-only-validation constraint rather than hinging on one contract or invariant. Tier is high because the skill's own high row names server-side token storage, and the change spans a new MongoDB collection with TTL and lookup indexes, the OAuth callback in auth_server/server.py, a new authenticated retrieval endpoint, backwards compatibility with the existing flow, and expired-and-revoked tests."
+    },
+    {
+      "task": "server-side-oauth-token-storage",
+      "attempt": 2,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:23:00.676003Z",
+      "metrics": {
+        "input_tokens": 10,
+        "output_tokens": 3342,
+        "cache_read_tokens": 206215,
+        "cache_creation_tokens": 17589,
+        "num_turns": 5,
+        "latency_seconds": 51.7,
+        "total_cost_usd": 0.29663875
+      },
+      "floor": 75.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "A flaw lets one authenticated user retrieve another user's OAuth access and refresh tokens, or leaves those tokens unencrypted/unexpired in MongoDB, silently handing an attacker delegated identity at the IdP while the login flow still appears to work.",
+      "reason": "Floor 75 because this is squarely the auth/security-path row: it rewrites the OAuth callback and the session cookie that validate_session_cookie turns into the gateway's authorization and is_admin decision, adds encryption-at-rest key management, and exposes a new endpoint that hands out bearer credentials, and the project routes security defects to AWS Security rather than public issues. No +5 adjustment: the security row already prices the consequence, and the task turns on several invariants at once (per-user reference scoping, key handling, cookie-only validation with no extra read) rather than one decisive detail. Tier high because it is a subsystem, not an edit: new MongoDB schema plus TTL index, callback changes, a new authenticated retrieval endpoint with its own authorization, a no-extra-DB-read constraint on the hot path, backwards compatibility with the existing flow, and net-new expired/revoked tests."
+    },
+    {
+      "task": "server-side-oauth-token-storage",
+      "attempt": 3,
+      "ref": "1.23.0",
+      "judged_at": "2026-09-04T00:27:19.884764Z",
+      "metrics": {
+        "input_tokens": 5472,
+        "output_tokens": 3897,
+        "cache_read_tokens": 270016,
+        "cache_creation_tokens": 34617,
+        "num_turns": 6,
+        "latency_seconds": 63.7,
+        "total_cost_usd": 0.47614925
+      },
+      "floor": 75.0,
+      "tier": "high",
+      "base_floor": 75,
+      "adjustment": 0,
+      "consequence": "Getting it wrong leaks live IdP access and refresh tokens - an unscoped reference lookup serves one user's credentials to another, weak key handling makes them recoverable from a database dump, and a broken TTL keeps them forever, all of which are silent until exploited.",
+      "reason": "The 75 row applies because this is squarely an auth and security path: it moves OAuth credentials into a new MongoDB collection encrypted at rest and exposes them through a new authenticated endpoint, while the existing cookie-only validation in auth_server/server.py:630 must keep its no-database-read invariant and stay backwards compatible. Tier is high because 'server-side token storage' is the tier table's own high exemplar and the work spans a new encrypted collection with indexes and a TTL, encryption key management, the OAuth callback in auth_server/server.py:3051-3074, a new authorization surface, and expired-and-revoked test coverage. No +5 adjustment: the risk is spread across schema, keys, reference scoping and expiry rather than hinging on one specific invariant, and the top floor row already prices in the security consequence."
+    }
+  ]
+}
