@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate the vended ``models.json`` the model-router skill reads.
+"""Generate the vended ``models.json`` the swe-router skill reads.
 
 The skill runs in someone else's repository, inside whatever coding assistant
 they use. It cannot import anything from this one. So the measurements it needs
-are copied into ``vend/model-router/models.json``, which is committed and served
+are copied into ``vend/swe-router/models.json``, which is committed and served
 raw, and this script is the only thing that writes it.
 
 Two differences from the internal ``docs/metrics/pareto-frontier-*.json`` it
@@ -50,7 +50,7 @@ DEFAULT_SOURCE = _REPO_ROOT / "docs" / "metrics" / "pareto-frontier-omp-swe3.jso
 # hides that qwen3.8-27b scores 80.9 on low-complexity work and 57.2 on high.
 DEFAULT_RUNS_DIR = _REPO_ROOT / "benchmarks" / "swe-benchmark-data"
 TIERS = ("trivial", "low", "medium", "high")
-DEFAULT_OUT = _REPO_ROOT / "vend" / "model-router" / "models.json"
+DEFAULT_OUT = _REPO_ROOT / "vend" / "swe-router" / "models.json"
 
 # Bumped when the shape of models.json changes in a way a consumer would notice.
 # Consumers pin this; the skill refuses a major it does not know.

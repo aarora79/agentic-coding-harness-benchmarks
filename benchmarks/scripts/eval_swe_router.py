@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Score the model-router skill against the runs it would have replaced.
+"""Score the swe-router skill against the runs it would have replaced.
 
 WHY THIS EXISTS
 ---------------
@@ -37,9 +37,9 @@ which is the useful form -- a single floor is one point on a curve.
 
 Run from the ``benchmarks/`` directory:
 
-    uv run scripts/eval_model_router.py
-    uv run scripts/eval_model_router.py --holdout --floor-sweep 55,65,70,75
-    uv run scripts/eval_model_router.py --available claude-opus-5,claude-sonnet-5
+    uv run scripts/eval_swe_router.py
+    uv run scripts/eval_swe_router.py --holdout --floor-sweep 55,65,70,75
+    uv run scripts/eval_swe_router.py --available claude-opus-5,claude-sonnet-5
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ from token_accounting import compute_total_tokens_processed  # noqa: E402
 
 # The router skill ships beside the repo's other skills; route.py is imported
 # rather than shelled out to so the selection under test is the real one.
-_SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "model-router"
+_SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "swe-router"
 sys.path.insert(0, str(_SKILL_DIR))
 
 from route import RouteError, route  # noqa: E402
@@ -159,7 +159,7 @@ def _task_cost(task: dict[str, Any], per_token: float | None) -> float:
         task.get("output_tokens") or 0,
         task.get("cache_read_tokens") or 0,
         task.get("cache_write_tokens") or task.get("cache_creation_tokens") or 0,
-        context=f"eval_model_router:{task.get('task')}",
+        context=f"eval_swe_router:{task.get('task')}",
     )
     return tokens * per_token
 
@@ -277,7 +277,7 @@ def _models_json(
     """
     return {
         "schema_version": "1.0",
-        "generated_by": "eval_model_router.py (leave-one-out)",
+        "generated_by": "eval_swe_router.py (leave-one-out)",
         "provenance": provenance,
         "models": [
             {
@@ -757,11 +757,11 @@ def _document(report: dict[str, Any]) -> str:
         "tasks, so this is an upper bound. Re-run with --holdout for the "
         "leave-one-out number."
     )
-    header = ["# Does the model router pay for itself?", ""]
+    header = ["# Does the swe-router pay for itself?", ""]
     if len(report["runs"]) == 1:
         header += _headline(report["runs"][0]["totals"], cfg)
     header += [
-        f"Replays the `model-router` skill over all {cfg['tasks']} tasks of "
+        f"Replays the `swe-router` skill over all {cfg['tasks']} tasks of "
         f"`{cfg['scope']}`, then looks up what the model it picked ACTUALLY "
         f"scored and cost on that task, against running "
         f"`{cfg['baseline']}` on everything.",
@@ -828,12 +828,12 @@ def _load_tasks(dataset_path: Path) -> tuple[list[dict[str, Any]], str]:
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Score the model-router skill against the runs it would replace.",
+        description="Score the swe-router skill against the runs it would replace.",
         epilog=(
             "Examples:\n"
-            "  uv run scripts/eval_model_router.py\n"
-            "  uv run scripts/eval_model_router.py --holdout --floor-sweep 55,65,70,75\n"
-            "  uv run scripts/eval_model_router.py --no-allow-list --baseline claude-opus-5\n"
+            "  uv run scripts/eval_swe_router.py\n"
+            "  uv run scripts/eval_swe_router.py --holdout --floor-sweep 55,65,70,75\n"
+            "  uv run scripts/eval_swe_router.py --no-allow-list --baseline claude-opus-5\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -902,13 +902,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out-json",
         type=Path,
-        default=REPO_ROOT / "docs" / "metrics" / "model-router-eval.json",
+        default=REPO_ROOT / "docs" / "metrics" / "swe-router-eval.json",
         help="Where to write the JSON report. Default: %(default)s.",
     )
     parser.add_argument(
         "--out-md",
         type=Path,
-        default=REPO_ROOT / "docs" / "model-router-evaluation.md",
+        default=REPO_ROOT / "docs" / "swe-router-evaluation.md",
         help="Where to write the markdown report. Default: %(default)s.",
     )
     return parser.parse_args()
@@ -1025,7 +1025,7 @@ def main() -> None:
                 f"{judged_meta.get('harness')} + {judged_meta.get('model')} "
                 "running the skill's step 1 against the cloned repo -- the real "
                 "judgment the skill asks for, not a policy constant. See "
-                "`model-router-judged-inputs.md`."
+                "`swe-router-judged-inputs.md`."
                 if judged_meta
                 else "The skill derives a quality floor from the consequence of "
                 "the change being wrong, which a script cannot judge. Here it is "

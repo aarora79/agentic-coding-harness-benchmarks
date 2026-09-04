@@ -74,25 +74,25 @@ uv run python summarize_run.py --folder ../swe-benchmark-data/{model-slug}/{harn
 
 ## Reproducing the routing evaluation
 
-The [`/model-router`](../.claude/skills/model-router/SKILL.md) skill recommends a model per task. Two scripts measure whether taking its advice would have been worth it, using runs already on disk. Neither script re-runs a model.
+The [`/swe-router`](../.claude/skills/swe-router/SKILL.md) skill recommends a model per task. Two scripts measure whether taking its advice would have been worth it, using runs already on disk. Neither script re-runs a model.
 
 **1. Collect the skill's judgments.** For every task in a dataset, clone the repo at the task's pinned ref and run the skill's step 1 in it (decide a quality floor from the consequence of the change being wrong, and a complexity tier). The agent returns the judgment only. It never selects a model.
 
 ```bash
 cd benchmarks
-uv run scripts/run-router-headless.py --agent omp --provider bedrock \
+uv run scripts/run-swe-router-headless.py --agent omp --provider bedrock \
     --model us.anthropic.claude-opus-5 --aws-region us-east-1 --repeats 3
 ```
 
-`--repeats` runs the whole pass N times and records every judgment. A floor is a judgment call, and it moves: on the published run three identical passes agreed on only 14 of 21 tasks. The consolidated tuple is the median floor and modal tier. The output records the spread per task. Cost is roughly $0.55 and a minute per judgment. Writes [docs/metrics/model-router-judged-inputs-omp.json](../docs/metrics/model-router-judged-inputs-omp.json) and its markdown; `--render <json>` regenerates the markdown alone.
+`--repeats` runs the whole pass N times and records every judgment. A floor is a judgment call, and it moves: on the published run three identical passes agreed on only 14 of 21 tasks. The consolidated tuple is the median floor and modal tier. The output records the spread per task. Cost is roughly $0.55 and a minute per judgment. Writes [docs/metrics/swe-router-judged-inputs-omp.json](../docs/metrics/swe-router-judged-inputs-omp.json) and its markdown; `--render <json>` regenerates the markdown alone.
 
 **2. Route on them and join to the measured runs.** For each task, run `route.py` with that tuple, then look up what the recommended model actually scored and cost on that task, against a fixed-model baseline.
 
 ```bash
-uv run scripts/eval_model_router.py --no-allow-list --holdout \
-    --judged-inputs ../docs/metrics/model-router-judged-inputs-omp.json \
-    --out-json ../docs/metrics/model-router-eval-judged.json \
-    --out-md ../docs/model-router-evaluation-judged.md
+uv run scripts/eval_swe_router.py --no-allow-list --holdout \
+    --judged-inputs ../docs/metrics/swe-router-judged-inputs-omp.json \
+    --out-json ../docs/metrics/swe-router-eval-judged.json \
+    --out-md ../docs/swe-router-evaluation-judged.md
 ```
 
 Two flags carry most of the method:

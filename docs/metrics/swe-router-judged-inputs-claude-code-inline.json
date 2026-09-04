@@ -2,7 +2,7 @@
   "judged_by": {
     "harness": "claude-code",
     "model": "claude-opus-5[1m]",
-    "skill": "model-router",
+    "skill": "swe-router",
     "step": "1 and 1b (consequence floor + complexity tier) only; route.py was run separately",
     "judged_on": "2026-09-04",
     "repo_map_read": "CLAUDE.md at agentic-community/mcp-gateway-registry@1.29.0 (no AGENTS.md in that repo)"
@@ -10,107 +10,170 @@
   "floor_rule": "55 throwaway / 65 internal tool, docs / 70 production service, user-facing / 75 auth, payments, data deletion, security path; +5 when the task hinges on one specific load-bearing thing (API contract, portability trap, security invariant, exact version comparison).",
   "tasks": {
     "default-create-in-idp-checkbox-unchecked": {
-      "floor": 70, "tier": "low", "base": 70, "adjustment": 0,
+      "floor": 70,
+      "tier": "low",
+      "base": 70,
+      "adjustment": 0,
       "consequence": "Production web UI an operator uses; a wrong default silently mutates their identity provider.",
       "reason": "Form default in a shipped UI. Not one of the repo's named security helpers, so the base production row stands. The change is a default flipped across state init, request payload and backend default -- the skill's 'low' row verbatim."
     },
     "build-docker-images-from-uv-lock": {
-      "floor": 65, "tier": "medium", "base": 65, "adjustment": 0,
+      "floor": 65,
+      "tier": "medium",
+      "base": 65,
+      "adjustment": 0,
       "consequence": "Build and CI tooling; a defect fails the image build rather than reaching a user.",
       "reason": "The task's own point is to make failures loud (uv sync --frozen, uv lock --check), so wrong is cheap and immediate. Two Dockerfiles, four new lockfiles and a CI check is a feature across several files with a config surface."
     },
     "honor-cloud-provider-override-in-ui": {
-      "floor": 70, "tier": "low", "base": 70, "adjustment": 0,
+      "floor": 70,
+      "tier": "low",
+      "base": 70,
+      "adjustment": 0,
       "consequence": "Production UI display path; wrong means the UI misreports the deployment cloud.",
       "reason": "User-facing service, but a display-only correction with a visible failure. One endpoint switched from the raw cascade to the resolved value plus a regression test is one small feature."
     },
     "fix-reserved-groups-var-in-service-account-script": {
-      "floor": 70, "tier": "low", "base": 65, "adjustment": 5,
+      "floor": 70,
+      "tier": "low",
+      "base": 65,
+      "adjustment": 5,
       "consequence": "Operator setup script; a false failure halts a setup that actually worked.",
       "reason": "Setup tooling sets the base at 65. +5 because it hinges on one specific trap: GROUPS is a bash reserved array, and the latent SC2128 bug compares against only its first element. Get that detail wrong and the script still lies."
     },
     "cli-custom-egress-oauth-provider-flags": {
-      "floor": 75, "tier": "low", "base": 70, "adjustment": 5,
+      "floor": 75,
+      "tier": "low",
+      "base": 70,
+      "adjustment": 5,
       "consequence": "Operator CLI writing OAuth egress credentials -- credential handling, which this repo names as a security area.",
       "reason": "+5 for an API contract that is load-bearing: the client's 'only send what was supplied' convention means a careless edit nulls a stored credential URL, and the token-auth-style flag must match the server enum. Five flags plumbed through two layers is one small feature."
     },
     "derive-repo-url-from-skill-md": {
-      "floor": 70, "tier": "medium", "base": 70, "adjustment": 0,
+      "floor": 70,
+      "tier": "medium",
+      "base": 70,
+      "adjustment": 0,
       "consequence": "Production UI; wrong yields a bad link a user immediately sees.",
       "reason": "Visible, cheap-to-catch failure, so no adjustment. Backend parse response plus a registration form plus two modals plus a frontend type is a feature touching several files."
     },
     "consistent-csrf-across-toggle-endpoints": {
-      "floor": 80, "tier": "medium", "base": 75, "adjustment": 5,
+      "floor": 80,
+      "tier": "medium",
+      "base": 75,
+      "adjustment": 5,
       "consequence": "CSRF -- the repo lists registry/auth/csrf.py as a canonical helper and 'fail closed' as a hard rule.",
       "reason": "Security path sets the base at 75. +5 because the whole task is one invariant: bearer-token clients must work WITHOUT weakening the browser threat model. Loosen it wrongly and every toggle endpoint becomes CSRF-exploitable. Auditing an existing dependency across four route families is a feature, not a new subsystem."
     },
     "configurable-ui-title": {
-      "floor": 70, "tier": "medium", "base": 70, "adjustment": 0,
+      "floor": 70,
+      "tier": "medium",
+      "base": 70,
+      "adjustment": 0,
       "consequence": "Production UI plus three deployment surfaces; wrong shows the wrong product name.",
       "reason": "Highly visible, low harm. A new config parameter through Docker, Terraform and Helm is a config surface across several files."
     },
     "configurable-mcp-proxy-upstream-timeout": {
-      "floor": 70, "tier": "medium", "base": 70, "adjustment": 0,
+      "floor": 70,
+      "tier": "medium",
+      "base": 70,
+      "adjustment": 0,
       "consequence": "Production proxy hop; a wrong timeout degrades live tool calls.",
       "reason": "It follows a pattern the codebase already uses for the body-size limit, so the contract is established rather than being invented here. Settings field, env fallback, admin surface, deployment surfaces and tests is a config surface across several files."
     },
     "nginx-location-trailing-slash-route-hijack": {
-      "floor": 80, "tier": "medium", "base": 75, "adjustment": 5,
+      "floor": 80,
+      "tier": "medium",
+      "base": 75,
+      "adjustment": 5,
       "consequence": "Generated nginx config carrying auth_request -- the repo names config generation as a security area.",
       "reason": "Security path sets the base at 75. +5 because it turns on one exact semantic: nginx prefix locations match any URL starting with the string. Get the trailing slash wrong and either the route hijack survives or every existing /name/mcp and /name/sse client breaks. Regenerating one function plus a migration story is a feature, not a subsystem."
     },
     "registration-admission-control-gate": {
-      "floor": 75, "tier": "high", "base": 75, "adjustment": 0,
+      "floor": 75,
+      "tier": "high",
+      "base": 75,
+      "adjustment": 0,
       "consequence": "External admission control on every registration path, required to fail closed -- the repo's hard rule.",
       "reason": "Security path. No adjustment: the risk is spread across configuration, the request/response contract, six endpoints and the failure semantics rather than concentrated in one detail. A gate called before every persistence path is a subsystem."
     },
     "server-side-oauth-token-storage": {
-      "floor": 75, "tier": "high", "base": 75, "adjustment": 0,
+      "floor": 75,
+      "tier": "high",
+      "base": 75,
+      "adjustment": 0,
       "consequence": "OAuth access and refresh tokens moved into a database -- credential handling and encryption at rest.",
       "reason": "Security path. Risk is diffuse (schema, key management, reference lookup scoped to the caller, TTL, backwards compatibility), so no single-detail adjustment. A token store plus a retrieval endpoint plus a session redesign is a subsystem."
     },
     "lifecycle-workflow-webhooks": {
-      "floor": 75, "tier": "high", "base": 75, "adjustment": 0,
+      "floor": 75,
+      "tier": "high",
+      "base": 75,
+      "adjustment": 0,
       "consequence": "HMAC-signed outbound webhooks plus a new permission -- signing secrets and authorization, both named by the repo.",
       "reason": "Security path. Five deliverables spread the risk rather than concentrating it. Events, signing, a filter, a config gate and a permission split is a subsystem."
     },
     "per-caller-per-target-rate-limits-and-quarantine": {
-      "floor": 75, "tier": "high", "base": 75, "adjustment": 0,
+      "floor": 75,
+      "tier": "high",
+      "base": 75,
+      "adjustment": 0,
       "consequence": "A new rate-limit axis and an absolute kill switch at the /validate chokepoint -- deny-by-default authorization.",
       "reason": "Security path. Risk spans the counter subject, the storage reuse, the early-deny ordering and the response semantics. A third limiter axis plus quarantine groups is a subsystem."
     },
     "idp-authenticated-embedding-endpoint": {
-      "floor": 75, "tier": "high", "base": 75, "adjustment": 0,
+      "floor": 75,
+      "tier": "high",
+      "base": 75,
+      "adjustment": 0,
       "consequence": "OAuth client-credentials against a credentialed token endpoint, holding a client secret.",
       "reason": "Security path -- the repo requires the HTTPS-only CREDENTIALED_OAUTH_PROFILE for exactly this and forbids secrets on argv. Risk is spread across thread-safe caching, refresh timing, and byte-for-byte no-op behaviour when unset. A token manager mirroring the federation-auth pattern is a subsystem."
     },
     "index-demo-videos-in-one-page": {
-      "floor": 65, "tier": "trivial", "base": 65, "adjustment": 0,
+      "floor": 65,
+      "tier": "trivial",
+      "base": 65,
+      "adjustment": 0,
       "consequence": "A documentation page; a human reads it before it matters.",
       "reason": "The skill's 65 row names a docs page, and its trivial row names one too. Documentation-only by the task's own statement -- no code, build or tests."
     },
     "hide-register-button-on-virtual-and-skills-tabs": {
-      "floor": 70, "tier": "trivial", "base": 70, "adjustment": 0,
+      "floor": 70,
+      "tier": "trivial",
+      "base": 70,
+      "adjustment": 0,
       "consequence": "Production UI; narrowing the condition too far hides registration from users who need it.",
       "reason": "User-facing, so 70 rather than 65 -- but the failure is immediately visible. One render condition is the skill's trivial row verbatim."
     },
     "pass-ssrf-allowlist-env-to-registry-container": {
-      "floor": 75, "tier": "trivial", "base": 75, "adjustment": 0,
+      "floor": 75,
+      "tier": "trivial",
+      "base": 75,
+      "adjustment": 0,
       "consequence": "SSRF allowlist -- the repo devotes a whole invariant to the shared hardened URL guard.",
       "reason": "Security path: a silently inert allowlist is the skill's 'check that can be silently skipped', which the repo calls equivalent to no check. The change itself is two config passthroughs, the skill's trivial row verbatim. Size does not set the floor."
     },
     "macos-setup-python-version-precheck": {
-      "floor": 70, "tier": "trivial", "base": 65, "adjustment": 5,
+      "floor": 70,
+      "tier": "trivial",
+      "base": 65,
+      "adjustment": 5,
       "consequence": "Developer setup tooling; a missed precheck wastes a developer's time, nothing more.",
       "reason": "+5 for an exact version comparison, which the skill names explicitly -- and the requirement to read the minimum from pyproject.toml rather than hard-code it. One check in one script."
     },
     "portable-env-secret-generation-in-build-script": {
-      "floor": 75, "tier": "trivial", "base": 70, "adjustment": 5,
+      "floor": 75,
+      "tier": "trivial",
+      "base": 70,
+      "adjustment": 5,
       "consequence": "Generates the deployment's real secrets; the current bug leaves them silently empty and the auth server crash-loops.",
       "reason": "It configures a running deployment rather than a developer's laptop, so 70 rather than 65. +5 for a portability trap the skill names explicitly: BSD sed treats the argument after -i as a mandatory backup suffix. One sed pattern, fixed everywhere it appears."
     },
     "logout-id-token-hint-out-of-browser-url": {
-      "floor": 75, "tier": "low", "base": 75, "adjustment": 0,
+      "floor": 75,
+      "tier": "low",
+      "base": 75,
+      "adjustment": 0,
       "consequence": "A credential mid-revocation exposed in browser history and proxy logs, and a logout that fails silently behind a WAF.",
       "reason": "Security path: the repo's OAuth/OIDC invariant and its 'never log tokens' rule both bear on it. No adjustment -- the design has latitude in where the hint goes. Reworking one redirect with a compatibility fallback is one small feature."
     }

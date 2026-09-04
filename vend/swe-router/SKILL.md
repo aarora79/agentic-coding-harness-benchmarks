@@ -1,5 +1,5 @@
 ---
-name: model-router
+name: swe-router
 description: "Checks whether the current model is the right one for the coding task about to be done, and names a cheaper or stronger one when it is not. Uses measured scores and cost per task from a real 21-task benchmark rather than vendor claims, and usually recommends switching DOWN, because most developers run the top model for everything. Advisory only: it recommends a model in a few lines and stops -- it does not run the task, change any setting, or write code. The recommendation ENDS the turn: print it and hand back, so the developer can switch model before any work starts. Run it BEFORE starting a substantial coding task (a feature, a bug fix, a refactor, a migration), and whenever someone asks which model to use, whether a cheaper one would do, or whether they are overpaying. Do NOT run it for trivial requests, for questions, or once work on a task has already started."
 license: Apache-2.0
 metadata:
@@ -7,11 +7,17 @@ metadata:
   version: "0.1.0"
 ---
 
-# Model Router
+# SWE Router
 
 Tell the developer which model to switch to. Recommend, then stop — the recommendation is the end of your turn.
 
 You do not run their task. You do not change a setting. You do not write code. The output is a recommendation, the reasoning behind it, and then control back to the developer.
+
+## Why this runs here and not in a gateway
+
+A gateway routes a request that already exists. By then it can see the prompt text, a token count, maybe a model hint. What it cannot see is the thing that decides this choice: what breaks if the change is wrong.
+
+That is knowable only while the work is still an idea. An auth path, a payments flow, a docs page -- the developer knows which one they are about to touch, and nothing on the wire recovers it. So the decision belongs where the task is framed, before a request exists. That is here.
 
 ## Do not run when
 

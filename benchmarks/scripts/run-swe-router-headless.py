@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Run the model-router skill headless over a dataset to collect its step-1 judgments.
+"""Run the swe-router skill headless over a dataset to collect its step-1 judgments.
 
 WHY THIS EXISTS
 ---------------
-``eval_model_router.py`` can replay the router's SELECTION over a dataset, but
+``eval_swe_router.py`` can replay the router's SELECTION over a dataset, but
 selection is only half the skill. The other half is the judgment it opens with:
 read the repo, read the task, and decide a quality floor from the consequence of
 the change being wrong plus a complexity tier. That half is an LLM call, so a
@@ -12,7 +12,7 @@ floor drives which model gets picked.
 
 So this drives a real agent through the skill's steps 1 and 1b, once per task,
 in the task's own cloned repository, and writes the ``(floor, tier)`` tuples to
-JSON in the shape ``eval_model_router.py --judged-inputs`` consumes. The two
+JSON in the shape ``eval_swe_router.py --judged-inputs`` consumes. The two
 scripts together run the whole skill end to end: judgment here, selection and
 the join to measured runs there.
 
@@ -35,9 +35,9 @@ a finding about the skill, not noise to average away.
 
 Run from the ``benchmarks/`` directory:
 
-    uv run scripts/run-router-headless.py --agent omp --provider bedrock \\
+    uv run scripts/run-swe-router-headless.py --agent omp --provider bedrock \\
         --model us.anthropic.claude-opus-5 --repeats 3
-    uv run scripts/run-router-headless.py --tasks configurable-ui-title --repeats 1
+    uv run scripts/run-swe-router-headless.py --tasks configurable-ui-title --repeats 1
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ from runner_config import (  # noqa: E402
 # The router skill lives with the repo's other skills. Its SKILL.md is inlined
 # into the prompt: omp has no --skill flag, and Claude Code's slash command is
 # not available to a bare -p prompt against an arbitrary working directory.
-SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "model-router"
+SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "swe-router"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 
 VALID_TIERS = ("trivial", "low", "medium", "high")
@@ -627,7 +627,7 @@ def _judgments_markdown(payload: dict[str, Any]) -> str:
     lines = [
         f"# What {meta['harness']} + {meta['model']} judges each task to need",
         "",
-        "The `model-router` skill opens by reading the repository and the task "
+        "The `swe-router` skill opens by reading the repository and the task "
         "and deciding two things: a **quality floor**, from the consequence of "
         "the change being wrong, and a **complexity tier**. Everything the skill "
         "does afterwards is arithmetic on those two numbers. It is also the "
@@ -714,12 +714,12 @@ def _select_tasks(dataset: Dataset, task_ids: list[str]) -> list[Task]:
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Run the model-router skill's step 1 headless over a dataset.",
+        description="Run the swe-router skill's step 1 headless over a dataset.",
         epilog=(
             "Examples:\n"
-            "  uv run scripts/run-router-headless.py --agent omp --provider bedrock \\\n"
+            "  uv run scripts/run-swe-router-headless.py --agent omp --provider bedrock \\\n"
             "      --model us.anthropic.claude-opus-5 --repeats 3\n"
-            "  uv run scripts/run-router-headless.py --tasks configurable-ui-title "
+            "  uv run scripts/run-swe-router-headless.py --tasks configurable-ui-title "
             "--repeats 1\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -763,7 +763,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out",
         type=Path,
-        default=REPO_ROOT / "docs" / "metrics" / "model-router-judged-inputs.json",
+        default=REPO_ROOT / "docs" / "metrics" / "swe-router-judged-inputs.json",
         help="Where to write the judged inputs. Default: %(default)s.",
     )
     parser.add_argument(
@@ -843,9 +843,9 @@ def main() -> None:
             "harness": config.agent,
             "model": config.model,
             "provider": config.provider,
-            "skill": "model-router",
+            "skill": "swe-router",
             "step": "1 and 1b (consequence floor + complexity tier) only; "
-            "route.py is run separately by eval_model_router.py",
+            "route.py is run separately by eval_swe_router.py",
             "dataset": str(dataset_path.relative_to(REPO_ROOT)),
             "repeats": args.repeats,
             "started_at": started,

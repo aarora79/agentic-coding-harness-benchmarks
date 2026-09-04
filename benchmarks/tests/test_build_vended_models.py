@@ -20,7 +20,7 @@ _spec = importlib.util.spec_from_file_location(
 bvm = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bvm)
 
-_VEND_DIR = _REPO_ROOT / "vend" / "model-router"
+_VEND_DIR = _REPO_ROOT / "vend" / "swe-router"
 
 
 def _frontier(**overrides) -> dict:
@@ -153,7 +153,7 @@ class CommittedArtifactTest(unittest.TestCase):
         self.assertEqual(
             bvm.DEFAULT_OUT.read_text(encoding="utf-8"),
             expected,
-            "vend/model-router/models.json is stale; run build_vended_models.py",
+            "vend/swe-router/models.json is stale; run build_vended_models.py",
         )
 
     def test_score_by_complexity_is_present_for_every_model(self) -> None:

@@ -1,4 +1,4 @@
-"""Tests for the model-router evaluation harness.
+"""Tests for the swe-router evaluation harness.
 
 The joins this script makes are the whole point of it -- a mistake in the cost
 basis or the failed-task convention would show up as a plausible number rather
@@ -15,7 +15,7 @@ from pathlib import Path
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
-import eval_model_router as ev  # noqa: E402
+import eval_swe_router as ev  # noqa: E402
 
 
 def _results() -> dict[str, dict[str, dict]]:
@@ -307,7 +307,7 @@ class CommittedDataTest(unittest.TestCase):
     def setUp(self) -> None:
         self.published = ev._read_json(ev._SKILL_DIR / "models.json")
         if self.published is None:
-            self.skipTest("model-router skill is not installed here")
+            self.skipTest("swe-router skill is not installed here")
         self.results = ev._load_results("omp", "swe3", "mcp-gateway-registry-v2")
         if not self.results:
             self.skipTest("no committed omp/swe3 run summaries")

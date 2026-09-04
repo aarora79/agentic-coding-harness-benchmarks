@@ -1,4 +1,4 @@
-"""Tests for the vended model-router selection logic."""
+"""Tests for the vended swe-router selection logic."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_VEND = _REPO_ROOT / "vend" / "model-router"
+_VEND = _REPO_ROOT / "vend" / "swe-router"
 
 _spec = importlib.util.spec_from_file_location("route", _VEND / "route.py")
 route = importlib.util.module_from_spec(_spec)
