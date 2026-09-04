@@ -56,36 +56,49 @@ A frontier you only look at is a chart. The point is to spend less on every codi
 Both exist. The measurement side is this repository; the spending side is [**`swe-router`**](vend/swe-router/), a skill that installs into any coding assistant and names the cheapest model that clears the bar for the task in front of the developer.
 
 ```
-  PART 1 — MEASURE                              │  PART 2 — SPEND LESS
-  a platform team, on a schedule                │  every developer, every task
-                                                │
-  your model list        your repository        │      a coding task starts
-  security-approved,     your language,         │              │
-  contract-cleared,      your patterns,         │              ▼
-  what you can host      your conventions       │      swe-router engages
-          │                     │               │              │
-          └──────────┬──────────┘               │      ┌───────┴───────┐
-                     ▼                          │      ▼               ▼
-            run the benchmark                   │  how bad if      how hard
-       every model × every task, judged         │  it's wrong?     is it?
-                     │                          │      │               │
-                     ▼                          │   a floor        a table
-        YOUR cost/quality frontier              │      └───────┬───────┘
-    not a vendor claim, not a public set        │              ▼
-                     │                          │     cheapest model that
-                     ▼                          │      clears the floor
-      commit it — models.json + the skill       │              │
-    versioned · reviewable · revertable         │              ▼
-                     │                          │    "switch to X, save 61%"
-                     └────────── vend ──────────┼──────────────┘
-                                                │              │
-   re-run on a schedule: models appear,         │              ▼
-   prices move, the frontier moves with them    │      measured saving
+  PART 1 — MEASURE                            │  PART 2 — SPEND LESS
+  a platform team, on a schedule              │  every developer, every task
+                                              │
+  your model list       your repository       │      a coding task starts
+  security-approved,    your language,        │               │
+  contract-cleared,     your patterns,        │               ▼
+  what you can host     your conventions      │       swe-router engages
+          │                    │              │               │
+          └─────────┬──────────┘              │       ┌───────┴───────┐
+                    ▼                         │       ▼               ▼
+           run the benchmark                  │   how bad if      how hard
+      every model × every task, judged        │   it's wrong?     is it?
+                    │                         │       │               │
+                    ▼                         │    a floor         a table
+       YOUR cost/quality frontier             │       └───────┬───────┘
+   not a vendor claim, not a public set       │               │
+                    │                         │               │
+ ═══════════════════▼═════════════════════════╪═══════════════│═════════════════
+  THE ARTIFACT — one commit, one curl, the same numbers for everyone
+                                                              │
+   models.json ─────────── scores and cost per tier ──────────┤
+   allowed-models.txt ──── only what you permit ──────────────┤
+   SKILL.md + route.py ─── the decision, as code ─────────────┤
+                                                              │
+ ═════════════════════════════════════════════╪═══════════════│═════════════════
+                                              │               ▼
+  re-run on a schedule: models appear,        │      cheapest model that
+  prices move, the frontier moves with them   │      clears the floor
+                    │                         │               │
+                    └──── a new version ──────┤               ▼
+                          everyone picks up   │      "switch to X, save 61%"
+                                              │               │
+                                              │               ▼
+                                              │        measured saving
 ```
 
 **Why measure it yourself.** A vendor's benchmark tells you how their model does on their tasks. A public dataset tells you how every model does on problems that have been in training data for a year. Neither tells you what a model costs to run *your* code, which is the only number a budget cares about. Part 1 takes your model list -- whatever security approved and procurement cleared -- and your repository, and produces a frontier that is true for you.
 
-**Why version it.** A frontier is a fact with a date on it. New models arrive, prices move, and a fix to token accounting once moved `claude-opus-5` from $7.63 to $11.95 per task without changing a single score. Committing `models.json` beside the skill makes it reviewable, diffable and revertable, and gives every developer the same numbers on the same day. Re-run on a schedule and the file updates like any other dependency.
+**Why the middle band matters.** The frontier stops being a chart at the moment it becomes a file someone can install. `models.json`, `allowed-models.txt` and the skill are one commit, and a developer gets them with one `curl` — so the measurement a platform team ran on Tuesday is what every assistant is reading on Wednesday, with no one retyping a number.
+
+The allow-list is the same list on both sides. What security approved in Part 1 *is* the file that filters candidates in Part 2, which is why a model nobody cleared can never be recommended, however well it scored.
+
+**Why version it.** A frontier is a fact with a date on it. New models arrive, prices move, and a fix to token accounting once moved `claude-opus-5` from $7.63 to $11.95 per task without changing a single score. Committed, that is a reviewable diff rather than a surprise, and a bad frontier can be reverted like any other dependency.
 
 **What Part 2 costs to adopt.** Five files copied into a skills directory. `swe-router` runs in Claude Code, Codex, pi, or anything that reads a skill, engages on its own before a substantial task, and prints a few lines. It changes no settings and writes no code -- the developer switches model, or does not.
 
