@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The issue precisely identifies six endpoints, authentication modes, expected status changes, testable acceptance criteria, and explicit non-goals. The submitted diff supports the proposed shared dependency change and additions to the server, internal, and virtual-server routes. Its largest omission is that changing the shared dependency also changes non-toggle consumers such as logout and ANS routes, despite presenting non-toggle behavior as out of scope. Baseline paths, line numbers, CLI behavior, and frontend claims could not be independently verified because the repository shell sandbox failed before executing reads."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 19,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The LLD is implementation-ready in breadth, naming concrete functions, route signatures, side effects, observability, rollback, and alternatives. Its file and symbol plan is internally consistent with the submitted diff, including internal_toggle_service, toggle_service_api, toggle_virtual_server, and verify_csrf_token_flexible. The major defect is a contradiction between the stated fail-closed rule—only cookie absence, tested as cookie is None—and the proposed if not session_id condition, which also skips an explicitly present empty cookie. Claims about additional consumers, authentication behavior, and repository conventions could not be independently checked due unavailable local shell access."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 83,
+      "notes": "The review meaningfully stresses frontend timing, shared-dependency side effects, route drift, logging, rollback, and malformed-cookie behavior rather than merely approving the design. It correctly drives documentation and tests for nonempty forged cookies and all-six-route dependency coverage. However, it explicitly declares the cookie-presence invariant correctly implemented while the patch uses if not session_id, missing the empty-cookie bypass and prematurely closing its security blocker. Repository-specific frontend, federation, and auth-order claims remained unverifiable because source inspection was unavailable."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 79,
+      "notes": "The plan provides concrete HTTP actions and strong status/body/state oracles for bearer, session, invalid-token, CLI, rollback, and registration-pipeline scenarios. It omits T3 internal_toggle_service from the cookie-bearing no-token matrix while repeatedly claiming all six endpoints are covered, and it inconsistently describes a bearer suite across T1 even though T1 is identified as session-only. The unit cases test nonempty garbage cookies but not an empty configured session cookie, so they would not catch the patch's truthiness error; token expiration is also not exercised. Exact CLI flags, endpoint payloads, and test commands could not be checked against the repository because local reads were blocked."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The patch is cohesive and implements the intended shared dependency change, three route additions, and focused dependency and route-signature tests. Its principal defect is session_id = request.cookies.get(...) followed by if not session_id, which contradicts the documented presence-based invariant and skips validation for an explicitly present empty session cookie; the tests do not cover that case. The implementation summary consequently overstates that every malformed or forged cookie value is challenged, although the remaining nonempty-cookie and token-binding tests have meaningful assertions. Patch applicability, surrounding source compatibility, and the claimed baseline commit could not be independently verified because every read-only shell command failed during sandbox initialization."
+    }
+  },
+  "task_score": 83.2,
+  "verdict": "A strong and unusually concrete submission whose largest material flaw is that the implementation uses cookie-value truthiness rather than true cookie presence, violating its own fail-closed security invariant.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T04:36:05.011957Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 236304,
+      "cached_input_tokens": 194702,
+      "cache_write_input_tokens": 36681,
+      "output_tokens": 8417,
+      "reasoning_output_tokens": 6275
+    },
+    "duration_ms": 173035
+  }
+}

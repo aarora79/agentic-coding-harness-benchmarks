@@ -1,0 +1,64 @@
+{
+  "task": "migrate-ecs-env-vars-to-secrets-manager",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 78,
+      "notes": "The issue provides a concrete credential inventory, verified target paths, testable acceptance criteria, rollback behavior, and explicit exclusions. Its listed Terraform and application files correspond to the implementation hunks, and it correctly distinguishes ECS injection from the optional registry loader. The largest weakness is that it presents Terraform-state exposure and out-of-band rotation as motivations while the proposed aws_secretsmanager_secret_version resources still store values in state and can conflict with externally rotated AWSCURRENT versions. No independent task statement establishes that the application-side ARN fallback belongs in scope, so that substantial addition remains unsupported by external requirements."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 15,
+      "total": 76,
+      "notes": "The LLD is unusually concrete about secrets.tf resources, IAM ARNs, container definitions, predicates, settings fields, rollout, and failure handling. However, its feature-gated counts create a behavioral hole: with the migration enabled, a nonempty ANS credential while ans_integration_enabled is false is removed from environment but receives neither a secret resource nor a secrets entry; Auth0 has the analogous case. It also claims rotation without Terraform-variable edits while retaining Terraform-managed secret versions without ignore_changes, and it knowingly grants Grafana's execution role the shared policy for all application secrets. The design acknowledges state persistence and task-start failures well, but its claims of exact compatibility and safe rotation are therefore overstated."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 62,
+      "notes": "The review raises concrete concerns about Grafana container wiring, runtime-loader IAM, repeated Settings construction, state persistence, and rollout interruption. Its strongest finding is that attaching ecs_secrets_access to Grafana exposes the whole shared ARN set, but it incorrectly dismisses this material least-privilege regression as a follow-up. It also accepts claims of byte-identical rollback and predicate symmetry despite reordered environment entries and the disabled-feature/nonempty-value gap visible in ecs-services.tf. The review never examines Terraform drift after out-of-band rotation and declares every must-fix resolved too readily."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 64,
+      "notes": "The plan spans Terraform validation, live task definitions, KMS use, rollback, loader unit tests, interrupted deployment, and credential-dependent smoke tests. Several checks are comments rather than enforceable oracles: grep -c only prints a count, the task-definition loop does not fail on mismatches, and the legacy comparison references secrets.before.json without defining its capture. It explicitly expects disabled ANS integration to create no secret but never checks that a supplied nonempty credential consequently disappears from the container, missing the implementation's principal compatibility defect. The rotation scenario checks immediate pickup after force deployment but not the next terraform plan/apply, where the managed secret version may restore the Terraform value."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 11,
+      "total": 64,
+      "notes": "The patch covers the declared Terraform resources, IAM, auth and registry containers, both Grafana containers, root/module variables, documentation, runtime loader, and focused unit tests. Its largest correctness defect is predicate mismatch: when the flag is true and Auth0 or ANS is disabled while its credential is nonempty, the old plaintext entry is removed but secret creation and injection are also disabled, contradicting the same-value acceptance criterion. Rollback is not byte-identical because migrated environment entries move to the end, and attaching the shared ecs_secrets_access policy gives Grafana roles access to unrelated registry credentials. The summary's claim of no LLD deviations and rotation-ready behavior overlooks these issues and the absence of lifecycle handling for externally rotated secret versions; local git-apply verification could not be repeated because repository command execution was unavailable."
+    }
+  },
+  "task_score": 68.8,
+  "verdict": "The submission is detailed and largely end-to-end, but compatibility predicate errors, overly broad Grafana secret access, and unsupported Terraform-managed rotation materially weaken an otherwise strong design.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-03T23:35:51.760114Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 309343,
+      "cached_input_tokens": 236296,
+      "cache_write_input_tokens": 49609,
+      "output_tokens": 9535,
+      "reasoning_output_tokens": 8166
+    },
+    "duration_ms": 251598
+  }
+}

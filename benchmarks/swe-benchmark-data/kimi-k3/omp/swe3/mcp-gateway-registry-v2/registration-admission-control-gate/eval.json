@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 24,
+      "risk_awareness": 20,
+      "total": 87,
+      "notes": "The issue precisely enumerates seven routes, configuration defaults, failure behavior, deployment surfaces, testable acceptance criteria, and explicit exclusions. Its main gap is retry ambiguity: two retries produce three attempts but only two intervening backoffs, conflicting with the stated 0.5s/1s/2s schedule, and retried webhook requests lack an idempotency requirement. The submitted patch targets matching route handlers in agent_routes.py, server_routes.py, and skill_routes.py, supporting the proposed scope. No independent task statement exists, and repository command execution was unavailable, so the upstream issue reference and exact baseline route inventory could not be independently verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The LLD is unusually concrete about files, call placement, payloads, configuration plumbing, error behavior, rollout, and testing. Its largest defect is the security claim that recursive key filtering removes secrets represented as header name/value objects; the proposed algorithm examines keys only, so {\"name\":\"x-api-key\",\"value\":\"hidden\"} remains intact. It also calls an awaited HEAD probe non-blocking, computes the default worst-case latency using an extra backoff, and accepts plaintext ECS credential exposure without a real secret-injection path. Exact line references and repository infrastructure conventions could not be independently checked because the local read-only shell failed before execution."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The review provides prioritized findings with concrete consequences, notably retry clamping, broad startup exception handling, ECS credential exposure, log-hygiene tests, and source_api pinning. Its largest failure is that the security reviewer explicitly approves nested header sanitization that the documented algorithm cannot perform, preserving the implementation's principal secret-exfiltration defect. It also accepts invalid auth types degrading to unauthenticated calls on the unsupported assumption that the external gate will deny them, and does not examine retry idempotency. Claims about existing frontend error handling and the absence of an ECS secrets block could not be independently verified against the repository."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 82,
+      "notes": "The plan has strong behavioral oracles for denial responses, persistence suppression, retries, authentication modes, sanitization, backward compatibility, route literals, and deployment rendering. Its nested header test is valuable and would expose the submitted implementation defect, but the implementation summary confirms the tests were not run. The manual stub documents a down mode that its code does not implement, the 18.5-second default timing includes a nonexistent final backoff, and several example requests rely on placeholder resources or undeclared credentials. Coverage also omits malformed runtime gate URLs, validation-before-gate ordering, custom credential-bearing request headers, and duplicate side effects from retried webhook calls."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 9,
+      "specificity": 21,
+      "risk_awareness": 11,
+      "total": 60,
+      "notes": "The patch broadly implements all seven route hooks plus Settings, config APIs, compose, Terraform, Helm, startup probing, and focused tests. Its critical defect is directly demonstrable: sanitize_registration_payload only filters dictionary keys, while test_payload_sanitization_nested_dicts_and_lists expects a {\"name\":\"x-api-key\",\"value\":\"hidden\"} object to become empty, so that test fails and the secret is forwarded. The awaited startup HEAD check blocks lifespan startup, malformed URLs can escape the HTTPError handler as server errors, ECS receives the credential as plaintext environment data, and the promised Terraform exposure documentation is absent. The summary therefore overstates security and verification; independent git apply checking was unavailable because the repository command sandbox failed to initialize."
+    }
+  },
+  "task_score": 75.8,
+  "verdict": "The submission offers a detailed, mostly coherent design and broad implementation, but the core credential-sanitization guarantee is broken and its own unexecuted test demonstrates that the patch is not merge-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T05:22:39.071905Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 280769,
+      "cached_input_tokens": 216004,
+      "cache_write_input_tokens": 62454,
+      "output_tokens": 11704,
+      "reasoning_output_tokens": 10175
+    },
+    "duration_ms": 185554
+  }
+}

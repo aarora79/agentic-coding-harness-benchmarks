@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 84,
+      "notes": "The issue clearly defines the prefix-collision failure, client-visible behavior, exclusions, and testable acceptance criteria around `/a`, bare-path redirects, and legacy trailing slashes. Its strongest aspect is the precise generated-config contract tied to `NginxConfigService._create_location_block`. The largest weakness is that detailed scheduler, auth-parser, and migration claims could not all be independently verified, and the exact redirect introduces a documented bare-POST compatibility change beyond the core trailing-slash fix. No independent task statement was supplied, so requirement coverage beyond the task identifier and internally consistent artifacts remains unverifiable."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 85,
+      "notes": "The LLD is unusually concrete about `registry/core/nginx_service.py`, nginx URI rewriting, rollout, compatibility, reserved namespaces, and the degenerate root path. Its largest correctness defect is applying `_sanitize_for_nginx_set`—a quoted-value escaping helper—to unquoted `location` and `return` arguments without proving that whitespace, semicolons, or braces cannot escape those directives. It also claims direct transport uses a URI-less `proxy_pass`, while the submitted direct-transport test explicitly expects `proxy_pass http://auth-server:8888/mcp-proxy/test/`. Exact line references and the claimed baseline commit could not be independently checked because repository shell access failed before command execution."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 23,
+      "total": 84,
+      "notes": "The review genuinely stresses the design and identifies specific consequences for bare POST clients, rollout mechanics, reserved-prefix interception, and configuration injection. Its strongest finding is S2, which correctly limits the fix to sibling-prefix collisions rather than claiming reserved namespace nesting is solved. Its largest deficiency is accepting S1's `_sanitize_for_nginx_set` resolution without checking whether that helper is safe in unquoted nginx directive contexts; the proposed quote-count test does not establish parser safety. It also says the issue acceptance criteria document unauthenticated `/name/` returning 401, but that behavior is not actually listed as an acceptance checkbox."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 83,
+      "notes": "The plan covers unit, rendered-config, compatibility, UX, deployment, rollback, and live end-to-end checks with concrete routes and expected statuses. The strongest tests pin the exact `/a/` prefix and `/a` exact redirect while exercising `/api/servers`, `/about`, MCP POSTs, and `nginx -t`. The largest weakness is the hostile-path test: counting escaped quotes does not detect whitespace or semicolon directive breakout and never asks nginx to parse that generated configuration; several other oracles such as “200 or the normal response” are also loose. Repository-specific prerequisites such as `.oauth-tokens/ingress.json` and every listed command could not be independently verified."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The patch implements the central behavior end to end in the submitted hunk: trailing-slash normalization, an exact 307 redirect, tightened existing assertions, and focused regression tests for `/a` and legacy trailing slashes. The largest defect is the claimed legacy-data security hardening: `_sanitize_for_nginx_set` is inserted into unquoted nginx URI contexts, while the test checks only quote counts and cannot prove that hostile spaces, semicolons, or braces fail closed. For validated normal paths the core routing change appears internally consistent, and the summary honestly identifies reserved namespaces and virtual-server blocks as follow-ups. The real working-tree context and claimed `git apply --check` result could not be independently confirmed because all read-only shell commands were blocked by sandbox initialization."
+    }
+  },
+  "task_score": 82.4,
+  "verdict": "This is a strong, implementation-oriented submission whose main limitation is an inadequately justified and inadequately tested nginx escaping strategy for hostile legacy paths.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T05:10:18.885610Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 240487,
+      "cached_input_tokens": 178163,
+      "cache_write_input_tokens": 38994,
+      "output_tokens": 12346,
+      "reasoning_output_tokens": 10140
+    },
+    "duration_ms": 214711
+  }
+}

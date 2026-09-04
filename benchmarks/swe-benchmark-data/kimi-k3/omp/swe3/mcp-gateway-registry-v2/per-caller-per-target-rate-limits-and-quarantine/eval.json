@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 78,
+      "notes": "The issue is unusually comprehensive, with concrete acceptance criteria, named integration points, explicit non-goals, administration semantics, and observability requirements. Its largest correctness defect is promising a client-visible quarantine JSON body without nginx changes: nginx auth_request uses the subrequest status for authorization and does not pass that body through as claimed. ([nginx.org](https://nginx.org/en/docs/http/ngx_http_auth_request_module.html)) The byte-for-byte feature-off criterion also conflicts with unconditional startup seeding and the acknowledged API-visible anchor definitions, while \"immediate\" quarantine conflicts with the documented roughly 30-second replica convergence. No independent task statement was supplied, so requirements beyond the identifier and these internally defined behaviors cannot be verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 16,
+      "total": 76,
+      "notes": "The LLD is highly concrete about files and symbols such as RateLimiter.check, _enforce_rate_limit, DefinitionsRepository, MembershipsRepository, and IAMRateLimits.tsx, and it commits to data flow, failure policy, UI behavior, and rollout. The central response design remains technically unsound because a FastAPI HTTPException detail becomes subrequest data, not a client body preserved through nginx auth_request without explicit propagation machinery. Its rollback analysis also overlooks that the baseline RateLimitDefinition shown by the patch rejects both the unknown caller_target axis and caller anchors with no numeric limits, so those persisted documents are not safely readable by all 1.27.1 paths. The target-name normalization concern is documented but not resolved with a demonstrated canonical representation, leaving a material kill-switch matching risk."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 75,
+      "notes": "The review finds several real, change-specific hazards: target-name mismatch, fail-open quarantine reads, cache propagation delay, admin ordering, minimal response disclosure, and zero counter work on denial. Its largest deficiency is missing the nginx response-body impossibility and accepting the rollback argument despite the baseline model validation incompatibility visible in the diff. The Pixel resolution retains the disputed name representation, and the proposed E2E scenario later hardcodes mcpgw rather than deriving and asserting the classifier's exact output as promised. Consequently the predominantly approving verdicts understate unresolved blockers, although the prioritization and recommendations are otherwise actionable."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 12,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The plan provides strong behavioral oracles for pair independence, admin handling, reserved writes, floor asymmetry, counter non-consumption, compatibility, UI behavior, and failure cases. Several commands use uv run registry_management.py even though the submitted file is api/registry_management.py and the repository documents invocation through uv run python api/registry_management.py. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/quickstart.md)) The client-facing body check cannot pass through nginx as described, feature-off testing explicitly accepts an observable difference despite the issue requiring byte parity, and the rollback expectation ignores baseline model rejection of the persisted documents. It also lacks executable coverage for idempotent/non-fatal startup seeding and exact classifier-to-membership target-name equality, and none of the tests were executed."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 72,
+      "notes": "The patch is broad and internally cohesive across models, repositories, limiter orchestration, routes, startup, metrics, CLI, frontend, and focused unit tests, and the composite counter construction implements the core per-caller-per-target behavior. Its largest defect is that raising HTTPException with a quarantine detail does not deliver the promised top-level JSON body through nginx auth_request, while the unit test only inspects the Python exception and therefore misses the end-to-end failure. Unconditional seeding also violates feature-off byte parity and leaves caller_target documents plus null-limit caller anchors that the baseline model cannot safely parse after rollback. The claimed git apply --check result was not independently verifiable in the available command environment, tests were explicitly unexecuted, and target-name normalization remains unproven."
+    }
+  },
+  "task_score": 73.8,
+  "verdict": "The submission is unusually detailed and implements most of the intended surface, but its quarantine response contract and rollback compatibility contain material end-to-end correctness failures.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T05:15:54.495479Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 290203,
+      "cached_input_tokens": 194887,
+      "cache_write_input_tokens": 67401,
+      "output_tokens": 11417,
+      "reasoning_output_tokens": 9670
+    },
+    "duration_ms": 173121
+  }
+}

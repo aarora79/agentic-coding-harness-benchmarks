@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 87,
+      "notes": "The issue provides unusually concrete acceptance criteria for webhooks, signing, filtering, registration status, permissions, metrics, documentation, and deployment wiring. Submitted diff contexts confirm that named surfaces such as registry/services/webhook_service.py, the three route modules, scopes.yml, Helm, and Terraform exist. Its largest gap is that no independent task statement establishes whether this broad solution and every listed deployment surface were actually required. It also understates migration and malformed-configuration risks later identified by the LLD."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 81,
+      "notes": "The strongest aspect is its repository-specific integration map, including real route handlers, request models, permission helpers, pagination paths, and deployment files reflected in the patch. It correctly identifies agent scan ordering, DocumentDB scope migration, status-default ambiguity, and exact-body signing. However, it promises a 500-style configuration error while its proposed ValueError handling produces client 400/422 responses, and it assumes raw scanner exception text is credential-safe despite specifying only truncation. Awaiting webhook delivery before scan side effects also conflicts with the stated fire-and-forget behavior and creates an unaddressed request-latency and state-race risk."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The review surfaces concrete issues including agent event-order inversion, DocumentDB permission migration, raw-body signature verification, compare_digest usage, replay freshness, and duplicate helper placement. Its findings are prioritized and traceable to symbols such as register_agent, send_scan_complete_webhook, and resolve_registration_status. The largest omission is failure to catch the implementation's nullable-status permission bypass and the unsupported guarantee that truncated exception strings cannot contain credentials. It also misses non-2xx responses being counted as success and the latency/state race caused by awaiting webhook delivery before scan side effects."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The plan covers functional, compatibility, deployment, metric, and end-to-end behavior with concrete signature and pagination oracles. Important permission PUT tests remain placeholders, while fail-path setup relies on an unspecified YARA pattern and the scanner-error setup does not reliably guarantee an exception. It omits explicit-null status tests, malformed lifecycle configuration, shared-model batch regressions, non-2xx webhook responses, and whether scan side effects precede notification. Its assertion that legacy webhook bodies are byte-compatible is unsupported because the patch replaces httpx json serialization with a separate json.dumps encoding."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 65,
+      "notes": "The patch broadly implements all five capabilities and consistently touches service, routes, schemas, permissions, metrics, documentation, tests, and deployment configuration. The largest defect is the status gate: checks such as if body.status and request.status is not None can skip lifecycle_status authorization for explicit null values, while downstream handling and list defaults can treat a cleared status as active. The patch also exports raw exception strings with only length truncation, counts every HTTP response as metric success, awaits agent webhook delivery, and emits scan_complete before unsafe-state side effects; it additionally expands emission to update-triggered rescans contrary to the registration-only design. The claimed git apply check and surrounding repository state could not be independently verified because repository shell commands failed before execution in the provided environment."
+    }
+  },
+  "task_score": 76.4,
+  "verdict": "The submission is detailed and mostly repository-specific, but the implementation leaves a material lifecycle-permission bypass and several webhook security and delivery-semantics defects.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T05:01:20.000676Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 225401,
+      "cached_input_tokens": 166885,
+      "cache_write_input_tokens": 56335,
+      "output_tokens": 8909,
+      "reasoning_output_tokens": 7102
+    },
+    "duration_ms": 122472
+  }
+}

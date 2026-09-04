@@ -1,0 +1,1522 @@
+{
+  "model": "kimi-k3",
+  "model_slug": "kimi-k3",
+  "agent": "omp",
+  "skill": "swe3",
+  "scope": "mcp-gateway-registry-v2",
+  "provider": "endpoint",
+  "ref": null,
+  "refs": [
+    "1.23.0",
+    "1.24.3",
+    "1.24.7",
+    "1.25.0",
+    "1.27.1",
+    "1.28.0",
+    "v1.0.18",
+    "v1.0.19",
+    "v1.0.20",
+    "v1.0.21"
+  ],
+  "serving": {
+    "instance_type": "p6-b300.48xlarge",
+    "tensor_parallel_size": 8,
+    "precision": "MXFP4",
+    "context_window": 262144
+  },
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T04:20:34.496010Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 538307,
+      "cached_input_tokens": 373168,
+      "cache_write_input_tokens": 126955,
+      "output_tokens": 10309,
+      "reasoning_output_tokens": 8718
+    },
+    "duration_ms": 318579
+  },
+  "num_tasks": 21,
+  "num_scored": 21,
+  "num_failed": 0,
+  "failed_tasks": [],
+  "mean_task_score_excl_failed": 79.17,
+  "mean_cost_usd_excl_failed": null,
+  "tasks": [
+    {
+      "task": "pass-ssrf-allowlist-env-to-registry-container",
+      "task_id": "pass-ssrf-allowlist-env-to-registry-container",
+      "complexity": "trivial",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 27,
+      "input_tokens": 2252153,
+      "output_tokens": 45392,
+      "total_tokens": 2297545,
+      "latency_seconds": 462.6,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 89.4,
+      "cache_read_tokens": 2204160,
+      "cache_write_tokens": 48696,
+      "prefix_cache_hit_rate": 0.9784,
+      "generation_tokens_per_sec": 98.1,
+      "kv_cache_usage": {
+        "peak": 0.0811,
+        "mean": 0.0588
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 23,
+          "specificity": 24,
+          "risk_awareness": 22,
+          "total": 92,
+          "notes": "The issue precisely traces the missing configuration path from the two compose variants through Settings and the SSRF guard, with concrete, testable acceptance criteria. The submitted diff context supports its central claim that the variables belong immediately before SECRET_KEY in docker-compose.podman.yml and docker-compose.prebuilt.yml. Its main risk omission is that previously inert allowlist values become active after upgrade, which the later LLD adds. No independent task statement was supplied, so coverage beyond the task identifier and repository context cannot be verified."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 23,
+          "specificity": 24,
+          "risk_awareness": 23,
+          "total": 93,
+          "notes": "The LLD is implementation-ready: it identifies exact files, insertion points, interpolation syntax, runtime consumers, regression test structure, rollout behavior, and deliberately excluded deployment surfaces. Its proposed test references the existing COMPOSE_FILES constant, re import, and repo_root fixture shown around tests/security/test_container_security.py in the patch. The largest inconsistency is that the rollout requests a release-notes entry while the file-change table and implementation omit one, leaving that deliverable ambiguous. Exact baseline line numbers and the claimed pristine-worktree verification were not independently reproducible through the available repository execution interface."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 88,
+          "notes": "The review finds a real durability gap\u2014the missing compose-parity regression test\u2014and follows it through to a concrete resolution in tests/security/test_container_security.py. It also usefully identifies upgrade activation of stale .env values and asks for explicit DHI-overlay verification. Its largest weakness is disproportionate prioritization: treating byte-identical comments as a blocking security control is not justified by runtime behavior, and the warning remains unenforced by the added test. The claim that a future DHI registry environment list would necessarily discard inherited entries is also not established."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 21,
+          "risk_awareness": 21,
+          "total": 82,
+          "notes": "The plan covers static configuration, rendered Compose output, container environment, backward compatibility, UI observability, rollback, and end-to-end health behavior with concrete commands and expected results. Its largest defect is the end-to-end negative control: it enables SSRF_ALLOWED_CIDRS=172.18.0.0/16 and then expects an unspecified third internal host to remain blocked, although a host on that Docker network would be allowed by the CIDR. The unset test is also nondeterministic because unsetting shell variables does not remove values from .env, and appending to a copied .env.example creates duplicate keys. Commands such as git checkout -- for rollback and touch docker-compose.override.yml need an isolated disposable worktree to avoid affecting existing operator files."
+        },
+        "implementation": {
+          "completeness": 24,
+          "correctness": 23,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 92,
+          "notes": "The patch implements the requested wiring in both missing registry environment blocks and adds a focused regression test over all three runnable compose files. The supplied contexts consistently place SSRF_ALLOWED_HOSTS and SSRF_ALLOWED_CIDRS before SECRET_KEY and reuse the existing re import, COMPOSE_FILES constant, and repo_root fixture. The main weakness is that the test performs raw-text substring checks, so commented-out passthrough lines could satisfy it; parsing YAML and checking services.registry.environment would provide a stronger oracle. The summary honestly states that tests were not run, although its git-apply and byte-parity verification claims could not be independently confirmed through the available repository execution interface."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "honor-cloud-provider-override-in-ui",
+      "task_id": "honor-cloud-provider-override-in-ui",
+      "complexity": "low",
+      "ref": "1.24.7",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 22,
+      "input_tokens": 1423114,
+      "output_tokens": 31614,
+      "total_tokens": 1454728,
+      "latency_seconds": 320.8,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 87.6,
+      "cache_read_tokens": 1389312,
+      "cache_write_tokens": 34520,
+      "prefix_cache_hit_rate": 0.9758,
+      "generation_tokens_per_sec": 98.5,
+      "kv_cache_usage": {
+        "peak": 0.0647,
+        "mean": 0.0484
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 87,
+          "notes": "The issue precisely defines the inconsistent raw-versus-resolved cloud paths, unchanged response schema and authentication, testable outcomes, and explicit non-goals. Its named target, `get_telemetry_detection_info`, matches the submitted diff, which replaces the raw detector with `_resolve_cloud()`. The largest omission is the resolver's logging and metric side effects, which are material enough that the later review had to address them; the claim that virtually every local install is affected is also broader than demonstrated. No independent task statement exists, and local repository commands failed before execution, so line references and deployment-wiring claims could not be independently verified."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 21,
+          "specificity": 24,
+          "risk_awareness": 23,
+          "total": 91,
+          "notes": "The LLD commits to the exact async call change, response behavior, test seams, compatibility boundary, and rollout, while explicitly analyzing cold hint-cache reads and metric increments. Its implementation sketch closely matches the submitted patch in both `registry/api/system_routes.py` and `tests/unit/test_stats_endpoint.py`. The main technical overstatement is that no IMDS probes can be triggered: a cold unresolved cascade could probe unless another startup path has already populated its cache, and the claim that `_resolve_cloud()` never raises is not established here. Exact source lines, cache implementation, and infrastructure-file claims could not be independently checked because repository command execution was unavailable."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 22,
+          "risk_awareness": 23,
+          "total": 88,
+          "notes": "The review surfaces concrete concerns rather than merely approving, especially metric-denominator dilution from per-page `_resolve_cloud()` calls and coarse infrastructure information disclosure. It gives consequences, disposition, and follow-up guidance, and its metric finding is explicitly incorporated into the LLD. Its largest weakness is that the persona format remains approval-heavy and does not challenge the absence of an automated operator-hint test or independently validate the manual hint API example. Assertions about frontend searches, deployment wiring, and exact repository behavior could not be independently verified locally."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 85,
+          "notes": "The plan supplies concrete response oracles for override precedence, fall-through behavior, invalid values, authentication, schema stability, UI rendering, deployment, and rollback. The proposed endpoint tests exercise the real resolver and include the load-bearing assertion that the raw cascade is not called when an explicit override exists. The largest gap is that operator-hint precedence and invalid-value handling remain manual, while `SESSION_COOKIE` is described as only the cookie value even though curl normally needs a `name=value` cookie expression; the direct hint endpoint and payload also remain unverified. The plan honestly states that no tests were executed and provides focused pytest commands."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 87,
+          "notes": "The patch implements the core behavior end to end by awaiting `_resolve_cloud()` in the existing route and adds focused tests for explicit override precedence and unchanged cascade fall-through. The diff preserves the authentication dependency and response keys, and `mock_cascade.assert_not_called()` directly guards the regression's critical branch. Its largest limitation is missing automated coverage for the operator-hint branch, while adopting `_resolve_cloud()` also introduces the acknowledged logging, metric, and cold repository-read side effects. The summary accurately says tests were not run, but its claimed `git apply --check`, surrounding imports, and exact applicability could not be independently confirmed because local read-only commands failed before execution."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "cli-custom-egress-oauth-provider-flags",
+      "task_id": "cli-custom-egress-oauth-provider-flags",
+      "complexity": "low",
+      "ref": "1.28.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 35,
+      "input_tokens": 2429193,
+      "output_tokens": 33762,
+      "total_tokens": 2462955,
+      "latency_seconds": 347.2,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 87.2,
+      "cache_read_tokens": 2384640,
+      "cache_write_tokens": 45267,
+      "prefix_cache_hit_rate": 0.9814,
+      "generation_tokens_per_sec": 97.2,
+      "kv_cache_usage": {
+        "peak": 0.0729,
+        "mean": 0.0528
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 22,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 90,
+          "notes": "The issue precisely defines the CLI/API parity failure, five required flags, testable wire behavior, compatibility expectations, and explicit non-goals. Its named integration surfaces, api/registry_management.py and api/registry_client.py, are real repository components. ([github.com](https://github.com/agentic-community/mcp-gateway-registry)) The strongest risk treatment is its accurate distinction between withholding nulls and the server's rebuild-on-POST semantics. The main limitation is the absent independent task statement, leaving the asserted issue #1601 scope and some server/UI contract claims without an external requirement baseline."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 22,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 90,
+          "notes": "The LLD commits to exact files, symbols, parameter names, payload rules, parser choices, tests, and rollout boundaries, making the change directly implementable. Its proposed configure_egress_auth signature, cmd_egress_configure forwarding, and parser additions align exactly with the submitted diff. It handles rebuild semantics, enum coupling, SSRF ownership, readback limitations, backward compatibility, and rollback unusually well for this small change. The largest deficiency is that exact baseline line references and several server-side assertions could not be independently verified against the local tree because repository commands failed before execution."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 22,
+          "specificity": 23,
+          "risk_awareness": 23,
+          "total": 90,
+          "notes": "The review finds substantive design defects rather than merely approving, especially the false preserve-on-omit implication and the missing readback of custom_scope_separator and custom_token_auth_style. It gives concrete consequences and dispositions tied to _egress_config_view, configure_egress_auth, TokenEndpointAuthStyle, and the revised artifacts. Its security, compatibility, operational, and maintainability analysis is proportionate and actionable. The main weakness is repetitive persona framing and failure to challenge questionable testing details such as undefined manual-test variables and the unverified internal egress-token endpoint."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 18,
+          "specificity": 22,
+          "risk_awareness": 20,
+          "total": 80,
+          "notes": "The automated plan has strong, concrete oracles for all five payload fields, absent-key semantics, handler forwarding, unchanged legacy fields, and both accepted and rejected argparse choices. It also covers built-in providers, missing URLs, SSRF enforcement, help output, and the known readback limitation. The largest deficiency is that the manual commands are not executable as written: CSRF_TOKEN and USER_TOKEN are never initialized, and /api/servers/{path}/internal/egress-token plus its request body could not be verified. The invalid-choice unit case also does not explicitly mock and assert that _create_client was never called, despite making that acceptance claim."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 86,
+          "notes": "The patch implements the full three-stage path: argparse flags, cmd_egress_configure forwarding, and guarded RegistryClient payload construction, while leaving the server untouched as designed. The supplied hunk contexts and symbols are internally consistent, and the tests exercise exact endpoint, method, values, omission behavior, forwarding, and parser constraints. The largest concrete defects are minor: _capture_body is annotated as returning MagicMock while returning a patcher, and the claim that every new test fails pre-change is false because the built-in-provider and existing-field regression tests should already pass. Exact git apply --check and execution against the local repository could not be independently repeated because the command sandbox failed before running any read-only command, so applicability remains an evidence gap rather than a scored implementation defect."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "default-create-in-idp-checkbox-unchecked",
+      "task_id": "default-create-in-idp-checkbox-unchecked",
+      "complexity": "low",
+      "ref": "v1.0.21",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 39,
+      "input_tokens": 2751236,
+      "output_tokens": 34300,
+      "total_tokens": 2785536,
+      "latency_seconds": 356.7,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 84.8,
+      "cache_read_tokens": 2659584,
+      "cache_write_tokens": 92372,
+      "prefix_cache_hit_rate": 0.9664,
+      "generation_tokens_per_sec": 96.2,
+      "kv_cache_usage": {
+        "peak": 0.0729,
+        "mean": 0.0516
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 87,
+          "notes": "The issue clearly defines the unsafe UI default, explicit opt-in behavior, testable acceptance criteria, and backend/CLI exclusions. Its strongest evidence is the concrete createInIdp initializer, reset, payload, and API boundaries it names. The largest limitation is that no independent task statement confirms requirements beyond the task identifier, while several backend paths and line-specific claims could not be independently verified because local repository commands failed during sandbox initialization. The external-mutation, read-only-credential, compatibility, and regression risks are handled proportionately."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 87,
+          "notes": "The LLD traces the decision from IAMGroups.tsx state through resetForm, _buildScopeJson, createGroup, and the backend fallback, giving an implementer concrete decisions and tests. It also addresses API compatibility, imports, error behavior, dependencies, rollout, and rollback. Its largest defect is internal inconsistency: several sections still describe a two-line production change and two-line rollback although the final design and patch change three writers, including handleEditClick. Exact line numbers, hook shapes, and backend defaults could not be independently checked because the local read-only shell could not initialize."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 19,
+          "specificity": 21,
+          "risk_awareness": 22,
+          "total": 82,
+          "notes": "The review raises specific concerns about label accessibility, residual backend defaults, non-interactive Jest invocation, release communication, and accidental IdP mutation. Its strongest contribution is explicitly evaluating why management API defaults should remain unchanged while recording their continuing risk. It is still predominantly an approval of its companion design and misses the repeated two-versus-three-line contradiction and incomplete automated coverage of create/edit reset paths. The CWE classification and several line-specific assertions were not independently verifiable from the unavailable local source."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 86,
+          "notes": "The plan provides concrete Jest actions and boolean payload oracles for initial state, cancellation reset, opt-in, and local-only submission, plus manual UX and end-to-end checks. It names the test path and non-interactive command and distinguishes unchanged API and deployment surfaces. The largest gap is that successful-create and completed-edit reset behavior from the acceptance criteria are only manual or indirectly covered through the shared reset helper, not directly automated. The create-group CLI command, example JSON path, expected suite list, and grep outcomes could not be verified locally."
+        },
+        "implementation": {
+          "completeness": 21,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 19,
+          "total": 82,
+          "notes": "The patch directly changes the initializer, resetForm, and handleEditClick defaults and adds four focused tests for visible state and both payload values, matching the revised LLD's central behavior. The submitted diff context is internally coherent, but git apply --check and surrounding-source validation could not be performed because the managed shell failed before executing any command, leaving the baseline and line claims independently unverified. The main coverage gap is the absence of automated successful-create and edit-exit reset tests despite those acceptance criteria, although the shared resetForm path limits the practical risk. The implementation otherwise has no material deviation from the revised design, but its summary inherits the design's contradictory references to a two-line rollback for three production edits."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "index-demo-videos-in-one-page",
+      "task_id": "index-demo-videos-in-one-page",
+      "complexity": "trivial",
+      "ref": "1.24.3",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 23,
+      "input_tokens": 1547981,
+      "output_tokens": 31508,
+      "total_tokens": 1579489,
+      "latency_seconds": 321.5,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 84.4,
+      "cache_read_tokens": 1505280,
+      "cache_write_tokens": 43412,
+      "prefix_cache_hit_rate": 0.972,
+      "generation_tokens_per_sec": 98.0,
+      "kv_cache_usage": {
+        "peak": 0.0685,
+        "mean": 0.0498
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 85,
+          "notes": "The issue provides a crisp discoverability problem, concrete scope, testable acceptance criteria, and useful exclusions. Its main factual defect is claiming the README header contains eight videos; the displayed README line contains seven video URLs plus a slide deck. With no independent task statement, the asserted 13-video inventory remains partly an inferred requirement. It nevertheless addresses the important compatibility risk by requiring all existing links to remain unchanged."
+        },
+        "lld": {
+          "completeness": 24,
+          "correctness": 20,
+          "specificity": 24,
+          "risk_awareness": 22,
+          "total": 90,
+          "notes": "The strongest aspect is the mechanically specified 13-row inventory and exact changes to docs/demo-videos.md, README.md, and mkdocs.yml, including link-resolution decisions. Its own table shows README references videos 1 through 8 and 13, contradicting the statement that README supplies eight entries; the shown header also has seven videos plus a slide deck. It gives proportionate mitigations for omissions, GUID transcription, broken links, navigation, rollout, and rollback. Direct working-tree verification was unavailable because read-only shell invocations failed before execution, leaving baseline and applicability claims unverified."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 88,
+          "notes": "The review identifies two concrete design defects: out-of-tree relative links and undocumented video-detection rules. Both recommendations are actionable, and the revised LLD and patch shown implement absolute GitHub links and explicit scan patterns. Its largest deficiency is approving the inventory without catching the README counting contradiction. The claimed original relative-link version cannot be independently checked because only the revised LLD was submitted."
+        },
+        "testing": {
+          "completeness": 17,
+          "correctness": 12,
+          "specificity": 21,
+          "risk_awareness": 18,
+          "total": 68,
+          "notes": "The plan has specific URL, grouping, navigation, negative, rendering, and rollback checks with concrete expected results. Its prerequisite says the patch is already applied, but section 2.1 then checks and applies it again, which will fail. Worse, the compatibility grep treats the removed side of README's replaced video line as a removed link and therefore reports a false failure for the correct patch. It also lacks effective oracles for exactly-once occurrence and accurate per-video source-page cross-references."
+        },
+        "implementation": {
+          "completeness": 24,
+          "correctness": 22,
+          "specificity": 24,
+          "risk_awareness": 21,
+          "total": 91,
+          "notes": "The patch implements the design end to end: a 13-row grouped page, an appended README link, and the MkDocs navigation entry. The submitted diff contains nine GitHub recordings, three Vidcast links, one YouTube link, and distinct entries for both Dynamic Tool Discovery recordings while preserving the README content. The summary has a minor wording inconsistency in claiming no build changes while modifying mkdocs.yml, but it otherwise describes scope and follow-ups accurately. Independent git apply verification could not be completed because repository shell access failed before command execution, so applicability remains an evidence gap rather than a demonstrated defect."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "consistent-csrf-across-toggle-endpoints",
+      "task_id": "consistent-csrf-across-toggle-endpoints",
+      "complexity": "medium",
+      "ref": "v1.0.20",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 42,
+      "input_tokens": 3161371,
+      "output_tokens": 36468,
+      "total_tokens": 3197839,
+      "latency_seconds": 377.7,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 83.2,
+      "cache_read_tokens": 3105792,
+      "cache_write_tokens": 56302,
+      "prefix_cache_hit_rate": 0.9822,
+      "generation_tokens_per_sec": 96.6,
+      "kv_cache_usage": {
+        "peak": 0.0789,
+        "mean": 0.0555
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 88,
+          "notes": "The issue precisely identifies six endpoints, authentication modes, expected status changes, testable acceptance criteria, and explicit non-goals. The submitted diff supports the proposed shared dependency change and additions to the server, internal, and virtual-server routes. Its largest omission is that changing the shared dependency also changes non-toggle consumers such as logout and ANS routes, despite presenting non-toggle behavior as out of scope. Baseline paths, line numbers, CLI behavior, and frontend claims could not be independently verified because the repository shell sandbox failed before executing reads."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 19,
+          "specificity": 24,
+          "risk_awareness": 22,
+          "total": 88,
+          "notes": "The LLD is implementation-ready in breadth, naming concrete functions, route signatures, side effects, observability, rollback, and alternatives. Its file and symbol plan is internally consistent with the submitted diff, including internal_toggle_service, toggle_service_api, toggle_virtual_server, and verify_csrf_token_flexible. The major defect is a contradiction between the stated fail-closed rule\u2014only cookie absence, tested as cookie is None\u2014and the proposed if not session_id condition, which also skips an explicitly present empty cookie. Claims about additional consumers, authentication behavior, and repository conventions could not be independently checked due unavailable local shell access."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 17,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 83,
+          "notes": "The review meaningfully stresses frontend timing, shared-dependency side effects, route drift, logging, rollback, and malformed-cookie behavior rather than merely approving the design. It correctly drives documentation and tests for nonempty forged cookies and all-six-route dependency coverage. However, it explicitly declares the cookie-presence invariant correctly implemented while the patch uses if not session_id, missing the empty-cookie bypass and prematurely closing its security blocker. Repository-specific frontend, federation, and auth-order claims remained unverifiable because source inspection was unavailable."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 20,
+          "total": 79,
+          "notes": "The plan provides concrete HTTP actions and strong status/body/state oracles for bearer, session, invalid-token, CLI, rollback, and registration-pipeline scenarios. It omits T3 internal_toggle_service from the cookie-bearing no-token matrix while repeatedly claiming all six endpoints are covered, and it inconsistently describes a bearer suite across T1 even though T1 is identified as session-only. The unit cases test nonempty garbage cookies but not an empty configured session cookie, so they would not catch the patch's truthiness error; token expiration is also not exercised. Exact CLI flags, endpoint payloads, and test commands could not be checked against the repository because local reads were blocked."
+        },
+        "implementation": {
+          "completeness": 21,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 78,
+          "notes": "The patch is cohesive and implements the intended shared dependency change, three route additions, and focused dependency and route-signature tests. Its principal defect is session_id = request.cookies.get(...) followed by if not session_id, which contradicts the documented presence-based invariant and skips validation for an explicitly present empty session cookie; the tests do not cover that case. The implementation summary consequently overstates that every malformed or forged cookie value is challenged, although the remaining nonempty-cookie and token-binding tests have meaningful assertions. Patch applicability, surrounding source compatibility, and the claimed baseline commit could not be independently verified because every read-only shell command failed during sandbox initialization."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "macos-setup-python-version-precheck",
+      "task_id": "macos-setup-python-version-precheck",
+      "complexity": "trivial",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 28,
+      "input_tokens": 2244600,
+      "output_tokens": 38636,
+      "total_tokens": 2283236,
+      "latency_seconds": 396.7,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 83.0,
+      "cache_read_tokens": 2189568,
+      "cache_write_tokens": 55747,
+      "prefix_cache_hit_rate": 0.9752,
+      "generation_tokens_per_sec": 97.4,
+      "kv_cache_usage": {
+        "peak": 0.0822,
+        "mean": 0.0615
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 84,
+          "notes": "The issue clearly defines the failure, desired markers, fallback behavior, compatibility constraints, acceptance criteria, and non-goals. Its cited Phase 1 presence check, pyproject requirement, remediation table, and Phase 2 pre-clone ordering agree with the submitted repository context. The largest flaw is that its metadata lookup can inspect an existing installation or unrelated current checkout before Phase 2 decides whether to re-clone, so the checked requirement may not belong to the tree ultimately installed. No independent task statement was supplied, and the claimed upstream issue trajectory and exact uv error could not be independently established from the available repository evidence."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 24,
+          "risk_awareness": 21,
+          "total": 85,
+          "notes": "The LLD is unusually implementation-ready, naming the exact SKILL.md block, marker semantics, source precedence, parsing rules, timeout, compatibility behavior, remediation, and rollout. Its proposed shell preserves broken-interpreter handling, constrains the interpolated version to digits and dots, and explicitly handles unavailable or unsupported metadata. Its central correctness gap is the assertion that source precedence matches the tree being installed: Phase 2 can re-clone after Phase 1, and a current-directory checkout can likewise differ from the eventual clone. It also omits prerelease-aware PEP 440 comparison and does not ensure that `uv python install 3.14` makes `python3` resolve to the installed interpreter."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 84,
+          "notes": "The review identifies a concrete regression in the pre-revision `command -v` presence probe and prescribes the exact nested decision structure later incorporated into the LLD and patch. It also gives actionable findings on timeout behavior, injection boundaries, advisory network metadata, remediation drift, and output usability. Its largest omission is failure to challenge the metadata-source ordering; it instead endorses the incorrect claim that the selected metadata necessarily matches the tree the operator will install. It also misses prerelease comparison semantics and the possibility that the proposed uv remediation leaves the checked `python3` unchanged."
+        },
+        "testing": {
+          "completeness": 21,
+          "correctness": 16,
+          "specificity": 22,
+          "risk_awareness": 20,
+          "total": 79,
+          "notes": "The plan covers old, satisfying, missing, and broken interpreters; all metadata paths; offline degradation; unsupported specifiers; injection resistance; compatibility; UX; and an end-to-end retry loop. Several tests have concrete oracles and the lowered fixture in 1.2.4 would effectively detect a hard-coded minimum. However, 1.2.4 and 1.2.5 assert that successful output names the metadata source although the implementation's `PYTHON_OK` line does not, and the quoted `$(uv python dir)/3.14.*/bin` PATH example cannot expand its wildcard as written. The plan also lacks cases for stale INSTALL_DIR/current-checkout metadata before re-cloning and for a Python prerelease that the tuple comparison incorrectly treats as satisfying `>=3.14`."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 83,
+          "notes": "The focused one-file patch implements the documented metadata lookup, lower-bound extraction, explicit missing/unknown/satisfied/too-old branches, remediation row, and stop-condition prose. Its context matches the submitted Phase 1 marker block and table conventions, while the bounded curl, preserved `python3 --version` probe, and constrained comparison input address realistic safety and compatibility concerns. The largest defect is that Phase 1 may validate stale INSTALL_DIR or current-directory metadata even when Phase 2 subsequently re-clones another tree, allowing the original late failure to remain; the tuple comparison also admits prerelease interpreters that PEP 440 may reject. The summary honestly states tests were not executed, but its clean-apply claim could not be independently reproduced in the unavailable command environment."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "nginx-location-trailing-slash-route-hijack",
+      "task_id": "nginx-location-trailing-slash-route-hijack",
+      "complexity": "medium",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 47,
+      "input_tokens": 4513605,
+      "output_tokens": 51730,
+      "total_tokens": 4565335,
+      "latency_seconds": 538.3,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 82.4,
+      "cache_read_tokens": 4428288,
+      "cache_write_tokens": 86024,
+      "prefix_cache_hit_rate": 0.9809,
+      "generation_tokens_per_sec": 96.1,
+      "kv_cache_usage": {
+        "peak": 0.1008,
+        "mean": 0.0702
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 84,
+          "notes": "The issue clearly defines the prefix-collision failure, client-visible behavior, exclusions, and testable acceptance criteria around `/a`, bare-path redirects, and legacy trailing slashes. Its strongest aspect is the precise generated-config contract tied to `NginxConfigService._create_location_block`. The largest weakness is that detailed scheduler, auth-parser, and migration claims could not all be independently verified, and the exact redirect introduces a documented bare-POST compatibility change beyond the core trailing-slash fix. No independent task statement was supplied, so requirement coverage beyond the task identifier and internally consistent artifacts remains unverifiable."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 17,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 85,
+          "notes": "The LLD is unusually concrete about `registry/core/nginx_service.py`, nginx URI rewriting, rollout, compatibility, reserved namespaces, and the degenerate root path. Its largest correctness defect is applying `_sanitize_for_nginx_set`\u2014a quoted-value escaping helper\u2014to unquoted `location` and `return` arguments without proving that whitespace, semicolons, or braces cannot escape those directives. It also claims direct transport uses a URI-less `proxy_pass`, while the submitted direct-transport test explicitly expects `proxy_pass http://auth-server:8888/mcp-proxy/test/`. Exact line references and the claimed baseline commit could not be independently checked because repository shell access failed before command execution."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 18,
+          "specificity": 22,
+          "risk_awareness": 23,
+          "total": 84,
+          "notes": "The review genuinely stresses the design and identifies specific consequences for bare POST clients, rollout mechanics, reserved-prefix interception, and configuration injection. Its strongest finding is S2, which correctly limits the fix to sibling-prefix collisions rather than claiming reserved namespace nesting is solved. Its largest deficiency is accepting S1's `_sanitize_for_nginx_set` resolution without checking whether that helper is safe in unquoted nginx directive contexts; the proposed quote-count test does not establish parser safety. It also says the issue acceptance criteria document unauthenticated `/name/` returning 401, but that behavior is not actually listed as an acceptance checkbox."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 83,
+          "notes": "The plan covers unit, rendered-config, compatibility, UX, deployment, rollback, and live end-to-end checks with concrete routes and expected statuses. The strongest tests pin the exact `/a/` prefix and `/a` exact redirect while exercising `/api/servers`, `/about`, MCP POSTs, and `nginx -t`. The largest weakness is the hostile-path test: counting escaped quotes does not detect whitespace or semicolon directive breakout and never asks nginx to parse that generated configuration; several other oracles such as \u201c200 or the normal response\u201d are also loose. Repository-specific prerequisites such as `.oauth-tokens/ingress.json` and every listed command could not be independently verified."
+        },
+        "implementation": {
+          "completeness": 20,
+          "correctness": 17,
+          "specificity": 21,
+          "risk_awareness": 18,
+          "total": 76,
+          "notes": "The patch implements the central behavior end to end in the submitted hunk: trailing-slash normalization, an exact 307 redirect, tightened existing assertions, and focused regression tests for `/a` and legacy trailing slashes. The largest defect is the claimed legacy-data security hardening: `_sanitize_for_nginx_set` is inserted into unquoted nginx URI contexts, while the test checks only quote counts and cannot prove that hostile spaces, semicolons, or braces fail closed. For validated normal paths the core routing change appears internally consistent, and the summary honestly identifies reserved namespaces and virtual-server blocks as follow-ups. The real working-tree context and claimed `git apply --check` result could not be independently confirmed because all read-only shell commands were blocked by sandbox initialization."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "hide-register-button-on-virtual-and-skills-tabs",
+      "task_id": "hide-register-button-on-virtual-and-skills-tabs",
+      "complexity": "trivial",
+      "ref": "v1.0.18",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 25,
+      "input_tokens": 1567666,
+      "output_tokens": 19409,
+      "total_tokens": 1587075,
+      "latency_seconds": 200.5,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 82.0,
+      "cache_read_tokens": 1529856,
+      "cache_write_tokens": 38520,
+      "prefix_cache_hit_rate": 0.9754,
+      "generation_tokens_per_sec": 96.8,
+      "kv_cache_usage": {
+        "peak": 0.0586,
+        "mean": 0.0471
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 24,
+          "correctness": 21,
+          "specificity": 24,
+          "risk_awareness": 22,
+          "total": 91,
+          "notes": "The issue precisely defines tab-specific behavior, preserves adjacent controls, and supplies directly testable acceptance criteria and non-goals. Its strongest aspect is distinguishing the header Register action from the Add Skill, Add Virtual Server, and empty-state actions. The submitted patch context supports the named Dashboard.tsx button and handleRegisterServer integration, but claims about routing, permissions, and every surrounding control could not be independently verified because repository shell access failed in the evaluation environment. The missing independent task statement also means requirements beyond hiding the button on virtual and skills are supported only by the internally consistent artifacts."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 86,
+          "notes": "The design commits to a minimal button-level condition and clearly explains why the enclosing non-Discover header condition must remain intact. It names Dashboard.tsx, handleRegisterServer, filteredSkills, the route, affected controls, alternatives, and rollback behavior, making the central change implementation-ready. Its largest deficiency is overconfidence in numerous unverified repository details and in the conclusion that no automated test is warranted; it also contains a malformed example, `{viewFilter === 'skills')} && (...)`. The submitted hunk corroborates the cited button location and surrounding Refresh Health control, but file sizes, auxiliary symbols, test searches, deployment paths, and permission behavior could not be independently checked."
+        },
+        "review": {
+          "completeness": 19,
+          "correctness": 16,
+          "specificity": 20,
+          "risk_awareness": 18,
+          "total": 73,
+          "notes": "The review's strongest contribution is identifying the concrete regression caused by conditioning the entire header: loss of skills search and possible Discover behavior changes. It also examines permissions, deployment, testing, layout, and future maintenance with actionable references to the proposed condition. However, it is largely approval-oriented and presents unsupported API endpoints, permission symbols, modal callers, and deployment facts as established; its assertion that a denylist is safer for future tabs than an explicit allowlist is not defensible without a stated default for new tabs. Those repository claims could not be independently verified, while the review does correctly match the submitted diff's button-level implementation."
+        },
+        "testing": {
+          "completeness": 21,
+          "correctness": 13,
+          "specificity": 22,
+          "risk_awareness": 20,
+          "total": 76,
+          "notes": "The plan covers both hidden tabs, all retained tabs, navigation, Discover, search, refresh, empty states, layout, dark mode, feature-gated federation, and rollback with concrete expected outcomes. Its main defect is the unscoped locator `button.btn-primary:has-text(\"Register\")`, which can also match the explicitly preserved Register Skill or Register Server empty-state CTAs, making absence assertions and clicks data-dependent or strict-mode ambiguous. Fixed sleeps and unspecified fixture state add further flakiness, and the proposed regression spec is only ready-to-paste rather than part of the implementation. The cited Playwright helper, placeholder, scripts, and existing spec names could not be independently verified because local repository commands were unavailable."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 84,
+          "notes": "The patch directly implements the stated behavior by wrapping only the existing Register button with checks for `virtual` and `skills`, leaving the adjacent Refresh Health button and handler unchanged. The supplied hunk is syntactically coherent, minimal, and consistent with the LLD, and the summary accurately discloses that tests were designed but not executed or committed. The largest limitation is the absence of regression coverage despite an existing Playwright surface, with the proposed external test itself containing ambiguous selectors. Independent confirmation of the target file, index, baseline commit, and claimed `git apply --check` result was impossible because the read-only shell sandbox failed before executing repository commands."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "fix-reserved-groups-var-in-service-account-script",
+      "task_id": "fix-reserved-groups-var-in-service-account-script",
+      "complexity": "low",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 23,
+      "input_tokens": 1375128,
+      "output_tokens": 25986,
+      "total_tokens": 1401114,
+      "latency_seconds": 263.6,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 81.6,
+      "cache_read_tokens": 1348608,
+      "cache_write_tokens": 27235,
+      "prefix_cache_hit_rate": 0.9802,
+      "generation_tokens_per_sec": 98.6,
+      "kv_cache_usage": {
+        "peak": 0.0581,
+        "mean": 0.0433
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 85,
+          "notes": "The issue defines concrete success and failure behavior, both affected scripts, compatibility constraints, non-goals, and testable exit/output criteria. The submitted diff corroborates the named verify_setup and assign_to_group integration points and the original GROUPS and substring-grep code. Its largest technical weakness is claiming that separating local from assignment preserves all curl-pipeline failures under set -e, although without established pipefail a curl-only failure can still be hidden by jq. Claims about the macos-setup caller and the exhaustive reserved-name sweep could not be independently verified because repository command execution was unavailable."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 19,
+          "specificity": 24,
+          "risk_awareness": 21,
+          "total": 87,
+          "notes": "The LLD commits to exact files, functions, predicates, variable scope, compatibility behavior, and four narrowly defined implementation hunks. The patch context corroborates CURRENT_GROUPS in assign_to_group and the cited verify_setup locations in both scripts. Its largest deficiency is incomplete pipeline-failure reasoning: set -e alone does not make every curl | jq failure observable, and the reserved-variable regex is a heuristic rather than a provably exhaustive sweep. Repository-wide claims concerning documentation, script counts, Keycloak versions, and the macos skill remained independently unverifiable."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 18,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 81,
+          "notes": "The review finds a genuine design defect: the original assign_to_group hunks demonstrably use substring grep and could incorrectly accept a lookalike group. It also converts the two-line local requirement into a concrete static rule and tracks the resulting LLD revisions. Its largest weakness is approving error handling without challenging the missing pipefail behavior, while calling the reserved-name regex provably complete when it does not cover every assignment form. The assertion that all supported macOS grep implementations accept the exact option form is stated as a mental check rather than verified evidence."
+        },
+        "testing": {
+          "completeness": 17,
+          "correctness": 13,
+          "specificity": 20,
+          "risk_awareness": 16,
+          "total": 66,
+          "notes": "The plan provides concrete happy-path, idempotency, exact-match, shellcheck, artifact-shape, and end-to-end commands with specific expected results. Its critical deficiency is that section 1.2.3 explicitly observes that the script repairs removed membership, then replaces the required failure-path test with a standalone grep command that cannot prove verify_setup exits 1 or prints the red message. No test actually induces the missing-mapper branch, and the shared M2M happy path lacks a durable command-level oracle. Live-Keycloak prerequisites, generate-agent-token flags, and repository commands were not independently executable in the available environment."
+        },
+        "implementation": {
+          "completeness": 23,
+          "correctness": 22,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 89,
+          "notes": "The patch implements all four revised design hunks: it removes both GROUPS assignments, declares CURRENT_GROUPS locally on a separate line, and changes both membership checks in each file to grep -qxF --. The submitted contexts are internally consistent with the named functions and preserve existing success and explicit failure branches. The largest remaining risk is evidentiary rather than a clear code defect: no runtime or shellcheck verification was executed, and the explanatory comment overstates protection against curl-only pipeline failures when pipefail is not established. The claimed baseline hash, clean tree, whole-keycloak sweep, and git apply --check result could not be independently rerun because the repository command sandbox failed to initialize."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "idp-authenticated-embedding-endpoint",
+      "task_id": "idp-authenticated-embedding-endpoint",
+      "complexity": "high",
+      "ref": "1.28.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 81,
+      "input_tokens": 9579037,
+      "output_tokens": 73213,
+      "total_tokens": 9652250,
+      "latency_seconds": 782.7,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 81.4,
+      "cache_read_tokens": 9443328,
+      "cache_write_tokens": 136406,
+      "prefix_cache_hit_rate": 0.9858,
+      "generation_tokens_per_sec": 93.5,
+      "kv_cache_usage": {
+        "peak": 0.1321,
+        "mean": 0.0886
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 87,
+          "notes": "The issue defines concrete configuration, lifecycle, deployment, documentation, compatibility, and test acceptance criteria. Its named integration path through LiteLLMClient, create_embeddings_client, and DocumentDBSearchRepository._get_embedding_model agrees with the submitted source diff. The largest inconsistency is that it promises the secret never appears plaintext in exports while the LLD acknowledges an existing confirmed-sensitive-export option; \u201cbyte-for-byte identical\u201d is also stronger than its config API additions permit. No independent task statement was supplied, so requirement completeness can only be assessed against the task identifier and internally consistent artifacts."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 24,
+          "risk_awareness": 21,
+          "total": 88,
+          "notes": "The LLD is unusually implementation-ready, specifying the token lifecycle, exact Settings validation, LiteLLM injection seam, repository call site, secret handling, and each deployment surface. Its file and symbol references align closely with the patch, including registry/embeddings/client.py, registry/core/config.py, config_routes.py, and the Terraform and Helm structures. The largest gap is deployment failure semantics: it does not ensure Terraform rejects an enabled configuration with an empty client secret, and it accepts the repository\u2019s persistent _embedding_unavailable latch after a transient IdP refresh failure without a recovery design. Exact claims such as the sole production caller and successful baseline applicability could not be independently rerun because the local command sandbox failed before execution."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 86,
+          "notes": "The review finds concrete design defects and feeds actionable resolutions back into the LLD, notably the Bedrock guard, Terraform string-boolean validation, rollback guidance, and removal of type ignores. It also examines real surfaces such as Secrets Manager IAM, charts/registry/reserved-env-names.txt, config masking, and synchronous token refresh. Its largest factual error is claiming an unreachable IdP makes new tasks fail the startup validator, although that validator checks configuration presence and does not contact the endpoint; it also misses the empty Terraform secret\u2019s placeholder behavior. Security findings around operator-controlled token endpoints and secret logging are specific and proportionate, though the suggested Bedrock token leakage mechanism is more speculative than established."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 13,
+          "specificity": 22,
+          "risk_awareness": 20,
+          "total": 77,
+          "notes": "The plan covers unit, functional, compatibility, deployment, rollback, concurrency, refresh-buffer, masking, and end-to-end behavior with generally concrete oracles. The secret-hygiene CLI test is self-defeating: it prints the acquired token into /tmp/emb-idp.log and then expects grep for tok- to return zero. The stub log is not reset before asserting exactly two requests, and several config API field names and HTTP commands could not be independently verified against the checkout. Its terraform validate step would correctly expose the submitted module syntax error, but the plan lacks an implemented automated config-export masking test and includes some fragile grep-count checks."
+        },
+        "implementation": {
+          "completeness": 21,
+          "correctness": 11,
+          "specificity": 22,
+          "risk_awareness": 15,
+          "total": 69,
+          "notes": "The Python change implements the principal flow end to end: Settings validation, a lock-guarded token cache, per-call LiteLLM api_key injection, repository wiring, masking registration, documentation, and focused unit tests. The patch is not mergeable as submitted because terraform/aws-ecs/modules/mcp-gateway/variables.tf contains an extra closing brace immediately after embeddings_idp_scope, making Terraform parsing or validation fail. Additionally, secrets.tf substitutes \"not-configured\" for an empty enabled client secret, bypassing the promised startup missing-setting validation, while malformed JSON and invalid expires_in responses are not normalized to the documented RuntimeError. The claimed git apply --check could not be independently rerun because the provided command sandbox failed before command launch; that evidence limitation was not itself scored as a candidate defect."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "configurable-ui-title",
+      "task_id": "configurable-ui-title",
+      "complexity": "medium",
+      "ref": "1.23.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 50,
+      "input_tokens": 4314457,
+      "output_tokens": 45786,
+      "total_tokens": 4360243,
+      "latency_seconds": 478.2,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 80.0,
+      "cache_read_tokens": 4242432,
+      "cache_write_tokens": 72741,
+      "prefix_cache_hit_rate": 0.9831,
+      "generation_tokens_per_sec": 95.7,
+      "kv_cache_usage": {
+        "peak": 0.0937,
+        "mean": 0.0646
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 24,
+          "risk_awareness": 20,
+          "total": 87,
+          "notes": "The issue defines resolution precedence, deployment surfaces, testable acceptance criteria, and clear non-goals. Its referenced Layout, Login, Logout, config-route, Compose, Terraform, and Helm locations are corroborated by the submitted source diff. The largest flaw is the claim that an unset deployment renders exactly as before, which contradicts the intentional registry-only title change and the later loading-state behavior. No independent task statement was supplied, so the full required scope cannot be verified beyond the identifier and internally consistent artifacts."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 17,
+          "specificity": 24,
+          "risk_awareness": 19,
+          "total": 82,
+          "notes": "The LLD gives unusually concrete integration guidance for Settings, CONFIG_GROUPS, get_config, useRegistryConfig, and every deployment surface represented in the patch. It correctly analyzes empty environment defaults, mode correction, React escaping, Helm reserved variables, and ECS rollout effects. Its largest correctness defect is promising a verbatim title while effective_ui_title returns self.ui_title.strip(), and its blank loading fallback produces incomplete Login and Logout text rather than unchanged rendering. It also overlooks mixed-version rolling deployments where a new frontend can receive an old API response without ui_title and remain blank."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 17,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 79,
+          "notes": "The review finds concrete draft defects, including the wrong-title flash, required TypeScript field, stale logo alt text, Helm index shifts, and one-time ECS redeployment. These findings map directly to Layout.tsx, useRegistryConfig.ts, extra_env_test.yaml, and the ECS task environment shown in the patch. Its prescribed empty-string fallback merely replaces the wrong-title flash with blank or malformed text such as \"Sign in to \", while the claim of no layout shift is unsupported. It also misses the strip-versus-verbatim contract violation and the optional-field mixed-version compatibility case."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 19,
+          "total": 78,
+          "notes": "The plan supplies concrete HTTP values, failure cases, deployment render checks, security input, rollback steps, and admin-panel oracles. Commands and paths generally correspond to submitted repository evidence, including test_deployment_mode_integration.py and the Helm extra-env suite. The largest gap is that core backend derivation and frontend rendering tests are deferred, leaving only manual checks and Helm assertions for the implemented behavior. It also omits leading/trailing-space and mixed-version cases, does not truly prove byte-identical rendering, and includes a standalone Helm OR command whose first incorrect --set path may succeed without checking output."
+        },
+        "implementation": {
+          "completeness": 20,
+          "correctness": 16,
+          "specificity": 22,
+          "risk_awareness": 16,
+          "total": 74,
+          "notes": "The patch implements the full vertical slice across Settings.effective_ui_title, get_config, three React views, Compose, Terraform/ECS, and Helm, with source contexts and conventions internally matching the submitted baseline. The largest defects are returning a trimmed value despite the exact/verbatim contract and rendering blank or malformed headings while configuration loads; a successful old API response also leaves a new frontend blank during mixed-version rollout. No backend or frontend regression tests accompany the behavior, and the summary overstates that unset deployments behave exactly as before. The summary admits tests were not run, and the claimed clean git apply could not be independently rerun because the provided shell sandbox failed before command execution."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "logout-id-token-hint-out-of-browser-url",
+      "task_id": "logout-id-token-hint-out-of-browser-url",
+      "complexity": "low",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 34,
+      "input_tokens": 3036603,
+      "output_tokens": 55972,
+      "total_tokens": 3092575,
+      "latency_seconds": 573.6,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 80.0,
+      "cache_read_tokens": 2976768,
+      "cache_write_tokens": 60560,
+      "prefix_cache_hit_rate": 0.9801,
+      "generation_tokens_per_sec": 97.6,
+      "kv_cache_usage": {
+        "peak": 0.0964,
+        "mean": 0.0643
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 18,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 86,
+          "notes": "The issue precisely defines the normal and fallback flows, testable acceptance criteria, compatibility, observability, and explicit exclusions. Its strongest aspect is distinguishing deployment-controlled URLs from the final IdP URL while preserving session teardown. The claim that a WAF-blocked logout prevents subsequent login without manually clearing cookies is unsupported and conflicts with the stated cookie deletion, while describing a query-string hint as strictly specification-mandated is overstated. No independent task statement was supplied, and the cited upstream issues could not be independently verified."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 18,
+          "specificity": 24,
+          "risk_awareness": 22,
+          "total": 87,
+          "notes": "The LLD is unusually concrete about registry/auth/routes.py, auth_server/server.py, configuration, headers, failure handling, rollout, and residual internal-log exposure. It commits to a coherent S2S request and legacy fallback that an implementer could follow directly. However, it claims logout_url_length_warning_total keeps its meaning while deliberately running it only on fallback, although the successful browser redirect can still be an overlong IdP URL. Its proposed exception logging can expose request data through exception text, and malformed Location parsing is not enclosed by the promised fail-soft boundary."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 18,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 82,
+          "notes": "The review identifies concrete concerns including internal query logging, unrestricted Location hosts, loop behavior, proxy-header trust, timeout latency, and degraded-mode observability. Recommendations are prioritized and several are explicitly incorporated into the revised design. It misses the changed URL-length metric semantics, possible token disclosure through interpolated exception text, and urlparse failures escaping the helper's fallback path. The categorical assertion that SSRF risk is nil is stronger than the submitted repository evidence establishes."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 13,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 73,
+          "notes": "The plan covers unit, compatibility, deployment, UX, metrics, WAF, and real-IdP lifecycle checks with concrete commands and expected states. Its largest defect is contradictory core oracles: section 5.2 declares any id_token_hint in the returned Location a failure even though that Location should be the IdP URL containing the hint, and the unit fixture likewise omits the hint instead of verifying it reaches the IdP. Several sequential tests reuse a session cookie jar after logout has invalidated the session, making later POST and fallback checks unreliable without reauthentication. It also lacks coverage for malformed URLs that make urlparse raise and for preserving the URL-length warning on successful S2S redirects."
+        },
+        "implementation": {
+          "completeness": 19,
+          "correctness": 15,
+          "specificity": 21,
+          "risk_awareness": 17,
+          "total": 72,
+          "notes": "The patch implements the central design end to end: an internal httpx call, forwarded origin headers, direct IdP redirect, legacy fallback, a labeled counter, documentation, and focused tests. The existing URL-length warning remains inside only the legacy token branch, so its prior behavior is not preserved for long successful IdP redirects, contrary to the summary and acceptance criteria. urllib.parse.urlparse runs outside the helper's try block and can route malformed Location values to the outer /login fallback, while logging the raw exception may disclose a URL containing the token. The target paths and diff contexts are internally coherent, but the claimed baseline applicability could not be independently confirmed because the repository shell was unavailable."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "lifecycle-workflow-webhooks",
+      "task_id": "lifecycle-workflow-webhooks",
+      "complexity": "high",
+      "ref": "1.24.7",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 142,
+      "input_tokens": 22821576,
+      "output_tokens": 90480,
+      "total_tokens": 22912056,
+      "latency_seconds": 1013.7,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 76.4,
+      "cache_read_tokens": 22619904,
+      "cache_write_tokens": 202413,
+      "prefix_cache_hit_rate": 0.9911,
+      "generation_tokens_per_sec": 89.3,
+      "kv_cache_usage": {
+        "peak": 0.1699,
+        "mean": 0.1083
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 87,
+          "notes": "The issue provides unusually concrete acceptance criteria for webhooks, signing, filtering, registration status, permissions, metrics, documentation, and deployment wiring. Submitted diff contexts confirm that named surfaces such as registry/services/webhook_service.py, the three route modules, scopes.yml, Helm, and Terraform exist. Its largest gap is that no independent task statement establishes whether this broad solution and every listed deployment surface were actually required. It also understates migration and malformed-configuration risks later identified by the LLD."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 17,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 81,
+          "notes": "The strongest aspect is its repository-specific integration map, including real route handlers, request models, permission helpers, pagination paths, and deployment files reflected in the patch. It correctly identifies agent scan ordering, DocumentDB scope migration, status-default ambiguity, and exact-body signing. However, it promises a 500-style configuration error while its proposed ValueError handling produces client 400/422 responses, and it assumes raw scanner exception text is credential-safe despite specifying only truncation. Awaiting webhook delivery before scan side effects also conflicts with the stated fire-and-forget behavior and creates an unaddressed request-latency and state-race risk."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 80,
+          "notes": "The review surfaces concrete issues including agent event-order inversion, DocumentDB permission migration, raw-body signature verification, compare_digest usage, replay freshness, and duplicate helper placement. Its findings are prioritized and traceable to symbols such as register_agent, send_scan_complete_webhook, and resolve_registration_status. The largest omission is failure to catch the implementation's nullable-status permission bypass and the unsupported guarantee that truncated exception strings cannot contain credentials. It also misses non-2xx responses being counted as success and the latency/state race caused by awaiting webhook delivery before scan side effects."
+        },
+        "testing": {
+          "completeness": 19,
+          "correctness": 16,
+          "specificity": 18,
+          "risk_awareness": 16,
+          "total": 69,
+          "notes": "The plan covers functional, compatibility, deployment, metric, and end-to-end behavior with concrete signature and pagination oracles. Important permission PUT tests remain placeholders, while fail-path setup relies on an unspecified YARA pattern and the scanner-error setup does not reliably guarantee an exception. It omits explicit-null status tests, malformed lifecycle configuration, shared-model batch regressions, non-2xx webhook responses, and whether scan side effects precede notification. Its assertion that legacy webhook bodies are byte-compatible is unsupported because the patch replaces httpx json serialization with a separate json.dumps encoding."
+        },
+        "implementation": {
+          "completeness": 20,
+          "correctness": 13,
+          "specificity": 20,
+          "risk_awareness": 12,
+          "total": 65,
+          "notes": "The patch broadly implements all five capabilities and consistently touches service, routes, schemas, permissions, metrics, documentation, tests, and deployment configuration. The largest defect is the status gate: checks such as if body.status and request.status is not None can skip lifecycle_status authorization for explicit null values, while downstream handling and list defaults can treat a cleared status as active. The patch also exports raw exception strings with only length truncation, counts every HTTP response as metric success, awaits agent webhook delivery, and emits scan_complete before unsafe-state side effects; it additionally expands emission to update-triggered rescans contrary to the registration-only design. The claimed git apply check and surrounding repository state could not be independently verified because repository shell commands failed before execution in the provided environment."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "registration-admission-control-gate",
+      "task_id": "registration-admission-control-gate",
+      "complexity": "high",
+      "ref": "v1.0.19",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 85,
+      "input_tokens": 10455520,
+      "output_tokens": 80886,
+      "total_tokens": 10536406,
+      "latency_seconds": 859.4,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 75.8,
+      "cache_read_tokens": 10348032,
+      "cache_write_tokens": 108202,
+      "prefix_cache_hit_rate": 0.9897,
+      "generation_tokens_per_sec": 94.1,
+      "kv_cache_usage": {
+        "peak": 0.1348,
+        "mean": 0.0873
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 24,
+          "risk_awareness": 20,
+          "total": 87,
+          "notes": "The issue precisely enumerates seven routes, configuration defaults, failure behavior, deployment surfaces, testable acceptance criteria, and explicit exclusions. Its main gap is retry ambiguity: two retries produce three attempts but only two intervening backoffs, conflicting with the stated 0.5s/1s/2s schedule, and retried webhook requests lack an idempotency requirement. The submitted patch targets matching route handlers in agent_routes.py, server_routes.py, and skill_routes.py, supporting the proposed scope. No independent task statement exists, and repository command execution was unavailable, so the upstream issue reference and exact baseline route inventory could not be independently verified."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 14,
+          "specificity": 23,
+          "risk_awareness": 17,
+          "total": 76,
+          "notes": "The LLD is unusually concrete about files, call placement, payloads, configuration plumbing, error behavior, rollout, and testing. Its largest defect is the security claim that recursive key filtering removes secrets represented as header name/value objects; the proposed algorithm examines keys only, so {\"name\":\"x-api-key\",\"value\":\"hidden\"} remains intact. It also calls an awaited HEAD probe non-blocking, computes the default worst-case latency using an extra backoff, and accepts plaintext ECS credential exposure without a real secret-injection path. Exact line references and repository infrastructure conventions could not be independently checked because the local read-only shell failed before execution."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 14,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 74,
+          "notes": "The review provides prioritized findings with concrete consequences, notably retry clamping, broad startup exception handling, ECS credential exposure, log-hygiene tests, and source_api pinning. Its largest failure is that the security reviewer explicitly approves nested header sanitization that the documented algorithm cannot perform, preserving the implementation's principal secret-exfiltration defect. It also accepts invalid auth types degrading to unauthenticated calls on the unsupported assumption that the external gate will deny them, and does not examine retry idempotency. Claims about existing frontend error handling and the absence of an ECS secrets block could not be independently verified against the repository."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 22,
+          "risk_awareness": 20,
+          "total": 82,
+          "notes": "The plan has strong behavioral oracles for denial responses, persistence suppression, retries, authentication modes, sanitization, backward compatibility, route literals, and deployment rendering. Its nested header test is valuable and would expose the submitted implementation defect, but the implementation summary confirms the tests were not run. The manual stub documents a down mode that its code does not implement, the 18.5-second default timing includes a nonexistent final backoff, and several example requests rely on placeholder resources or undeclared credentials. Coverage also omits malformed runtime gate URLs, validation-before-gate ordering, custom credential-bearing request headers, and duplicate side effects from retried webhook calls."
+        },
+        "implementation": {
+          "completeness": 19,
+          "correctness": 9,
+          "specificity": 21,
+          "risk_awareness": 11,
+          "total": 60,
+          "notes": "The patch broadly implements all seven route hooks plus Settings, config APIs, compose, Terraform, Helm, startup probing, and focused tests. Its critical defect is directly demonstrable: sanitize_registration_payload only filters dictionary keys, while test_payload_sanitization_nested_dicts_and_lists expects a {\"name\":\"x-api-key\",\"value\":\"hidden\"} object to become empty, so that test fails and the secret is forwarded. The awaited startup HEAD check blocks lifespan startup, malformed URLs can escape the HTTPError handler as server errors, ECS receives the credential as plaintext environment data, and the promised Terraform exposure documentation is absent. The summary therefore overstates security and verification; independent git apply checking was unavailable because the repository command sandbox failed to initialize."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "derive-repo-url-from-skill-md",
+      "task_id": "derive-repo-url-from-skill-md",
+      "complexity": "medium",
+      "ref": "v1.0.19",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 45,
+      "input_tokens": 4093800,
+      "output_tokens": 41209,
+      "total_tokens": 4135009,
+      "latency_seconds": 431.8,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 75.2,
+      "cache_read_tokens": 4019712,
+      "cache_write_tokens": 74804,
+      "prefix_cache_hit_rate": 0.9817,
+      "generation_tokens_per_sec": 95.4,
+      "kv_cache_usage": {
+        "peak": 0.0942,
+        "mean": 0.0696
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 84,
+          "notes": "The issue\u2019s strongest aspect is its testable end-to-end scope across the parse endpoint, registration form, both modals, and search indexing. Patch context corroborates named locations including Dashboard.tsx, SkillCard.tsx, and registry/api/search_routes.py. Its largest gap is limited treatment of re-parse overwrites, stale derived values, and permissive hostname matching. No independent task statement establishes whether the UI and semantic-search expansion was required beyond the internally consistent artifacts and repository tags."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 13,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 76,
+          "notes": "The LLD is unusually concrete about files, data flow, compatibility, re-indexing, and exact expected URL mappings. Its critical defect is in derive_repository_url: the blob regex has two capture groups, but `owner, repo, _, _ = match.groups()` attempts to unpack four, so ordinary GitHub blob URLs raise ValueError despite the claim that derivation never raises. The raw regex also accepts a path such as `/org/repo/main` despite lacking a file component. The claimed startup re-sync behavior could not be independently verified from executable repository evidence."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 14,
+          "specificity": 22,
+          "risk_awareness": 17,
+          "total": 73,
+          "notes": "The review\u2019s strongest aspect is its concrete examination of parse-wins UX, old search documents, indexing duplication, rollback, and URL security. Its largest failure is approving the helper\u2019s no-raise behavior while missing the two-group/four-variable unpacking error in the exact implementation it reviewed. The security discussion also overstates scheme safety because a URL such as `ftp://github.com/...` has a GitHub hostname and preserves the ftp scheme in the helper. Claims about registry/main.py startup indexing were not independently verifiable."
+        },
+        "testing": {
+          "completeness": 21,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 83,
+          "notes": "The plan provides strong, concrete oracles for helper outputs, API fields, editable auto-fill behavior, modal links, old indexed documents, deployment, and rollback. Most importantly, `test_blob_url_github_com` would immediately expose the implementation\u2019s capture-group exception. Its largest gap is that route, search-mapping, and frontend behavior are covered primarily through manual procedures rather than durable automated tests. It also inconsistently refers to `GET /api/search` in backward-compatibility coverage while its concrete search command uses POST, and several external-host tests are conditional on reachability."
+        },
+        "implementation": {
+          "completeness": 18,
+          "correctness": 9,
+          "specificity": 22,
+          "risk_awareness": 11,
+          "total": 60,
+          "notes": "The patch is focused and carries repository_url through the parse response, form, stored skill modal, DocumentDB index/results, semantic-search model, and modal UI. The primary implementation defect is fatal: `r\"^/([^/]+)/([^/]+)/blob/[^/]+/.+$\"` captures two values but the code unpacks four, causing GitHub blob parsing to raise ValueError and likely return a server error. Raw URL handling and the remaining field plumbing are internally coherent, although the raw matcher accepts an underspecified one-segment suffix. The summary therefore overstates that the design was implemented exactly and successfully; its claimed apply check could not be independently confirmed."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "configurable-mcp-proxy-upstream-timeout",
+      "task_id": "configurable-mcp-proxy-upstream-timeout",
+      "complexity": "medium",
+      "ref": "1.25.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 43,
+      "input_tokens": 3939705,
+      "output_tokens": 54569,
+      "total_tokens": 3994274,
+      "latency_seconds": 563.8,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 74.4,
+      "cache_read_tokens": 3873792,
+      "cache_write_tokens": 66638,
+      "prefix_cache_hit_rate": 0.9831,
+      "generation_tokens_per_sec": 96.8,
+      "kv_cache_usage": {
+        "peak": 0.0986,
+        "mean": 0.066
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 17,
+          "specificity": 24,
+          "risk_awareness": 17,
+          "total": 81,
+          "notes": "The issue precisely defines the timeout behavior, deployment surfaces, compatibility default, testable criteria, and explicit non-goals. Its largest flaw is that the prescribed design cannot satisfy two criteria normally: Pydantic Settings validation rejects invalid or sub-1 environment values before the resolver can warn or clamp, and auth-server-only environment injection cannot make the registry UI display an overridden effective value. The supplied source context consistently identifies the hardcoded AsyncClient timeout and the existing mcp_proxy_max_body_bytes pattern. No independent task statement exists, and repository shell failure prevented independent verification of issue #1320 and the cited baseline symbols."
+        },
+        "lld": {
+          "completeness": 20,
+          "correctness": 14,
+          "specificity": 24,
+          "risk_awareness": 22,
+          "total": 80,
+          "notes": "The LLD is unusually concrete, mapping the resolver, Settings field, route, tests, and Docker, Helm, Terraform, UI, and documentation integration points. Its central deficiency is knowingly preserving acceptance-breaking behavior: it admits the UI may show 30 while auth-server uses 120, and that ge=1 or invalid integer input can abort startup rather than reach the resolver's clamp or fallback. Its own Constraints and Open Questions sections document these contradictions, while the proposed patch confirms that only auth-server deployment environments receive the variable. The detailed line, workflow, and helper claims could not be independently checked because repository shell access failed."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 15,
+          "specificity": 21,
+          "risk_awareness": 20,
+          "total": 76,
+          "notes": "The review surfaces concrete concerns including negative-value coverage, ECS replacement semantics, reserved-name synchronization, stale documentation, resource occupancy, and split-container display staleness. Its largest failure is judgment: it explicitly notices both the effectively unreachable environment fallback and incorrect admin value but accepts them and concludes no blockers remain despite direct conflicts with acceptance criteria. The Backend and Frontend sections provide specific consequences and proposed actions rather than generic role-play. Historical claims about prior endpoint rejection and the cited baseline could not be independently verified."
+        },
+        "testing": {
+          "completeness": 19,
+          "correctness": 11,
+          "specificity": 19,
+          "risk_awareness": 16,
+          "total": 65,
+          "notes": "The plan spans resolver, route wiring, compatibility, UI, Docker, Terraform, Helm, rollback, and slow-upstream scenarios with generally concrete expected values. Several procedures are unreliable: the stub binds 127.0.0.1 while containers access host.docker.internal, the 5-second call under a 10-second timeout does not demonstrate improvement over the old 30-second timeout, and the uppercase Helm grep cannot find camelCase keys in values files. The invalid-environment case is restricted to a hypothetical mixed-version path and therefore does not test normal startup behavior, while the plan acknowledges that an overridden UI value remains wrong. Repository-specific log paths, registration steps, and command viability could not be independently verified."
+        },
+        "implementation": {
+          "completeness": 18,
+          "correctness": 14,
+          "specificity": 22,
+          "risk_awareness": 16,
+          "total": 70,
+          "notes": "The patch consistently implements the valid-value happy path across the resolver, AsyncClient call, Settings model, configuration tuple, three Compose files, Helm, Terraform, documentation, and focused unit tests. It does not fully implement the stated design contract: invalid or below-floor environment values are rejected during Settings construction rather than warned about or clamped, and the registry container never receives the override needed for the Configuration page to show the effective auth-server value. The diff specifically changes auth_server/server.py from timeout=30.0 to the resolved integer and adds tests asserting default, override, floor, precedence, and AsyncClient wiring, but no test covers real Settings environment loading. The summary discloses the UI limitation and unexecuted verification, while its git-apply claim and source-context fit could not be independently confirmed because the read-only shell failed."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "per-caller-per-target-rate-limits-and-quarantine",
+      "task_id": "per-caller-per-target-rate-limits-and-quarantine",
+      "complexity": "high",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 106,
+      "input_tokens": 16683460,
+      "output_tokens": 111078,
+      "total_tokens": 16794538,
+      "latency_seconds": 1199.4,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 73.8,
+      "cache_read_tokens": 16525824,
+      "cache_write_tokens": 158367,
+      "prefix_cache_hit_rate": 0.9905,
+      "generation_tokens_per_sec": 92.6,
+      "kv_cache_usage": {
+        "peak": 0.1699,
+        "mean": 0.106
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 15,
+          "specificity": 23,
+          "risk_awareness": 17,
+          "total": 78,
+          "notes": "The issue is unusually comprehensive, with concrete acceptance criteria, named integration points, explicit non-goals, administration semantics, and observability requirements. Its largest correctness defect is promising a client-visible quarantine JSON body without nginx changes: nginx auth_request uses the subrequest status for authorization and does not pass that body through as claimed. ([nginx.org](https://nginx.org/en/docs/http/ngx_http_auth_request_module.html)) The byte-for-byte feature-off criterion also conflicts with unconditional startup seeding and the acknowledged API-visible anchor definitions, while \"immediate\" quarantine conflicts with the documented roughly 30-second replica convergence. No independent task statement was supplied, so requirements beyond the identifier and these internally defined behaviors cannot be verified."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 14,
+          "specificity": 23,
+          "risk_awareness": 16,
+          "total": 76,
+          "notes": "The LLD is highly concrete about files and symbols such as RateLimiter.check, _enforce_rate_limit, DefinitionsRepository, MembershipsRepository, and IAMRateLimits.tsx, and it commits to data flow, failure policy, UI behavior, and rollout. The central response design remains technically unsound because a FastAPI HTTPException detail becomes subrequest data, not a client body preserved through nginx auth_request without explicit propagation machinery. Its rollback analysis also overlooks that the baseline RateLimitDefinition shown by the patch rejects both the unknown caller_target axis and caller anchors with no numeric limits, so those persisted documents are not safely readable by all 1.27.1 paths. The target-name normalization concern is documented but not resolved with a demonstrated canonical representation, leaving a material kill-switch matching risk."
+        },
+        "review": {
+          "completeness": 19,
+          "correctness": 16,
+          "specificity": 21,
+          "risk_awareness": 19,
+          "total": 75,
+          "notes": "The review finds several real, change-specific hazards: target-name mismatch, fail-open quarantine reads, cache propagation delay, admin ordering, minimal response disclosure, and zero counter work on denial. Its largest deficiency is missing the nginx response-body impossibility and accepting the rollback argument despite the baseline model validation incompatibility visible in the diff. The Pixel resolution retains the disputed name representation, and the proposed E2E scenario later hardcodes mcpgw rather than deriving and asserting the classifier's exact output as promised. Consequently the predominantly approving verdicts understate unresolved blockers, although the prioritization and recommendations are otherwise actionable."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 12,
+          "specificity": 20,
+          "risk_awareness": 16,
+          "total": 68,
+          "notes": "The plan provides strong behavioral oracles for pair independence, admin handling, reserved writes, floor asymmetry, counter non-consumption, compatibility, UI behavior, and failure cases. Several commands use uv run registry_management.py even though the submitted file is api/registry_management.py and the repository documents invocation through uv run python api/registry_management.py. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/quickstart.md)) The client-facing body check cannot pass through nginx as described, feature-off testing explicitly accepts an observable difference despite the issue requiring byte parity, and the rollback expectation ignores baseline model rejection of the persisted documents. It also lacks executable coverage for idempotent/non-fatal startup seeding and exact classifier-to-membership target-name equality, and none of the tests were executed."
+        },
+        "implementation": {
+          "completeness": 21,
+          "correctness": 14,
+          "specificity": 22,
+          "risk_awareness": 15,
+          "total": 72,
+          "notes": "The patch is broad and internally cohesive across models, repositories, limiter orchestration, routes, startup, metrics, CLI, frontend, and focused unit tests, and the composite counter construction implements the core per-caller-per-target behavior. Its largest defect is that raising HTTPException with a quarantine detail does not deliver the promised top-level JSON body through nginx auth_request, while the unit test only inspects the Python exception and therefore misses the end-to-end failure. Unconditional seeding also violates feature-off byte parity and leaves caller_target documents plus null-limit caller anchors that the baseline model cannot safely parse after rollback. The claimed git apply --check result was not independently verifiable in the available command environment, tests were explicitly unexecuted, and target-name normalization remains unproven."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "portable-env-secret-generation-in-build-script",
+      "task_id": "portable-env-secret-generation-in-build-script",
+      "complexity": "trivial",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 36,
+      "input_tokens": 3260021,
+      "output_tokens": 59731,
+      "total_tokens": 3319752,
+      "latency_seconds": 609.9,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 70.2,
+      "cache_read_tokens": 3207168,
+      "cache_write_tokens": 53570,
+      "prefix_cache_hit_rate": 0.9836,
+      "generation_tokens_per_sec": 97.9,
+      "kv_cache_usage": {
+        "peak": 0.0937,
+        "mean": 0.0623
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 14,
+          "specificity": 23,
+          "risk_awareness": 17,
+          "total": 76,
+          "notes": "The issue clearly identifies the affected variables, scripts, portability defect, non-goals, and testable acceptance criteria. Its central severity claim is unsound for python-dotenv, whose parser overwrites earlier duplicate keys with later assignments rather than honoring the first assignment. ([github.com](https://github.com/theskumar/python-dotenv/blob/main/src/dotenv/main.py)) The submitted diff context confirms the named build_and_run.sh secret blocks, metrics loop, and clean_env_secrets integration point. No independent task statement was supplied, and the claimed crash-loop reproduction and exact .env.example line numbers could not be independently verified."
+        },
+        "lld": {
+          "completeness": 21,
+          "correctness": 14,
+          "specificity": 22,
+          "risk_awareness": 15,
+          "total": 72,
+          "notes": "The LLD is unusually concrete about files, helper interfaces, regex behavior, token lengths, error paths, and rollout boundaries. Its largest flaw is the non-atomic cat-back design: opening .env truncates it before copying, so interruption or partial-write failure can corrupt unrelated configuration despite the preserved temporary copy. The proposed ensure_secret guard also mishandles a valued assignment combined with a quoted-empty duplicate, while clean_env_secrets still prints a green success message after a warned sed failure. The pinned commit, CI assertions, and some consumer behavior claims could not be independently checked against executable local source."
+        },
+        "review": {
+          "completeness": 18,
+          "correctness": 14,
+          "specificity": 20,
+          "risk_awareness": 16,
+          "total": 68,
+          "notes": "The review finds real design defects, particularly checkout-local secret temporaries, duplicated rewrite mechanics, unclear failure messages, and backup cleanup. It misses the load-bearing incorrect duplicate-key premise, the non-atomic truncation risk, and the contradictory success message after failed Keycloak resets. The Byte, Cipher, and Sage findings lead to concrete revisions such as mktemp and a shared _remove_env_lines_matching helper. Claims that no workflow invokes the build script and that rollback is risk-free were not independently verifiable."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 7,
+          "specificity": 20,
+          "risk_awareness": 15,
+          "total": 62,
+          "notes": "The plan covers syntax, helper states, permissions, idempotency, cross-platform behavior, logging, Keycloak cleanup, and end-to-end deployment. Several central procedures cannot pass as written: the sed-i static grep matches comments added by the patch, and case H invokes handle_error whose exit terminates the entire harness before its assertions or final PASS. The GNU golden diff compares independently random secrets, while the invocation-surface command sources and executes the deployment script and the rollback command removes the patch before later tests. The stated health endpoints and platform executions were not verified, and no results were submitted."
+        },
+        "implementation": {
+          "completeness": 21,
+          "correctness": 16,
+          "specificity": 22,
+          "risk_awareness": 14,
+          "total": 73,
+          "notes": "The patch implements the designed consolidation end to end, replacing all shown build-script sed edits with ensure_secret or _remove_env_lines_matching and using portable sed -i.bak in clean-keycloak.sh. Its largest defect is the truncating cat-back rewrite, which can leave .env partial or empty on interruption or write failure and lacks a trap or automatic restoration path. The Keycloak path also prints Client secrets reset after either substitution fails, and unconditional backup deletion can remove the best recovery copy. The hunk symbols and surrounding context are internally consistent with the submitted baseline diff, but the claimed git apply check could not be independently rerun because local command execution was unavailable."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "build-docker-images-from-uv-lock",
+      "task_id": "build-docker-images-from-uv-lock",
+      "complexity": "medium",
+      "ref": "1.23.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 37,
+      "input_tokens": 2691498,
+      "output_tokens": 36220,
+      "total_tokens": 2727718,
+      "latency_seconds": 374.9,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 65.8,
+      "cache_read_tokens": 2637312,
+      "cache_write_tokens": 54903,
+      "prefix_cache_hit_rate": 0.9796,
+      "generation_tokens_per_sec": 96.6,
+      "kv_cache_usage": {
+        "peak": 0.0745,
+        "mean": 0.0526
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 13,
+          "specificity": 23,
+          "risk_awareness": 19,
+          "total": 78,
+          "notes": "The issue precisely identifies project roots, Dockerfiles, acceptance criteria, and explicit non-goals. Its central correctness defect is claiming `uv sync --frozen` rejects a stale lockfile; uv instead uses the lock without checking freshness, while `--locked` performs that check. ([docs.astral.sh](https://docs.astral.sh/uv/concepts/projects/sync/), [docs.astral.sh](https://docs.astral.sh/uv/reference/cli/)) The stated reproducibility goal also overlooks the generic server images' retained floating torch installation. No independent task statement was supplied, and the exact nine-root inventory could not be independently verified from the unavailable repository shell."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 11,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 74,
+          "notes": "The LLD is unusually concrete about real paths, build contexts, environment layout, CPU-wheel sourcing, CI, and rollout. Its largest flaw is internal contradiction: error handling says `--frozen` fails on stale metadata, while Alternatives correctly says it deliberately skips freshness checking. ([docs.astral.sh](https://docs.astral.sh/uv/concepts/projects/sync/), [docs.astral.sh](https://docs.astral.sh/uv/reference/cli/)) It also preserves floating torch through `--inexact` and leaves `uv pip install -e .` without `--no-deps`, creating dependency paths outside the lock. Full path and symbol verification was limited because the submitted patch and local repository access were unavailable in complete form."
+        },
+        "review": {
+          "completeness": 19,
+          "correctness": 11,
+          "specificity": 21,
+          "risk_awareness": 16,
+          "total": 67,
+          "notes": "The review provides concrete feedback on `--inexact`, workflow filters, action pinning, lockfile churn, build contexts, and macOS wheel availability. Its largest deficiency is approving the core design without catching that `--frozen` cannot satisfy the stale-build acceptance criterion. It also misses the unresolved floating torch preinstall and dependency-resolving editable installation, both described directly by the LLD. The role-specific findings are actionable, but the final claim that all should-fix items were resolved is therefore not defensible."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 8,
+          "specificity": 21,
+          "risk_awareness": 15,
+          "total": 64,
+          "notes": "The plan covers lock presence, CI, representative image builds, CPU torch, compatibility, and contributor workflow with concrete commands. Its critical negative test runs `uv lock --check` and incorrectly calls that equivalent to what `uv sync --frozen` encounters; the latter intentionally ignores stale project metadata. ([docs.astral.sh](https://docs.astral.sh/uv/concepts/projects/sync/), [docs.astral.sh](https://docs.astral.sh/uv/reference/cli/)) Consequently it never tests the promised stale Docker-build failure and would miss registry dependency resolution by the later editable install. Some image inspection commands also assume `.venv/bin/pip` or `.venv/bin/uv` exists without establishing that the uv-created environment was seeded with those executables."
+        },
+        "implementation": {
+          "completeness": 12,
+          "correctness": 7,
+          "specificity": 17,
+          "risk_awareness": 10,
+          "total": 46,
+          "notes": "The summary clearly enumerates intended files, CPU-index handling, CI behavior, exclusions, and claimed verification. The implementation still cannot meet the central requirement because it uses `--frozen`, retains floating torch installs under `--inexact`, and leaves the registry editable install able to resolve dependencies outside the lock. It also reports torch changing from 2.9.1 to 2.14.0+cpu while claiming no LLD deviation, contradicting the design's no-upgrade and pin-preservation statements. The submitted unified diff is explicitly truncated after part of `auth_server/uv.lock`, so the Dockerfile changes, remaining lockfiles, root lock, and patch applicability could not be verified against the real source."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "server-side-oauth-token-storage",
+      "task_id": "server-side-oauth-token-storage",
+      "complexity": "high",
+      "ref": "1.23.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 79,
+      "input_tokens": 9248230,
+      "output_tokens": 73377,
+      "total_tokens": 9321607,
+      "latency_seconds": 780.6,
+      "total_cost_usd": null,
+      "result_subtype": "success",
+      "task_score": 64.0,
+      "cache_read_tokens": 9131520,
+      "cache_write_tokens": 117426,
+      "prefix_cache_hit_rate": 0.9873,
+      "generation_tokens_per_sec": 94.0,
+      "kv_cache_usage": {
+        "peak": 0.1282,
+        "mean": 0.0845
+      },
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 17,
+          "correctness": 10,
+          "specificity": 21,
+          "risk_awareness": 16,
+          "total": 64,
+          "notes": "The issue provides unusually concrete acceptance criteria covering encryption, TTL cleanup, user scoping, degradation, compatibility, tests, and documentation. Its central defect is that it promises arbitrary-size-token login and an approximately 800-byte cookie while explicitly retaining id_token, the remaining variable-sized credential in the cookie. Repository release evidence describes the actual fix as an oauth_sessions store containing username, groups, and encrypted id_token, with the cookie reduced to only session_id, contradicting this issue's narrower diagnosis. No independent task statement was supplied, and the asserted token sizes and upstream issue details could not be verified from the inaccessible local checkout."
+        },
+        "lld": {
+          "completeness": 18,
+          "correctness": 12,
+          "specificity": 23,
+          "risk_awareness": 17,
+          "total": 70,
+          "notes": "The LLD is highly specific about proposed files, MongoDB fields and indexes, internal HTTP contracts, failure mappings, configuration, rollout, and tests. Its load-bearing architectural decision is nevertheless wrong for the documented cookie-overflow fix: it stores only access and refresh tokens while leaving the potentially oversized id_token and session payload client-side. Repository release notes show the implemented 1.24.x design instead stores the complete OAuth session server-side and makes old dict-payload cookies incompatible, directly contradicting the LLD's fixed-size-cookie and backward-compatibility claims. It also underestimates default-enabled database latency on file-backend or unavailable-database deployments and does not analyze the XSS exposure created by a cookie-authenticated refresh-token retrieval endpoint."
+        },
+        "review": {
+          "completeness": 15,
+          "correctness": 13,
+          "specificity": 20,
+          "risk_awareness": 15,
+          "total": 63,
+          "notes": "The review finds concrete defects, especially token_ref and username leakage through request lines, file-backend degradation, missing documentation, and the need for a cookie-size regression test. All five reviewers miss the decisive contradiction that retaining id_token can preserve the exact Entra group-overage cookie failure the change claims to eliminate. The review also does not challenge exposing refresh tokens to browser JavaScript, default-on database connection delays, or the lifecycle consequences of failed index creation. Its conclusion that no blocking findings remain is therefore not defensible despite the useful header-transport correction."
+        },
+        "testing": {
+          "completeness": 18,
+          "correctness": 12,
+          "specificity": 21,
+          "risk_awareness": 17,
+          "total": 68,
+          "notes": "The plan supplies concrete commands and meaningful oracles for encrypted fields, indexes, owner scoping, expiry, revocation, no-store responses, compatibility, and deployment wiring. The pivotal cookie regression uses a tiny mock id_token, so it cannot catch the retained-id_token overflow that repository release evidence identifies as part of the real defect. The plan also claims an unauthenticated 401 unit case that the submitted registry tests replace with an authentication override and a 404 assertion, and it never instruments the normal auth path to prove zero database reads. Local command and path validity could not be independently confirmed because the read-only shell sandbox failed to initialize."
+        },
+        "implementation": {
+          "completeness": 13,
+          "correctness": 9,
+          "specificity": 20,
+          "risk_awareness": 13,
+          "total": 55,
+          "notes": "The patch substantially implements its own LLD through TokenStore, callback wiring, internal and public endpoints, logout integration, documentation, configuration, and focused tests. It does not implement the repository's actual complete cookie-size remedy because oauth2_callback still leaves id_token and the rest of the session payload in the cookie; repository release notes describe the fixed design as storing the entire OAuth session and issuing only an opaque session_id. Additional defects include permanent loss of TTL and uniqueness guarantees if first index creation fails, synchronous logout delay of up to five seconds with ignored non-2xx revocation responses, and plaintext username logging despite the design's hashed-logging claim. The summary's assertion that the patch applies cleanly could not be independently verified because repository shell access failed, so no credit was assigned for that claim."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    }
+  ],
+  "run_date": "2026-09-04"
+}

@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 64,
+      "notes": "The issue provides unusually concrete acceptance criteria covering encryption, TTL cleanup, user scoping, degradation, compatibility, tests, and documentation. Its central defect is that it promises arbitrary-size-token login and an approximately 800-byte cookie while explicitly retaining id_token, the remaining variable-sized credential in the cookie. Repository release evidence describes the actual fix as an oauth_sessions store containing username, groups, and encrypted id_token, with the cookie reduced to only session_id, contradicting this issue's narrower diagnosis. No independent task statement was supplied, and the asserted token sizes and upstream issue details could not be verified from the inaccessible local checkout."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 70,
+      "notes": "The LLD is highly specific about proposed files, MongoDB fields and indexes, internal HTTP contracts, failure mappings, configuration, rollout, and tests. Its load-bearing architectural decision is nevertheless wrong for the documented cookie-overflow fix: it stores only access and refresh tokens while leaving the potentially oversized id_token and session payload client-side. Repository release notes show the implemented 1.24.x design instead stores the complete OAuth session server-side and makes old dict-payload cookies incompatible, directly contradicting the LLD's fixed-size-cookie and backward-compatibility claims. It also underestimates default-enabled database latency on file-backend or unavailable-database deployments and does not analyze the XSS exposure created by a cookie-authenticated refresh-token retrieval endpoint."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 63,
+      "notes": "The review finds concrete defects, especially token_ref and username leakage through request lines, file-backend degradation, missing documentation, and the need for a cookie-size regression test. All five reviewers miss the decisive contradiction that retaining id_token can preserve the exact Entra group-overage cookie failure the change claims to eliminate. The review also does not challenge exposing refresh tokens to browser JavaScript, default-on database connection delays, or the lifecycle consequences of failed index creation. Its conclusion that no blocking findings remain is therefore not defensible despite the useful header-transport correction."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "The plan supplies concrete commands and meaningful oracles for encrypted fields, indexes, owner scoping, expiry, revocation, no-store responses, compatibility, and deployment wiring. The pivotal cookie regression uses a tiny mock id_token, so it cannot catch the retained-id_token overflow that repository release evidence identifies as part of the real defect. The plan also claims an unauthenticated 401 unit case that the submitted registry tests replace with an authentication override and a 404 assertion, and it never instruments the normal auth path to prove zero database reads. Local command and path validity could not be independently confirmed because the read-only shell sandbox failed to initialize."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 20,
+      "risk_awareness": 13,
+      "total": 55,
+      "notes": "The patch substantially implements its own LLD through TokenStore, callback wiring, internal and public endpoints, logout integration, documentation, configuration, and focused tests. It does not implement the repository's actual complete cookie-size remedy because oauth2_callback still leaves id_token and the rest of the session payload in the cookie; repository release notes describe the fixed design as storing the entire OAuth session and issuing only an opaque session_id. Additional defects include permanent loss of TTL and uniqueness guarantees if first index creation fails, synchronous logout delay of up to five seconds with ignored non-2xx revocation responses, and plaintext username logging despite the design's hashed-logging claim. The summary's assertion that the patch applies cleanly could not be independently verified because repository shell access failed, so no credit was assigned for that claim."
+    }
+  },
+  "task_score": 64.0,
+  "verdict": "The submission is detailed and internally coherent, but it solves a narrower token-retrieval problem while leaving the load-bearing id_token/session-cookie overflow unresolved.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T05:26:24.769619Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 290008,
+      "cached_input_tokens": 201392,
+      "cache_write_input_tokens": 50903,
+      "output_tokens": 8553,
+      "reasoning_output_tokens": 7185
+    },
+    "duration_ms": 225687
+  }
+}
