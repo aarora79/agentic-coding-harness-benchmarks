@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 87,
+      "notes": "The issue defines concrete configuration, lifecycle, deployment, documentation, compatibility, and test acceptance criteria. Its named integration path through LiteLLMClient, create_embeddings_client, and DocumentDBSearchRepository._get_embedding_model agrees with the submitted source diff. The largest inconsistency is that it promises the secret never appears plaintext in exports while the LLD acknowledges an existing confirmed-sensitive-export option; “byte-for-byte identical” is also stronger than its config API additions permit. No independent task statement was supplied, so requirement completeness can only be assessed against the task identifier and internally consistent artifacts."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 24,
+      "risk_awareness": 21,
+      "total": 88,
+      "notes": "The LLD is unusually implementation-ready, specifying the token lifecycle, exact Settings validation, LiteLLM injection seam, repository call site, secret handling, and each deployment surface. Its file and symbol references align closely with the patch, including registry/embeddings/client.py, registry/core/config.py, config_routes.py, and the Terraform and Helm structures. The largest gap is deployment failure semantics: it does not ensure Terraform rejects an enabled configuration with an empty client secret, and it accepts the repository’s persistent _embedding_unavailable latch after a transient IdP refresh failure without a recovery design. Exact claims such as the sole production caller and successful baseline applicability could not be independently rerun because the local command sandbox failed before execution."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 86,
+      "notes": "The review finds concrete design defects and feeds actionable resolutions back into the LLD, notably the Bedrock guard, Terraform string-boolean validation, rollback guidance, and removal of type ignores. It also examines real surfaces such as Secrets Manager IAM, charts/registry/reserved-env-names.txt, config masking, and synchronous token refresh. Its largest factual error is claiming an unreachable IdP makes new tasks fail the startup validator, although that validator checks configuration presence and does not contact the endpoint; it also misses the empty Terraform secret’s placeholder behavior. Security findings around operator-controlled token endpoints and secret logging are specific and proportionate, though the suggested Bedrock token leakage mechanism is more speculative than established."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 77,
+      "notes": "The plan covers unit, functional, compatibility, deployment, rollback, concurrency, refresh-buffer, masking, and end-to-end behavior with generally concrete oracles. The secret-hygiene CLI test is self-defeating: it prints the acquired token into /tmp/emb-idp.log and then expects grep for tok- to return zero. The stub log is not reset before asserting exactly two requests, and several config API field names and HTTP commands could not be independently verified against the checkout. Its terraform validate step would correctly expose the submitted module syntax error, but the plan lacks an implemented automated config-export masking test and includes some fragile grep-count checks."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 69,
+      "notes": "The Python change implements the principal flow end to end: Settings validation, a lock-guarded token cache, per-call LiteLLM api_key injection, repository wiring, masking registration, documentation, and focused unit tests. The patch is not mergeable as submitted because terraform/aws-ecs/modules/mcp-gateway/variables.tf contains an extra closing brace immediately after embeddings_idp_scope, making Terraform parsing or validation fail. Additionally, secrets.tf substitutes \"not-configured\" for an empty enabled client secret, bypassing the promised startup missing-setting validation, while malformed JSON and invalid expires_in responses are not normalized to the documented RuntimeError. The claimed git apply --check could not be independently rerun because the provided command sandbox failed before command launch; that evidence limitation was not itself scored as a candidate defect."
+    }
+  },
+  "task_score": 81.4,
+  "verdict": "The design package is strong and repository-specific, but the implementation is not mergeable due to a Terraform syntax error and an ECS secret path that defeats required-setting fail-fast validation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T04:57:17.425320Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 288916,
+      "cached_input_tokens": 217478,
+      "cache_write_input_tokens": 59917,
+      "output_tokens": 10426,
+      "reasoning_output_tokens": 8419
+    },
+    "duration_ms": 191567
+  }
+}

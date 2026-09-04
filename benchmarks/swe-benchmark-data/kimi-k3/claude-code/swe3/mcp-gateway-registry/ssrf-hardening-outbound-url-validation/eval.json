@@ -1,0 +1,64 @@
+{
+  "task": "ssrf-hardening-outbound-url-validation",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The issue clearly identifies three outbound-request paths, operator controls, testable response behavior, compatibility requirements, and explicit exclusions. Its largest weakness is that allowing RFC1918 health targets by default preserves part of the arbitrary-internal-service risk described in its own problem statement, while redirect-based SSRF is not addressed in its acceptance criteria. Concrete references such as `_check_endpoint_reachability`, `check_agent_health`, and `_check_server_endpoint_transport_aware` are consistent with the submitted diff context. No independent task statement exists, and exact baseline line references could not be independently verified because repository shell access was unavailable."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The LLD is highly implementation-specific, covering settings, caller-specific policy, endpoint overrides, compatibility seams, rollout, status propagation, and concrete tests. Its largest deficiency is accepting a known redirect-hop bypass despite health clients following redirects, which leaves a straightforward route to internal targets; it also understates synchronous `socket.getaddrinfo` blocking by claiming only a health-check batch is affected when the event loop itself can stall. The design correctly calls out `get_endpoint_url_from_server_info` overrides and preservation of `skill_service._is_safe_url` and patched settings as load-bearing integration details. Exact source line numbers and the claimed baseline commit could not be independently verified in the unavailable local shell."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The review surfaces concrete concerns about flag bypass, cache hygiene, endpoint-host overrides, information leakage, resolver failure, and redirect handling, then maps them to design changes. Its largest deficiency is approving the redirect bypass and synchronous DNS design without requiring mitigation, while also missing that the proposed `allow_private_ips` implementation relaxes all addresses classified private rather than explicitly limiting the exception to RFC1918. Cipher explicitly notes `follow_redirects=True`, and Byte identifies synchronous resolution inside async health checks, providing useful evidence even though their dispositions are too lenient. Claims about exact test counts, source lines, and deployment passthrough could not be independently checked against the local baseline."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The plan provides strong behavioral oracles, including exact HTTP statuses, deterministic status strings, allowlist and master-switch behavior, explicit endpoint-host swaps, and assertions that no HTTP request occurs when blocked. Its largest gap is omitting redirect-hop SSRF coverage despite the documented `follow_redirects=True` bypass; the unit matrix also lacks a direct blocked-path test for `check_agent_health`, and the status-stability test does not actually exercise `_check_single_service` or nginx-dirty signaling. Concrete commands target the submitted test paths and use repository-style `uv run pytest` invocations, though several functional scenarios depend on seeded state and deployment-specific endpoint behavior. The commands and asserted API payload shapes were not executed or independently verified because local shell access failed."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 13,
+      "total": 65,
+      "notes": "The patch implements the shared validator, preserves the `skill_service` wrapper surface, adds guards to the named agent and health paths, introduces configuration, and supplies substantial focused tests. Its largest defect is incomplete SSRF enforcement: health requests may follow a validated public URL to an internal destination, and `_is_strictly_blocked_ip` treats any non-loopback/link-local/reserved `ip.is_private` address as eligible for the RFC1918 exception, potentially permitting addresses such as `0.0.0.0` despite the narrower documented policy. The diff also adds no direct unit test proving `check_agent_health` returns 400 without making a request, while synchronous DNS resolution is introduced into an async health path. The candidate's `git apply --check` and source-context claims could not be independently confirmed because the repository execution sandbox failed before commands could run."
+    }
+  },
+  "task_score": 73.6,
+  "verdict": "The submission is unusually concrete and mostly implementation-ready, but the implementation leaves a material redirect-based SSRF bypass and an overly broad private-address exception.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-03T23:50:50.423420Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 205599,
+      "cached_input_tokens": 145835,
+      "cache_write_input_tokens": 48638,
+      "output_tokens": 7796,
+      "reasoning_output_tokens": 6582
+    },
+    "duration_ms": 171088
+  }
+}

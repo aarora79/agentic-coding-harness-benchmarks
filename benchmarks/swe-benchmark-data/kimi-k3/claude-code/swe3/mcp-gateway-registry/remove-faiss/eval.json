@@ -1,0 +1,64 @@
+{
+  "task": "remove-faiss",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The issue comprehensively defines dependency, routing, telemetry, operational, documentation, and test scope, with concrete references such as `registry/search/service.py`, `get_search_repository()`, and the retained `faiss_search_time_ms` field. Its largest correctness gap is promising unchanged relevance while the deleted `FaissService._distance_to_relevance` converts positive IndexFlatIP output as `1 - distance`, whereas the proposed repository uses cosine similarity directly. Acceptance criteria are unusually testable and explicitly cover legacy files, collector compatibility, and both storage paths. No independent task statement was supplied, so the requirement for a pure-Python replacement rather than simple removal is supported only by the internally consistent artifacts."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The LLD is deeply repository-specific, identifying real factory, route, telemetry, configuration, script, and test integration points and making explicit decisions about lexical fallback, lock-file validation, and rollout ordering. Its central parity claim is contradicted by the shown source: it describes FAISS relevance as cosine times boost, but `FaissService` actually applies `_distance_to_relevance` to IndexFlatIP results, so the replacement changes ranking behavior. It also inconsistently suggests awaiting synchronous `get_search_repository()` and does not resolve post-persistence failures when newly unified DocumentDB indexing raises. Claims about sub-10ms scaling, lower memory use, and all listed call sites could not be independently verified because the local shell was unavailable and the submitted patch was truncated."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The review finds concrete design defects rather than merely approving, notably the broken legacy tag metadata shape, undefined lexical fallback semantics, telemetry rollout order, lock integrity, and leftover index files. Those findings correspond directly to visible symbols such as `metadata_store`, `_lexical_only_search`, and the collector's `search_backend` pattern, and the resolutions are actionable. Its largest omission is failure to detect the old IndexFlatIP score-conversion mismatch or the proposed implementation's cross-type result-budget and tool-limit hazards. It also does not challenge the new failure semantics of awaiting DocumentDB indexing after persistence, leaving an important consistency and retry risk unreviewed."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 18,
+      "risk_awareness": 21,
+      "total": 76,
+      "notes": "The plan spans unit, API, lifecycle, compatibility, deployment, rollback, lexical degradation, and relevance checks with meaningful state-based oracles such as immediate index visibility and absence of new index files. Several commands are not executable as written: registration payloads and telemetry construction are ellipses, the schema example says to adjust the export despite the patch showing `HeartbeatEvent`, and `docker exec mcp-gateway-registry` conflicts with repository scripts using `mcp-gateway-registry-registry-1`. The golden-query requirement incorrectly assumes ranking parity despite the old `_distance_to_relevance` behavior, and the plan misses mixed-entity starvation, global tool ordering, and `max_results` overflow. It nevertheless covers the major operational risks, including collector compatibility, stale volume files, lock consistency, and embedding-provider failure."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 67,
+      "notes": "The visible patch substantially implements the intended removal: it deletes the FAISS service and dependency surfaces, adds `FileSearchRepository`, rewires major route and service call sites, updates telemetry, and adds targeted tests and documentation. The largest defects are in `FileSearchRepository.search`: it ranks all entity types before applying `entity_filter`, truncates that mixed list first, does not globally sort or cap emitted tools, and can therefore return empty filtered results or more than `max_results` tools despite valid matches. Agent skills and metadata are omitted from lexical scoring and keyword boost, tag results use a server-shaped entry for agents, and direct cosine scoring does not preserve the deleted FAISS score conversion despite the summary claiming identical behavior and a formerly produced five-bucket shape. Full patch applicability, lock-file edits, and all test repoints could not be independently checked because the artifact was truncated and local command execution failed, while the summary explicitly confirms no tests, lint, or builds were run."
+    }
+  },
+  "task_score": 79.6,
+  "verdict": "Strong, repository-grounded design work is undermined by material search filtering, result-limit, and scoring-compatibility defects in the implementation, with overall requirements additionally constrained by the missing independent task statement.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-03T23:44:26.000984Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 360330,
+      "cached_input_tokens": 258595,
+      "cache_write_input_tokens": 86779,
+      "output_tokens": 8637,
+      "reasoning_output_tokens": 7324
+    },
+    "duration_ms": 225769
+  }
+}
