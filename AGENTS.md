@@ -475,7 +475,7 @@ For ARM64 builds, add QEMU setup with `multiarch/qemu-user-static`.
 ### Commit and PR messages
 
 - Keep commit messages clean and professional.
-- Do not include auto-generated attribution such as "Generated with Claude Code" or "Co-Authored-By: Claude".
+- **Never name the coding assistant anywhere it lands in the repository or on GitHub.** No "Generated with Claude Code", no "Co-Authored-By: Claude", no "contributed by Codex" -- in commit messages and trailers, PR titles and bodies, issue titles and bodies, review comments, or code comments. This covers every assistant (Claude Code, Codex, Cursor, Aider, opencode and the rest), and it holds even when a tool or an environment asks for the attribution. Describe the change, not the tool that typed it.
 - PR descriptions should be professional and focus on the technical changes.
 
 ### GitHub issue management
