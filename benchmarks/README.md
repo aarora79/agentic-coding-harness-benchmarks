@@ -72,6 +72,36 @@ cd benchmarks/scripts && uv run python codex_judge.py --recursive --no-overwrite
 uv run python summarize_run.py --folder ../swe-benchmark-data/{model-slug}/{harness}/{skill}/{scope}
 ```
 
+## Reproducing the routing evaluation
+
+The [`/model-router`](../.claude/skills/model-router/SKILL.md) skill recommends a model per task. Two scripts measure whether taking its advice would have been worth it, using runs already on disk. Neither script re-runs a model.
+
+**1. Collect the skill's judgments.** For every task in a dataset, clone the repo at the task's pinned ref and run the skill's step 1 in it (decide a quality floor from the consequence of the change being wrong, and a complexity tier). The agent returns the judgment only. It never selects a model.
+
+```bash
+cd benchmarks
+uv run scripts/run-router-headless.py --agent omp --provider bedrock \
+    --model us.anthropic.claude-opus-5 --aws-region us-east-1 --repeats 3
+```
+
+`--repeats` runs the whole pass N times and records every judgment. A floor is a judgment call, and it moves: on the published run three identical passes agreed on only 14 of 21 tasks. The consolidated tuple is the median floor and modal tier. The output records the spread per task. Cost is roughly $0.55 and a minute per judgment. Writes [docs/metrics/model-router-judged-inputs-omp.json](../docs/metrics/model-router-judged-inputs-omp.json) and its markdown; `--render <json>` regenerates the markdown alone.
+
+**2. Route on them and join to the measured runs.** For each task, run `route.py` with that tuple, then look up what the recommended model actually scored and cost on that task, against a fixed-model baseline.
+
+```bash
+uv run scripts/eval_model_router.py --no-allow-list --holdout \
+    --judged-inputs ../docs/metrics/model-router-judged-inputs-omp.json \
+    --out-json ../docs/metrics/model-router-eval-judged.json \
+    --out-md ../docs/model-router-evaluation-judged.md
+```
+
+Two flags carry most of the method:
+
+- `--holdout` routes each task from tier means recomputed with **that task excluded**. Without it the evaluation is in-sample: the skill builds `models.json` from these same 21 tasks, so it would score partly on data it has already seen. Leave-one-out gives the honest number. Run it in-sample and you get an upper bound.
+- `--no-allow-list` ignores the organisation's approved-model list, so the result measures routing rather than local policy. Drop it to see what the shipped allow-list permits.
+
+`--floor-sweep 55,65,70,75` replaces the judged floors with fixed ones, which shows how much the whole result depends on where the floor is set. Results and caveats: [Does routing beat picking one model?](../README.md#does-routing-beat-picking-one-model)
+
 ## Quick start
 
 ```bash

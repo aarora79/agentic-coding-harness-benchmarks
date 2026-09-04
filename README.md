@@ -95,6 +95,29 @@ One model can be driven by different coding agents (harnesses), and each harness
 
 **kiro-cli** ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) has landed as a third harness (`/swe3`, 5 models -- see [its results](docs/harness-kiro-cli-swe3.md) and [setup/cost notes](docs/kiro-cli-setup.md)); it drives Kiro's managed Bedrock-backed models and is priced on a distinct **Kiro-credit** basis (see the [cost methodology](docs/cost-per-task-methodology.md)). [opencode](https://opencode.ai) ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) is coming.
 
+## Does routing beat picking one model?
+
+The results above rank models on a whole dataset. A developer picks one per task, which is a different question -- and the usual answer is "run the best model for everything", which these numbers say is expensive. The **[`/model-router`](.claude/skills/model-router/SKILL.md)** skill answers it per task: read the repository and the change, decide a quality floor from the consequence of getting it wrong and a complexity tier, then take the cheapest measured model that clears the floor at that tier. It recommends and stops. The developer makes the switch.
+
+We ran it against its own evidence. All 16 models have run all 21 v2 tasks, so for whatever the skill picks we can look up what that model **actually** scored and cost on that task, rather than estimating it.
+
+| | Router | `claude-opus-5` on everything |
+|---|---:|---:|
+| Total cost, 21 tasks | **$134.64** | $251.04 |
+| Mean task score | 78.94 | 82.83 |
+
+**46.4% cheaper for 4.7% less quality**, using four models: `qwen3.8-27b` on 13 tasks, `claude-opus-5` on 2, `claude-opus-4-8` and `glm-5.3` on 1 each. On 4 further tasks nothing cleared the floor and the skill's answer was to stay put.
+
+Three caveats decide how much to trust that, and all three come from the judgment step rather than the arithmetic:
+
+- **The judgment is not stable.** Run three times per task with an identical prompt, the floor came out unanimous on only **14 of 21** tasks and the tier on 18 of 21.
+- **The tier classifier is right about 76% of the time**, matching the dataset's own complexity label on 16 of 21 -- and every miss rated the task *harder* than it was.
+- **Some floors are unreachable.** The skill never checks that a model exists which can clear the floor it just set. At the floors this run produced, nothing measured scores 80 on the hard tier, so `claude-opus-5` itself falls short on 4 tasks.
+
+Read the full working: **[what the model judged each task to need](docs/model-router-judged-inputs.md)** (floor, tier and reasoning per task, with the spread across repeats) and **[the routing result joined to the measured runs](docs/model-router-evaluation-judged.md)** (per-task picks, costs and score deltas). A script writes both -- see [Reproducing the routing evaluation](benchmarks/README.md#reproducing-the-routing-evaluation).
+
+[docs/vision.md](docs/vision.md) describes where this goes next: a harness that switches the model itself. Today a person reads the recommendation and does it.
+
 ## The three hosting paths
 
 Whichever path you choose, the agent (Claude Code), the tasks, the `/swe` skill, and the scoring are identical -- only *where the model runs and how the request reaches it* changes.
@@ -295,6 +318,7 @@ claude-code-multi-model/
 │       ├── setup-machine/     /setup-machine — inspect a fresh box, install every dependency (start here)
 │       ├── benchmark/         /benchmark — run one end-to-end benchmark (service + harness + judge)
 │       ├── swe/, swe2/, swe3/ /swe* — drive a model through a SWE task on any repo (swe3 is the default)
+│       ├── model-router/      /model-router — recommend the right model for a task, from these measurements
 │       ├── throughput/        /throughput — sweep a served model's throughput
 │       ├── security-check/    /security-check — Cipher security review + fix before any commit
 │       └── vllm-setup/        /vllm-setup — stand up the EC2 vLLM server (Path 3)
@@ -324,6 +348,9 @@ Where to read more, by topic:
 |----------|----------------|
 | [.claude/skills/setup-machine/SKILL.md](.claude/skills/setup-machine/SKILL.md) | **Start here on a new machine.** What `/setup-machine` inspects and installs, why each component is needed, where the vLLM venv lands on a small root disk, and what it deliberately does not do. |
 | [docs/results-swe3.md](docs/results-swe3.md) / [docs/results-swe2.md](docs/results-swe2.md) | Full benchmark results per skill: task-by-task tables, per-model leaderboard, cost/quality frontier, hardware, and what the data says. |
+| [.claude/skills/model-router/SKILL.md](.claude/skills/model-router/SKILL.md) | The `/model-router` skill: how it sets a quality floor from the consequence of a change being wrong, picks the tier table to read it against, and selects the cheapest model that clears it. Advisory -- it recommends and stops. |
+| [docs/model-router-judged-inputs.md](docs/model-router-judged-inputs.md) | What `omp` + `claude-opus-5` judged each of the 21 v2 tasks to need: floor, tier, the reasoning, and how much those moved across three identical runs. |
+| [docs/model-router-evaluation-judged.md](docs/model-router-evaluation-judged.md) | Whether routing on those judgments beats running one model on everything: per-task picks joined to the measured runs, with cost and quality deltas. |
 | [docs/vision.md](docs/vision.md) | The north star: a cost-aware harness that routes each task (and each phase) to the right model on the frontier -- frontier / workhorse / budget -- switching automatically. |
 | [benchmarks/README.md](benchmarks/README.md) | The benchmark harness landing page: the three hosting paths, how a run works, and how to reproduce the results above. |
 | [benchmarks/docs/harness-reference.md](benchmarks/docs/harness-reference.md) | Full harness reference: config, the `/swe2` flow, context-window/auto-compaction, and the LLM-as-judge scoring. |

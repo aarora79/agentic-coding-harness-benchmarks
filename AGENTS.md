@@ -66,6 +66,8 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │   │   ├── run-swe-headless.py   # drives Claude Code over the dataset
 │   │   ├── runner_config.py      # RunnerConfig Pydantic model (config source of truth)
 │   │   ├── codex_judge.py        # scores artifacts (the judge)
+│   │   ├── run-router-headless.py # drives /model-router's judgment step over a dataset
+│   │   ├── eval_model_router.py  # routes on those judgments, joins to measured runs
 │   │   └── plot_*.py             # result charts
 │   ├── tests/                    # unittest suite for the harness
 │   └── docs/                     # harness-specific docs
@@ -79,7 +81,7 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │       ├── pricing.json          # instance pricing for cost derivation
 │       └── tests/                # unittest suite
 ├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
-├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check)
+├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, model-router)
 └── .github/                      # CI workflows and repo metadata
 ```
 
