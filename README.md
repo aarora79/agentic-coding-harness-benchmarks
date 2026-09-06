@@ -16,6 +16,14 @@
 <a href="docs/cost-per-task-methodology.md">Cost Methodology</a>
 </p>
 
+<p align="center">
+<video src="https://github.com/aarora79/agentic-coding-harness-benchmarks/releases/download/media-assets/swe-router-explainer.mp4" controls width="820">
+Your browser cannot play this video inline. <a href="https://github.com/aarora79/agentic-coding-harness-benchmarks/releases/download/media-assets/swe-router-explainer.mp4">Download the swe-router explainer</a> or open the <a href="docs/slides/agentic-coding-benchmarks-presentation.pdf">slide deck</a>.
+</video>
+</p>
+
+<p align="center"><em>swe-router in about 70 seconds: the right model, handed to the developer for each task, while the platform team benchmarks once and spends less.</em></p>
+
 > **This is sample code intended for demonstration and learning purposes only.**
 > It is not meant for production use. Review and harden all scripts, configurations,
 > and IAM permissions before using in any production or sensitive environment.
