@@ -50,9 +50,30 @@ codex exec --skip-git-repo-check "Reply with exactly: JUDGE OK"
 Two things that decide whether this works:
 
 - **The region must host the model.** The GPT-5.6 models are region-scoped, and asking a region that does not host one returns a 404 (`The model '...' does not exist`), not a helpful message. `openai.gpt-5.6-sol` -- the judge's default ([codex_judge.py](../scripts/codex_judge.py), overridable with `JUDGE_MODEL`) -- runs in **us-east-1 and us-east-2 only**; `openai.gpt-5.6-terra` and `openai.gpt-5.6-luna` add us-west-2.
+- **Do not trust `list-foundation-models` for this.** `aws bedrock list-foundation-models --region us-west-2` returns `openai.gpt-5.6-sol`, yet the `bedrock-mantle` endpoint in that region 404s on the same id. The two surfaces do not agree, so the listing is not evidence the judge can reach a model. The `codex exec` call below is the only check that settles it.
 - **Scope the region in `config.toml`, not `AWS_REGION`.** `model_providers.amazon-bedrock.aws.region` pins Codex to one region without disturbing the ambient environment -- which matters here, because the same box may point Claude Code at a different region and drives a local vLLM server that reads `AWS_*` for its own reasons.
 
 `--skip-git-repo-check` is only needed outside a git repo or trusted folder; the judge passes its own flags. If Codex warns that `bubblewrap` is missing it falls back to a bundled copy, which is harmless for `--sandbox read-only` judging; `sudo apt install bubblewrap` silences it.
+
+## omp (the agent, on the Bedrock path)
+
+`omp` needs no config file for Bedrock. It ships an `amazon-bedrock` provider, addresses models as `amazon-bedrock/<wire model id>`, and resolves credentials from the standard chain, an EC2 instance role included. All it needs from you is a region:
+
+```bash
+export AWS_REGION=us-west-2    # or wherever your Anthropic inference profiles live
+omp -p --mode json --no-session \
+    --model amazon-bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0 \
+    -- "Reply with exactly: OMP OK" </dev/null
+```
+
+A working call reports `"provider":"amazon-bedrock"` and `"api":"bedrock-converse-stream"` in its `message_end` event. Redirect stdin from `/dev/null`: omp reads an inherited stdin as a piped prompt and blocks on EOF, ignoring the positional one ([omp-setup.md](../../docs/omp-setup.md)).
+
+Two traps when you persist that export:
+
+- **`~/.bashrc` returns early for non-interactive shells.** Ubuntu's stock `~/.bashrc` opens with a `case $- in *i*) ;; *) return;; esac` guard, so an export appended to the end reaches interactive shells only. Put it in `~/.profile` as well, or a script and a `systemd --user` unit both start without it.
+- **The harness sets the region itself.** `run-swe-headless.py` pins `AWS_REGION` per run from `aws_region` in the runner config, so `--provider bedrock` runs do not depend on your shell at all. The export matters for driving `omp` by hand.
+
+Unlike `codex`, `omp` cannot pin its region in a config file, so this one is ambient. Check what `AWS_REGION` holds before blaming a model id.
 
 ## Claude Code (the agent, on the Bedrock path)
 
