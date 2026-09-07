@@ -512,8 +512,11 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 **Machine setup -- do this before any benchmark run:**
 
 - [.claude/skills/setup-machine/SKILL.md](.claude/skills/setup-machine/SKILL.md) -- the `setup-machine` skill: inspects the instance, reports every missing dependency, and installs it (adding vLLM, nvtop and nvitop only when a GPU is present). Start here on a fresh box; `setup-machine.sh --check` alone is a fast answer to "why is `uv` / `claude` / `codex` not found".
-- [benchmarks/docs/agent-cli-bedrock-setup.md](benchmarks/docs/agent-cli-bedrock-setup.md) -- wiring `codex` (the judge) and `claude` to Amazon Bedrock. **Working AWS credentials are not sufficient**: an unconfigured `codex` ignores them and 401s against `api.openai.com`, so prove it with a real call before starting a long run.
+- [benchmarks/docs/agent-cli-bedrock-setup.md](benchmarks/docs/agent-cli-bedrock-setup.md) -- wiring `codex` (the judge), `claude` and `omp` to Amazon Bedrock. **Working AWS credentials are not sufficient**: an unconfigured `codex` ignores them and 401s against `api.openai.com`, so prove it with a real call before starting a long run.
+- [docs/omp-setup.md](docs/omp-setup.md) -- installing `omp` (oh-my-pi), the harness behind the headline results, and the three ways it differs from `pi`. Read it before `--agent omp`: its config is YAML, it has no `--skill` flag, and it hangs on an inherited stdin.
 - [docs/kiro-cli-setup.md](docs/kiro-cli-setup.md) -- kiro-cli's own sign-in and its credit-based cost basis.
+- [.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md](.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md) -- the one-time driver, NVMe and CUDA-JIT fixes an 8-GPU NVSwitch node needs. `setup-machine.sh` points here when it detects one, and vLLM fails at KV-cache init without them.
+- [docs/getting-started.md](docs/getting-started.md) -- the guided tour from a fresh checkout to a first run, for anyone who wants the narrative rather than the reference pages above.
 
 **Running a benchmark:**
 
