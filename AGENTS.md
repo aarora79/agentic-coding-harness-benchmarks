@@ -62,7 +62,9 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │   │   └── litellm-mantle.yaml   # LiteLLM proxy config for open-weight Bedrock models
 │   ├── dataset/                  # the coding-task dataset the harness runs over
 │   ├── scripts/                  # the harness itself: runners, judge, config, plots
-│   │   ├── run-e2e-benchmark.sh  # top-level end-to-end entry point
+│   │   ├── run-multi-model-benchmark.sh # MANY models back to back (start here for a batch)
+│   │   ├── run-e2e-benchmark.sh  # ONE model, end to end
+│   │   ├── run-benchmark-batch.sh # simple sequential loop; judges inline, serves nothing
 │   │   ├── run-swe-headless.py   # drives Claude Code over the dataset
 │   │   ├── runner_config.py      # RunnerConfig Pydantic model (config source of truth)
 │   │   ├── codex_judge.py        # scores artifacts (the judge)
@@ -520,6 +522,7 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 
 **Running a benchmark:**
 
+- **More than one model? Use [benchmarks/scripts/run-multi-model-benchmark.sh](benchmarks/scripts/run-multi-model-benchmark.sh), and do not hand-roll a loop around `run-e2e-benchmark.sh`.** It already does the four things a batch needs: it serves each model from its own registry (stopping the previous one, with the tensor-parallel size and parser each one requires), self-detaches with `setsid` so a session teardown cannot kill a multi-day run, commits each `run-summary` to the current branch, and with `--judge-mode async` scores the finished model in the background while the next one generates. The judge is a Bedrock call that uses no GPU, so async overlaps it for free; inline leaves the GPU idle for roughly 50 minutes per 21-task model, and `skip` leaves a serial tail after the batch. `run-benchmark-batch.sh` is the simpler sibling: it judges inline and serves nothing, so it suits a Bedrock batch, not a self-hosted one.
 - [benchmarks/docs/end-to-end-self-hosted-run.md](benchmarks/docs/end-to-end-self-hosted-run.md) -- the full manual run-book for a self-hosted run.
 - [benchmarks/docs/harness-reference.md](benchmarks/docs/harness-reference.md) -- the dataset format, the artifacts, and what the judge does.
 - [benchmarks/docs/path-anthropic-on-bedrock.md](benchmarks/docs/path-anthropic-on-bedrock.md), [path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md), [path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) -- the three hosting paths.
