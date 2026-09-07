@@ -3,62 +3,62 @@
   "model": "kimi-k2.7-code",
   "scores": {
     "github_issue": {
-      "completeness": 22,
-      "correctness": 20,
+      "completeness": 21,
+      "correctness": 16,
       "specificity": 22,
-      "risk_awareness": 20,
-      "total": 84,
-      "notes": "The issue clearly defines both capabilities, response semantics, admin behavior, fail-open policy, scope, and testable acceptance criteria. Its `/validate`, caller/target axis, membership, and 403 throttle claims align with the submitted source contexts. The largest gap is ambiguity around quarantine enablement and target-membership identity encoding. No independent task statement was provided, and local repository commands could not execute due to the sandbox wrapper failure."
+      "risk_awareness": 19,
+      "total": 78,
+      "notes": "The issue clearly defines both capabilities, exclusions, user stories, and testable acceptance criteria across API, CLI, UI, enforcement, and operations. Its largest flaw is an incoherent quarantine failure policy: it requires an operator-selectable fail_closed gate but defines no state or interface for configuring that property. The no-nginx-change criterion also conflicts with requiring a new response header through the rewrite path; the submitted implementation consequently changes registry/core/nginx_service.py and both docker nginx templates. No independent task statement was supplied, so issue references and behavioral requirements beyond the task identifier could not be independently established."
     },
     "lld": {
-      "completeness": 18,
-      "correctness": 13,
-      "specificity": 19,
-      "risk_awareness": 17,
-      "total": 67,
-      "notes": "The LLD is strongest in its concrete file map, enforcement sequence, failure-policy discussion, UI integration, and operational cache caveat. Its target-quarantine design adds `subject_type=\"target\"` but never defines how target type enters `RateLimitMembership.build_id()`, while the proposed lookup requires `target:<entity_type>:<name>`. It also inconsistently models quarantine definitions across caller, target, and `caller_target` axes and does not connect definition enablement to the membership pre-check. Rollback compatibility for persisted new-axis documents and exact source applicability remain unaddressed or unverifiable."
+      "completeness": 20,
+      "correctness": 12,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The LLD is unusually concrete about repository files, limiter flow, composite-key escaping, API commands, validation, observability, and rollout. Its sentinel model is internally invalid: RateLimitMembership allows only user, client, and target while seeded records use subject_type reserved, yet the UI is expected to deserialize and display those records. It also never models per-quarantine fail_closed behavior, accepts a 30-second delay for an allegedly immediate kill switch, and claims no nginx changes despite needing the quarantine header propagated. Several baseline configuration and cache claims could not be independently verified because repository command execution was unavailable."
     },
     "review": {
-      "completeness": 18,
-      "correctness": 17,
-      "specificity": 20,
-      "risk_awareness": 18,
-      "total": 73,
-      "notes": "The review identifies concrete concerns involving dual-process seeding, reserved-name squatting, frontend state, fail-open security, cache delay, and membership-model debt. These findings reference specific components such as `DefinitionsRepository`, `RateLimitGroupsEditor`, and `MembershipsRepository.invalidate_cache`. Its largest omission is the unresolved target-membership ID/schema problem, along with rollback and quarantine-response propagation risks. Several declared resolutions remain incomplete in the revised LLD, particularly toggle semantics and registry startup seeding."
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 16,
+      "total": 56,
+      "notes": "The review identifies useful risks around cache delay, composite identifiers, target validation, auditability, and operational visibility. However, it appears stale relative to the submitted LLD: it demands key escaping, target-type validation, case-insensitive prefix checks, and reserved-row UI guards that the LLD already specifies explicitly. It misses the more serious reserved-subject model contradiction and the absence of any representable quarantine fail_closed setting. Its key-collision example cites /booking/flights as containing a colon when it does not, weakening the factual grounding of a critical finding."
     },
     "testing": {
-      "completeness": 15,
-      "correctness": 10,
-      "specificity": 13,
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 18,
       "risk_awareness": 14,
-      "total": 52,
-      "notes": "The plan spans validation, API behavior, counter isolation, failure policy, backward compatibility, UI, seeding, and end-to-end flows. However, the critical counter-isolation and throttle tests are comments rather than executable tests, the admin-bypass oracle can pass an incorrect denial, and no assertion proves quarantine precedes counter access. Its expected seed IDs use caller/target axes while the implementation seeds `caller_target` definitions, and the target-membership endpoint lacks a compatible model design. End-to-end URLs remain `...`, and commands such as `uv run mypy src/` could not be verified against the repository."
+      "total": 57,
+      "notes": "The plan provides concrete behavioral oracles for pair isolation, early denial, headers, compatibility, and end-to-end outcomes. Several unit examples do not match the submitted implementation: _make_limiter requires a backend argument, and the expected key includes user%3Aalice but omits the trailing window while the patch produces ctg:group:alice:mcp_server:backend-a:60. The deployment checks are ineffective because git diff HEAD -- nginx/ misses changes under docker/ and registry/core/nginx_service.py, while grep against helm/ is masked by || true and the repository uses charts/. Fail-closed lookup behavior, caller-only admin bypass, sentinel deserialization, and successful assignment of the exact reserved quarantine groups lack reliable automated coverage."
     },
     "implementation": {
-      "completeness": 7,
-      "correctness": 3,
-      "specificity": 11,
-      "risk_awareness": 4,
-      "total": 25,
-      "notes": "The patch partially implements `caller_target` models, repository lookup, limiter gates, API validation, frontend forms, and route tests using plausible existing integration points. Quarantine seeding is fatally invalid because `user_max_requests` and `agent_max_requests` retain `ge=1` while the seed constructs both with zero. Target memberships, registry-side seeding, quarantine decisions and headers, `/validate` handling, target UI management, and limiter tests are absent; moreover admins bypass all quarantine and target type is omitted from counter keys. The summary materially oversells the patch, and patch applicability plus the claimed compile and lint runs could not be independently verified because every local command failed before execution."
+      "completeness": 11,
+      "correctness": 7,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 39,
+      "notes": "The patch implements much of the caller_target core through RateLimitDefinition, DefinitionsRepository, RateLimiter, composite counter subjects, UI definition fields, metrics, and focused limiter tests. The quarantine management path is fatally broken because _validate_membership_mutability rejects every group beginning with quarantine:, including quarantine:caller and quarantine:target, so supported API clients cannot activate the feature. Seeded records use the model-invalid subject_type reserved, membership lookup errors are not wrapped in the promised fail-open/fail-closed handling, and the patch omits the required CLI and target-membership UI work. The summary also claims a new definitions summary endpoint and broader nginx conversion work absent from the diff; git apply --check and reported test results could not be independently verified because local command execution was unavailable."
     }
   },
-  "task_score": 60.2,
-  "verdict": "The design package is useful and often specific, but the implementation's invalid seeding and missing target-quarantine and response paths leave the core kill-switch requirement nonfunctional.",
+  "task_score": 59.8,
+  "verdict": "The submission offers a strong problem statement and detailed design, but the implementation leaves quarantine unusable through the supported management API and preserves several unresolved model and failure-handling contradictions.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T07:47:47.814312Z",
+    "evaluated_at": "2026-09-07T23:37:14.668178Z",
     "repo_ref": "1.27.1",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 318132,
-      "cached_input_tokens": 255162,
-      "cache_write_input_tokens": 48127,
-      "output_tokens": 12324,
-      "reasoning_output_tokens": 9998
+      "input_tokens": 240627,
+      "cached_input_tokens": 168924,
+      "cache_write_input_tokens": 44641,
+      "output_tokens": 12673,
+      "reasoning_output_tokens": 10863
     },
-    "duration_ms": 134277
+    "duration_ms": 164538
   }
 }
