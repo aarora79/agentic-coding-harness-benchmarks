@@ -176,11 +176,11 @@ class CommittedArtifactTest(unittest.TestCase):
             )
 
     def test_failed_tasks_are_excluded_from_tier_means(self) -> None:
-        # devstral-2-123b failed 3 of 6 medium tasks. Averaging those zeros in
+        # devstral-2-123b failed 2 of 6 medium tasks. Averaging those zeros in
         # would put its tier means below the overall score they sit beside.
         payload = bvm.build(bvm.DEFAULT_SOURCE, _REPO_ROOT)
         d = next(m for m in payload["models"] if m["model"] == "devstral-2-123b")
-        self.assertEqual(d["completion_by_complexity"]["medium"], "3/6")
+        self.assertEqual(d["completion_by_complexity"]["medium"], "4/6")
         self.assertGreater(d["score_by_complexity"]["medium"], 30.0)
 
     def test_tier_scores_bracket_the_overall_mean(self) -> None:
