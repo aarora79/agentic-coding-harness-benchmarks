@@ -17,8 +17,8 @@
 </p>
 
 <p align="center">
-<video src="https://github.com/user-attachments/assets/5c525197-0d54-4163-bfe6-54fc656dd1fe" controls width="820">
-Your browser cannot play this video inline. <a href="https://github.com/user-attachments/assets/5c525197-0d54-4163-bfe6-54fc656dd1fe">Download the swe-router explainer</a> or open the <a href="docs/slides/agentic-coding-benchmarks-presentation.pdf">slide deck</a>.
+<video src="https://github.com/user-attachments/assets/84f60f0f-cd7d-4513-b90b-37a0ffb5feed" controls width="820">
+Your browser cannot play this video inline. <a href="https://github.com/user-attachments/assets/84f60f0f-cd7d-4513-b90b-37a0ffb5feed">Download the swe-router explainer</a> or open the <a href="docs/slides/agentic-coding-benchmarks-presentation.pdf">slide deck</a>.
 </video>
 </p>
 
