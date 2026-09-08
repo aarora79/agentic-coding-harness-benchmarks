@@ -68,12 +68,10 @@ On ours, 16 models over 21 tasks: `claude-opus-5` scores highest at **82.83** fo
 Five files copied into a skills directory. The skill imports nothing and needs no build step:
 
 ```bash
-BASE=https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router
-mkdir -p .claude/skills/swe-router
-for f in SKILL.md route.py models.json model-aliases.json allowed-models.txt; do
-  curl -sL -o ".claude/skills/swe-router/$f" "$BASE/$f"
-done
+curl -sL https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh | bash
 ```
+
+Add `-s -- --dir ~/.claude/skills` to install it for every repository at once.
 
 `swe-router` engages on its own before a substantial task. It sets a quality floor from what happens if the change is wrong, classifies how hard the task is, and takes the cheapest model that clears that floor at that tier. **Edit `allowed-models.txt`.** The skill treats every name in it as a model the developer can select, so listing one your team cannot reach costs them the cheaper option.
 
