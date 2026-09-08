@@ -229,10 +229,37 @@ class CommittedArtifactTest(unittest.TestCase):
         # only these. An extra file is a dependency someone will start relying on.
         # Importing route.py in tests leaves a __pycache__; it is a build
         # artifact of running the checks, not something anyone installs.
+        # install.sh is the installer, not part of the skill: it fetches the
+        # five installed files and never copies itself, so it cannot become a
+        # runtime dependency. test_installer_installs_exactly_the_skill_files
+        # holds that line.
         self.assertEqual(
             sorted(p.name for p in _VEND_DIR.iterdir() if p.is_file()),
             [
                 "README.md",
+                "SKILL.md",
+                "allowed-models.txt",
+                "install.sh",
+                "model-aliases.json",
+                "models.json",
+                "route.py",
+            ],
+        )
+
+    def test_installer_installs_exactly_the_skill_files(self) -> None:
+        # The installer's file list is the install contract, and it is a shell
+        # string rather than anything importable -- so read it back and check it
+        # against the directory. A file added to vend/ but not to SKILL_FILES
+        # would be documented as part of the skill and never actually installed.
+        text = (_VEND_DIR / "install.sh").read_text(encoding="utf-8")
+        declared = next(
+            line.split('"')[1]
+            for line in text.splitlines()
+            if line.startswith("SKILL_FILES=")
+        )
+        self.assertEqual(
+            sorted(declared.split()),
+            [
                 "SKILL.md",
                 "allowed-models.txt",
                 "model-aliases.json",
@@ -240,6 +267,7 @@ class CommittedArtifactTest(unittest.TestCase):
                 "route.py",
             ],
         )
+        self.assertNotIn("install.sh", declared)
 
     def test_readme_tier_tables_match_the_data(self) -> None:
         # The README prints the four tier tables so a reader can see the scan.
