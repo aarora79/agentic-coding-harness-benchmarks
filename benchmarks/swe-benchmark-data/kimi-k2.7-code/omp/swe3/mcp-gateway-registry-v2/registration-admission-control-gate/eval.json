@@ -4,61 +4,61 @@
   "scores": {
     "github_issue": {
       "completeness": 22,
-      "correctness": 20,
-      "specificity": 22,
-      "risk_awareness": 16,
-      "total": 80,
-      "notes": "The issue clearly defines the problem, default-disabled behavior, eight affected endpoints, deployment surfaces, and testable allow, deny, and failure outcomes. Its endpoint checklist and explicit 403/503 behavior provide unusually concrete acceptance boundaries. Its largest gap is security and contract precision: it does not address plaintext credentials, HTTPS enforcement, SSRF, malformed responses, or whether every HTTP 200 is sufficient without an allowed field. No independent task statement exists, and the repository sandbox could not execute source inspections, so endpoint and dependency claims could not be independently confirmed."
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 81,
+      "notes": "The strongest aspect is its testable scope: it names six route/method pairs, four settings, explicit 200/403/503 semantics, deployment surfaces, and clear non-goals. The submitted diff context contains matching handlers named register_agent, update_agent, register_skill, update_skill, internal_register_service, and register_service_api. The largest deficiency is its security framing: exact hostname denials are presented as SSRF protection without addressing DNS resolution, broader loopback forms, sensitive payload exposure, or fail-closed availability impact. No independent task statement was supplied, so broader requirement coverage could not be verified."
     },
     "lld": {
-      "completeness": 20,
+      "completeness": 19,
       "correctness": 15,
-      "specificity": 22,
-      "risk_awareness": 18,
-      "total": 75,
-      "notes": "The LLD is highly concrete about route integration, payload fields, requester normalization, settings, deployment wiring, observability, and rollback through the default-disabled switch. Its named paths and symbols correspond consistently to the submitted patch, including registry/api/server_routes.py and registry/core/config.py. The principal correctness defect is an unsafe webhook contract: data.get permits truthy non-booleans and crashes on non-object JSON, while requiring allowed=true also contradicts the issue's unconditional HTTP-200 acceptance criterion. It recognizes plaintext credential exposure and serialization concerns but settles for documentation and HTTPS guidance rather than enforcement, and repository-level verification was unavailable."
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 68,
+      "notes": "The design's strongest aspect is its concrete mapping of settings, exceptions, routes, deployment files, response semantics, and rollout steps. Its claimed normalized payload is contradicted by the proposed route placement: agent and server gate calls occur before path normalization, and the review explicitly accepts raw server paths. The largest deficiency is security and failure design: it neither defines user-context minimization or secret redaction nor handles DNS-resolved internal addresses, and it proposes converting every unexpected exception into a 503. The proposed singleton behavior, exact line counts, and new service implementation could not be verified because those central files are absent from the submitted patch."
     },
     "review": {
-      "completeness": 19,
-      "correctness": 16,
-      "specificity": 21,
-      "risk_awareness": 19,
-      "total": 75,
-      "notes": "The review identifies concrete concerns involving server payload serialization, form-route UX, empty Terraform values, Helm secrets, SSRF, and plaintext credential disclosure. Several concerns are validated by the patch, notably its raw server_entry payloads and absence of route-level integration tests. Its largest weakness is the unsupported conclusion that all findings are optional and no blocker exists despite material security, serialization, and coverage defects; promised server and agent route tests were not delivered. It also misses the issue-versus-LLD HTTP-200 contract conflict and malformed response-shape handling."
+      "completeness": 15,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 56,
+      "notes": "The review usefully identifies concrete concerns including server-form drift, fail-closed availability, secret rotation, response-size limits, and redirect behavior. Its largest deficiency is declaring every must-fix item resolved even though the submitted patch contains no registration_gate_service.py, registration_gate.py schema, or test additions. It also overstates the URL validator as blocking loopback and link-local targets generally, while the code only rejects a few exact hosts and the 169.254 IPv4 prefix. Claims about _cap_detail, redirect configuration, token masking behavior, and passing tests therefore cannot be verified from the implementation artifact."
     },
     "testing": {
-      "completeness": 17,
-      "correctness": 11,
-      "specificity": 20,
-      "risk_awareness": 16,
-      "total": 64,
-      "notes": "The plan supplies concrete payload assertions, response oracles, failure cases, backward-compatibility checks, and deployment validation across Docker, Terraform, and Helm. However, its prerequisite names tag 1.24.4 instead of the submitted v1.0.19 ref, and commands such as test_gate_allow do not match the implementation's actual test names. The proposed python -m http.server gate cannot process the required POST webhook, making the stated end-to-end procedure incomplete. Route coverage exercises only three endpoint templates and would not catch the implementation's missing POST /api/register integration or malformed-response and serialization failures."
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 16,
+      "risk_awareness": 13,
+      "total": 51,
+      "notes": "The strongest aspect is the use of meaningful status and persistence oracles for allow, deny, unavailable, and disabled behavior. The principal test setup is unusable with the submitted validator because GATE_URL is set to localhost, which the implementation explicitly rejects whenever the gate is enabled. Coverage also omits a concrete test for POST /api/internal/register, gives no executable update cases, and relies on grep-based deployment checks that can pass without correct semantic wiring. The plan additionally assumes POST /api/config can mutate startup settings, but no submitted change establishes that API or reload behavior."
     },
     "implementation": {
-      "completeness": 14,
-      "correctness": 10,
-      "specificity": 16,
-      "risk_awareness": 11,
-      "total": 51,
-      "notes": "The patch provides a shared gate service, configuration across four deployment surfaces, seven route integrations, and focused service-level tests. It omits the explicitly required POST /api/register route and all route-level integration tests, while the summary incorrectly claims all mutable endpoints are covered and calls GateResult a named tuple although it is a Pydantic BaseModel. Raw server dictionaries are sent without the promised jsonable_encoder, non-object or loosely typed JSON is handled unsafely, and AsyncMock is incorrectly used for the synchronous response.json method in tests, causing key allow and deny tests to fail. The internal route also calls the external gate before rejecting an existing non-overwrite request, and independent git apply verification was unavailable because the read-only execution sandbox failed to initialize."
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 10,
+      "risk_awareness": 7,
+      "total": 25,
+      "notes": "The patch concretely modifies many appropriate existing surfaces, including route hooks, settings, exceptions, Docker, Helm, and Terraform defaults. Its fatal deficiency is that it imports registry.schemas.registration_gate and registry.services.registration_gate_service but supplies neither new file, so the patched application cannot import; both claimed unit-test files are also absent. Additional defects include calling the gate before path normalization, accepting malformed HTTP URLs with no hostname, and providing only module-level Terraform variables without demonstrated caller wiring. Patch applicability could not be dry-run because the local execution sandbox failed before command execution, and the claimed compilation and 15 passing tests are contradicted by the submitted patch contents."
     }
   },
-  "task_score": 69.0,
-  "verdict": "The submission offers a strong and specific design foundation, but the implementation is materially incomplete and insufficiently validated, most notably missing a required route and containing broken response handling and tests.",
+  "task_score": 56.2,
+  "verdict": "The submission has strong issue framing and a reasonably concrete design, but the implementation omits the core service, schema, and tests, leaving the patched application non-importable.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T07:57:25.126926Z",
+    "evaluated_at": "2026-09-07T23:42:15.082365Z",
     "repo_ref": "v1.0.19",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 284292,
-      "cached_input_tokens": 235356,
-      "cache_write_input_tokens": 48600,
-      "output_tokens": 6099,
-      "reasoning_output_tokens": 3896
+      "input_tokens": 197886,
+      "cached_input_tokens": 143791,
+      "cache_write_input_tokens": 33230,
+      "output_tokens": 10910,
+      "reasoning_output_tokens": 8608
     },
-    "duration_ms": 453921
+    "duration_ms": 137275
   }
 }

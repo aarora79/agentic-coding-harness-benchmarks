@@ -1,10 +1,10 @@
 # Does the swe-router pay for itself?
 
-> Across the 21 tasks the router selected **4 different models**: **qwen3.8-27b** 13x, **claude-opus-5** 2x, **claude-opus-4-8** 1x, **glm-5.3** 1x. On 4 further task(s) nothing cleared the floor, so the skill's answer was to stay on `claude-opus-5`.
+> Across the 21 tasks the router selected **3 different models**: **qwen3.8-27b** 13x, **claude-opus-5** 3x, **claude-opus-4-8** 1x. On 4 further task(s) nothing cleared the floor, so the skill's answer was to stay on `claude-opus-5`.
 >
-> Against running `claude-opus-5` on everything, that cost **46.4% less** ($134.64 against $251.04) for a quality change of **-4.7%** (78.94 against 82.83 mean task score, -3.89 points).
+> Against running `claude-opus-5` on everything, that cost **44.7% less** ($138.84 against $251.04) for a quality change of **-4.8%** (78.84 against 82.83 mean task score, -3.99 points).
 >
-> The saving is total-over-total, which is what lands on a bill. The mean of the per-task percentages is 61.9%, higher because it weights a cheap task the same as an expensive one.
+> The saving is total-over-total, which is what lands on a bill. The mean of the per-task percentages is 59.7%, higher because it weights a cheap task the same as an expensive one.
 
 Replays the `swe-router` skill over all 21 tasks of `mcp-gateway-registry-v2`, then looks up what the model it picked ACTUALLY scored and cost on that task, against running `claude-opus-5` on everything.
 
@@ -31,7 +31,7 @@ A ⚠ marks a task where the model the router picked landed below the floor it w
 | consistent-csrf-across-toggle-endpoints | high | 80 | _stay on claude-opus-5_ | -- | 86.4 | 86.4 | +0.0 | $10.94 | $10.94 | +0% |
 | configurable-ui-title | medium | 75 | qwen3.8-27b | 77.72 | 83.6 | 83.2 | +0.4 | $0.84 | $10.35 | +92% |
 | configurable-mcp-proxy-upstream-timeout | medium | 70 | qwen3.8-27b | 77.76 | 83.4 | 79.2 | +4.2 | $0.74 | $10.12 | +93% |
-| nginx-location-trailing-slash-route-hijack | medium | 80 | glm-5.3 | 81.60 | 82.6 | 80.4 | +2.2 | $5.02 | $9.22 | +46% |
+| nginx-location-trailing-slash-route-hijack | medium | 80 | claude-opus-5 | 82.04 | 80.4 | 80.4 | +0.0 | $9.22 | $9.22 | -0% |
 | registration-admission-control-gate | high | 80 | _stay on claude-opus-5_ | -- | 81.8 | 81.8 | +0.0 | $13.29 | $13.29 | +0% |
 | server-side-oauth-token-storage | high | 75 | qwen3.8-27b | 77.27 | 54.0 ⚠ | 81.2 | -27.2 | $2.54 | $24.32 | +90% |
 | lifecycle-workflow-webhooks | high | 80 | claude-opus-5 | 80.25 | 77.8 ⚠ | 77.8 | +0.0 | $31.96 | $31.96 | -0% |
@@ -44,13 +44,13 @@ A ⚠ marks a task where the model the router picked landed below the floor it w
 | portable-env-secret-generation-in-build-script | low | 80 | qwen3.8-27b | 80.92 | 77.0 ⚠ | 75.8 | +1.2 | $0.46 | $11.52 | +96% |
 | logout-id-token-hint-out-of-browser-url | high | 80 | _stay on claude-opus-5_ | -- | 73.2 ⚠ | 73.2 | +0.0 | $10.97 | $10.97 | +0% |
 
-**Totals over 21 tasks** (15 switched away from claude-opus-5)
+**Totals over 21 tasks** (14 switched away from claude-opus-5)
 
 | | Router | Baseline | Difference |
 |---|---:|---:|---:|
-| Total cost | $134.64 | $251.04 | **-$116.40 (46.4%)** |
-| Mean score (21 tasks scored in both arms) | 78.94 | 82.83 | **-3.89** |
+| Total cost | $138.84 | $251.04 | **-$112.20 (44.7%)** |
+| Mean score (21 tasks scored in both arms) | 78.84 | 82.83 | **-3.99** |
 | Tasks under floor | 7 | 4 | +3 |
 | Tasks failed outright | 0 | 0 | +0 |
 
-Models the router used: claude-opus-4-8, claude-opus-5, glm-5.3, qwen3.8-27b.
+Models the router used: claude-opus-4-8, claude-opus-5, qwen3.8-27b.

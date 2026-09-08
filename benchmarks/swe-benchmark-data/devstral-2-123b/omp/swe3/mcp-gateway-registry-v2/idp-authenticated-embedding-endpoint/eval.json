@@ -3,62 +3,62 @@
   "model": "devstral-2-123b",
   "scores": {
     "github_issue": {
-      "completeness": 20,
+      "completeness": 21,
       "correctness": 18,
-      "specificity": 20,
-      "risk_awareness": 16,
-      "total": 74,
-      "notes": "The issue clearly defines OAuth2 client-credentials support, backward compatibility, deployment surfaces, documentation, and explicit non-goals. Its core static-key limitation is consistent with the baseline `Settings` and `LiteLLMClient` context, and most acceptance criteria are testable. The largest gap is unspecified precedence when both IdP and static credentials exist, plus behavior during token-endpoint outages or endpoint 401 responses. No independent task statement was supplied, and the asserted relationship to issue #1415 could not be verified."
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 79,
+      "notes": "The issue clearly defines opt-in OAuth2 client-credentials behavior, backward compatibility, deployment surfaces, security expectations, and testable acceptance criteria. Its strongest aspect is the explicit scope and non-goals, including token caching, startup validation, secret handling, and re-index documentation. The repository documents Docker, Terraform/ECS, and Helm deployments, although its actual Helm root is `charts/mcp-gateway-registry-stack`, not the later artifacts' `charts/registry`. With no independent task statement, the claimed existing token-manager pattern and issue #1415 relationship could not be verified."
     },
     "lld": {
-      "completeness": 16,
-      "correctness": 7,
-      "specificity": 18,
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 17,
       "risk_awareness": 13,
-      "total": 54,
-      "notes": "The design names concrete files, configuration fields, token flow, synchronization, deployment surfaces, and rollout considerations. Its central validator is invalid as written because `@field_validator` reads later sibling fields through `cls`, while the first token-provider sample defines `expiry_buffer_seconds` but reads `_expiry_buffer_seconds`. It also claims retry, memory protection, revocation, metrics, and startup acquisition were resolved although the implementation steps remain lazy and omit those mechanisms, and variable/value additions alone do not wire ECS or Helm workloads. The named core files are supported by baseline context, but the claimed reusable OAuth/token-refresher and configuration-UI patterns could not be fully verified."
+      "total": 52,
+      "notes": "The LLD specifies token state, locking, refresh timing, request flow, configuration, and concrete integration points. Its largest defect is an unresolved configuration model: it exposes plaintext `EMBEDDINGS_IDP_CLIENT_SECRET` but stores only `embeddings_idp_client_secret_encrypted`, without defining an encryption path, and its proposed field validator may run before later required fields are available. It also names the incorrect Helm path `charts/registry`, claims module-level `requests.post` provides pooling, and leaves retry behavior unresolved. Referenced APIs such as `decrypt_credential` and `validate_public_url` could not be verified from available repository evidence."
     },
     "review": {
       "completeness": 15,
-      "correctness": 8,
-      "specificity": 18,
-      "risk_awareness": 14,
-      "total": 55,
-      "notes": "The review provides concrete findings on retries, secret delivery, concurrency, observability, and authentication complexity. It misses the invalid Pydantic validator, incomplete application wiring, and the distinction between declaring Terraform or Helm values and injecting them into running workloads. Its critical recommendation to `mlock` a transient encoded copy does not protect the retained Python string, while suggested `env` and Kubernetes Secret inspection commands can expose credentials. The verdict is internally inconsistent: it says revision remains necessary while simultaneously claiming placeholder revocation handling and unrevised LLD text resolve every blocker."
+      "correctness": 11,
+      "specificity": 16,
+      "risk_awareness": 17,
+      "total": 59,
+      "notes": "The review surfaces concrete concerns around SSRF, transient failures, malformed responses, input validation, metrics, and secret exposure. Its largest deficiency is that the resolution section claims pooling, URL guards, validation, and retries were added while the next steps still say to implement them, and several claims are contradicted by the patch. It misses the plaintext-versus-encrypted configuration mismatch, incorrect Helm path, lack of settings wiring, and the implementation's `aws_region` regression. The repeated approval verdicts despite stated blockers and unsupported claims about existing infrastructure weaken its defensibility."
     },
     "testing": {
-      "completeness": 16,
+      "completeness": 17,
       "correctness": 6,
-      "specificity": 18,
-      "risk_awareness": 15,
-      "total": 55,
-      "notes": "The plan supplies concrete token, refresh, concurrency, compatibility, malformed-response, and deployment test oracles. Several tests cannot exercise the proposed interfaces: one passes `idp_token_provider` to a factory that accepts `idp_config`, and the static-key test expects no headers although the patch explicitly adds them. The claimed fixtures, test files, `/api/embeddings`, token-status configuration response, and CI workflow are not supplied or established by repository evidence, while repeated-token fixtures can invalidate assertions requiring a changed token. It also omits a decisive test that settings are propagated through the real application call site and that ECS and Helm templates inject every variable."
+      "specificity": 15,
+      "risk_awareness": 12,
+      "total": 50,
+      "notes": "The plan broadly covers configuration, refresh, failures, static-key compatibility, deployment, rollback, and end-to-end behavior with explicit expected outcomes. However, core tests invoke endpoints such as `/api/test-idp-token`, `/api/test-embeddings`, and `/api/debug/idp-token` that the submitted implementation does not provide, while secret variable names conflict with the encrypted-secret constructor. The Docker mock uses `python -m http.server`, which cannot service the required token POST, and several `jq` assertions omit `-e`, so false results still succeed. The expired-token scenario does not actually issue the expired token or validate a 401-triggered refresh, and no executable unit or integration tests are supplied."
     },
     "implementation": {
-      "completeness": 4,
-      "correctness": 1,
-      "specificity": 6,
-      "risk_awareness": 3,
-      "total": 14,
-      "notes": "The patch does target the baseline `Settings`, `LiteLLMClient`, and `create_embeddings_client` symbols and supplies a concrete token-provider implementation. It is not end-to-end: only three files are changed, with no application call-site, Docker, Terraform, Helm, documentation, or test diffs despite the summary claiming them, so IdP configuration never reaches the factory. It also deletes `embeddings_aws_region`, references `TokenProvider` without an import, uses the invalid sibling-field validator, changes static-key behavior, and injects a massive corrupted sequence into the client docstring. The claimed memory protection locks a temporary byte copy while retaining the original string, scope mismatches merely warn, and local `git apply --check` could not be executed because the repository shell sandbox failed before command execution."
+      "completeness": 5,
+      "correctness": 3,
+      "specificity": 10,
+      "risk_awareness": 6,
+      "total": 24,
+      "notes": "The patch provides a substantial token-provider class and injects its bearer token into the existing LiteLLM request path, but it does not implement the settings, startup validation, caller wiring, deployment surfaces, documentation, UI masking, or tests required by the design. In `LiteLLMClient.__init__`, it replaces `self.aws_region = aws_region` with the provider assignment, creating a backward-compatibility regression, and it inserts a duplicate unreachable encode body after `_get_auth_headers()` returns. The factory only accepts an already-created provider, so normal application configuration cannot activate the feature; static-key behavior is also changed by adding generic bearer headers. The summary incorrectly claims scope validation and retry logic that are absent and acknowledges `registry/core/config.py` integration as future work despite declaring configuration support complete."
     }
   },
-  "task_score": 50.4,
-  "verdict": "The submission has a strong problem statement and detailed planning, but the design contains critical technical errors and the implementation is corrupted, incomplete, and not wired into the running system.",
+  "task_score": 52.8,
+  "verdict": "The issue is strong and the artifacts identify many relevant concerns, but the implementation is incomplete, internally inconsistent, and introduces a concrete existing-provider regression.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T11:23:07.681756Z",
+    "evaluated_at": "2026-09-08T05:51:43.707711Z",
     "repo_ref": "1.28.0",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 547623,
-      "cached_input_tokens": 436975,
-      "cache_write_input_tokens": 71162,
-      "output_tokens": 11889,
-      "reasoning_output_tokens": 9551
+      "input_tokens": 317013,
+      "cached_input_tokens": 209194,
+      "cache_write_input_tokens": 45397,
+      "output_tokens": 11821,
+      "reasoning_output_tokens": 10079
     },
-    "duration_ms": 194760
+    "duration_ms": 259467
   }
 }

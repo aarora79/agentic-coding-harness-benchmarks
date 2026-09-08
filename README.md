@@ -61,7 +61,7 @@ One command per model. The `/benchmark` skill runs the pre-flight checks, the ha
 
 ![Cost vs. quality Pareto frontier, omp harness on /swe3](docs/images/cost-quality-omp-swe3.png)
 
-On ours, 16 models over 21 tasks: `claude-opus-5` scores highest at **82.83** for **$11.95** a task, and `glm-5.3` lands 1.6 points behind it at $8.09. The cheapest model above 78 is `qwen3.8-27b`, which scores **78.48 at $1.47** and beats `claude-sonnet-5` (76.97, $4.67) at under a third of the cost.
+On ours, 16 models over 21 tasks: `claude-opus-5` scores highest at **82.83** for **$11.95** a task, and `glm-5.3` lands 2.7 points behind it at $7.04. The cheapest model above 78 is `qwen3.8-27b`, which scores **78.48 at $1.47** and beats `claude-sonnet-5` (76.97, $4.67) at under a third of the cost.
 
 ## Step 2 — Developers install the skill
 
@@ -95,7 +95,7 @@ Install notes, the file-by-file breakdown and the measured results: **[vend/swe-
 
 ### Does routing pay for itself?
 
-We ran `swe-router` against its own evidence. Every model has run every task, so for whatever the skill picks we can look up what that model scored and cost on that task. Over 21 tasks it came out **46.4% cheaper for 4.7% less quality**. Three caveats decide how much to trust that number, and all three come from the judgment step, not the arithmetic.
+We ran `swe-router` against its own evidence. Every model has run every task, so for whatever the skill picks we can look up what that model scored and cost on that task. Over 21 tasks it came out **44.7% cheaper for 4.8% less quality**. Three caveats decide how much to trust that number, and all three come from the judgment step, not the arithmetic.
 
 **[Does routing pay for itself?](docs/swe-router-evaluation.md)** · [The routing result, joined to the measured runs](docs/swe-router-evaluation-judged.md) · [What the model judged each task to need](docs/swe-router-judged-inputs.md) · [The skill itself](.claude/skills/swe-router/SKILL.md)
 

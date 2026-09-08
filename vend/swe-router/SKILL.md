@@ -93,7 +93,7 @@ Take that tier's table from `score_by_complexity`, and read `completion_by_compl
 | `claude-opus-5` | 82.83 | 86.2 | 79.8 | 5/5 |
 | `claude-sonnet-5` | 76.97 | 80.5 | 73.7 | 5/5 |
 | `qwen3.8-27b` | 78.48 | 80.9 | 71.5 | **4/5** |
-| `kimi-k2.7-code` | 69.98 | 74.9 | 63.1 | **4/5** |
+| `kimi-k2.7-code` | 69.13 | 71.7 | 58.5 | **3/5** |
 | `gemma-4-31b` | 59.74 | 63.3 | 50.0 | 5/5 |
 
 Two things the overall mean hides. `qwen3.8-27b` outscores `claude-sonnet-5` overall (78.48 against 76.97) and trails it by 2.2 points on hard work — the ranking between them flips with the tier. And it did not finish one hard task at all, which the mean cannot show because a failure is excluded from it rather than averaged in.
@@ -255,7 +255,7 @@ Recommendation: switch to claude-sonnet-5
                  outside the +/-3 noise band, so it is a real gap)
 
 Basis: 21 design-and-implement tasks on one Python/React service repo, omp
-harness, judged by an LLM. Measured 2026-09-01. Scores and costs are that
+harness, judged by an LLM. Measured 2026-09-08. Scores and costs are that
 benchmark's per-task averages, not an estimate for this task. Rankings travel
 better than absolute scores.
 ```
@@ -264,27 +264,26 @@ And when the answer is to stay. Same layout, same labels — it still names the
 model on the first line and still shows what it was ranked against:
 
 ```
-Recommendation: stay on glm-5.3
+Recommendation: stay on qwen3.8-27b
 
-  Task           move OAuth tokens to server-side storage
+  Task           add per-caller rate limiting to the proxy
   Complexity     high
-  Consequence    a security path, wrong is expensive and slow to find
-  Floor          75
+  Consequence    a production service, a defect reaches someone
+  Floor          70
 
-  You are on     glm-5.3         77.2 on high tasks / $8.09 per task  (5/5 finished)
+  You are on     qwen3.8-27b     71.5 on high tasks / $1.47 per task  (4/5 finished)
                  cheapest permitted model above the floor, and it sits
-                 2.2 above it -- inside the noise band, not clear of it
+                 1.5 above it -- inside the noise band, not clear of it;
+                 it also failed one of the five hard tasks
 
-  Next step up   claude-opus-5   79.8 on high tasks / $11.95 per task
-                 2.5 points for $3.87 more, which is inside +/-3: no
-                 measurable gain
+  Next step up   glm-5.3         74.7 on high tasks / $7.04 per task
+                 3.2 points for $5.57 more, just outside +/-3
 
-  Below the floor  qwen3.8-27b   71.5, and finished only 4 of 5 hard tasks
-                   qwen3.6-35b   56.0
+  Below the floor  qwen3.6-35b   56.0
                    gemma-4-31b   50.0
 
 Basis: 21 design-and-implement tasks on one Python/React service repo, omp
-harness, judged by an LLM. Measured 2026-09-01. Scores and costs are that
+harness, judged by an LLM. Measured 2026-09-08. Scores and costs are that
 benchmark's per-task averages, not an estimate for this task. Rankings travel
 better than absolute scores.
 ```

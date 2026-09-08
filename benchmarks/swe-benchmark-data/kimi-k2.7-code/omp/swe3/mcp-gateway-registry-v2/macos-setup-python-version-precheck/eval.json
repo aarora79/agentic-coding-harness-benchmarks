@@ -3,62 +3,62 @@
   "model": "kimi-k2.7-code",
   "scores": {
     "github_issue": {
-      "completeness": 22,
+      "completeness": 21,
       "correctness": 20,
-      "specificity": 23,
-      "risk_awareness": 17,
-      "total": 82,
-      "notes": "The issue provides six testable acceptance criteria, explicit exclusions, and covers the important pre-clone invocation path. Repository evidence confirms that Phase 1 merely checks `python3 --version`, while the setup guide requires Python 3.14+, grounding the central problem.  Its largest gap is requiring metadata-driven future version bumps while preserving a hard-coded `brew install python@3.14` remedy, without defining behavior when metadata is unavailable or comes from a different release. No independent task statement was supplied, and the claims about issue #1568 and the precise later `uv sync` failure were not verifiable."
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 78,
+      "notes": "The issue clearly defines old/new interpreter behavior, dynamic metadata lookup, remediation, no-clone operation, and explicit non-goals. The submitted patch context supports the named skill path and original presence-only check, while the public guide corroborates Python 3.14 and the Homebrew command. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/macos-setup-guide.md)) The largest deficiency is that “raw GitHub URL or gracefully degrading” leaves pass/fail and version-pinning behavior ambiguous, weakening the enforcement criterion. Issue #1568, the exact Phase 5 failure sequence, and ref-specific metadata could not be independently verified because local shell inspection was unavailable."
     },
     "lld": {
-      "completeness": 19,
-      "correctness": 14,
-      "specificity": 19,
-      "risk_awareness": 17,
-      "total": 69,
-      "notes": "The LLD is strongly grounded in the real skill, phase ordering, installation-directory flow, and existing remediation table.  It concretely specifies lookup order, timeout values, fallback behavior, output tokens, and relevant files. The largest design defect is accepting any `./pyproject.toml`, which may belong to an unrelated working directory; the extraction example also calls `open(path)` without defining how `path` reaches the script, leaving a critical invocation detail unresolved. It recognizes network, cleanup, parsing, and tag-versus-main risks, but accepts a `main` fetch and hard-coded fallback that can disagree with the release being installed."
+      "completeness": 20,
+      "correctness": 8,
+      "specificity": 22,
+      "risk_awareness": 13,
+      "total": 63,
+      "notes": "The LLD is unusually concrete about the file, existing block, lookup order, output tokens, timeout, fallback behavior, and remediation-table edit. Its critical defect is using `str | None`, which requires Python 3.10, and `tuple[int, ...]`, which requires Python 3.9, inside code intended to diagnose older interpreters. ([peps.python.org](https://peps.python.org/pep-0604/), [peps.python.org](https://peps.python.org/pep-0585/)) It also trusts any parent-directory `pyproject.toml` without confirming repository identity and deliberately passes when metadata or its specifier cannot be interpreted. The exact baseline files and claimed workflow details could not be independently inspected through the unavailable local shell."
     },
     "review": {
-      "completeness": 17,
-      "correctness": 14,
-      "specificity": 19,
-      "risk_awareness": 18,
-      "total": 68,
-      "notes": "The review identifies concrete concerns around network timeouts, empty downloads, temporary-file cleanup, input validation, fallback visibility, and tag-versus-main compatibility. Its strongest finding is that fetching `main` can reject an interpreter valid for the release being installed, which is a real compatibility risk in the documented remote invocation flow.  The backend review incorrectly says `>=\\s*` requires a space after `>=`, and the overall approval misses the unsafe preference for an unrelated current-directory `pyproject.toml`. Several persona sections add little scrutiny, while the claim that the raw fetch introduces no new attack surface is too absolute."
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 57,
+      "notes": "The review identifies concrete concerns around branch drift, network latency, unsupported specifiers, status-token compatibility, and static remediation text. Its largest failure is approving the core logic while missing that the proposed annotations cannot run on Python before 3.10, a central target of this precheck. ([peps.python.org](https://peps.python.org/pep-0604/), [peps.python.org](https://peps.python.org/pep-0585/)) It also does not challenge selecting unrelated local metadata or treating an unknown requirement as success. Claims that all should-fix items were resolved could be compared with the artifacts, but not with the inaccessible working-tree source."
     },
     "testing": {
-      "completeness": 13,
-      "correctness": 7,
-      "specificity": 17,
-      "risk_awareness": 10,
-      "total": 47,
-      "notes": "The plan supplies concrete commands and exact oracles for basic extraction, comparison, message content, remediation preservation, and remote retrieval. Its largest deficiency is that nearly every test exercises a copied snippet rather than the actual modified Phase 1 block, so it would not detect the patch's broken Python invocation. The missing-Python test either cannot start its outer `python3` harness or finds the same `/usr/bin/python3`, while the suffix test expects `3.14.1a1` to parse even though `int('1a1')` raises. It also omits integrated checks for metadata failure, timeout behavior, temporary-file cleanup, unrelated working-directory metadata, and tag-versus-main mismatch."
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 49,
+      "notes": "The plan provides concrete outputs and assertions for success, absence, offline behavior, status prefixes, and remediation text. The key old-interpreter test is invalid: its wrapper recursively resolves itself through `/usr/bin/env python3`, and even a corrected wrapper would execute the real interpreter whose `sys.version_info` is not spoofed. It therefore misses the Python-before-3.10 annotation failure, while the offline and local-preference cases test rewritten snippets instead of the patched block. ([peps.python.org](https://peps.python.org/pep-0604/), [peps.python.org](https://peps.python.org/pep-0585/)) The grep path and other repository commands could not be independently executed because the local shell sandbox failed to initialize."
     },
     "implementation": {
-      "completeness": 10,
-      "correctness": 4,
-      "specificity": 17,
-      "risk_awareness": 8,
-      "total": 39,
-      "notes": "The hunk targets the real Phase 1 Python check and preserves the surrounding checks and remediation structure.  However, `python3 \"$PYPROJECT_FILE\" <<'PYEOF'` executes the TOML file as Python instead of executing the heredoc with the file path as an argument; it needed the equivalent of `python3 - \"$PYPROJECT_FILE\"`, so metadata extraction normally fails and the implementation silently relies on hard-coded `3.14`. The patch also trusts an arbitrary current-directory `pyproject.toml`, fetches `main` rather than the installed release, and installs a malformed cleanup trap whose escaped quotes become part of the filename. The summary's claims that metadata is read and that there are no LLD deviations are therefore inaccurate, although timeout, non-empty-download, fallback-warning, and user-facing version reporting logic are present."
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 19,
+      "risk_awareness": 9,
+      "total": 48,
+      "notes": "The patch is focused on the stated skill block and includes dynamic lookup, found/required output, timeout handling, and preserved remediation guidance. It does not correctly implement the central behavior for Python before 3.10 because function annotations such as `str | None` fail before any `PYTHON_FAIL` message can be printed. ([peps.python.org](https://peps.python.org/pep-0604/), [peps.python.org](https://peps.python.org/pep-0585/)) It can also enforce an unrelated parent `pyproject.toml`, pass when the requirement is unknown, and fetch `main` metadata independently of the submitted baseline. The diff context is internally consistent, but the summary's clean `git apply --check` claim could not be independently verified due unavailable repository shell access."
     }
   },
-  "task_score": 61.0,
-  "verdict": "The design package is specific and mostly repository-aware, but the implementation fails its core metadata-reading requirement because it invokes Python incorrectly, and the testing plan would not catch that defect.",
+  "task_score": 59.0,
+  "verdict": "The submission is specific and well-structured, but the implementation and its principal regression test fail precisely on older Python versions central to the task.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T07:41:22.860506Z",
+    "evaluated_at": "2026-09-07T23:29:58.951579Z",
     "repo_ref": "1.27.1",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 270324,
-      "cached_input_tokens": 165720,
-      "cache_write_input_tokens": 34262,
-      "output_tokens": 11090,
-      "reasoning_output_tokens": 8910
+      "input_tokens": 140127,
+      "cached_input_tokens": 76989,
+      "cache_write_input_tokens": 26159,
+      "output_tokens": 9724,
+      "reasoning_output_tokens": 8131
     },
-    "duration_ms": 121666
+    "duration_ms": 112693
   }
 }

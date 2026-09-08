@@ -3,62 +3,62 @@
   "model": "kimi-k2.7-code",
   "scores": {
     "github_issue": {
-      "completeness": 22,
-      "correctness": 20,
-      "specificity": 23,
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 22,
       "risk_awareness": 17,
-      "total": 82,
-      "notes": "The issue provides unusually concrete acceptance criteria, deployment surfaces, defaults, and explicit exclusions. Its referenced files and hardcoded strings align with the submitted diff, including Layout.tsx, Login.tsx, Logout.tsx, and /api/config. The largest flaw is the claim that unset deployments see no behavioral change, despite intentionally changing an unset registry-only deployment from the current hardcoded title to \"AI Registry\". No independent task statement was supplied, so broader requirement completeness and reference issue #984 could not be verified."
+      "total": 75,
+      "notes": "The issue clearly identifies the runtime configuration path, affected deployment surfaces, and testable API/UI behavior. Its largest defect is an internal contradiction: registry-only instances currently use the hardcoded gateway title, yet it both requires changing that unset default to \"AI Registry\" and promises no behavioral change when UI_TITLE is unset. The named Layout.tsx, /api/config, /api/config/full, Docker, Terraform, and Helm targets agree with the submitted implementation. No independent task statement was supplied, and the relevance of related issue #984 could not be verified."
     },
     "lld": {
       "completeness": 22,
-      "correctness": 17,
+      "correctness": 19,
       "specificity": 23,
-      "risk_awareness": 19,
-      "total": 81,
-      "notes": "The LLD thoroughly maps the change through Settings, CONFIG_GROUPS, useRegistryConfig, three UI components, and each deployment mechanism. Its central model-validator design is concrete and consistent with the patch, including normalization of empty UI_TITLE values. However, it simultaneously describes a resolved_ui_title property in the file summary, asserts an unverified 60-second API cache, and says nginx may return 401 while Login and Logout require this configuration before authentication. The ingress accessibility assumption and claimed session-wide hook caching remain unresolved material risks."
+      "risk_awareness": 18,
+      "total": 82,
+      "notes": "The LLD is unusually concrete, tracing Settings.effective_ui_title through config_routes.py, useRegistryConfig.ts, three React components, and each deployment surface. It preserves the issue's contradictory unset behavior and makes questionable operational claims that no network calls are added and that the title is derivable from logged deployment mode even when a custom UI_TITLE is configured. The proposed symbols and file locations closely match the submitted diff, including CONFIG_GROUPS and registry.reservedEnvNames. Claims about a 60-second hook cache, mode_filter.py, and the static browser title behavior could not be independently verified."
     },
     "review": {
-      "completeness": 21,
+      "completeness": 18,
       "correctness": 18,
-      "specificity": 22,
-      "risk_awareness": 21,
-      "total": 82,
-      "notes": "The review identifies concrete design defects involving duplicate sources of truth, empty-string deployment values, Helm reserved names, JSX escaping, and export semantics. Its recommendation to normalize ui_title inside Settings directly shaped the internally consistent implementation. The largest weakness is that several issues are closed by assertion: it says public /api/config access is recorded in the LLD when that document instead mentions nginx 401 behavior, and it does not establish ingress-level unauthenticated access. The claim that useRegistryConfig provides one shared fetch and cache is also not demonstrated by the submitted hook changes."
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 72,
+      "notes": "The review finds concrete design issues, especially raw versus effective admin values, Helm extraEnv shadowing, empty-title fallback, and missing backend tests. Its largest omission is failure to challenge the mutually incompatible promises about registry-only fallback and unchanged behavior for deployments without UI_TITLE. The reserved-name recommendation directly corresponds to charts/registry/templates/_helpers.tpl, and the raw-value observation matches adding ui_title directly to CONFIG_GROUPS. Assertions about global hook caching and duplicate Kubernetes environment-variable precedence were not substantiated with repository evidence."
     },
     "testing": {
       "completeness": 16,
-      "correctness": 11,
-      "specificity": 18,
-      "risk_awareness": 13,
-      "total": 58,
-      "notes": "The plan covers custom, unset, whitespace, and deployment-mode defaults and names every deployment surface. The proposed pytest selector `-k \"config endpoint should return deployment mode fields\"` is not a valid selector for a conventional underscored test name, and no modified test is supplied that asserts ui_title in the response. Frontend and deployment checks are mostly grep tests that can pass with dead or incorrectly wired code; the plan lists Terraform and Helm prerequisites but never runs terraform validate, helm template, or a frontend build. It also omits meaningful checks for unauthenticated Login access, rendering behavior, long titles, escaping, and reserved-variable collision rejection."
+      "correctness": 16,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 65,
+      "notes": "The backend property tests have clear setup and exact expected values for gateway, registry-only, custom, and endpoint behavior. The plan does not directly test the primary Layout custom-title behavior, and its deployment checks mostly grep for strings, so they can pass with incorrect nesting or ineffective wiring. The claimed backward-compatibility check runs TestSettingsTabVisibilityFeatureFlags rather than asserting the existing /api/config response, while the stack Helm path and Terraform path receive no render or validation oracle. The hardcoded REPO_ROOT, availability of frontend Jest support, and successful execution of the proposed commands were not independently verified."
     },
     "implementation": {
-      "completeness": 21,
-      "correctness": 19,
-      "specificity": 21,
-      "risk_awareness": 17,
-      "total": 78,
-      "notes": "The patch implements the requested path end to end: Settings resolution, both configuration views, the shared frontend type, all three title locations, Docker Compose, Terraform/ECS, Helm, and documentation. Concrete changes such as the model_validator, CONFIG_GROUPS tuple, React interpolation, and Helm reservedEnvNames entry are mutually consistent and preserve the with-gateway default. The largest limitations are the absence of regression tests and the unresolved possibility that unauthenticated Login cannot retrieve /api/config; long operator-provided titles also receive no layout constraint. The summary inaccurately attributes CONFIG_GROUPS and an `_get_ui_title()` resolver to config.py, and patch applicability plus its claimed verification could not be independently confirmed because repository shell access was unavailable."
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 81,
+      "notes": "The patch implements the intended path end to end: Settings.effective_ui_title feeds /api/config, the hook supplies Layout/Login/Logout, and Docker, ECS Terraform, and both Helm charts receive UI_TITLE. The code consistently treats an empty string as unset and uses React's escaped text rendering, but it intentionally changes registry-only behavior despite the issue's no-change criterion and provides no implemented frontend, chart-rendering, Compose, or Terraform tests. Concrete changes are coherent across registry/core/config.py, registry/api/config_routes.py, useRegistryConfig.ts, Layout.tsx, and the deployment manifests, with five focused backend tests added. Local git apply and claimed test execution could not be independently verified because repository command execution was unavailable, and the summary's suggestion that the unchanged static browser title is only a brief hydration effect is unsupported by this patch."
     }
   },
-  "task_score": 76.2,
-  "verdict": "This is a strong, largely implementation-ready submission whose main limitations are weak executable testing, unresolved pre-authentication configuration access, and several overstated repository claims.",
+  "task_score": 75.0,
+  "verdict": "The submission presents a coherent and likely functional end-to-end implementation, but its central unset-default requirement is contradictory and its testing does not adequately prove the primary UI or deployment wiring.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T07:12:43.136251Z",
+    "evaluated_at": "2026-09-07T23:09:35.019930Z",
     "repo_ref": "1.23.0",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 263879,
-      "cached_input_tokens": 178953,
-      "cache_write_input_tokens": 33417,
-      "output_tokens": 11323,
-      "reasoning_output_tokens": 9560
+      "input_tokens": 212812,
+      "cached_input_tokens": 166180,
+      "cache_write_input_tokens": 31621,
+      "output_tokens": 9912,
+      "reasoning_output_tokens": 8584
     },
-    "duration_ms": 147316
+    "duration_ms": 119772
   }
 }

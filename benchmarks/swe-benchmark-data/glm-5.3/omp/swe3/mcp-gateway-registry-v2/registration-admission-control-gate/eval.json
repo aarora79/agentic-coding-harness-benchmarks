@@ -6,59 +6,59 @@
       "completeness": 23,
       "correctness": 21,
       "specificity": 24,
-      "risk_awareness": 22,
-      "total": 90,
-      "notes": "The issue provides unusually testable contracts for seven routes, response statuses, retries, sanitization, configuration, deployment surfaces, and explicit exclusions. Its endpoint and handler scope is consistent with the submitted patch contexts for agent, server, and skill routes. The largest limitation is that no independent task statement exists, so additions such as startup probing and deployment requirements cannot be verified as original requirements. Claims of zero latency and complete path coverage are also stronger than the available evidence establishes."
+      "risk_awareness": 20,
+      "total": 88,
+      "notes": "The issue's strongest aspect is its testable contract: it enumerates seven endpoints, payload fields, status handling, sanitization, configuration, deployment surfaces, and explicit non-goals. The submitted diff contains matching route handlers and settings, supporting most repository-specific claims. Its largest gap is limited treatment of webhook retry idempotency, malformed configuration, and the privacy risk of forwarding nearly all non-denylisted headers. Because no independent task statement was supplied, requirement completeness beyond this internally defined scope cannot be verified."
     },
     "lld": {
-      "completeness": 23,
-      "correctness": 14,
-      "specificity": 24,
-      "risk_awareness": 21,
-      "total": 82,
-      "notes": "The LLD is highly concrete, naming real handlers, persistence calls, configuration files, deployment surfaces, and exact gate payload behavior. Its central error adapter is defective: `except RegistrationGateError:` executes `raise HTTPException(...) from e` although `e` is undefined, causing the unavailable path to become a 500 rather than the promised 403. That load-bearing defect was copied directly into the implementation despite the LLD claiming gate exceptions cannot escape as 500s. It otherwise handles sanitization, retry timing, rollback, proxy timeout interaction, and route-specific exception placement well, though configuration values lack validation."
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The LLD is unusually concrete about files, insertion points, exception boundaries, payload construction, rollout, and deployment wiring. Its largest correctness defect is the Helm existing-secret design: `authCredentialExistingSecretKey` is declared and the generated Secret omits the credential, but no deployment mapping imports that external Secret. It also incorrectly says the internal overwrite branch calls `update_server`, while the patch context calls `register_server`, and its default retry/latency calculations include a nonexistent 2-second sleep. Exact line numbers and patch applicability could not be independently confirmed because local shell execution was blocked by the environment."
     },
     "review": {
       "completeness": 20,
-      "correctness": 13,
+      "correctness": 16,
       "specificity": 22,
-      "risk_awareness": 18,
-      "total": 73,
-      "notes": "The review raises concrete concerns about proxy timeouts, credential-bearing headers, form UX, retry semantics, and service-layer coupling, with actionable resolutions. Its largest failure is missing the undefined `e` in the LLD's core `RegistrationGateError` handler while explicitly asserting that the wrapper prevents gate failures from becoming 500s. It also declares every must-fix resolved and says the patch realizes the design without actually detecting the implementation's vacuous server-unavailable test. The file and symbol references generally align with the submitted diff, but the review spends more attention on peripheral refinements than the critical failure path."
+      "risk_awareness": 19,
+      "total": 77,
+      "notes": "The review's strongest findings are concrete: it catches the broad `except Exception` that could turn a gate denial into a 500 and requires wire-level sanitization assertions. Its largest omission is the broken Helm external-secret path, which the SRE review incorrectly approves without a deployment-template reference. It also falsely states that `/api/register` is absent from the issue table, repeats the unsupported `update_server` overwrite claim, and calculates default backoff as 0.5/1/2 seconds rather than 0.5/1.0. Claims that all other frontend forms share the same Axios error convention are asserted without comparable repository evidence."
     },
     "testing": {
       "completeness": 22,
-      "correctness": 16,
-      "specificity": 22,
+      "correctness": 17,
+      "specificity": 23,
       "risk_awareness": 20,
-      "total": 80,
-      "notes": "The plan supplies concrete requests, status and persistence oracles, retry counts, sanitization expectations, compatibility checks, deployment rendering checks, and lifecycle scenarios. Its unavailable-path tests would expose the implementation's undefined-`e` failure if executed. However, it claims all four outcomes are implemented for every route, while the patch provides that matrix only for agent registration and `TestServersRegisterApiGate.test_gate_unavailable_blocks_fail_closed` performs no request or assertion. The manual environment-variable steps also omit the required registry restart or recreation, and the three server-entry E2E calls do not specify distinct paths or overwrite behavior."
+      "total": 82,
+      "notes": "The plan provides strong, concrete oracles for allow, deny, retries, sanitization, authentication modes, route wiring, persistence blocking, compatibility, deployment rendering, and end-to-end state. Its largest flaw is that the Helm existing-secret test expects the credential to disappear from generated output but never verifies that the deployment imports the named external Secret, so it passes with the feature broken. The unreachable-gate scenario incorrectly expects three retry warnings for three total attempts, and several allow tests assert calls without proving ordering. The implementation states these commands were not executed, so their actual compatibility with repository fixtures remains unverified."
     },
     "implementation": {
-      "completeness": 21,
-      "correctness": 12,
-      "specificity": 20,
-      "risk_awareness": 15,
-      "total": 68,
-      "notes": "The patch covers all seven route call sites, settings, exceptions, configuration exposure, startup probing, deployment surfaces, sanitization, authentication modes, and extensive tests. Its critical defect is in `registry/services/registration_gate.py`: `except RegistrationGateError:` raises from undefined `e`, so timeout, connection, unexpected-status, and missing-URL outcomes produce `NameError` or 500 instead of the required fail-closed 403 detail. The submitted route test for unavailable `/servers/register` is empty, and other routes lack the summary's implied full outcome matrix; running the included unavailable tests would reveal the defect. The diff contexts are internally consistent with the named handlers, but test execution and the claimed apply check are unverified, while the new Helm existing-secret settings have no corresponding wiring in the submitted diff."
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 79,
+      "notes": "The patch implements the central behavior end to end: seven route calls precede persistence, the service sanitizes payloads and headers, failures close the gate, configuration is exposed, and focused tests are included. The largest defect is the advertised Helm `authCredentialExistingSecret` mode: its values are only used to suppress the generated credential, with no `deployment.yaml` reference to supply it from the external Secret. Configuration is not validated for auth type, URL, timeout, or retry bounds, and malformed URLs can escape the warn-only startup check because it catches only `httpx.HTTPError`; the summary also overstates default backoff as including 2 seconds. The diff contexts are internally plausible and consistent with named symbols, but `git apply --check` could not be independently run because the read-only execution sandbox failed before command startup, and the candidate explicitly did not run tests."
     }
   },
-  "task_score": 78.6,
-  "verdict": "The submission has exceptionally detailed and mostly grounded design coverage, but a missed undefined-variable bug breaks the central unavailable-gate contract and undermines the unexecuted test claims.",
+  "task_score": 81.2,
+  "verdict": "This is a strong, implementation-oriented submission whose largest material limitation is an undetected broken Helm external-secret configuration path, compounded by several repository-factual and retry-semantics errors.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T00:31:00.874428Z",
+    "evaluated_at": "2026-09-08T02:47:19.243371Z",
     "repo_ref": "v1.0.19",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 480151,
-      "cached_input_tokens": 373889,
-      "cache_write_input_tokens": 71639,
-      "output_tokens": 12242,
-      "reasoning_output_tokens": 10054
+      "input_tokens": 226177,
+      "cached_input_tokens": 159425,
+      "cache_write_input_tokens": 53455,
+      "output_tokens": 9497,
+      "reasoning_output_tokens": 8139
     },
-    "duration_ms": 157205
+    "duration_ms": 128298
   }
 }

@@ -3,62 +3,62 @@
   "model": "deepseek-v3.2",
   "scores": {
     "github_issue": {
-      "completeness": 20,
+      "completeness": 22,
       "correctness": 20,
-      "specificity": 19,
+      "specificity": 22,
       "risk_awareness": 18,
-      "total": 77,
-      "notes": "The issue clearly defines blocking admission checks, affected asset classes, configuration, compatibility, failure behavior, tests, and explicit non-goals. Its scope aligns with the repository roadmap entry for issue #809.  The largest gaps are an underspecified authentication contract and vague criteria such as “comprehensive logging” and wiring through “Docker, Helm, etc.” It recognizes fail-closed availability risk and preserves existing deployments by default, but does not discuss latency, sensitive payload exposure, secret handling, or rollback."
+      "total": 82,
+      "notes": "The issue clearly defines pre-persistence enforcement, fail-closed behavior, default-off compatibility, covered asset operations, deployment surfaces, and testable outcomes. Its acceptance criteria are unusually concrete, including response statuses, source-operation identification, timeout handling, and negative persistence checks. The largest gap is risk framing: it calls the external gate no dependency and does not address sensitive payload exposure, token storage, or safe handling of untrusted denial text. With no independent task statement, authentication details and the claimed exhaustive route inventory remain partly unverified requirements."
     },
     "lld": {
       "completeness": 17,
-      "correctness": 7,
-      "specificity": 16,
+      "correctness": 9,
+      "specificity": 17,
       "risk_awareness": 14,
-      "total": 54,
-      "notes": "The design is broad and concrete, covering models, route integration, configuration, deployment, observability, rollout, and security tradeoffs. Its largest deficiency is that the supplied design code is internally broken: the validator requires an HMAC secret even when the feature is disabled, the client treats a required 403 denial as a 502, and its catch-all converts raised HTTPException denials into 502 responses. Repository grounding is also unreliable: it names registry/core/settings.py despite using settings from core/config.py, and charts/registry conflicts with documented chart layouts near this release line.  It identifies realistic risks, but adds out-of-scope health checks and circuit breaking without resolving client lifecycle, concurrency, endpoint-path, response-authentication, or secret-exposure concerns."
+      "total": 57,
+      "notes": "The LLD provides a concrete payload contract, configuration fields, service integration points, error cases, rollout sequence, and observability proposals. Its repository grounding is materially unreliable: it explicitly labels Helm paths such as charts/registry/values.yaml as assumed, while repository release instructions use charts/mcp-gateway-registry-stack. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.17.md)) It also fails to settle how user context and source endpoints reach every service call, proposes HTTPException-derived domain errors, and inconsistently serializes server dictionaries with json.dumps despite specifying an object payload. Dry-run behavior conflicts with the issue's enabled fail-closed promise, while the circuit breaker, health probing, client lifecycle, contract versioning, and partial-side-effect boundaries are not resolved rigorously."
     },
     "review": {
-      "completeness": 16,
-      "correctness": 9,
+      "completeness": 15,
+      "correctness": 11,
       "specificity": 15,
-      "risk_awareness": 15,
-      "total": 55,
-      "notes": "The review’s strongest contribution is its concrete coverage of latency, single-point-of-failure behavior, payload exposure, authentication, observability, and rollout concerns from several relevant perspectives. It misses the design’s most consequential defects: unconditional default HMAC validation, incompatible 403 handling, catch-all exception conversion, and per-request circuit-breaker state. Several conclusions are incorrect, including that an httpx timeout provides SSRF protection and that request HMAC signing establishes mutual authentication. The recommendations are actionable but poorly prioritized, and the claim that all critical concerns are resolved is unsupported by the revised LLD."
+      "risk_awareness": 17,
+      "total": 58,
+      "notes": "The review raises concrete concerns about HTTPS, bearer-secret handling, latency, payload consistency, gate availability, monitoring, rollout, and emergency disablement. Its largest deficiency is that it declares all blockers addressed without detecting the LLD's incorrect paths, environment-binding problem, exception-mapping ambiguity, or incomplete caller-interface design. Several conclusions are technically weak: an awaited httpx request does not block an async worker thread, an unsigned timestamp does not mitigate replay, and json.dumps does not provide the specified nested object shape. Claims that metrics, readiness behavior, proxy support, frontend timeout handling, and richer metadata were incorporated are not supported by the submitted implementation."
     },
     "testing": {
-      "completeness": 15,
-      "correctness": 7,
-      "specificity": 13,
-      "risk_awareness": 14,
-      "total": 49,
-      "notes": "The plan covers allow, deny, timeout, unreachable, compatibility, security, circuit-breaker, health-check, and deployment scenarios across the three asset classes. Its largest flaw is executability: it changes environment variables after the registry is running despite explicitly excluding dynamic reconfiguration, relies on an unimplemented custom mock API, uses placeholders, and supplies the invalid URL http://localhost:9999-nonexistent. Some payloads conflict with the documented agent shape, which represents tags as a list, and several security/configuration sections merely set variables or call the mock without verifying registry behavior.  Most importantly, denial and failure cases do not query storage to prove that no asset was persisted, so they miss the central regression oracle."
+      "completeness": 12,
+      "correctness": 5,
+      "specificity": 12,
+      "risk_awareness": 10,
+      "total": 39,
+      "notes": "The plan identifies useful allow, deny, timeout, unreachable, authentication, dry-run, disabled-mode, rollback, and non-persistence oracles. The executable examples are substantially broken: python3 -m http.server returns 501 for POST, changing exported variables does not reconfigure an already-running registry, and a /nonexistent path is an HTTP error rather than an unreachable network. The agent request omits fields shown in the repository's documented registration model, including protocol_version and path, so validation could fail before exercising the gate. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/a2a.md)) Server and skill coverage is only instructed as repetition, while malformed responses, unexpected statuses, serialization, circuit state, concurrent calls, and concrete unit-test commands are not specified."
     },
     "implementation": {
-      "completeness": 5,
-      "correctness": 2,
+      "completeness": 4,
+      "correctness": 3,
       "specificity": 12,
       "risk_awareness": 6,
       "total": 25,
-      "notes": "The patch concretely adds configuration, gate models, a client, and checks around the real agent registration API surface.  It is not end-to-end: the summary admits server and skill routes, deployment surfaces, configuration API changes, and all tests remain pending, despite claiming the feature was implemented for all asset classes. More seriously, default startup fails because the validator requires an HMAC secret while the disabled default still selects HMAC, and check_registration catches its own HTTPException denials under except Exception; direct gate 403 responses are likewise converted to 502. Per-request GateClient construction resets circuit-breaker and health-cache state, while local git apply --check could not be executed because the sandbox failed before process launch, leaving mechanical applicability independently unverified."
+      "notes": "The patch does not implement the design end to end: only AgentService.register_agent is gated, agent updates are untouched, server and skill files contain only TODO comments, and deployment wiring and tests are absent. GateDeniedError extends RegistryError rather than HTTPException and no 403 mapping is added, while failure_status_code is unused, so the promised response semantics are not implemented. The patch adds no alias or nested-delimiter wiring for its documented flat REGISTRATION_GATE_* variables, dry-run still raises on network failures, JSON denial bodies are not parsed, and the global AsyncClient is never closed. The summary initially claims all asset operations and deployment surfaces are implemented but later admits they are not; local git apply verification was unavailable because the command sandbox failed before execution."
     }
   },
-  "task_score": 52.0,
-  "verdict": "The submission has a strong issue and wide-ranging design intent, but the implementation is incomplete and contains startup and denial-path defects that make the admission gate unusable as submitted.",
+  "task_score": 52.2,
+  "verdict": "The submission has a strong issue and useful risk discussion, but the design contains unverified repository assumptions and the implementation is a broken, one-path prototype rather than the requested admission-control gate.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T20:52:47.645387Z",
+    "evaluated_at": "2026-09-07T21:29:15.865471Z",
     "repo_ref": "v1.0.19",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 350189,
-      "cached_input_tokens": 233057,
-      "cache_write_input_tokens": 43547,
-      "output_tokens": 13030,
-      "reasoning_output_tokens": 11153
+      "input_tokens": 226372,
+      "cached_input_tokens": 125368,
+      "cache_write_input_tokens": 31532,
+      "output_tokens": 11425,
+      "reasoning_output_tokens": 9620
     },
-    "duration_ms": 156477
+    "duration_ms": 200754
   }
 }

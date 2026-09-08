@@ -3,62 +3,62 @@
   "model": "kimi-k2.7-code",
   "scores": {
     "github_issue": {
-      "completeness": 22,
-      "correctness": 20,
+      "completeness": 23,
+      "correctness": 22,
       "specificity": 23,
-      "risk_awareness": 19,
-      "total": 84,
-      "notes": "The issue clearly identifies `_create_location_block`, the prefix-matching failure, affected unauthenticated routes, compatibility expectations, and explicit non-goals. Its acceptance criteria concretely require a slashed proxy location, exact redirect, updated tests, and unchanged A2A behavior. The largest gap is that it prescribes permanent 301 behavior without addressing method-changing or caching implications, while claiming a string-level unit test can prove nginx route matching. No independent task statement exists, and repository access was sandbox-blocked, so claims about static guards, A2A blocks, and regeneration behavior could not be independently verified."
+      "risk_awareness": 20,
+      "total": 88,
+      "notes": "The issue clearly identifies `_create_location_block`, the unsafe nginx prefix semantics, backward-compatible MCP endpoints, regeneration behavior, and explicit non-goals. Its acceptance criteria are concrete enough to test, including slash termination, an exact 308 redirect, sibling-route isolation, and unchanged proxy behavior. The main gap is the absence of an independent task statement, so the additional bare-path redirect requirement cannot be externally confirmed. It also leaves root-path handling and registrant-controlled path validation to later artifacts rather than acknowledging them here."
     },
     "lld": {
       "completeness": 22,
       "correctness": 19,
       "specificity": 23,
-      "risk_awareness": 20,
-      "total": 84,
-      "notes": "The LLD commits to concrete normalization, redirect, caller compatibility, file changes, test assertions, rollout, and rejected alternatives. Its proposed `base_path = path.rstrip(\"/\")` implementation correctly handles ordinary unslashed and slashed paths and preserves the function's string-returning interface. The error-handling claim is inaccurate for whitespace, and an all-slash input such as `///` follows the root branch without normalization; the 301-versus-307 compatibility decision also rests on an unverified assumption about bare-path clients. Named scheduler, validator, template, and registration integration claims could not be independently confirmed because local repository reads were unavailable."
+      "risk_awareness": 18,
+      "total": 82,
+      "notes": "The LLD gives implementation-ready changes for `registry/core/nginx_service.py`, including normalization, redirect generation, root handling, query preservation, and unchanged `path.strip(\"/\")` proxy targeting. It names concrete tests and existing integration points rather than presenting a generic nginx design. Its largest weakness is rollout: a security-sensitive configuration remains vulnerable until an unspecified future regeneration, yet the design provides no forced reload or operator verification step. Claims about `NginxReloadScheduler`, `poll_external`, `registry/api/agent_routes.py`, atomic promotion, and exact-match complexity could not be independently verified from the repository because the read-only execution layer failed before commands ran."
     },
     "review": {
-      "completeness": 21,
-      "correctness": 18,
-      "specificity": 22,
-      "risk_awareness": 21,
-      "total": 82,
-      "notes": "The review surfaces actionable issues including loose substring assertions, already-slashed and root cases, stale comments, nginx validation, permanent-redirect method semantics, and missing documentation. It specifically recommends asserting absence of `location {{ROOT_PATH}}/a {`, and the resolution section tracks those recommendations into the revised design. Its largest correctness flaw is describing the incident as an access-control bypass when the stated behavior is route hijacking and denial of the intended response, and several reviewers approve despite the unresolved bare-client compatibility question. Claims about the path validator, entrypoint warning, reload path, and A2A convention could not be independently verified."
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 78,
+      "notes": "The review usefully surfaces concrete risks around unescaped path input, delayed configuration regeneration, non-empty `ROOT_PATH`, nginx syntax validation, and compatibility assertions. It provides prioritized test recommendations and identifies registration-time path allowlisting as a scoped follow-up. Several findings are inaccurate or overstated: nginx exact-match locations do not need to precede prefix locations, and the LLD already lists root-path and ordering tests in section 12. The frontend discussion of page-relative links and older-browser 308 behavior is weakly connected to MCP proxy endpoints, while the security and SRE sections contain the strongest actionable analysis."
     },
     "testing": {
-      "completeness": 19,
+      "completeness": 18,
       "correctness": 16,
-      "specificity": 20,
-      "risk_awareness": 18,
-      "total": 73,
-      "notes": "The plan covers generated text, transport compatibility, short-path collisions, root and already-slashed inputs, deployment checks, and an end-to-end scenario with concrete expected fragments. However, Section 2.1 says `test_create_location_block_existing_mcp_endpoints` is included in the patch, while the submitted diff contains no such test. Several operational oracles are permissive—such as accepting 200 or 302 and any MCP response other than 404—and the proposed `PUT /api/servers` payload could not be verified against the repository API. No automated test loads the rendered configuration through `nginx -t` or proves real location selection, leaving the principal nginx-semantic regression dependent on manual checks."
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 72,
+      "notes": "The plan supplies concrete pytest node IDs and specific string oracles for redirects, normalized locations, unchanged proxy targets, ordering, idempotence, and root handling. The proposed test names and assertions correspond to the submitted patch, including `test_create_location_block_does_not_hijack_sibling_routes` and the existing transport tests. Its largest deficiency is that the collision test only inspects generated text and never exercises nginx location selection or the promised unauthenticated 308/route behavior; declaring end-to-end and UX testing inapplicable is therefore unjustified. The section 4.3 grep patterns also do not match the stated `/registry/name` output because they require a space before `/name`, so that operational check is not executable as written."
     },
     "implementation": {
       "completeness": 22,
-      "correctness": 20,
+      "correctness": 21,
       "specificity": 22,
       "risk_awareness": 18,
-      "total": 82,
-      "notes": "The patch implements the core design end to end: it normalizes ordinary paths, emits an exact bare-path redirect, uses the slashed path for the proxy block and log, tightens nine existing assertions, and adds four focused edge-case tests. The submitted diff context is internally consistent with the cited `_create_location_block` body and existing test symbols, and the summary accurately lists the touched files. The largest residual risk is that tests validate generated substrings rather than nginx parsing or route selection, while empty, whitespace, and all-slash inputs are not robustly normalized despite broader claims. Sandbox failure prevented an independent `git apply --check`, source comparison, or confirmation of the reported 98-test run, so those implementation claims remain unverified."
+      "total": 83,
+      "notes": "The patch implements the design end to end in `_create_location_block`: paths are slash-normalized, root avoids self-redirection, an exact 308 block preserves arguments, and the existing proxy and auth settings remain untouched. Five focused tests cover redirect content, ordering, sibling-prefix shape, normalization, and root handling, while existing proxy-target assertions are retained. The largest remaining risk is that no test feeds the rendered configuration to nginx or performs an actual request, so syntax and route-selection behavior under real `ROOT_PATH` substitution remain unproved. The diff has coherent target symbols, line context, and source hashes, but `git apply --check` and direct source inspection could not be completed because the provided read-only shell failed before command execution."
     }
   },
-  "task_score": 81.0,
-  "verdict": "The submission is a strong, coherent routing fix with unusually concrete design and review artifacts, but its testing overstates coverage and does not independently validate actual nginx parsing and location selection.",
+  "task_score": 80.6,
+  "verdict": "This is a strong, coherent fix with implementation-ready design and code, but its validation stops at generated-string tests and does not prove the security-relevant routing behavior in a real nginx configuration.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T07:43:22.308082Z",
+    "evaluated_at": "2026-09-07T23:31:46.945207Z",
     "repo_ref": "1.27.1",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 263620,
-      "cached_input_tokens": 195633,
-      "cache_write_input_tokens": 34686,
-      "output_tokens": 10175,
-      "reasoning_output_tokens": 8163
+      "input_tokens": 169879,
+      "cached_input_tokens": 126362,
+      "cache_write_input_tokens": 27702,
+      "output_tokens": 8612,
+      "reasoning_output_tokens": 6747
     },
-    "duration_ms": 119435
+    "duration_ms": 107982
   }
 }

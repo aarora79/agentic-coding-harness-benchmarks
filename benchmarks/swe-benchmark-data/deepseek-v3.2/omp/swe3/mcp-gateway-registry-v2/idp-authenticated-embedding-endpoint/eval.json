@@ -3,62 +3,62 @@
   "model": "deepseek-v3.2",
   "scores": {
     "github_issue": {
-      "completeness": 20,
-      "correctness": 18,
-      "specificity": 20,
-      "risk_awareness": 18,
-      "total": 76,
-      "notes": "The issue clearly defines the token-expiry problem, opt-in behavior, security expectations, deployment surfaces, and explicit non-goals. Its acceptance criteria name concrete settings and observable outcomes, and repository documentation confirms that docs/configuration.md is a real configuration reference.  The main gap is that the initial environment-variable list omits EMBEDDINGS_IDP_TOKEN_REFRESH_BUFFER_SECONDS despite subsequently requiring a configurable buffer and six deployment settings. No independent task statement was supplied, and the asserted related issue #1415 could not be verified at the requested repository ref."
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 80,
+      "notes": "The issue clearly defines the token-expiry problem, opt-in behavior, deployment surfaces, non-goals, and mostly testable acceptance criteria. Its named integration points align with the submitted source context for Settings, LiteLLMClient, create_embeddings_client, and DocumentDBSearchRepository._get_embedding_model. The largest gap is that UI redaction and deployment requirements lack exact interfaces or configuration mappings. No independent task statement was supplied, and claims about existing automatic secret masking could not be verified."
     },
     "lld": {
-      "completeness": 18,
+      "completeness": 19,
       "correctness": 12,
-      "specificity": 19,
-      "risk_awareness": 16,
-      "total": 65,
-      "notes": "The LLD is unusually concrete about Settings, LiteLLMClient, create_embeddings_client, token caching, error classes, configuration surfaces, and compatibility behavior. Its largest unresolved decision is startup validation: it acknowledges lazy embedding-client construction but never names an application startup hook, while placing token-manager creation inside create_embeddings_client. Error behavior is internally inconsistent between returning None, permanent ValueError, a broken state, and startup failure, and the proposed metrics lack an identified repository integration point. Some deployment paths also could not be verified at ref 1.28.0; available repository documentation uses charts/registry/values.yaml rather than the asserted charts/mcp-gateway-registry path. "
+      "specificity": 17,
+      "risk_awareness": 18,
+      "total": 66,
+      "notes": "The LLD provides concrete files, configuration fields, data flow, compatibility behavior, and security and operational considerations. It is internally inconsistent: the settings example uses a plain string secret while later requiring SecretStr, and secret-file support appears in the parameter table but not the primary model or validator design. Its circuit-breaker algorithm can reset the failure count before each call once monotonic time exceeds 300 seconds, preventing failures from accumulating as intended. Health/config endpoints, automatic UI masking, and several deployment-template paths remain unsupported or unresolved claims."
     },
     "review": {
-      "completeness": 17,
-      "correctness": 13,
+      "completeness": 18,
+      "correctness": 16,
       "specificity": 18,
-      "risk_awareness": 16,
-      "total": 64,
-      "notes": "The review identifies meaningful concerns around secret rotation, readiness, transient failures, short token lifetimes, configuration drift, and testability, with concrete recommendations. Its largest correctness problem is claiming resolutions that the LLD does not actually contain, including explicit network documentation, Kubernetes extraEnv secret sourcing, scope encoding, and injectable HTTP-client construction. The scope recommendation is itself unsafe because pre-quoting a value that httpx form-encodes produces double encoding for common scopes such as api://app/.default. The overall approval misses the unresolved startup integration and recoverability problems, so its verdict is less defensible than its individual observations."
+      "risk_awareness": 20,
+      "total": 72,
+      "notes": "The review identifies concrete concerns including SSRF, per-process refresh amplification, retry behavior, deployment parity, parameter proliferation, and missing observability. Its security blocker and recommendations are prioritized and actionable rather than merely approving the design. It misses the LLD's plain-string secret exposure and broken circuit-breaker reset logic, while asserting backward compatibility and automatic masking too confidently. References to /api/config and required health behavior were not grounded in verified repository interfaces."
     },
     "testing": {
-      "completeness": 14,
-      "correctness": 8,
-      "specificity": 12,
-      "risk_awareness": 11,
-      "total": 45,
-      "notes": "The plan covers functional, compatibility, UI, deployment, rollback, and end-to-end scenarios, which is its strongest aspect. However, it invokes POST /api/search while repository evidence identifies the semantic-search route as /api/search/semantic, so a central workflow would not exercise the feature as written.  Its expected token_source log entries do not match the submitted implementation, and token-expiry verification is left as waiting or clearing the cache 'if possible' without a deterministic oracle. It omits executable unit tests for locking, refresh boundaries, malformed token responses, retries, permanent failure recovery, and secret leakage, while several compatibility checks merely say to verify behavior."
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 57,
+      "notes": "The plan spans caching, expiry, validation, static-key compatibility, factory wiring, deployment rendering, and failure behavior with several useful call-count and value oracles. Its mocking strategy is incorrect for the proposed implementation: patching httpx.post or registry.utils.url_guard.guarded_client will not replace the directly imported guarded_client binding that invokes client.post. The IdP override case contradicts itself by expecting no api_key argument even though the bearer token must be passed as api_key, and terraform validate terraform/aws-ecs/ is not a valid directory invocation. It also depends on unimplemented or unverified /health/token and POST /api/search endpoints and lacks the promised concurrent-access test."
     },
     "implementation": {
-      "completeness": 9,
-      "correctness": 3,
+      "completeness": 10,
+      "correctness": 10,
       "specificity": 15,
-      "risk_awareness": 7,
-      "total": 34,
-      "notes": "The patch concretely modifies configuration, the LiteLLM client, UI metadata, and three Compose files, and the summary candidly admits that Terraform, Helm, documentation, metrics, and tests remain unimplemented. The feature is nevertheless unusable as written: the field validator targets embeddings_idp_enabled, which is declared before the endpoint, client ID, and secret, so Pydantic's info.data cannot contain those later fields and enabling IdP always reports them missing. The token request also pre-quotes scope before httpx form encoding, and the broken state cannot recover because get_token raises before attempting the successful refresh that would clear it; claimed startup validation occurs only when the lazy client factory runs. Local git apply --check was unavailable because the read-only shell sandbox failed before executing commands, but these correctness defects and the partial acceptance-criteria coverage are directly visible in the submitted diff."
+      "risk_awareness": 8,
+      "total": 43,
+      "notes": "The patch implements the central lazy token-fetch path across Settings, LiteLLMClient.encode, create_embeddings_client, and DocumentDBSearchRepository._get_embedding_model, but omits tests, deployment wiring, documentation, health integration, and UI redaction required by its own artifacts. The secret remains a plain str and is copied from disk into the settings object, so the claimed masking guarantee is not implemented; empty secret files also pass the pre-read validation. The circuit breaker contains the reset defect described in the LLD, and the patch adds no embedding-api-base SSRF guard despite the summary claiming both endpoints are protected. The summary honestly lists several omissions but then overstates completion, clean application, successful startup, and manual validation, none of which is demonstrated by the artifact."
     }
   },
-  "task_score": 56.8,
-  "verdict": "The design package is specific and operationally aware, but the implementation is incomplete and contains a fatal configuration-validation bug that prevents the advertised IdP mode from working.",
+  "task_score": 63.6,
+  "verdict": "The submission has a strong problem statement and substantial design detail, but the implementation is incomplete and undermined by unimplemented secret masking, a defective circuit breaker, and unsupported security claims.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T20:32:28.103407Z",
+    "evaluated_at": "2026-09-07T21:09:32.490228Z",
     "repo_ref": "1.28.0",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 330480,
-      "cached_input_tokens": 249292,
-      "cache_write_input_tokens": 50694,
-      "output_tokens": 13865,
-      "reasoning_output_tokens": 11439
+      "input_tokens": 266248,
+      "cached_input_tokens": 169401,
+      "cache_write_input_tokens": 39848,
+      "output_tokens": 11197,
+      "reasoning_output_tokens": 9345
     },
-    "duration_ms": 150604
+    "duration_ms": 171897
   }
 }
