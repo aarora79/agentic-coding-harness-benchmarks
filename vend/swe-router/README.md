@@ -13,14 +13,25 @@ Knowing which tasks those are needs measurement. This skill carries the measurem
 ## Install
 
 ```bash
-BASE=https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router
-mkdir -p .claude/skills/swe-router
-for f in SKILL.md route.py models.json model-aliases.json allowed-models.txt; do
-  curl -sL -o ".claude/skills/swe-router/$f" "$BASE/$f"
-done
+curl -sL https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh | bash
 ```
 
-Five files:
+That writes the skill to `.claude/skills/swe-router` in the current directory. To install it once for every repository you work in, point it at your home directory instead:
+
+```bash
+curl -sL https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh | bash -s -- --dir ~/.claude/skills
+```
+
+`--ref` pins a tag or commit, and `--force` replaces an `allowed-models.txt` you have already edited. Pinning is also the supply-chain answer: `--ref <commit-sha>` installs a fixed revision you can read on GitHub first, rather than whatever `main` holds on the day you run it. Run `install.sh --help` for the rest. Re-running the installer upgrades the skill and keeps your edited `allowed-models.txt`, so an upgrade never silently replaces your model policy.
+
+If you would rather read a script than pipe it into a shell, download it first:
+
+```bash
+curl -sL -O https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh
+less install.sh && bash install.sh
+```
+
+Five files land in the skill directory:
 
 | File | |
 |---|---|
@@ -30,7 +41,7 @@ Five files:
 | `model-aliases.json` | model names as different assistants spell them |
 | `allowed-models.txt` | which models your organisation permits. **Edit this one.** |
 
-The path differs by assistant. The skill has no dependencies and imports nothing — a directory of files is the whole install.
+The path differs by assistant, which is what `--dir` is for. The skill has no dependencies and imports nothing — a directory of files is the whole install, and copying that directory by hand works just as well as the installer.
 
 ### Restricting it to models your organisation allows
 
