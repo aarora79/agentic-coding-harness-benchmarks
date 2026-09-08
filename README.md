@@ -65,13 +65,19 @@ On ours, 16 models over 21 tasks: `claude-opus-5` scores highest at **82.83** fo
 
 ## Step 2 — Developers install the skill
 
-Five files copied into a skills directory. The skill imports nothing and needs no build step:
+Five files copied into a skills directory. The skill imports nothing and needs no build step. Run this from the root of the repository you want it in, and it lands in `.claude/skills/swe-router`:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh | bash
 ```
 
-Add `-s -- --dir ~/.claude/skills` to install it for every repository at once.
+To install it once for every repository instead, send it to your home directory:
+
+```bash
+curl -sL https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh | bash -s -- --dir ~/.claude/skills
+```
+
+Re-run either command to upgrade; your edited `allowed-models.txt` is kept.
 
 `swe-router` engages on its own before a substantial task. It sets a quality floor from what happens if the change is wrong, classifies how hard the task is, and takes the cheapest model that clears that floor at that tier. **Edit `allowed-models.txt`.** The skill treats every name in it as a model the developer can select, so listing one your team cannot reach costs them the cheaper option.
 
