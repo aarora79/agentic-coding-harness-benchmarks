@@ -1,7 +1,12 @@
 # MiniMax-M3 - serving guidelines
 
 > [!IMPORTANT]
-> **Not yet served on this node.** Every other guide in this directory records a configuration that booted and ran a benchmark. This one is written ahead of the first bring-up, from the [official vLLM recipe](https://recipes.vllm.ai/MiniMaxAI/MiniMax-M3) plus what was verified against the vLLM build installed here. Rows marked **unverified** are the recipe's claims, not measurements. Correct them the first time the model actually serves, and delete this note once it has.
+> **Not yet served on this node.** Every other guide here records a configuration that booted and ran a benchmark; this one is written ahead of the first bring-up. Be clear about which parts are which:
+>
+> - **Checked**: the model's dimensions and quantization (read from `config.json`), its weight sizes (HF API), and what the installed vLLM 0.28.0 supports (read from the package). The TP=8 conclusion follows from those.
+> - **Not checked**: that it serves, the startup time, the KV-cache size, the concurrency, and every runtime number. `MAX_MODEL_LEN` and `GPU_MEM_UTIL` below are proposals, not measurements.
+>
+> Correct this on first bring-up and delete this note once the model has actually run.
 
 | | |
 |---|---|
@@ -9,13 +14,14 @@
 | **HF repo (FP8)** | `MiniMaxAI/MiniMax-M3-MXFP8` - **MXFP8**, microscaling FP8, not the block-FP8 used by M2.5 and GLM-5.3 |
 | **Model card** | [huggingface.co/MiniMaxAI/MiniMax-M3](https://huggingface.co/MiniMaxAI/MiniMax-M3) |
 | **Recipe** | [recipes.vllm.ai/MiniMaxAI/MiniMax-M3](https://recipes.vllm.ai/MiniMaxAI/MiniMax-M3) |
-| **Type** | MoE, `minimax_m3` architecture, MSA sparse attention with an index cache |
-| **Weights size** | unverified - measure on first download |
+| **Type** | **Vision-language MoE**: `model_type` is `minimax_m3_vl`, a CLIP vision tower plus a 60-layer MoE text model (128 experts, 4 active per token). MSA sparse attention with an index cache |
+| **Weights size** | **MXFP8 444 GB (31 shards)**; BF16 854 GB (59 shards). Read from the HF API |
+| **Quantization** | `mxfp8`, dynamic activation scheme, `weight_block_size=[1,32]` - far finer than the `[128,128]` block FP8 of M2.5 and GLM-5.3 |
 | **Minimum hardware** | 8x H200/H20 recommended by the recipe; compute capability >= 9.0 (Hopper or newer) |
 | **Fits 4x L40S (184 GB)?** | No |
 | **Tool-call parser** | `minimax_m3` |
 | **Reasoning parser** | `minimax_m3` (a reasoning model; thinking is separated into its own block) |
-| **Native context** | 1048576 (1M) by default; cap it with `--max-model-len` |
+| **Native context** | 1048576 (1M), from `text_config.max_position_embeddings`; cap it with `--max-model-len` |
 
 ## What this build actually supports
 
@@ -51,16 +57,29 @@ EXTRA_ARGS="--trust-remote-code --block-size 128" \
 
 `MAX_MODEL_LEN` is set to 262144 rather than the native 1M so the KV cache fits alongside the weights. The repo's harness gate wants at least 200K, so this clears it with room. Raise it only after confirming the reported `GPU KV cache size` still supports a workable concurrency.
 
-## Confirm TP before trusting TP=8
+## TP=8 is legal, and here is why it is not obvious
 
-The recipe recommends TP=8, and that is the starting point. But **MXFP8 is a block-quantized format**, so this node's two divisibility constraints may both apply, exactly as they do for M2.5 and Qwen3-Coder-480B (see [p5en-h200-cuda-fixes.md](../../../.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md#why-tp-is-4-for-minimax-m25-and-qwen3-coder-480b-not-8)):
+The dimensions below come from `config.json` on the MXFP8 repo. Note they live under **`text_config`**, not at the top level, because this is a VL model:
 
-1. `num_key_value_heads % TP == 0`
-2. `moe_intermediate_size / TP` divisible by the weight block size
+| Field | Value |
+|---|---|
+| `num_hidden_layers` | 60 |
+| `num_attention_heads` | 64 |
+| `num_key_value_heads` | **4** |
+| `head_dim` | 128 |
+| `hidden_size` | 6144 |
+| `intermediate_size` | 3072 |
+| `num_local_experts` / `num_experts_per_tok` | 128 / 4 |
 
-M2.5 fails the second at TP=8 and must run at TP=4. Before the first serve, read `num_key_value_heads` and `moe_intermediate_size` from the repo's `config.json` and check both. A failure looks like `ValueError: The output_size of gate's and up's weight = N is not divisible by weight quantization block_n = 128` at engine init.
+**Four KV heads on eight GPUs looks like a blocker and is not.** The rule that forces M2.5 to TP=4 is `num_key_value_heads % TP == 0`, and 4 % 8 is not 0. But vLLM only applies that test when there are at least as many KV heads as ranks; below that it replicates KV heads instead, requiring `TP % num_key_value_heads == 0`. That is `8 % 4 == 0`, so **TP=8 is legal** (`model_executor/layers/linear.py`, the `tp_size >= self.total_num_kv_heads` branch).
 
-If M3 also lands on TP=4, two replicas fit on one 8x H200 node (GPUs 0-3 and 4-7 via `CUDA_VISIBLE_DEVICES`, different `PORT`), though the benchmark harness drives one endpoint at a time.
+The MoE constraint also passes, and much more easily than for the block-FP8 models: MXFP8's `weight_block_size` is `[1,32]`, so the per-rank shard `3072 / 8 = 384` needs to divide by 32, which it does. The `[128,128]` blocks of M2.5 and GLM-5.3 are what make TP a tight fit there; MXFP8's finer granularity removes that pressure.
+
+So the recipe's TP=8 recommendation holds here. Verify it still holds after a vLLM upgrade, since the replication branch is an implementation detail, not a guarantee.
+
+## It is a multimodal model
+
+`minimax_m3_vl` carries a CLIP vision tower, a multimodal projector and image/video token handling. The `/swe3` benchmark is text-only, so the vision stack is dead weight for this workload: it occupies memory and its layers appear in the quantization config's `ignored_layers`. Nothing needs disabling, but do not compare its memory footprint or throughput against a text-only model of the same parameter count without noting this.
 
 ## Benchmark it
 
@@ -93,4 +112,4 @@ Nothing yet. Record on first bring-up: weights size and download time, startup d
 | GLM-5.3 | block FP8 + FP8 KV cache | 8 | 300000 | measured |
 | Qwen3-Coder-480B | block FP8 | 4 | 200000 | measured |
 | MiniMax-M2.5 | block FP8 | 4 | 196608 | measured |
-| **MiniMax-M3** | **MXFP8** | **8 (confirm)** | **262144 (proposed)** | **not yet served** |
+| **MiniMax-M3** | **MXFP8 (444 GB)** | **8** | **262144 (proposed)** | **not yet served** |
