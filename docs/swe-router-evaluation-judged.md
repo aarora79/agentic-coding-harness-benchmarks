@@ -1,20 +1,20 @@
 # Does the swe-router pay for itself?
 
-> Across the 21 tasks the router selected **3 different models**: **qwen3.8-27b** 13x, **claude-opus-5** 3x, **claude-opus-4-8** 1x. On 4 further task(s) nothing cleared the floor, so the skill's answer was to stay on `claude-opus-5`.
+> Across the 21 tasks the router selected **3 different models**: **qwen3.8-27b** 13x, **claude-opus-5** 3x, **kimi-k3** 1x. On 4 further task(s) nothing cleared the floor, so the skill's answer was to stay on `claude-opus-5`.
 >
-> Against running `claude-opus-5` on everything, that cost **44.7% less** ($138.84 against $251.04) for a quality change of **-4.8%** (78.84 against 82.83 mean task score, -3.99 points).
+> Against running `claude-opus-5` on everything, that cost **45.4% less** ($137.16 against $251.04) for a quality change of **-4.6%** (78.99 against 82.83 mean task score, -3.84 points).
 >
-> The saving is total-over-total, which is what lands on a bill. The mean of the per-task percentages is 59.7%, higher because it weights a cheap task the same as an expensive one.
+> The saving is total-over-total, which is what lands on a bill. The mean of the per-task percentages is 60.6%, higher because it weights a cheap task the same as an expensive one.
 
 Replays the `swe-router` skill over all 21 tasks of `mcp-gateway-registry-v2`, then looks up what the model it picked ACTUALLY scored and cost on that task, against running `claude-opus-5` on everything.
 
 - **Sampling.** Leave-one-out: each task routes from tier means recomputed with that task excluded, so no pick knows the run it is scored against.
 - **Floor.** Judged per task by omp + us.anthropic.claude-opus-5 running the skill's step 1 against the cloned repo -- the real judgment the skill asks for, not a policy constant. See `swe-router-judged-inputs.md`.
 - **Tier.** Classified per task by the same judged run, NOT read from the dataset. Each row carries the dataset's own `complexity` label beside it so disagreement is visible.
-- **Candidates.** 16 model(s) the developer could select: claude-haiku-4-5, claude-opus-4-5, claude-opus-4-6-v1, claude-opus-4-7, claude-opus-4-8, claude-opus-5, claude-sonnet-5, deepseek-v3.2, devstral-2-123b, gemma-4-31b, glm-5.3, kimi-k2.7-code, minimax-m2.5, qwen3-coder-30b, qwen3.6-35b, qwen3.8-27b. The organisational allow-list was ignored (`--no-allow-list`).
+- **Candidates.** 17 model(s) the developer could select: claude-haiku-4-5, claude-opus-4-5, claude-opus-4-6-v1, claude-opus-4-7, claude-opus-4-8, claude-opus-5, claude-sonnet-5, deepseek-v3.2, devstral-2-123b, gemma-4-31b, glm-5.3, kimi-k2.7-code, kimi-k3, minimax-m2.5, qwen3-coder-30b, qwen3.6-35b, qwen3.8-27b. The organisational allow-list was ignored (`--no-allow-list`).
 - **Cost basis.** Metered provider bills for Bedrock models; hardware-derived ($/token from the throughput sweep x tokens the server processed) for self-hosted ones. Mixing the two on one axis is directional -- see `docs/cost-per-task-methodology.md`.
 - **Scoring.** `task_score` from the repo-grounded `openai.gpt-5.6-sol` judge. One run per task, so a per-task gap under ~3 points is noise.
-- **Runs.** omp harness, /swe3, measured 2026-09-01.
+- **Runs.** omp harness, /swe3, measured 2026-09-08.
 
 A ⚠ marks a task where the model the router picked landed below the floor it was chosen to clear. That is the router getting it wrong, and the totals count it.
 
@@ -26,7 +26,7 @@ A ⚠ marks a task where the model the router picked landed below the floor it w
 | build-docker-images-from-uv-lock | medium | 75 | qwen3.8-27b | 81.32 | 65.6 ⚠ | 83.2 | -17.6 | $0.50 | $12.00 | +96% |
 | honor-cloud-provider-override-in-ui | low | 70 | qwen3.8-27b | 80.05 | 84.4 | 88.4 | -4.0 | $0.58 | $4.81 | +88% |
 | fix-reserved-groups-var-in-service-account-script | low | 80 | qwen3.8-27b | 82.15 | 76.0 ⚠ | 87.6 | -11.6 | $0.26 | $5.35 | +95% |
-| cli-custom-egress-oauth-provider-flags | low | 80 | claude-opus-4-8 | 80.35 | 84.0 | 91.2 | -7.2 | $3.63 | $8.57 | +58% |
+| cli-custom-egress-oauth-provider-flags | low | 80 | kimi-k3 | 83.50 | 87.2 | 91.2 | -4.0 | $1.96 | $8.57 | +77% |
 | derive-repo-url-from-skill-md | medium | 75 | qwen3.8-27b | 78.80 | 78.2 | 78.2 | +0.0 | $0.71 | $11.29 | +94% |
 | consistent-csrf-across-toggle-endpoints | high | 80 | _stay on claude-opus-5_ | -- | 86.4 | 86.4 | +0.0 | $10.94 | $10.94 | +0% |
 | configurable-ui-title | medium | 75 | qwen3.8-27b | 77.72 | 83.6 | 83.2 | +0.4 | $0.84 | $10.35 | +92% |
@@ -48,9 +48,9 @@ A ⚠ marks a task where the model the router picked landed below the floor it w
 
 | | Router | Baseline | Difference |
 |---|---:|---:|---:|
-| Total cost | $138.84 | $251.04 | **-$112.20 (44.7%)** |
-| Mean score (21 tasks scored in both arms) | 78.84 | 82.83 | **-3.99** |
+| Total cost | $137.16 | $251.04 | **-$113.88 (45.4%)** |
+| Mean score (21 tasks scored in both arms) | 78.99 | 82.83 | **-3.84** |
 | Tasks under floor | 7 | 4 | +3 |
 | Tasks failed outright | 0 | 0 | +0 |
 
-Models the router used: claude-opus-4-8, claude-opus-5, qwen3.8-27b.
+Models the router used: claude-opus-5, kimi-k3, qwen3.8-27b.

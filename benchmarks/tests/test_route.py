@@ -203,7 +203,7 @@ class AllowListTest(unittest.TestCase):
 
     def test_the_shipped_allow_list_parses(self) -> None:
         names = route.parse_allow_list(_VEND / "allowed-models.txt")
-        self.assertEqual(len(names), 5)
+        self.assertEqual(len(names), 6)
         self.assertIn("claude-opus-5", names)
 
     def test_the_shipped_allow_list_is_the_frontier(self) -> None:

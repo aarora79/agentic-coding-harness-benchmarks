@@ -1246,6 +1246,59 @@ def _plot(
         )
 
     fig.tight_layout()
+
+    # A compact roll-call of the frontier models in the right margin, cheapest
+    # first, so "which models win" reads at a glance without tracing the line
+    # back to each dot. Placed after tight_layout in axes coordinates just past
+    # the right spine; bbox_inches="tight" below grows the saved canvas to
+    # include it (and the surface facecolor fills the new strip).
+    if frontier:
+        ordered = sorted(frontier, key=lambda p: p.mean_cost)
+        # A fixed-width table of the frontier models, cheapest first, with a
+        # delta column showing what each step up the frontier buys: the quality
+        # gained and the extra cost per task over the row below it. Left-anchored
+        # inside the plot above the lower-right legend, so it adds nothing to the
+        # canvas width (a right margin would shrink the plot).
+        header = f"{'':<15}{'Quality':>7}{'$/task':>8}  Δ (qual / cost)"
+        table_lines = [header]
+        prev = None
+        for p in ordered:
+            q = f"{p.mean_score:.1f}"
+            c = f"${p.mean_cost:.2f}"
+            if prev is None:
+                delta = f"{'--':>6}"
+            else:
+                # Delta from the displayed (rounded) values, so a reader who
+                # subtracts the two columns gets exactly the number shown here.
+                dq = f"{round(p.mean_score, 1) - round(prev.mean_score, 1):+.1f}"
+                dc = f"+${round(p.mean_cost, 2) - round(prev.mean_cost, 2):.2f}"
+                delta = f"{dq:>6} / {dc}"
+            table_lines.append(f"{_point_name(p):<15}{q:>7}{c:>8}  {delta}")
+            prev = p
+        ax.text(
+            0.60,
+            0.47,
+            "Quality and cost per task",
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=LEGEND_FONTSIZE,
+            fontweight="bold",
+            color=theme["accent"],
+        )
+        ax.text(
+            0.60,
+            0.20,
+            _escape_dollars("\n".join(table_lines)),
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=LEGEND_FONTSIZE - 2,
+            family="monospace",
+            color=theme["ink"],
+            linespacing=1.7,
+        )
+
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, facecolor=theme["surface"], bbox_inches="tight")
     plt.close(fig)
