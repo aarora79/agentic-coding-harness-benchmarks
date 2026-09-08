@@ -158,17 +158,17 @@ Models do not degrade in parallel, so the running order changes from one table t
 ```
   trivial              low                  medium               high
   ─────────────────    ─────────────────    ─────────────────    ─────────────────
-  opus-5     83.8      opus-5     86.2      glm-5.3    81.8      opus-5     79.8
-  glm-5.3    81.5      glm-5.3    84.4      opus-5     81.8      glm-5.3    77.2
-  qwen3.8    81.4      qwen3.8    80.9      qwen3.8    78.7      sonnet-5   73.7
+  glm-5.3    85.0      opus-5     86.2      opus-5     81.8      opus-5     79.8
+  opus-5     83.8      glm-5.3    82.6      qwen3.8    78.7      glm-5.3    74.7
+  qwen3.8    81.4      qwen3.8    80.9      glm-5.3    78.5      sonnet-5   73.7
   sonnet-5   76.1      sonnet-5   80.5      sonnet-5   77.5      qwen3.8    71.5 !
-  kimi-k2.7  70.7      kimi-k2.7  74.9      kimi-k2.7  69.8      kimi-k2.7  63.1 !
+  kimi-k2.7  72.4      kimi-k2.7  71.7      kimi-k2.7  69.6      kimi-k2.7  58.5 !
   gemma-4    66.5      gemma-4    63.3      gemma-4    59.3      gemma-4    50.0
 ```
 
-Read `qwen3.8` across the four. Third on trivial, third on low, third on medium — then **fourth on high, behind `sonnet-5`**, having failed one hard task. Its whole-dataset average of 78.48 beats sonnet's 76.97, which is why it sits on the published frontier and sonnet does not. On hard work that ordering is reversed.
+Read `qwen3.8` across the four. Third on trivial and low, second on medium, then **fourth on high, behind `sonnet-5`**, having failed one hard task. Its whole-dataset average of 78.48 beats sonnet's 76.97, which is why it sits on the published frontier and sonnet does not. On hard work that ordering is reversed.
 
-`glm-5.3` does the same thing in the other direction, overtaking `opus-5` on medium and dropping back on high.
+`glm-5.3` does the opposite: it tops the `trivial` table at 85.0, above `opus-5`, then slips behind `opus-5` on every harder tier, and behind `qwen3.8` on medium.
 
 **A recommendation built on the overall average is reading a table that does not exist.** There is no tier where those averages are the ranking.
 

@@ -8,10 +8,10 @@ We ran it against its own evidence. All 16 models have run all 21 v2 tasks, so f
 
 | | Router | `claude-opus-5` on everything |
 |---|---:|---:|
-| Total cost, 21 tasks | **$134.64** | $251.04 |
-| Mean task score | 78.94 | 82.83 |
+| Total cost, 21 tasks | **$138.84** | $251.04 |
+| Mean task score | 78.84 | 82.83 |
 
-**46.4% cheaper for 4.7% less quality**, using four models: `qwen3.8-27b` on 13 tasks, `claude-opus-5` on 2, `claude-opus-4-8` and `glm-5.3` on 1 each. On 4 further tasks nothing cleared the floor and the skill's answer was to stay put.
+**44.7% cheaper for 4.8% less quality**, using three models: `qwen3.8-27b` on 13 tasks, `claude-opus-5` on 3, and `claude-opus-4-8` on 1. On 4 further tasks nothing cleared the floor and the skill's answer was to stay put.
 
 Three caveats decide how much to trust that, and all three come from the judgment step rather than the arithmetic:
 
