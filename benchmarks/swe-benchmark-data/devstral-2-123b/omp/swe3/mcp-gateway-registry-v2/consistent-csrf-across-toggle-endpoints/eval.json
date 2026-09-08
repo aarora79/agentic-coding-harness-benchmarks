@@ -3,62 +3,62 @@
   "model": "devstral-2-123b",
   "scores": {
     "github_issue": {
-      "completeness": 17,
-      "correctness": 16,
+      "completeness": 20,
+      "correctness": 18,
       "specificity": 18,
-      "risk_awareness": 15,
-      "total": 66,
-      "notes": "The issue clearly distinguishes bearer-token and session-cookie behavior, names the affected routes, and provides mostly testable acceptance criteria. Its largest defect is scope inconsistency: it repeatedly says six toggle endpoints but enumerates four user-facing routes plus one internal route. The submitted diff supports the four user-facing route names and the unchanged internal route, but not a sixth endpoint. No independent task statement was supplied, and the asserted relationship to issue #891 could not be verified."
+      "risk_awareness": 17,
+      "total": 73,
+      "notes": "Its strongest aspect is the clear two-client threat model: bearer-token automation must work while cookie-authenticated browser requests remain CSRF-protected. The acceptance criteria omit exact routes and expected behavior for invalid tokens, unauthenticated cookie-less requests, and requests carrying both authentication forms. The submitted patch context confirms the named CSRF function and agent, skill, server, and virtual-server route families. No independent task statement was supplied, and the claimed relationship to issue #891 could not be verified."
     },
     "lld": {
-      "completeness": 14,
-      "correctness": 8,
-      "specificity": 18,
-      "risk_awareness": 10,
-      "total": 50,
-      "notes": "The LLD is concrete about files, route functions, dependency changes, and expected status behavior. Its central design equates absence of a session cookie with bearer authentication instead of deriving the authenticated scheme, and it simultaneously describes enhanced_auth as session-only while proposing that the enhanced_auth server route support bearer clients. The proposed code also relies on settings.session_cookie_name without establishing that this setting exists. Logging is promised to include request path and authentication method, but neither the design code nor submitted patch implements that context."
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 19,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The design names concrete files, symbols, endpoints, existing coverage, and the two missing dependencies, making its intended edits unusually clear. Its central condition incorrectly equates absence of the session cookie with bearer authentication instead of explicitly coupling the exemption to authenticated bearer credentials; authentication may reject other requests later, but the stated security invariant is imprecise. The submitted baseline hunks confirm `verify_csrf_token_flexible`, `toggle_service_api`, and `toggle_virtual_server`, while repository documentation confirms the virtual-server toggle path. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/design/virtual-mcp-server.md)) The rollout is generic, and claims of comprehensive audit logging are not backed by defined fields, levels, or concrete implementation beyond one debug message."
     },
     "review": {
-      "completeness": 10,
-      "correctness": 7,
-      "specificity": 8,
-      "risk_awareness": 10,
-      "total": 35,
-      "notes": "The review at least raises deployment monitoring, rollback, audit logging, and error-case coverage. It misses the load-bearing authentication-classification decision and the contradiction between the claimed session-only enhanced_auth dependency and bearer support for the server route. Its resolution section falsely states that request IDs, timestamps, metrics, malformed-cookie handling, and missing-auth handling were added, while the submitted patch contains none of them. Several findings, such as partially valid CSRF tokens, remain generic and provide no concrete corrective design."
+      "completeness": 13,
+      "correctness": 12,
+      "specificity": 10,
+      "risk_awareness": 14,
+      "total": 49,
+      "notes": "The review's strongest contribution is identifying the mixed cookie-plus-bearer case and requesting explicit precedence, logging, and tests. It never challenges the load-bearing assumption that no session cookie proves bearer authentication, and several recommendations such as generic security headers and rate limiting are disconnected from the CSRF change. Large backend, security, and SMTS passages are duplicated, while resolutions declare concerns addressed although the LLD supplies no concrete audit schema or complete endpoint validation. Its approval verdict therefore overstates the design's readiness and leaves the most important security boundary insufficiently reviewed."
     },
     "testing": {
-      "completeness": 13,
-      "correctness": 7,
-      "specificity": 14,
-      "risk_awareness": 11,
-      "total": 45,
-      "notes": "The plan covers bearer, valid-session, missing-CSRF, invalid-CSRF, compatibility, and multi-resource workflows with concrete HTTP expectations. Several commands do not match the submitted route signatures: session agent tests send enabled as form data although the diff shows an unannotated bool parameter, while the successful bearer case supplies it as a query parameter. Registration JSON is single-quoted, so shell variables such as $TEST_AGENT_PATH will not expand, and injecting X-User/X-Scopes directly does not prove that a bearer token was authenticated. It also lacks invalid-auth and mixed-cookie-plus-bearer cases, persistent-state oracles, and actual unit or integration test definitions."
+      "completeness": 12,
+      "correctness": 6,
+      "specificity": 12,
+      "risk_awareness": 9,
+      "total": 39,
+      "notes": "The plan provides useful positive and negative session cases and a concrete bearer-token workflow, but only the agent endpoint receives meaningful coverage across both authentication paths. The examples contain undefined helpers and fixtures, use an unverified `from main import app`, accept arbitrary `test-token` credentials without authentication mocking, and omit invalid-token and mixed-authentication cases. Published repository documentation uses port 7860 for direct registry access and identifies `api/registry_management.py` for programmatic management, rather than the proposed port 8000 and `registry-cli agent toggle` command. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/macos-setup-guide.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/auth.md)) The deployment commands, token-file paths, test directories, and claimed JSON backward compatibility are unsupported, so much of the plan could not be executed as written."
     },
     "implementation": {
-      "completeness": 11,
-      "correctness": 7,
-      "specificity": 17,
-      "risk_awareness": 6,
-      "total": 41,
-      "notes": "The patch is focused and updates the four named user-facing routes plus a shared conditional CSRF dependency. Under the LLD's own claim that enhanced_auth is session-only, changing only the server route's CSRF dependency cannot make that route usable by bearer clients, and the helper never verifies that a cookie-less request actually used bearer authentication. The summary claims no deviations and comprehensive audit handling, but the patch adds no tests, request identifiers, authentication-method context, metrics, or malformed-cookie handling. The clean-application claim and settings.session_cookie_name symbol could not be independently verified because local repository commands failed before execution."
+      "completeness": 2,
+      "correctness": 0,
+      "specificity": 3,
+      "risk_awareness": 1,
+      "total": 6,
+      "notes": "The patch does not implement the design: after adding `_csrf`, it deletes the complete bodies of both `toggle_service_api` and `toggle_virtual_server`. Each resulting `async def` has no indented suite before the next decorator, causing a parse-time error while also removing authorization, audit, toggle, indexing, health, and response behavior. The summary's claimed small additions and statement of no LLD deviations directly contradict hunk sizes of `-110/+8` and `-49/+8`, and no tests accompany the change. Local `git apply --check` could not run because the provided command sandbox failed before execution, but the fatal syntax and deletions follow directly from the submitted diff."
     }
   },
-  "task_score": 47.4,
-  "verdict": "The submission identifies the intended CSRF behavior and names plausible integration points, but its authentication-mode decision is insufficiently grounded and the implementation overclaims completeness without resolving key design contradictions or adding reliable tests.",
+  "task_score": 47.0,
+  "verdict": "The problem framing and route-level design are useful, but the testing plan is largely non-executable and the submitted patch catastrophically deletes two endpoint implementations and cannot parse.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T10:59:32.434978Z",
+    "evaluated_at": "2026-09-08T05:39:10.373292Z",
     "repo_ref": "v1.0.20",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 276750,
-      "cached_input_tokens": 203497,
-      "cache_write_input_tokens": 37989,
-      "output_tokens": 10927,
-      "reasoning_output_tokens": 8974
+      "input_tokens": 126222,
+      "cached_input_tokens": 77779,
+      "cache_write_input_tokens": 28498,
+      "output_tokens": 10126,
+      "reasoning_output_tokens": 8375
     },
-    "duration_ms": 224956
+    "duration_ms": 136448
   }
 }
