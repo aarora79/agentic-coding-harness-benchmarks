@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 74,
+      "notes": "The issue clearly defines both capabilities, explicit exclusions, and testable behavior such as counter subjects, admin bypass, and response headers. Repository evidence confirms the named enforcement hook, two existing axes, memberships API, CLI, and IAM rate-limit UI. Its largest flaw is requiring an immediate cached quarantine and externally distinguishable responses without addressing the auth-server's 30-second membership cache or nginx's throttle-only header capture. No independent task statement establishes whether its broad API, CLI, and UI scope is authoritative, and preservation of a caller's existing memberships during quarantine is unspecified."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 68,
+      "notes": "The LLD is unusually concrete about real files including registry/rate_limiting/limiter.py, auth_server/server.py, and frontend/src/components/IAMRateLimits.tsx. However, it simultaneously prohibits nginx changes and proposes a new nginx quarantine branch, while the repository currently captures only X-RateLimit-Throttled. It also overlooks cross-process cache staleness, destructive replacement/deletion of existing caller group memberships, and collision-prone unescaped composite keys. Its observability and admin-bypass analysis are useful, but the missing independent task statement leaves the claimed mandatory surfaces unverifiable."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 16,
+      "total": 66,
+      "notes": "The review identifies concrete issues such as contradictory fail-closed handling, missing is_admin plumbing, target-membership deletion semantics, UI behavior, and outage alerting. Several findings are grounded in real repository behavior, including MembershipsRepository._groups_for_id filtering enabled documents and the existing IAM form fields. Its largest deficiency is declaring all blockers resolved while missing the separate auth-server cache, caller membership data loss, and absent nginx quarantine propagation; it also incorrectly dismisses composite-key ambiguity because the backend treats keys as opaque. The review's final implementation-readiness verdict is therefore not defensible from the repository evidence."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The plan supplies concrete HTTP, CLI, unit, compatibility, UX, deployment, rollback, and failure-path oracles rather than merely checking execution. The referenced rate-limiting tests, CLI flags, charts, Terraform files, and X-Authorization data-plane convention exist in the repository. Its largest gap is waiting 32 seconds in quarantine scenarios, thereby concealing failure of the promised immediate kill switch, while omitting preservation of pre-existing caller groups and direct nginx configuration coverage. The suggested test-only store-failure flag is not present, and the planned UI behavior cannot validate the submitted implementation because that UI was omitted."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 4,
+      "specificity": 15,
+      "risk_awareness": 7,
+      "total": 35,
+      "notes": "The core model, repository, limiter, and auth-hook changes target real symbols, and the caller_target gate logic generally follows the existing most-restrictive pattern. A dry-run confirmed the critical api/registry_management.py hunks apply, but they remove rate-limit-member-delete's --id argument, delete unrelated command handlers, and turn embeddings_stale_cleanup_parser.add_argument into a no-argument call that raises TypeError during CLI construction. The patch also omits the required UI and nginx propagation, permits stale cache entries to delay quarantine, and uses caller membership replacement/deletion workflows that discard existing groups. The claimed 76-test run was not independently reproducible from the unpatched read-only tree, and the summary materially oversells API and CLI completion despite these defects."
+    }
+  },
+  "task_score": 63.4,
+  "verdict": "The submission provides detailed, repository-aware design work, but unresolved quarantine semantics and a patch that breaks the entire management CLI make the implementation unsafe to merge.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T20:20:43.358325Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1810604,
+      "cached_input_tokens": 1652107,
+      "cache_write_input_tokens": 157867,
+      "output_tokens": 11318,
+      "reasoning_output_tokens": 6027
+    },
+    "duration_ms": 287431
+  }
+}

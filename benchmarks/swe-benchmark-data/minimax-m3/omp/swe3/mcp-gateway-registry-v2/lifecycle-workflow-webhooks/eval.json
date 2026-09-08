@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 86,
+      "notes": "The issue provides unusually concrete acceptance criteria, payload fields, configuration defaults, compatibility behavior, metrics, documentation, and explicit non-goals. Its largest factual error is claiming omitted status defaults to active across all assets: AgentRegistrationRequest and SkillRegistrationRequest both default to draft in the repository. It also describes agent PATCH authorization as modify_agent, while patch_agent currently checks modify_service, and skills use an owner check rather than modify_skill. No independent task statement was supplied, so the asserted Issue #1330 requirements could not be verified beyond repository consistency."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 12,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 72,
+      "notes": "The LLD is strongly grounded in real files such as registry/services/webhook_service.py, the three route modules, the OTel meter module, and the actual Compose, Terraform, and Helm surfaces. Its largest design flaw is that send_scan_complete_webhook passes its envelope as card_data, so the existing sender nests path and scan fields under card despite the documented top-level contract. It also cannot distinguish omitted agent or skill status from their Pydantic default draft, incorrectly describes the agent scan as a background task, and overlooks the unsafe-agent early return before its proposed emission point. Risk coverage is broad, but it misses the empty-status authorization bypass and does not fully design permission propagation through scopes, management normalization, and the frontend permission editor."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The review identifies several real load-bearing concerns, including exact HMAC bytes, validation of the mandated status, permission migration, Terraform sensitivity, and empty status filters. Its largest deficiency is failing to catch the LLD's nested scan_complete contract, Pydantic-default omission problem, agent early-return path, and missing permission plumbing. More seriously, it recommends treating an empty PATCH status as not requiring permission without ensuring the merge cannot persist the empty value, preserving an authorization bypass. The persona findings are concrete, but the triage inaccurately calls eight items must-fix while enumerating six must-fix and two should-fix items."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 64,
+      "notes": "The plan supplies meaningful behavioral oracles for signatures, scan outcomes, pagination counts, mandate errors, no-op updates, rollback, and the full lifecycle flow. Its setup is not copy-pasteable: it posts credentials to /auth/login instead of the repository's /api/auth/login flow, expects an access_token although that form establishes a session, and references a receiver Compose service that does not exist. The publisher prerequisite grants registration only, while the metadata and lifecycle PATCH tests require the existing modify_service permission before the new permission is evaluated. Coverage is also disproportionately server-focused and does not concretely test agent and skill status filtering, registration mandates, scan events, metric emission, or the documented top-level payload shape."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 1,
+      "specificity": 14,
+      "risk_awareness": 3,
+      "total": 26,
+      "notes": "The diff is based on the real source: every submitted preimage hash, including bdee411 for agent_routes.py and 5989e16 for server_routes.py, matches the repository, and the HMAC byte-serialization approach itself is concrete. The patch is nevertheless unusable because it deletes RatingRequest while a later route annotation still references it, removes imports still used by agent and skill routes, and removes server logger, ETag imports, user_context, is_admin, and the merged assignment. It also misses scan_complete for blocked unsafe agents and server outer failures, nests scan fields under card, and calls nonexistent _CounterAdapter.add so the metric is silently discarded. Required documentation, deployment wiring, scope/UI permission configuration, and tests are absent, while the implementation summary incorrectly claims end-to-end coverage."
+    }
+  },
+  "task_score": 63.2,
+  "verdict": "The design package is detailed and often repository-aware, but the submitted implementation introduces startup-breaking regressions and fails several core lifecycle webhook contracts.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T20:03:13.221983Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 920316,
+      "cached_input_tokens": 759751,
+      "cache_write_input_tokens": 160229,
+      "output_tokens": 10963,
+      "reasoning_output_tokens": 6097
+    },
+    "duration_ms": 203458
+  }
+}

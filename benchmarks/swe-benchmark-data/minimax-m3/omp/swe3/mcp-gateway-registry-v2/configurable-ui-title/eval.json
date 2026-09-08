@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 12,
+      "total": 68,
+      "notes": "The issue provides unusually concrete behavior, scope, deployment surfaces, and testable acceptance criteria, and all four named hardcoded frontend locations exist. Its largest defect is choosing `/api/config` for Login and Logout without addressing that the repository's nginx configurations protect generic `/api/` routes while exempting `/api/version`, `/api/auth`, and health routes. It also promises unchanged default appearance despite `UptimeDisplay.tsx` historically using “AI Gateway and Registry” while the proposed resolved default uses an ampersand. No independent task statement was supplied, so requirements beyond the identifier and internally stated scope could not be verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 22,
+      "risk_awareness": 12,
+      "total": 62,
+      "notes": "The LLD is highly specific and correctly maps the settings, API, frontend, Compose, Terraform, and Helm integration points to files and symbols present at tag 1.23.0. Its critical design flaw is that unauthenticated Login and Logout pages consume `/api/config` without adding a public nginx exception or selecting the already-public `/api/version` endpoint. It also incorrectly says `/api/config` has a 60-second response cache—only `/api/config/full` uses `_get_cached_config_response`—and overstates the hook's caching because concurrent mounts can each start a request before `cachedConfig` is populated. The raw-versus-effective ConfigPanel design and deployment passthrough details are otherwise implementation-ready."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 60,
+      "notes": "The review identifies real repository-specific concerns, notably the resolved ConfigPanel value and the index-sensitive assertions in `charts/registry/tests/extra_env_test.yaml`. It misses the principal architecture failure and incorrectly states that `/api/config` itself uses `enhanced_auth` or `nginx_proxied_auth`; `get_config` has no dependency, while nginx protects the route externally. It also claims adding `UI_TITLE` after the show-tab block preserves Helm indices, although that necessarily shifts `KEYCLOAK_ADMIN_PASSWORD` and subsequent `extraEnv` assertions. Its JSX-escaping, reserved-environment-name, and raw-value observations remain useful and actionable."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 11,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 69,
+      "notes": "The plan is broad and concrete, with exact API values, deployment-rendering checks, rollback cases, UTF-8, long-string, and HTML-like input coverage. Its largest omission is an unauthenticated title request: every `/api/config` check uses `ACCESS_TOKEN`, so the plan cannot detect that custom branding fails on the unauthenticated Login and Logout routes behind nginx. The default Uptime expectation preserves “and,” but the patch eventually renders the backend's ampersand title; the plan also omits a frontend build/typecheck and deliberately adds no automated feature tests. The Helm unittest command would expose the shifted env indices, but claims about deployment outcomes and the local token path remain unverified because execution is explicitly deferred."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 4,
+      "specificity": 18,
+      "risk_awareness": 3,
+      "total": 37,
+      "notes": "All twenty patch base blob hashes match the clean 1.23.0 repository, and most backend and deployment wiring targets the correct files. The patch cannot compile because `UptimeDisplay.tsx` removes the `apiUrl` import while retaining calls to `apiUrl('/api/stats')` and `apiUrl('/api/system/telemetry-detection')`; even if fixed, Login and Logout cannot obtain custom titles through nginx-protected `/api/config`. It also deletes the existing `registration_gate_enabled` field from `/api/config` and shifts Helm env indices without updating `charts/registry/tests/extra_env_test.yaml`. The summary materially overstates the result by claiming no deviations, strictly additive behavior, preserved Helm indices, and passing existing assertions."
+    }
+  },
+  "task_score": 59.2,
+  "verdict": "The submission is detailed and repository-aware, but a missed pre-authentication boundary and multiple implementation regressions—including a frontend compile failure—make the delivered change unshippable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T19:29:10.560187Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 701998,
+      "cached_input_tokens": 574795,
+      "cache_write_input_tokens": 126867,
+      "output_tokens": 10411,
+      "reasoning_output_tokens": 4966
+    },
+    "duration_ms": 209746
+  }
+}
