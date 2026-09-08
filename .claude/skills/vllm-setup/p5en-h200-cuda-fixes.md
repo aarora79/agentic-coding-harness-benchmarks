@@ -45,7 +45,9 @@ export TMPDIR=/opt/dlami/nvme/tmp
 
 ## The CUDA startup fixes (the core of this note)
 
-On 8x H200 + NVSwitch, vLLM JIT-compiles CUDA at startup in two places that the reference node never triggers. Both fail out of the box; both are fixed purely with environment variables passed to `vllm-serve.sh`.
+On 8x H200 + NVSwitch, startup fails in four places the reference node never reaches. Fixes 1 to 3 are CUDA JIT problems: vLLM builds kernels at startup and cannot find the tools or libraries to link them, so they surface late, after the weights load. Fix 4 is different in kind and in timing: NCCL cannot set up the 8-GPU collectives at all, so it fails before a single weight is read. All four are fixed with environment variables passed to `vllm-serve.sh`, plus a handful of symlinks for Fixes 2 and 3.
+
+Read Fix 4 first if the server dies early with no mention of a missing library: its top-level error names neither NCCL nor the real cause.
 
 ### Fix 1 - `ninja` must be on PATH (DeepGemm + FlashInfer JIT)
 
@@ -150,6 +152,53 @@ GLM-5.2 verified serving with this: `zai-org/GLM-5.2-FP8`, TP=8, `MAX_MODEL_LEN=
 
 Note the pre-existing DLAMI fixes the serve script already applies automatically and that you should NOT undo: `VLLM_USE_FLASHINFER_SAMPLER=0` (native sampler, no runtime nvcc) and the `CUDA_HOME` fallback to `/opt/pytorch/cuda`.
 
+### Fix 4 - NCCL: disable NVLink SHARP (NVLS), or nothing starts at all
+
+Fixes 1-3 are link-time problems that surface late, after weight loading. This one lands **before any weights load**, and its top-level message names neither NCCL nor NVLS:
+
+```
+RuntimeError: NCCL error: unhandled cuda error (run with NCCL_DEBUG=INFO for details)
+RuntimeError: Engine core initialization failed. See root cause above.
+```
+
+Re-run with `NCCL_DEBUG=INFO` and the real cause appears:
+
+```
+transport/nvls.cc:287 NCCL WARN Failed to bind NVLink SHARP (NVLS) Multicast memory
+  of size 2097152 : CUDA error 401 'the operation cannot be performed in the present state'.
+This is usually caused by a system or configuration error in the Fabric Manager or NVSwitches.
+Disable NVLS (NCCL_NVLS_ENABLE=0) if you wish to avoid this error in the future.
+```
+
+NCCL tries to bind NVLink SHARP multicast memory, the NVSwitch in-network reduction path, and the driver refuses with CUDA 401. NCCL treats that as fatal, so every rank dies at `ncclCommInitRank` and vLLM never reaches the model.
+
+The fix is the switch NCCL itself names:
+
+```bash
+export NCCL_NVLS_ENABLE=0
+```
+
+**Prove it is the node, not vLLM, in one minute.** This reproduces with a bare 8-GPU all_reduce and no vLLM at all, which is the fastest way to tell a node fault from a serving bug:
+
+```bash
+cat > /tmp/nccl_test.py <<'EOF'
+import torch, torch.distributed as dist
+dist.init_process_group("nccl")
+r = dist.get_rank(); torch.cuda.set_device(r)
+t = torch.ones(1024, device=f"cuda:{r}"); dist.all_reduce(t)
+if r == 0: print(f"NCCL ALL_REDUCE OK, world={dist.get_world_size()}, sum={t[0].item()}")
+EOF
+$VLLM_ENV/bin/python -m torch.distributed.run --nproc_per_node=8 /tmp/nccl_test.py
+```
+
+Without the switch every rank raises `ncclUnhandledCudaError`; with it the test prints `NCCL ALL_REDUCE OK, world=8, sum=8.0`. Measured on a p5en.48xlarge with driver 595.91.07, NCCL 2.29.7, torch 2.13.0+cu130, vLLM 0.28.0.
+
+Three things worth knowing:
+
+1. **A healthy fabric does not rule this out.** `nvidia-smi -q` reported `State: Completed / Status: Success` on all 8 GPUs, `nvidia-fabricmanager` was active, and NVLink showed 26.562 GB/s per link. Section 0 was already satisfied. The NVLS bind still failed, so do not read a clean fabric as proof that collectives work.
+2. **The `aws-ofi-nccl` warnings in the same log are a red herring.** `NET/OFI Failed to initialize rdma protocol` appears right before the failure and is unrelated: `NCCL_NET_PLUGIN=none` does not fix it, and a single-node TP job never uses the network plugin.
+3. **It costs performance.** Disabling NVLS drops in-network reduction, so TP=8 collectives are slower than on a node where the bind succeeds. Wall-clock-derived cost per task from a run with NVLS off is therefore not strictly comparable to one with it on. Say so in any results doc built from such a run.
+
 ## Putting it together - the full p5en launch
 
 `vllm-serve.sh` inherits the caller's environment, so export everything above first, then run it with the model guide's parameters ([kimi-k2.7-code.md](../../../self-hosted/vllm/models/kimi-k2.7-code.md), TP=8):
@@ -179,6 +228,8 @@ ln -sf /usr/lib/x86_64-linux-gnu/libcuda.so.1 "$CUDA_HOME/lib64/stubs/libcuda.so
 
 export LIBRARY_PATH="$LINKDIR:$CUDA_HOME/lib64:$CUDA_HOME/lib64/stubs:$VENV_CU13:/usr/lib/x86_64-linux-gnu:${LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH="$LINKDIR:$CUDA_HOME/lib64:$VENV_CU13:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+
+export NCCL_NVLS_ENABLE=0    # Fix 4 - without this NCCL dies before any weights load
 
 # --- Kimi-K2.7-Code (needs Fix 1 + Fix 2; Fix 3 is harmless to leave in) ---
 MODEL="moonshotai/Kimi-K2.7-Code" \
@@ -216,9 +267,10 @@ First boot: ~10-15 min weight download (~555 GB at ~1 GB/s with an HF token) + ~
 | `No space left` during download, or root disk fills | weights/venv on the small root disk | Disk layout (use `/opt/dlami/nvme`) |
 | `No such file or directory: 'ninja'` | ninja binary not on subprocess PATH | Fix 1 (PATH) |
 | `ld: cannot find -lcudart / -lcuda` -> `Ninja build failed` -> `Engine core initialization failed` | FlashInfer mnnvl allreduce can't link CUDA | Fix 2 (cuda-link + LIBRARY_PATH) |
+| `NCCL error: unhandled cuda error` -> `Engine core initialization failed`, BEFORE weight loading (with `NCCL_DEBUG=INFO`: `nvls.cc:287 Failed to bind NVLink SHARP (NVLS) Multicast memory ... CUDA error 401`) | NCCL cannot bind NVSwitch multicast memory; a healthy Fabric Manager does not rule this out | Fix 4 (`NCCL_NVLS_ENABLE=0`) |
 | `ld: cannot find -lnvrtc` -> `Ninja build failed` on `fp8_blockscale_gemm_90` -> `Engine core initialization failed` | FP8 model (GLM-5.2) FlashInfer kernel needs NVRTC, and FlashInfer's `-L` points at a non-existent `$CUDA_HOME/lib64` | Fix 3 (libnvrtc.so + populate `$CUDA_HOME/lib64`) |
 
-**Model -> which fixes:** Kimi-K2.7-Code = Fix 1 + Fix 2. GLM-5.2-FP8 = Fix 1 + Fix 2 + Fix 3. Applying all three is harmless for any model, so the combined launch block above is a safe default on this node.
+**Model -> which fixes:** Kimi-K2.7-Code = Fix 1 + Fix 2. GLM-5.2-FP8 = Fix 1 + Fix 2 + Fix 3. **Fix 4 applies to every multi-GPU model on this node**, whatever the precision, because it fails at distributed init before a model is even loaded. Applying all four is harmless for any model, so the combined launch block above is a safe default on this node.
 
 ## Verified serve configs (what we actually ran on this p5en)
 
