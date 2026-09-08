@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 86,
+      "notes": "The issue precisely defines the normal and fallback flows, testable acceptance criteria, compatibility, observability, and explicit exclusions. Its strongest aspect is distinguishing deployment-controlled URLs from the final IdP URL while preserving session teardown. The claim that a WAF-blocked logout prevents subsequent login without manually clearing cookies is unsupported and conflicts with the stated cookie deletion, while describing a query-string hint as strictly specification-mandated is overstated. No independent task statement was supplied, and the cited upstream issues could not be independently verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 18,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 87,
+      "notes": "The LLD is unusually concrete about registry/auth/routes.py, auth_server/server.py, configuration, headers, failure handling, rollout, and residual internal-log exposure. It commits to a coherent S2S request and legacy fallback that an implementer could follow directly. However, it claims logout_url_length_warning_total keeps its meaning while deliberately running it only on fallback, although the successful browser redirect can still be an overlong IdP URL. Its proposed exception logging can expose request data through exception text, and malformed Location parsing is not enclosed by the promised fail-soft boundary."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The review identifies concrete concerns including internal query logging, unrestricted Location hosts, loop behavior, proxy-header trust, timeout latency, and degraded-mode observability. Recommendations are prioritized and several are explicitly incorporated into the revised design. It misses the changed URL-length metric semantics, possible token disclosure through interpolated exception text, and urlparse failures escaping the helper's fallback path. The categorical assertion that SSRF risk is nil is stronger than the submitted repository evidence establishes."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 73,
+      "notes": "The plan covers unit, compatibility, deployment, UX, metrics, WAF, and real-IdP lifecycle checks with concrete commands and expected states. Its largest defect is contradictory core oracles: section 5.2 declares any id_token_hint in the returned Location a failure even though that Location should be the IdP URL containing the hint, and the unit fixture likewise omits the hint instead of verifying it reaches the IdP. Several sequential tests reuse a session cookie jar after logout has invalidated the session, making later POST and fallback checks unreliable without reauthentication. It also lacks coverage for malformed URLs that make urlparse raise and for preserving the URL-length warning on successful S2S redirects."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 72,
+      "notes": "The patch implements the central design end to end: an internal httpx call, forwarded origin headers, direct IdP redirect, legacy fallback, a labeled counter, documentation, and focused tests. The existing URL-length warning remains inside only the legacy token branch, so its prior behavior is not preserved for long successful IdP redirects, contrary to the summary and acceptance criteria. urllib.parse.urlparse runs outside the helper's try block and can route malformed Location values to the outer /login fallback, while logging the raw exception may disclose a URL containing the token. The target paths and diff contexts are internally coherent, but the claimed baseline applicability could not be independently confirmed because the repository shell was unavailable."
+    }
+  },
+  "task_score": 80.0,
+  "verdict": "This is a strong, repository-shaped design and mostly complete core patch, limited by contradictory token-flow tests and incomplete handling and observability of S2S failure edges.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T05:04:16.153784Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 210127,
+      "cached_input_tokens": 151647,
+      "cache_write_input_tokens": 40111,
+      "output_tokens": 11296,
+      "reasoning_output_tokens": 9750
+    },
+    "duration_ms": 176143
+  }
+}

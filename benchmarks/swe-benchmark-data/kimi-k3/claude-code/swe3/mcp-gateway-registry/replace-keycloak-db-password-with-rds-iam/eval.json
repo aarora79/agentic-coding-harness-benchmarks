@@ -1,0 +1,64 @@
+{
+  "task": "replace-keycloak-db-password-with-rds-iam",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The issue gives unusually concrete scope, non-goals, dependencies, and testable acceptance criteria covering the RDS cluster, ECS task, IAM policy, bootstrap, image, and documentation. Its cited symbols align with the submitted diff, including keycloak_database_password, aws_rds_cluster.keycloak, KC_DB_PASSWORD, and CKV_AWS_162. The largest defect is an internal security and rollback contradiction: random_password still places a long-lived master credential in Terraform state, and after removing the password variable rollback requires more than flipping one flag. No independent task statement was supplied, and the local checkout could not be inspected because every read-only shell invocation failed during sandbox initialization, so issue numbers and exact line claims remain unverifiable."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 71,
+      "notes": "The LLD is highly specific about Terraform resources, secret flow, task-role permissions, bootstrap sequencing, migration, rollback, and operational failure signatures. Its largest load-bearing gap is JDBC driver resolution: it labels this a must-verify question but specifies only the wrapper URL and jar, leaving the actual Keycloak driver selection unresolved in the design. It also overlooks executable permissions for the directly invoked new script and contradicts its single-flag rollback claim because password mode rejects an empty keycloak_database_password. Repository-specific assertions about existing patterns and file contents could not be independently verified due the unavailable local shell."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 67,
+      "notes": "The review surfaces concrete risks around the stock image default, bootstrap crash-loop window, Docker Hub dependency, TLS verification, supply-chain pinning, and JDBC driver resolution. Its largest failure is declaring the driver concern resolved by a future smoke test while recommending no design change, even though this is a prerequisite for the core connection path. The review explicitly says no code change is needed, and the resulting patch adds no KC_DB_DRIVER configuration; it also misses the non-executable script and the Terraform-state credential contradiction. Several repository and AWS behavior assertions are presented as verified but could not be checked against the local checkout."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 72,
+      "notes": "The plan covers both flag modes, policy and task-definition structure, bootstrap idempotency, image contents, live deployment, rollback, and DB-backed API reads and writes with concrete commands and expected values. Its most serious oracle defect is the token-longevity test: after waiting sixteen minutes it starts a fresh task, which would also pass a broken startup-token implementation and does not exercise connection renewal in the original process. The Docker provider-scan command is made non-failing with '|| true', the plan lacks an executable-bit check, and several fresh-plan values such as the resource-ID-derived IAM policy may remain unknown in planned_values. No execution evidence was supplied, and the repository commands could not be dry-run locally because of the sandbox failure."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 55,
+      "notes": "The patch addresses nearly every proposed surface and contains appropriately scoped rds-db:connect permissions, conditional secret injection, username validation, documentation, and rollback configuration. The largest concrete defect is that create-keycloak-iam-db-user.sh is added with mode 100644 but is invoked directly by post-deployment-setup.sh, so the mandatory bootstrap fails with permission denied and Keycloak remains unable to authenticate. The patch also leaves its own load-bearing JDBC driver-resolution question unresolved because it adds the jar and URL but no explicit driver configuration, while the summary overstates the change as complete. The claimed git apply check and source-context match could not be independently verified because the local read-only command runner failed before executing any command."
+    }
+  },
+  "task_score": 68.6,
+  "verdict": "The submission is specific and operationally thoughtful, but the implementation is not mergeable because the bootstrap script is non-executable and the JDBC driver wiring remains unresolved.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-03T23:47:59.323972Z",
+    "repo_ref": "1.24.4",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 307570,
+      "cached_input_tokens": 241327,
+      "cache_write_input_tokens": 56526,
+      "output_tokens": 8687,
+      "reasoning_output_tokens": 7311
+    },
+    "duration_ms": 213312
+  }
+}
