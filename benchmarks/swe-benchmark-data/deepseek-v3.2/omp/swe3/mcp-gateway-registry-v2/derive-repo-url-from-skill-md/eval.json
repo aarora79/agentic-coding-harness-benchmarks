@@ -3,62 +3,62 @@
   "model": "deepseek-v3.2",
   "scores": {
     "github_issue": {
-      "completeness": 22,
-      "correctness": 20,
+      "completeness": 21,
+      "correctness": 18,
       "specificity": 22,
-      "risk_awareness": 18,
-      "total": 82,
-      "notes": "The issue clearly defines both user-facing problems, explicit non-goals, and testable behavior for parsing, editable auto-fill, and both detail modals. Submitted diff contexts corroborate the named parse endpoint, Dashboard handler, SkillCard, and SkillContentModal integration points. Its largest gap is that GitHub Enterprise support lacks a concrete host-recognition or configuration policy, and the expected behavior when parsing a non-GitHub URL over an existing form value is ambiguous. No independent task statement exists, and issue #846 plus the claimed existing backend model field could not be independently verified because repository command execution was unavailable."
+      "risk_awareness": 17,
+      "total": 78,
+      "notes": "The issue clearly defines the registration and modal behaviors, supported URL shapes, non-goals, and testable acceptance criteria. Its named integration points—url_utils.py, parse_skill_md, Dashboard.tsx, SkillCard.tsx, and SemanticSearchResults.tsx—correspond to symbols present in the submitted patch. The largest deficiency is an internal fallback-label contradiction: it requests “View Skill” generally but “View on GitHub” when repository_url is absent, and it does not define how parsing should interact with an existing manually edited value. No independent task statement was supplied, so the UI expansion and exact enterprise-host requirements cannot be verified beyond the internally consistent artifacts and repository tags."
     },
     "lld": {
-      "completeness": 20,
+      "completeness": 21,
       "correctness": 12,
-      "specificity": 20,
+      "specificity": 22,
       "risk_awareness": 17,
-      "total": 69,
-      "notes": "The LLD provides an unusually concrete end-to-end flow and identifies the relevant backend, API, type, form, and modal changes. Its proposed raw-host conversion is incorrect: removing the raw. prefix from raw.githubusercontent.com produces githubusercontent.com, so the subsequent exact replacement cannot yield github.com. The enterprise allowlist is also defeated by unconditional substring fallback, while configuration remains a TODO despite being a load-bearing security decision. It discusses many risks, but several mitigations such as _is_safe_url reuse and explicit allowlisting are not actually connected to the proposed implementation, and some observability work is disproportionate."
+      "total": 72,
+      "notes": "The LLD provides unusually concrete file-level data flow, model changes, null handling, alternatives, and implementation guidance. Its core algorithm is wrong for public raw URLs: removing only the raw. prefix from raw.githubusercontent.com produces githubusercontent.com rather than the required github.com. It also claims semantic search returns SkillInfo even though the implementation reveals a distinct SkillSearchResult, and its promised malformed-URL validation is only a whitespace check. The design discusses compatibility, security, observability, and rollout, but several cross-cutting claims about federation, CLI handling, and serialization are asserted rather than demonstrated."
     },
     "review": {
       "completeness": 18,
-      "correctness": 14,
-      "specificity": 17,
-      "risk_awareness": 18,
-      "total": 67,
-      "notes": "The review identifies a real hostname-substring vulnerability and gives actionable recommendations for strict allowlisting, shared link rendering, responsive layout, and accessibility. It nevertheless misses the LLD's incorrect raw.githubusercontent.com conversion and the unresolved enterprise configuration path. Several findings are generic or technically weak for this change, including regex injection, circuit breakers, and an unrelated X-Content-Type-Options recommendation. The security verdict appropriately requests revision, but other approvals and claims about existing SSRF protection are not sufficiently reconciled with that blocker."
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 66,
+      "notes": "The review raises concrete concerns about search-result propagation, regex reuse, null handling, accessibility, URL construction, and security testing. Its resolution incorrectly declares that semantic search reuses SkillInfo, while the patch later has to extend SkillSearchResult and SemanticSkillHit explicitly. It also misses the critical raw.githubusercontent.com normalization defect and treats trim() as malformed-URL validation, so the approval verdict is more confident than the evidence supports. The recommendations are generally actionable, but the review fails to identify the defect that breaks one of the two primary supported URL forms."
     },
     "testing": {
-      "completeness": 18,
-      "correctness": 9,
-      "specificity": 19,
-      "risk_awareness": 16,
+      "completeness": 20,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 18,
       "total": 62,
-      "notes": "The plan supplies concrete inputs and expected outputs across URL extraction, API response, form state, compatibility, and link rendering. Important expectations contradict the proposed code: github.evil.com cannot be rejected while legacy substring fallback accepts github.mycompany.com, public raw URLs produce the wrong host, and trailing-slash sanitization does not normalize its return value. Several security cases use non-oracles such as None or timeout and depends on _is_safe_url, while component cases with absent required props would not type-check. It also omits a build/import check that would catch the missing RepositoryLinks file and does not pin the stale-value transition from a GitHub parse to a non-GitHub parse."
+      "notes": "The strongest part is the concrete derive_repository_url matrix, especially the raw.githubusercontent.com oracle that would catch the implementation’s principal bug. Many execution details are ungrounded or weak: the plan assumes a test path and runner, hard-codes another checkout directory, uses an unverified root SKILL.md URL, and supplies curl/server commands without addressing authentication or fixtures. Several tests assert little or nothing—has(\"repository_url\") checks field presence rather than its value, the compatibility client only parses JSON, and assigning window.skill does not necessarily alter React component state. The manual-edit expectations contradict each other, and the malformed-link and XSS sections claim behavior that the proposed trim-only rendering check does not provide."
     },
     "implementation": {
-      "completeness": 8,
-      "correctness": 3,
-      "specificity": 9,
-      "risk_awareness": 4,
-      "total": 24,
-      "notes": "The patch touches the expected service, route, type, form, and two modal contexts, but it does not include the newly imported RepositoryLinks.tsx file, so the submitted change is not build-complete. It also replaces the existing ANSBadge and SecurityScanModal imports instead of adding an import, creating additional unresolved-symbol risk if those components remain used. Public raw URLs derive githubusercontent.com rather than github.com, and the claimed enterprise allowlist still accepts every hostname containing github. Dashboard preserves a stale repository value for null responses, while the summary incorrectly claims successful security hardening and complete implementation; independent apply and surrounding-use verification were unavailable because local command execution failed."
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 19,
+      "risk_awareness": 12,
+      "total": 57,
+      "notes": "The patch covers most of the described end-to-end flow, including backend parse/list/search propagation, frontend types and mappings, form auto-fill, and both modal layouts. The critical defect is deterministic: derive_repository_url converts raw.githubusercontent.com to githubusercontent.com, so public raw SKILL.md URLs return the wrong repository root. Dashboard.tsx always overwrites a manual value whenever parsing returns a repository URL, contrary to the summary’s claim that edits are preserved for an unchanged SKILL.md URL, and trim() does not reject malformed or javascript URLs as claimed. No tests accompany the new parser despite the testing plan identifying them as critical, while the summary overstates readiness and even reports 12 modified files although the submitted diff contains 11."
     }
   },
-  "task_score": 60.8,
-  "verdict": "The design artifacts establish a useful, concrete direction, but the submitted implementation is incomplete and contains critical URL-conversion and hostname-validation defects.",
+  "task_score": 67.0,
+  "verdict": "The submission is detailed and mostly repository-shaped, but a core raw-GitHub URL case is implemented incorrectly, while the review misses it and the proposed verification is largely unexecuted or insufficiently grounded.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T20:24:45.620222Z",
+    "evaluated_at": "2026-09-07T21:01:19.066702Z",
     "repo_ref": "v1.0.19",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 295919,
-      "cached_input_tokens": 248652,
-      "cache_write_input_tokens": 42077,
-      "output_tokens": 8511,
-      "reasoning_output_tokens": 6368
+      "input_tokens": 241959,
+      "cached_input_tokens": 184326,
+      "cache_write_input_tokens": 38013,
+      "output_tokens": 12402,
+      "reasoning_output_tokens": 10711
     },
-    "duration_ms": 90764
+    "duration_ms": 147366
   }
 }
