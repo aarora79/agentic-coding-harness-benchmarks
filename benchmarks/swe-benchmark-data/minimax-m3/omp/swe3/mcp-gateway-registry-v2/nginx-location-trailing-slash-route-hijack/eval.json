@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 11,
+      "total": 64,
+      "notes": "The issue precisely identifies `_create_location_block` in `registry/core/nginx_service.py` and supplies concrete acceptance criteria for the verified prefix-match defect. Its strongest feature is the explicit normalized-location and compatibility behavior, but the proposed exact-match 308 is additional scope not established by the task identifier or the repository's eventual #1501 fix. It misses that `validate_server_path` permits paths such as `/api/auth/me`, so the companion block can duplicate an existing static `location = {{ROOT_PATH}}/api/auth/me` and make `nginx -t` reject the configuration; the `/api/servers/{path}/mcp` user-story URL also disagrees with the repository's `/{path}/mcp` route. No independent task statement was supplied, so the claimed bare-path requirement and external issue narratives could not be independently verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 22,
+      "risk_awareness": 11,
+      "total": 61,
+      "notes": "The LLD is unusually repository-specific: the named generator, validator, agent precedent, test file, proxy target, and most line references match the checkout. Its largest defect is an unsafe design decision: adding an exact location for every registration can collide with static exact locations, while normalizing `/` still emits a gateway-wide authenticated `location /` that shadows the catch-all. The claim that `/` is rejected upstream is contradicted by `validate_server_path` and its tests, which explicitly allow `/`, `//`, and `///`; later repository history for the same fix rejects these paths and also hardens virtual-server locations. Assertions that there are no new failure modes, virtual prefixes are sufficiently safe, and auth routing is unaffected merely because the configured `proxy_pass` URL is unchanged are therefore not adequately supported."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 19,
+      "risk_awareness": 15,
+      "total": 62,
+      "notes": "The review's strongest work is identifying the changed nginx `proxy_pass` URI replacement semantics, the root-path hazard, rollout diff size, and unauthenticated redirect enumeration. It nevertheless resolves the root concern incorrectly by approving a global `location /`, and it entirely misses the blocking duplicate-exact-location failure introduced by the 308 companion. Several resolutions overstate the artifacts: the issue did not add the promised enumeration caveat, and the exact block does interpolate registrant-derived path values despite the security review saying otherwise. The all-approved verdict is therefore not defensible even though many individual observations are concrete and grounded in real symbols such as `_write_and_validate_config` and `_create_agent_location_block`."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 57,
+      "notes": "The plan provides concrete generator inputs and strong string oracles for normalization, redirects, transport variants, multi-segment paths, and unchanged proxy targets. However, `uv run python -m unittest discover` will not execute these pytest fixture-based functions, and the stated Python 3.10+ prerequisite contradicts `pyproject.toml`, which requires Python >=3.14. The root test first requires no global `location /` and then permits exactly that output, while the proposed `/api/foo` regression scenario would be handled by the longer static `/api/` location rather than reproducing `/a` hijacking. It also lacks an nginx syntax test for duplicate exact locations and makes an unsupported claim about tests covering both doubled- and single-slash auth-server paths."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 20,
+      "risk_awareness": 11,
+      "total": 58,
+      "notes": "The patch context, symbols, imports, and surrounding tests match the baseline, and for ordinary paths it correctly emits a single trailing-slash prefix while preserving the existing proxy target. Its largest defect is the companion exact block: an allowed registration such as `/api/auth/me` duplicates the templates' existing exact location and causes the repository's `nginx -t` promotion gate to reject the entire generated configuration. The root-path test knowingly accepts `location {{ROOT_PATH}}/ {`, even though baseline validation permits slash-only paths and that block hijacks the whole gateway; the repository's later hardening for this same change instead rejects or skips such paths. The implementation substantially follows its LLD, but the claimed `git apply --check` and test success were not independently demonstrated, and the summary understates the added test count."
+    }
+  },
+  "task_score": 60.4,
+  "verdict": "The submission understands and implements the core trailing-slash fix, but its unnecessary exact-match redirect introduces configuration-rejection collisions and its root-path handling preserves a gateway-wide routing hazard.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T20:11:36.661803Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 575422,
+      "cached_input_tokens": 470510,
+      "cache_write_input_tokens": 104576,
+      "output_tokens": 10544,
+      "reasoning_output_tokens": 5861
+    },
+    "duration_ms": 190525
+  }
+}

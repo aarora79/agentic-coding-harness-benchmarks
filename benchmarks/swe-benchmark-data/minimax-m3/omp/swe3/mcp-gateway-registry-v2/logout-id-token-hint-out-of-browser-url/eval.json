@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 66,
+      "notes": "The issue clearly defines the WAF failure, names real integration points such as registry/auth/routes.py and auth_server/server.py, and supplies unusually concrete acceptance criteria and exclusions. Its largest flaw is that the ticket flow still makes the browser follow an IdP URL containing id_token_hint, contradicting its claim that the JWT leaves no browser history or devtools trace. Repository history for #1503 instead implements a direct internal call and closes the public /oauth2/logout/ proxy route, which this issue does not require. No independent task statement was supplied, so broader requirements beyond the identifier and repository history remain unverifiable."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 56,
+      "notes": "The LLD is detailed and correctly identifies logout_handler, oauth2_logout, internal_router, the dual auth-server URLs, and existing logout counters. However, its MongoDB pseudocode calls auth_server/session_store.py:_get_collection with a collection argument that the real zero-argument helper does not accept, stores raw tokens despite the session store's encryption model, and uses integer expires_at values for a Mongo TTL index that expects dates. It also leaves the ticket-store choice unresolved, has inconsistent metric labels, and still exposes the JWT on the browser-to-IdP redirect while claiming otherwise. The repository's actual #1503 implementation uses a simpler internal request plus safe Location validation and public-proxy closure, risks the LLD does not address."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 13,
+      "total": 51,
+      "notes": "The review usefully demands invalid-ticket and oversized-payload tests and checks several genuine repository patterns such as validate_internal_auth and multi-replica storage. Its supposed blockers are often mechanical or self-canceling, while it misses the raw-token storage, invalid Mongo TTL representation, provider-unbound tickets, browser-visible IdP URL, and need to close the public logout route. Some findings are stale or inaccurate: it criticizes a broad exception after the revised LLD uses httpx.HTTPError, and claims all blockers are resolved although the TTL-index location remains deferred. Consequently the approving architectural conclusion is not supported by the repository evidence."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 56,
+      "notes": "The plan provides concrete actions and useful oracles for single-use consumption, expiry, invalid tickets, payload limits, feature-flag behavior, and timeout fallback. Several commands and prerequisites contradict the repository: it requires Python 3.10+ although both pyproject files require 3.14, cites nonexistent tests/_helpers scripts, and ends with unittest discovery despite pytest being the configured framework. Its end-to-end claim that every browser-facing Location lacks the JWT is incompatible with expecting the browser-driven IdP request to contain id_token_hint. It also omits coverage for the implementation's invalid-ticket open redirect, provider binding, restart or replica loss, and actual WAF-facing proxy configuration."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 1,
+      "specificity": 10,
+      "risk_awareness": 4,
+      "total": 23,
+      "notes": "The patch targets real files and symbols, but it does not produce an importable auth server: @internal_router.post(..., response_model=LogoutTicketResponse) and the function annotations appear before LogoutTicketResponse and LogoutTicketRequest are defined, causing an immediate NameError because auth_server/server.py has no postponed-annotations import. It also returns an unvalidated redirect_uri for an invalid ticket before the existing redirect safety check, creating a public open redirect, and its process-local ticket dictionary cannot work reliably across replicas or restarts. The summary's claim that replica misses automatically use the legacy path is false—the auth server merely redirects locally without SSO termination—and the implementation materially abandons the LLD's MongoDB design. No behavioral tests, proxy-route closure, documentation, or deployment wiring are included, while the repository's actual #1503 fix includes focused pytest coverage and blocks public /oauth2/logout/ access."
+    }
+  },
+  "task_score": 50.4,
+  "verdict": "The submission is detailed and repository-aware in places, but its architecture preserves key exposure paths and the implementation is unusable due to an import-time NameError plus serious redirect and multi-replica defects.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T20:05:46.946897Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 670144,
+      "cached_input_tokens": 528341,
+      "cache_write_input_tokens": 141509,
+      "output_tokens": 10071,
+      "reasoning_output_tokens": 5689
+    },
+    "duration_ms": 153702
+  }
+}

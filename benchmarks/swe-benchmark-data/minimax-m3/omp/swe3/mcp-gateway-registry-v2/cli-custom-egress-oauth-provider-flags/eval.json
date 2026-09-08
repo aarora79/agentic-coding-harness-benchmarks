@@ -1,0 +1,64 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The issue precisely identifies the missing CLI-to-client plumbing, and the five fields, EgressConfigRequest, resolve_provider requirement, and Dashboard.tsx URL fields all exist as cited. Its largest error is promising PATCH-like edits: registry/api/egress_auth_routes.py reconstructs egress_oauth from Pydantic defaults and preserves only client_secret_encrypted, so supplying only custom_scope_separator cannot preserve omitted custom URLs and instead fails validation. It also overstates persistence-schema coverage because EgressOAuthConfig in registry/core/schemas.py has four custom fields and lacks custom_resource. No independent task statement was supplied, so requirements beyond the task identifier and repository evidence remain unverifiable."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 70,
+      "notes": "The LLD is unusually concrete about api/registry_management.py, RegistryClient.configure_egress_auth, enum values, parser placement, and unchanged server integration points. Its central compatibility claim is wrong because the route rebuilds egress_oauth and does not merge omitted custom fields from stored state. It also specifies assertions against _make_request kwargs[\"json\"], while the real client interface accepts data=body and only converts that to requests.request(json=...) internally. Claims about preserving edit-only updates and all five fields existing on OAuthProviderConfig or the persistence schema could not be verified and are contradicted by the repository."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 59,
+      "notes": "The review gives concrete, actionable feedback on docstrings, argparse choices, validation boundaries, and help text, with references to real symbols. Its largest deficiency is approving the false PATCH-over-POST premise without inspecting registry/api/egress_auth_routes.py, which would have exposed that omitted custom fields are not retained. It also misses the client test-interface error and raises an unsubstantiated claim that requests.HTTPError necessarily includes the response body and custom values in its string. The claimed absence of remaining blockers is therefore not defensible from the checked repository."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 20,
+      "risk_awareness": 13,
+      "total": 58,
+      "notes": "The plan provides concrete parser, handler, payload, omission, empty-string, compatibility, and error-message oracles rather than merely checking that code runs. However, its client examples inspect kwargs[\"json\"], while api/registry_client.py calls _make_request with data=body; the existing test_registry_client_toggle_rate.py confirms data is the repository convention. It also cites a nonexistent _build_parser helper, states Python 3.10+ despite pyproject.toml requiring Python >=3.14, and incorrectly says the legacy-only test would fail on the baseline. No route-level edit test catches the plan's invalid claim that changing only one custom field preserves the stored URLs."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 13,
+      "total": 68,
+      "notes": "The production hunks match real baseline symbols and correctly add all five parser flags, handler kwargs, client parameters, body gates, and documentation; this implements the primary CLI parity fix. The largest implementation defect is that every added client test reads call_args.kwargs[\"json\"] even though configure_egress_auth passes data=body, so all five client tests fail with KeyError rather than validating the change. The patch also contains eleven tests, not the claimed twelve, and cannot satisfy its edit-only preservation promise because the unchanged route requires the custom URLs on every custom-provider write. The summary accurately identifies the modified production surface but materially overstates successful verification and full realization of the design."
+    }
+  },
+  "task_score": 66.2,
+  "verdict": "The core CLI feature is implemented correctly and is well grounded, but the submission is materially weakened by non-running client tests and a false cross-artifact claim that omitted custom fields are preserved during edits.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T19:21:50.227213Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 569424,
+      "cached_input_tokens": 474396,
+      "cache_write_input_tokens": 94650,
+      "output_tokens": 8461,
+      "reasoning_output_tokens": 4648
+    },
+    "duration_ms": 219308
+  }
+}
