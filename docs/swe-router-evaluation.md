@@ -4,7 +4,7 @@ Running `swe-router` against its own evidence: what it picked across 21 tasks, w
 
 The results above rank models on a whole dataset. A developer picks one per task, which is a different question -- and the usual answer is "run the best model for everything", which these numbers say is expensive. The **[`/swe-router`](../.claude/skills/swe-router/SKILL.md)** skill answers it per task: read the repository and the change, decide a quality floor from the consequence of getting it wrong and a complexity tier, then take the cheapest measured model that clears the floor at that tier. It recommends and stops. The developer makes the switch.
 
-We ran it against its own evidence. All 17 models have run all 21 v2 tasks, so for whatever the skill picks we can look up what that model scored and cost on that task instead of estimating it.
+We ran it against its own evidence. All 18 models have run all 21 v2 tasks, so for whatever the skill picks we can look up what that model scored and cost on that task instead of estimating it.
 
 | | Router | `claude-opus-5` on everything |
 |---|---:|---:|
