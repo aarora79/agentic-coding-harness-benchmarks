@@ -61,7 +61,7 @@ One command per model. The `/benchmark` skill runs the pre-flight checks, the ha
 
 ![Cost vs. quality Pareto frontier, omp harness on /swe3](docs/images/cost-quality-omp-swe3.png)
 
-On ours, 16 models over 21 tasks: `claude-opus-5` scores highest at **82.83** for **$11.95** a task, and `glm-5.3` lands 2.7 points behind it at $7.04. The cheapest model above 78 is `qwen3.8-27b`, which scores **78.48 at $1.47** and beats `claude-sonnet-5` (76.97, $4.67) at under a third of the cost.
+On ours, 17 models over 21 tasks: `claude-opus-5` scores highest at **82.83** for **$11.95** a task, `glm-5.3` lands 2.7 points behind it at $7.04, and `kimi-k3` a further point back but cheaper at **79.17 for $4.33**. The cheapest model above 78 is `qwen3.8-27b`, which scores **78.48 at $1.47** and beats `claude-sonnet-5` (76.97, $4.67) at under a third of the cost.
 
 ## Step 2 — Developers install the skill
 
@@ -89,13 +89,13 @@ Install notes, the file-by-file breakdown and the measured results: **[vend/swe-
 
 ### Results
 
-16 models over 21 tasks. Each task comes from a closed issue in a real repository, pinned to the release before the fix shipped, so the defect is present in the tree the agent clones. An independent judge scores every run 0-100, and the tasks split across four complexity tiers. Earlier runs on other harnesses and datasets stay published as background. They use different task sets, so their scores do not merge into the headline table.
+17 models over 21 tasks. Each task comes from a closed issue in a real repository, pinned to the release before the fix shipped, so the defect is present in the tree the agent clones. An independent judge scores every run 0-100, and the tasks split across four complexity tiers. Earlier runs on other harnesses and datasets stay published as background. They use different task sets, so their scores do not merge into the headline table.
 
 **[All results](docs/results-index.md)** · [Headline run (omp, /swe3, v2)](docs/harness-omp-swe3.md) · [Which model for which task?](docs/model-selection-by-complexity.md) · [Cost per task methodology](docs/cost-per-task-methodology.md) · [v1 dataset](docs/results-swe3.md) · [/swe2 multi-agent](docs/results-swe2.md) · [Cross-harness comparison](docs/agentic-coding-swe-comparison-swe3.md)
 
 ### Does routing pay for itself?
 
-We ran `swe-router` against its own evidence. Every model has run every task, so for whatever the skill picks we can look up what that model scored and cost on that task. Over 21 tasks it came out **44.7% cheaper for 4.8% less quality**. Three caveats decide how much to trust that number, and all three come from the judgment step, not the arithmetic.
+We ran `swe-router` against its own evidence. Every model has run every task, so for whatever the skill picks we can look up what that model scored and cost on that task. Over 21 tasks it came out **45.4% cheaper for 4.6% less quality**. Three caveats decide how much to trust that number, and all three come from the judgment step, not the arithmetic.
 
 **[Does routing pay for itself?](docs/swe-router-evaluation.md)** · [The routing result, joined to the measured runs](docs/swe-router-evaluation-judged.md) · [What the model judged each task to need](docs/swe-router-judged-inputs.md) · [The skill itself](.claude/skills/swe-router/SKILL.md)
 

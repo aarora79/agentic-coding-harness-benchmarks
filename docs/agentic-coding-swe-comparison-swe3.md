@@ -53,6 +53,7 @@ For each harness: a results table (quality, tokens, run cost + the two normalize
 
 | Model | Hosting | Mean score | Completed | Tokens processed | Run cost | Cost/task | Cost/point | Wall-clock |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
+| kimi-k3 | self-hosted | 73.92 | 5/5 | 55.4M | $44.06 | $8.81 | $0.60 | 86m |
 | claude-opus-5 | Bedrock | 70.76 | 5/5 | 175.1M | $120.25 | $24.05 | $1.70 | 199m |
 | claude-opus-4-8 | Bedrock | 69.24 | 5/5 | 57.0M | $49.51 | $9.90 | $0.72 | 113m |
 | claude-sonnet-5 | Bedrock | 68.04 | 5/5 | 341.6M | $123.20 | $24.64 | $1.81 | 191m |
