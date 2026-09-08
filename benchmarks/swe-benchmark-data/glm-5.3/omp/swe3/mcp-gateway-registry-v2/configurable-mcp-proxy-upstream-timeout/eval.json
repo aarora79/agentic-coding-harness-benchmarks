@@ -3,62 +3,62 @@
   "model": "glm-5.3",
   "scores": {
     "github_issue": {
-      "completeness": 22,
-      "correctness": 19,
-      "specificity": 24,
-      "risk_awareness": 18,
-      "total": 83,
-      "notes": "The issue provides unusually concrete acceptance criteria covering the Settings field, `_read_mcp_proxy_upstream_timeout_seconds`, `httpx.AsyncClient`, deployment surfaces, documentation, and tests. Its largest deficiency is that the multi-minute-call user story is not fully delivered through the normal gateway path because nginx's approximately 60-second read timeout is explicitly left out of scope. The named paths and surrounding symbols are consistent with the submitted patch preimages, including the existing hardcoded timeout in `auth_server/server.py`. No independent task statement was supplied, and the repository shell failure prevented independent confirmation of issue numbers and every claimed surface."
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 15,
+      "total": 74,
+      "notes": "The issue provides concrete defaults, validation, deployment surfaces, non-goals, and testable acceptance criteria. Its largest defect is requiring the admin API to show the effective value while wiring the variable only into the separate auth-server process; registry/api/config_routes.py reads the registry process's Settings and can therefore report 30.0 while auth-server uses an override. The invalid-value criterion is also misleading because the new Settings field consumes the environment variable first, so malformed values normally fail Pydantic construction instead of reaching the warning-and-default fallback. The reported production incidents and issue references could not be independently verified because no separate task statement was supplied and local repository commands were blocked by the sandbox."
     },
     "lld": {
-      "completeness": 23,
-      "correctness": 20,
-      "specificity": 24,
-      "risk_awareness": 23,
-      "total": 90,
-      "notes": "The LLD commits to an implementation-ready data flow and names concrete integration points from `Settings` through the auth-server helper, admin configuration, Compose, Helm, Terraform, and tests. It handles non-finite floats, compatibility, logging, resource occupancy, rollback, SSE semantics, and the separate nginx limit particularly well. Its claim that per-request helper invocation picks up environment changes without restart is inaccurate for the normal `Settings` object, whose populated field wins before `os.getenv`; that fallback primarily serves missing or invalid settings stubs. Exact line and source assertions could not all be independently verified because local shell execution failed before repository commands ran."
+      "completeness": 21,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The LLD is highly concrete, naming the route, helper, Settings field, tests, and all nineteen deployment and documentation targets with implementation-ready changes. Its largest architectural error is acknowledging that registry and auth-server have separate Settings instances while still placing the environment variable only on auth-server and claiming the registry-hosted admin API exposes the effective value. The proposed fallback is effectively unreachable in a normal patched process because mcp_proxy_upstream_timeout_seconds always exists with a default, and the LLD's own Pydantic test confirms malformed or sub-floor environment values fail construction rather than degrade gracefully. It identifies meaningful nginx and long-held-connection risks, although the repository-specific claim that generated nginx locations retain the 60-second default could not be independently inspected."
     },
     "review": {
-      "completeness": 23,
-      "correctness": 22,
-      "specificity": 23,
-      "risk_awareness": 24,
-      "total": 92,
-      "notes": "The review surfaces three concrete design defects with consequences and resolutions: `inf` or `nan` bypassing the intended bound, nginx limiting long calls, and the unpinned 504 response contract. The strongest finding is the non-finite analysis, which correctly distinguishes `float()` behavior from the sibling integer parser and recommends `math.isfinite`. Its largest limitation is accepting documentation alone for nginx even though the issue's stated operator outcome is successful multi-minute calls through the gateway. Claims such as the absence of frontend references and completeness of every deployment surface could not be independently rechecked due the unavailable repository shell."
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 72,
+      "notes": "The review surfaces concrete concerns about nginx's outer timeout, resource occupancy, log-format changes, Terraform validation, and operator sizing guidance, then records actionable resolutions. Its largest omission is failure to notice that the admin API and timeout consumer run in different processes receiving different environment wiring, despite the LLD stating that separation explicitly. It also approves graceful invalid-value fallback even though the proposed Settings validation causes values such as 0.5 or fast to fail at startup before the reader executes. The assertion that no repository component parses mcp_proxy log lines could not be independently verified due unavailable local shell access."
     },
     "testing": {
-      "completeness": 21,
-      "correctness": 15,
-      "specificity": 21,
-      "risk_awareness": 20,
-      "total": 77,
-      "notes": "The plan spans helper, Settings, route, compatibility, deployment rendering, rollback, and slow-upstream behavior with specific expected values such as `30.0`, `120.0`, and the exact 504 detail. A material error is the E2E instruction claiming an environment value of `0.5` exercises the helper clamp; normal Pydantic Settings construction should reject that environment value before the server can serve requests. The suggested `python -m http.server` command is not a delayed JSON-RPC stub, and several grep-based deployment checks establish presence rather than correct rendered values or placement. The exact commands could not be dry-run against this checkout because shell startup failed."
+      "completeness": 20,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The plan spans unit, route-wiring, admin API, deployment manifests, rollback, compatibility, and slow-upstream E2E checks with concrete expected values. Its largest correctness defect is that the floor-clamp and malformed-environment E2E cases expect a serving process, while the plan's own Settings tests establish that those values raise ValidationError during construction. The deployment flow sets the override on auth-server and then expects the registry admin API to report it, and the sample slow server binds to 127.0.0.1 even though a container generally needs a host-reachable bind address. The pytest, Helm, and endpoint commands could not be independently executed or fully verified because repository command execution was blocked."
     },
     "implementation": {
-      "completeness": 22,
-      "correctness": 16,
+      "completeness": 19,
+      "correctness": 15,
       "specificity": 22,
-      "risk_awareness": 20,
-      "total": 80,
-      "notes": "The patch implements the core behavior end to end and consistently wires the new name and default across the 19 listed files, while preserving the existing 504 response and guarding non-finite values. The largest likely defect is in two route tests: they retain the `_patch_httpx_async_client` context manager and inspect `client_patch.mock`, although standard `unittest.mock.patch` objects expose the created mock through the context-manager return value rather than a documented `.mock` attribute. The patch also introduces an unused `os` import and leaves Terraform assignment alignment unformatted, both likely lint or formatting failures under common repository checks. `git apply --check`, the existing helper implementation, and test execution could not be independently verified because the read-only shell failed before executing commands."
+      "risk_awareness": 16,
+      "total": 72,
+      "notes": "The patch implements the central behavior end to end: it adds the Settings field and helper, replaces AsyncClient(timeout=30.0), wires the declared deployment surfaces, and adds focused reader and constructor-argument tests. Its largest defect is that only auth-server receives the deployed variable while CONFIG_GROUPS reads registry's Settings, so the advertised admin value can be stale or wrong and no automated config-route test catches this. The summary also oversells invalid-value fallback: normal malformed environment values are parsed by Settings and can prevent startup before the helper's warning path, while that path is tested only with an artificial SimpleNamespace lacking the field. The submitted hunk contexts consistently target the named symbols, but git apply --check and direct source inspection could not be completed because the read-only shell sandbox failed before command execution."
     }
   },
-  "task_score": 84.4,
-  "verdict": "Strong, repository-specific design work and a broadly complete implementation are limited by inaccurate executable testing guidance and likely failing added route tests.",
+  "task_score": 72.6,
+  "verdict": "This is a detailed and largely coherent implementation whose core timeout wiring is sound, but split-process configuration ownership makes admin reporting inaccurate and invalid-value behavior contradicts the stated contract.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-29T23:36:16.130987Z",
+    "evaluated_at": "2026-09-08T02:02:24.619396Z",
     "repo_ref": "1.25.0",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 381566,
-      "cached_input_tokens": 298171,
-      "cache_write_input_tokens": 46427,
-      "output_tokens": 12303,
-      "reasoning_output_tokens": 10431
+      "input_tokens": 210065,
+      "cached_input_tokens": 152869,
+      "cache_write_input_tokens": 43296,
+      "output_tokens": 10567,
+      "reasoning_output_tokens": 8693
     },
-    "duration_ms": 174964
+    "duration_ms": 142688
   }
 }

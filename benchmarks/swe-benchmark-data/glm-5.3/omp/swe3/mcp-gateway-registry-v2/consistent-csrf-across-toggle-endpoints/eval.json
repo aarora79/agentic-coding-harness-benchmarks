@@ -6,59 +6,59 @@
       "completeness": 22,
       "correctness": 19,
       "specificity": 23,
-      "risk_awareness": 21,
-      "total": 85,
-      "notes": "The issue clearly identifies six routes, the shared CSRF dependency, testable cookie and token behavior, and explicit non-goals. Its largest defect is claiming the endpoints authenticate similarly even though its own table shows enhanced-auth, proxied-auth, and internal-JWT variants; a bearer client cannot successfully use the enhanced-auth-only route. The referenced route names and dependency changes align with the submitted source diff. No independent task statement was supplied, so broader requirement coverage cannot be verified."
+      "risk_awareness": 22,
+      "total": 86,
+      "notes": "The issue provides unusually concrete endpoint inventory, threat rationale, non-goals, and testable browser-versus-bearer acceptance criteria; the public v1.0.21 notes also associate issue #891 with this bearer-toggle CSRF fix.  Its largest defect is claiming bearer incompatibility and a common authentication boundary for all six endpoints while its own table identifies the UI toggle as using `enhanced_auth`, which the proposed CSRF change alone does not make bearer-compatible. The named paths and error details agree with the submitted baseline patch context, but acceptance language saying authenticated cookie requests are accepted on the internal endpoint does not distinguish its separate internal-JWT requirement. With no independent task statement, requirement completeness beyond the task identifier and repository evidence cannot be verified."
     },
     "lld": {
       "completeness": 23,
-      "correctness": 21,
+      "correctness": 20,
       "specificity": 24,
-      "risk_awareness": 23,
-      "total": 91,
-      "notes": "The LLD commits to a concrete policy, names the affected functions and route signatures, addresses inherited consumers, and supplies implementation-ready tests and rollout guidance. Its strongest decision is keying enforcement on the configured session cookie while preserving authentication as a separate dependency. The proposed edits correspond precisely to verify_csrf_token_flexible, internal_toggle_service, toggle_service_api, and toggle_virtual_server in the supplied diff. The main limitation is that its safety invariant depends on ingress and authentication architecture that it documents but cannot enforce within this change."
+      "risk_awareness": 21,
+      "total": 88,
+      "notes": "The LLD is strongly grounded in concrete files and symbols, including `registry/auth/csrf.py`, three exact route signatures, shared callers, nginx behavior, documentation, rollout, and regression tests. Its cookie-presence gate is technically coherent with the described cookie-first auth flow and preserves the existing token-validation branch. The largest deficiency is the repeated claim that bearer requests work on every toggle endpoint even though `/api/toggle/{path}` retains `enhanced_auth`; deleting the module-level `verify_csrf_token` function also lacks external-import compatibility analysis. The patch context supports the principal integration points, but exact line references and the asserted repository-wide absence of external users could not be independently established."
     },
     "review": {
       "completeness": 22,
-      "correctness": 22,
+      "correctness": 19,
       "specificity": 23,
       "risk_awareness": 23,
-      "total": 90,
-      "notes": "The review finds concrete issues rather than merely approving the design, including form parsing interaction, dual-credential requests, authentication invariants, logging changes, and global dependency consumers. It prioritizes findings and records specific resolutions that subsequently appear in the LLD and patch. The form-token, unauthenticated-request, and dual-credential tests in the diff substantiate those resolutions. Its largest gap is limited scrutiny of whether changing logout, edit, and ANS behavior through the shared dependency warrants additional consumer-specific regression tests."
+      "total": 87,
+      "notes": "The review genuinely stresses the design, identifying the nginx trust boundary, hybrid cookie-plus-bearer behavior, monitoring shift, documentation drift, dependency-identity testing, and secret-safe logging. Its recommendations are prioritized and tied to specific files and consequences rather than generic reviewer approval. The largest miss is the unresolved contradiction between the claimed bearer support for all six toggles and the UI route's `enhanced_auth`; it also elevates deletion of an unused but importable function to a blocker without discussing compatibility. The summary says the monitoring note was folded into rollout, but the submitted LLD rollout section does not actually contain that note."
     },
     "testing": {
-      "completeness": 19,
-      "correctness": 16,
-      "specificity": 21,
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
       "risk_awareness": 20,
-      "total": 76,
-      "notes": "The plan covers dependency, route, browser, bearer, compatibility, deployment, rollback, and attack-simulation levels with many concrete expected states. Several manual tests have weak oracles: skill and virtual-server commands discard response bodies while allowing business-rule 403 responses, so they cannot reliably distinguish those from the CSRF regression. The cookie-without-token matrix omits the internal toggle, valid-token coverage is not exercised across all six routes, and token expiry is not specifically tested. The targeted pytest paths agree with the submitted patch, but some setup commands and payloads could not be independently verified."
+      "total": 81,
+      "notes": "The strongest part is the concrete decision table and six-endpoint matrix with exact status and response oracles, plus a callable-identity coverage invariant that would catch omitted dependencies. The main weakness is realism: the purported UI bearer test overrides `enhanced_auth` and sends no bearer credential, while manual M2M commands default to the direct registry port even though the design says nginx supplies the trusted authentication headers. The plan also omits an expired-token test despite explicit acceptance criteria, and the internal-JWT unit case overrides rather than exercises `validate_internal_auth`. The asserted `toggle_service` scope and positional `api/get-m2m-token.sh <client-name>` invocation are not substantiated by repository excerpts."
     },
     "implementation": {
-      "completeness": 22,
-      "correctness": 22,
-      "specificity": 22,
-      "risk_awareness": 21,
-      "total": 87,
-      "notes": "The patch implements the selected policy end to end: it changes verify_csrf_token_flexible, wires the three uncovered routes, documents the invariant, and adds focused dependency and route tests. The diff contexts and symbols are internally consistent with the baseline source shown, and the implementation follows the LLD without an unexplained deviation. The largest limitation is incomplete route-level proof: internal and skill toggle wiring are not exercised, while several bearer tests simulate authentication by overriding it. An independent git apply check and source-tree inspection could not be completed because the read-only shell failed during sandbox initialization, so the claimed baseline hash and clean applicability remain unverified rather than contradicted."
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The production patch implements the central design end to end: it adds the early cookie gate, preserves cookie-token validation and error strings, and attaches the dependency to the three previously uncovered route symbols. The diff is focused and its contexts align with the submitted baseline source, while the test file covers the dependency branches, all six routes, and the dependency invariant. The largest defects are a broken Markdown code fence in `docs/design/ans-integration.md`, a server-UI test mislabeled as bearer coverage, and no expired-token regression test; removing `verify_csrf_token` also introduces an avoidable module API compatibility risk. The summary accurately says tests were not run, and independent `git apply --check` execution was unavailable because the command sandbox failed before process launch."
     }
   },
-  "task_score": 85.8,
-  "verdict": "This is a strong, implementation-ready submission whose main limitation is uneven test-oracle quality and incomplete runtime coverage of all six toggle routes.",
+  "task_score": 85.0,
+  "verdict": "Strong and largely implementation-ready, but it overstates bearer compatibility across every toggle endpoint and leaves notable test realism, expiration coverage, and documentation defects.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-29T23:42:01.567664Z",
+    "evaluated_at": "2026-09-08T02:08:11.244657Z",
     "repo_ref": "v1.0.20",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 323657,
-      "cached_input_tokens": 235862,
-      "cache_write_input_tokens": 47062,
-      "output_tokens": 11470,
-      "reasoning_output_tokens": 9571
+      "input_tokens": 270207,
+      "cached_input_tokens": 197448,
+      "cache_write_input_tokens": 50892,
+      "output_tokens": 10839,
+      "reasoning_output_tokens": 8479
     },
-    "duration_ms": 191069
+    "duration_ms": 211269
   }
 }
