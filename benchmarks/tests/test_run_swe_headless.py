@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -1602,3 +1603,161 @@ class OmpAgentEndTruncationTest(unittest.TestCase):
         events = _pi_events_multi([self._usage(100), self._usage(200)])
         result = harness._pi_result_from_events(events, elapsed=1.0)
         self.assertEqual(result["usage"]["output_tokens"], 300)
+
+
+def _codex_turn(
+    input_tokens: int,
+    cached: int,
+    cache_write: int,
+    output_tokens: int,
+    reasoning: int = 0,
+) -> dict[str, object]:
+    """Build a codex turn.completed event with the usage shape codex emits."""
+    return {
+        "type": "turn.completed",
+        "usage": {
+            "input_tokens": input_tokens,
+            "cached_input_tokens": cached,
+            "cache_write_input_tokens": cache_write,
+            "output_tokens": output_tokens,
+            "reasoning_output_tokens": reasoning,
+        },
+    }
+
+
+def _codex_item(item_type: str, text: str = "") -> dict[str, object]:
+    """Build a codex item.completed event."""
+    return {"type": "item.completed", "item": {"type": item_type, "text": text}}
+
+
+class CodexHarnessTest(unittest.TestCase):
+    """codex exec command assembly, env routing, and usage normalization."""
+
+    def test_codex_cmd_shape_and_terminator(self) -> None:
+        cmd = harness._build_codex_cmd(
+            _config(agent="codex", provider="bedrock", aws_region="us-east-1"),
+            Path("/tmp/clone"),
+            "PROMPT-BODY",
+        )
+        self.assertEqual(cmd[0], "codex")
+        self.assertEqual(cmd[1], "exec")
+        self.assertIn("--json", cmd)
+        self.assertIn("--cd", cmd)
+        self.assertEqual(cmd[cmd.index("--cd") + 1], "/tmp/clone")
+        # provider=bedrock pins codex's native Bedrock provider.
+        self.assertIn("model_provider=amazon-bedrock", cmd)
+        # A "--" terminator sits immediately before the single prompt
+        # positional, so the inlined SKILL.md (which starts with "---") is
+        # never parsed as a flag.
+        self.assertEqual(cmd[-2], "--")
+        self.assertIn("PROMPT-BODY", cmd[-1])
+        self.assertIn("swe3", cmd[-1])
+
+    def test_codex_cmd_omits_bedrock_provider_on_endpoint(self) -> None:
+        cmd = harness._build_codex_cmd(
+            _config(agent="codex", provider="endpoint"),
+            Path("/tmp/clone"),
+            "P",
+        )
+        self.assertNotIn("model_provider=amazon-bedrock", cmd)
+
+    def test_codex_env_bedrock_pins_region(self) -> None:
+        env = harness._build_codex_env(
+            _config(agent="codex", provider="bedrock", aws_region="us-west-2")
+        )
+        self.assertEqual(env["AWS_REGION"], "us-west-2")
+        self.assertNotIn("OPENAI_BASE_URL", env)
+
+    def test_codex_env_endpoint_sets_openai_vars(self) -> None:
+        env = harness._build_codex_env(
+            _config(
+                agent="codex", provider="endpoint", endpoint="http://127.0.0.1:4000/"
+            )
+        )
+        # Trailing slash is stripped before /v1 is appended.
+        self.assertEqual(env["OPENAI_BASE_URL"], "http://127.0.0.1:4000/v1")
+        self.assertEqual(env["OPENAI_API_KEY"], "local")
+
+    def test_codex_usage_subtracts_cached_from_input(self) -> None:
+        # Measured shape: codex input_tokens is the TOTAL, with cached and
+        # cache_write as subsets of it (50768 = 36741 + 13817 + 210 fresh).
+        events = [_codex_turn(50768, 36741, 13817, 925, reasoning=403)]
+        result = harness._codex_result_from_events(events, 0, 1.0)
+        usage = result["usage"]
+        self.assertEqual(usage["input_tokens"], 210)
+        self.assertEqual(usage["cache_read_input_tokens"], 36741)
+        self.assertEqual(usage["cache_creation_input_tokens"], 13817)
+        # reasoning_output_tokens is a subset of output_tokens, not a sibling,
+        # so it must not be added on top.
+        self.assertEqual(usage["output_tokens"], 925)
+
+    def test_codex_usage_never_goes_negative(self) -> None:
+        # If a future codex build reported these as siblings rather than
+        # subsets, fresh input must clamp at 0 rather than go negative.
+        events = [_codex_turn(100, 900, 900, 10)]
+        result = harness._codex_result_from_events(events, 0, 1.0)
+        self.assertEqual(result["usage"]["input_tokens"], 0)
+
+    def test_codex_cost_does_not_double_count_cache(self) -> None:
+        # gpt-5.6-terra: input 4.00, cache_write 5.00, cache_read 0.40 per 1M.
+        events = [_codex_turn(50768, 36741, 13817, 925)]
+        result = harness._codex_result_from_events(
+            events, 0, 1.0, model="openai.gpt-5.6-terra"
+        )
+        expected = (
+            210 * 4.00 + 925 * 18.00 + 36741 * 0.40 + 13817 * 5.00
+        ) / 1_000_000.0
+        self.assertAlmostEqual(result["total_cost_usd"], expected, places=6)
+        # The naive formula (charging the full input again) would be far higher.
+        naive = (50768 * 4.00 + 925 * 18.00 + 36741 * 0.40 + 13817 * 5.00) / 1_000_000.0
+        self.assertLess(result["total_cost_usd"], naive)
+
+    def test_codex_cost_is_none_for_unpriced_model(self) -> None:
+        events = [_codex_turn(100, 0, 0, 10)]
+        result = harness._codex_result_from_events(
+            events, 0, 1.0, model="some-unpriced-model"
+        )
+        self.assertIsNone(result["total_cost_usd"])
+
+    def test_codex_num_turns_counts_agent_steps(self) -> None:
+        events = [
+            _codex_item("agent_message", "first"),
+            _codex_item("command_execution"),
+            _codex_item("reasoning"),
+            _codex_item("agent_message", "last"),
+            _codex_turn(100, 0, 0, 10),
+        ]
+        result = harness._codex_result_from_events(events, 0, 1.0)
+        # Messages and shell commands count; reasoning items do not.
+        self.assertEqual(result["num_turns"], 3)
+        self.assertEqual(result["result"], "last")
+
+    def test_codex_nonzero_exit_is_error(self) -> None:
+        result = harness._codex_result_from_events([_codex_turn(100, 0, 0, 10)], 1, 5.0)
+        self.assertTrue(result["is_error"])
+        self.assertEqual(result["subtype"], "exit_1")
+        self.assertEqual(result["result"], "exit_1")
+
+    def test_codex_missing_turn_completed_is_graceful(self) -> None:
+        result = harness._codex_result_from_events(
+            [_codex_item("agent_message", "hi")], 0, 2.0
+        )
+        self.assertEqual(result["usage"], {})
+        self.assertFalse(result["is_error"])
+
+
+class CodexTimeoutTest(unittest.TestCase):
+    """The watchdog must fire even when the child never writes a line."""
+
+    def test_silent_process_is_killed_at_the_deadline(self) -> None:
+        # `sleep` produces no stdout, which is the case that used to hang: the
+        # read loop blocked forever, so a clock check inside it never ran.
+        start = time.monotonic()
+        with self.assertRaisesRegex(RuntimeError, "timed out after 1s"):
+            harness._run_codex(["sleep", "30"], dict(os.environ), timeout=1)
+        # It must actually stop at the deadline, not run the full 30s.
+        self.assertLess(time.monotonic() - start, 15)
+
+    def test_no_output_from_a_fast_exit_raises(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "produced no output"):
+            harness._run_codex(["true"], dict(os.environ), timeout=30)

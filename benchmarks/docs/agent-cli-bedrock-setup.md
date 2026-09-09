@@ -55,6 +55,24 @@ Two things that decide whether this works:
 
 `--skip-git-repo-check` is only needed outside a git repo or trusted folder; the judge passes its own flags. If Codex warns that `bubblewrap` is missing it falls back to a bundled copy, which is harmless for `--sandbox read-only` judging; `sudo apt install bubblewrap` silences it.
 
+## Codex (the agent, on the Bedrock path)
+
+The same binary also drives tasks as a harness, with `--agent codex`. It reads the `~/.codex/config.toml` above, so a codex that already judges can already run tasks; the harness passes `-c model_provider=amazon-bedrock` and pins `AWS_REGION` from `aws_region` in the runner config, which overrides the region in the file for that run.
+
+Two things differ from every other harness here.
+
+**Its sandbox cannot start on these EC2 hosts, so the harness bypasses it.** Codex normally wraps model-issued shell commands in bubblewrap. Both `--sandbox read-only` and `--sandbox workspace-write` abort before running anything:
+
+```text
+bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+```
+
+Creating a loopback interface in an unprivileged user namespace is not permitted on these instances, and installing the distro `bubblewrap` package does not change it -- the bundled and system copies fail identically. The agent then completes no shell work at all and the task produces nothing. The harness therefore passes `--dangerously-bypass-approvals-and-sandbox`, which is what makes the run function rather than a convenience. Every harness here already pre-approves tool use because no operator is watching and the repos are throwaway clones; codex is the one whose flag also removes an OS-level boundary, so **run it only on a disposable instance**. Do not "harden" this back to `--sandbox workspace-write` without re-testing on the target host: the result is a silent zero-artifact run, not a safer one.
+
+**It reports tokens, not cost.** `codex exec` bills nothing back, so the harness prices each run from [bedrock_pricing.py](../scripts/bedrock_pricing.py) (rates dated in the module, per 1M tokens). A model missing from that table yields a null cost rather than a misleading zero, so add a row before benchmarking a new codex model or its runs will not plot on the frontier.
+
+Note that codex's `input_tokens` is the **total** prompt, with `cached_input_tokens` and `cache_write_input_tokens` as subsets of it -- the opposite of the additive shape the rest of this harness uses. The runner subtracts them before pricing. Charging the raw `input_tokens` and then adding the cache lines again overstates cost by roughly 80% on a cache-dominated run, which is the same double-count [token_accounting.py](../scripts/token_accounting.py) guards against (issue #136).
+
 ## omp (the agent, on the Bedrock path)
 
 `omp` needs no config file for Bedrock. It ships an `amazon-bedrock` provider, addresses models as `amazon-bedrock/<wire model id>`, and resolves credentials from the standard chain, an EC2 instance role included. All it needs from you is a region:
