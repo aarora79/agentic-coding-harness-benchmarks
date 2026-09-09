@@ -94,21 +94,28 @@ Serving the window is half the job: the harness must also tell Claude Code the w
 
 Verified working at 262,144: plain completions, and tool calls parsed by `qwen3_coder` (`finish_reason: tool_calls`, arguments `{"city": "Tokyo"}`).
 
-## Three gotchas
+## Environment failures before you reach the model
 
-1. **`FileNotFoundError: 'ninja'`, surfacing as `Engine core initialization failed`.** `vllm-install.sh` puts ninja in the venv (`~/vllm-env/bin/ninja`) but `vllm-serve.sh` does not add that directory to `PATH`, so FlashInfer's JIT cannot find it and the engine dies after loading all 35.9 GB of weights. Export the venv `bin` before serving, as the command above does. This is the same failure [qwen3.8-27b.md](qwen3.8-27b.md) records, and it bit this model on the first boot attempt.
+Two node-level failures hit this box first, and both are documented in full under [qwen3.8-27b.md](qwen3.8-27b.md): the **`ninja` PATH** failure (`vllm-install.sh` puts ninja in the venv, `vllm-serve.sh` does not add it to `PATH`) and the **`libcudart` symlink** FlashInfer's JIT needs for the FP8-KV kernel. The serve command above exports both. Neither is specific to this model, but the ninja one killed its first boot after loading all 35.9 GB of weights, so budget for it on a fresh box.
 
-2. **`/usr/bin/ld: cannot find -lcudart`.** FlashInfer JIT-compiles the FP8-KV kernel and links `-lcudart` from a path that is empty on this AMI; the runtime ships only the versioned `libcudart.so.13` in the pip package. Create the unversioned symlink once:
+## The one gotcha that is this model's own
 
-   ```bash
-   V=~/vllm-env/lib/python3.12/site-packages/nvidia/cu13/lib
-   ln -sf libcudart.so.13 "$V/libcudart.so"
-   export LIBRARY_PATH="$V:$LIBRARY_PATH"
-   ```
+**It reasons inline, which costs output tokens and can truncate a tool call.** The chain of thought arrives as ordinary text in `content`: no `<think>` delimiter, no `reasoning_content` field.
 
-3. **This model reasons inline, so a tight `max_tokens` swallows the tool call.** It emits its chain of thought as ordinary text in `content` -- there is no `<think>` delimiter and no `reasoning_content` field, so `--reasoning-parser` has nothing to split on. A weather-tool prompt capped at 150 tokens returned **no tool call at all**, because the reasoning consumed the budget first; the identical request at 800 tokens parsed correctly after 170 completion tokens. Give this model a generous `max_output_tokens`, and do not read a missing tool call as a parser problem before checking `finish_reason`.
+**Tool calls parse correctly, and `qwen3_coder` is the right parser.** Measured on this node with the same weather-tool request:
 
-   Expect output-token counts, and therefore cost per task, to run higher than a non-reasoning model of the same size.
+| Request | Result | Completion tokens |
+|---|---|---|
+| `max_tokens: 800` | parsed, `finish_reason: tool_calls` | 175 |
+| `max_tokens: 800`, `enable_thinking: false` | parsed, `tool_calls` | **26** |
+| `max_tokens: 150`, five cities | **4 of 5 parsed**; one returned `finish_reason: length` and no tool call | 124-150 |
+
+The failure is truncation, not parsing. Reasoning length varies run to run, so a tight cap loses the tool call intermittently rather than every time -- the worst kind of flake to debug from a benchmark log. Its signature is `finish_reason: length` with no `tool_calls`. **No `--reasoning-parser` helps:** with no delimiter in the output there is nothing for one to split on.
+
+Two consequences:
+
+- **Give this model a generous `max_output_tokens`.** Expect output-token counts, and so cost per task, to run higher than a non-reasoning model of the same size.
+- **`enable_thinking: false` cuts output about 7x** on that request (175 tokens to 26) and returns the same tool call. Pass it through `chat_template_kwargs`. Treat it as a cost lever to measure, not a default: it changes how the model works a problem, so a run with thinking off is a different result and has to be recorded as one. The published comparisons leave it on.
 
 `--max-num-seqs 32` is set in the command above as a precaution: the 30 linear-attention layers each need a state block per decode sequence from a pool sized independently of the KV cache, and vLLM's default of 256 exceeds that pool on the sibling 27B. It did not fail here, but 32 is far above any concurrency this repo sweeps and costs nothing.
 
