@@ -37,7 +37,7 @@ Five files land in the skill directory:
 |---|---|
 | `SKILL.md` | the skill itself |
 | `route.py` | the selection, as code. Standard library only — no install step |
-| `models.json` | the measurements — 17 models, scores and cost per tier |
+| `models.json` | the measurements — 18 models, scores and cost per tier |
 | `model-aliases.json` | model names as different assistants spell them |
 | `allowed-models.txt` | which models your organisation permits. **Edit this one.** |
 
@@ -61,7 +61,7 @@ If it is firing when you do not want it, narrow the `Run it BEFORE…` sentence 
 
 ## What the numbers mean
 
-`models.json` holds 17 models measured on **21 software-engineering tasks** drawn from real closed issues in one open-source repository. Each task asks the model to take a problem from description to a working patch, producing six artifacts: a GitHub issue spec, a low-level design, an expert review, a testing plan, the patch, and an implementation summary. An LLM judge with access to the repository scores each artifact.
+`models.json` holds 18 models measured on **21 software-engineering tasks** drawn from real closed issues in one open-source repository. Each task asks the model to take a problem from description to a working patch, producing six artifacts: a GitHub issue spec, a low-level design, an expert review, a testing plan, the patch, and an implementation summary. An LLM judge with access to the repository scores each artifact.
 
 | Field | Meaning |
 |---|---|
@@ -69,7 +69,7 @@ If it is firing when you do not want it, narrow the `Run it BEFORE…` sentence 
 | `cost_per_task_usd` | Mean cost of one task |
 | `hosting` | `Bedrock` or `self-hosted`. Reported, never used to rank |
 | `tasks_completed` / `tasks_total` | Three models did not finish all 21 |
-| `on_combined_frontier` | Nothing beats it on both axes across all 17 models. Context, not a selection key — it comes from overall means and can disagree with the per-tier ranking |
+| `on_combined_frontier` | Nothing beats it on both axes across all 18 models. Context, not a selection key — it comes from overall means and can disagree with the per-tier ranking |
 | `on_hosting_frontier` | The same, computed within one hosting basis, which is the apples-to-apples version |
 | `score_by_complexity` | Mean score per tier — the number the floor is compared against |
 | `completion_by_complexity` | How many tasks it finished per tier, where failure shows |
@@ -153,7 +153,7 @@ Same size. Opposite answers. What separated them was whether the task hinged on 
 
 ### Why difficulty picks the table
 
-Models do not degrade in parallel, so the running order changes from one table to the next. Six of the seventeen, ranked within each tier (`!` marks a tier where the model failed at least one task):
+Models do not degrade in parallel, so the running order changes from one table to the next. Six of the eighteen, ranked within each tier (`!` marks a tier where the model failed at least one task):
 
 ```
   trivial              low                  medium               high
@@ -195,6 +195,7 @@ A bold completion count means the model failed at least one task at that tier, w
 | $1.47 | `qwen3.8-27b` | 81.4 | 5/5 |
 | $2.15 | `deepseek-v3.2` | 64.4 | 5/5 |
 | $2.47 | `kimi-k2.7-code` | 72.4 | 5/5 |
+| $3.51 | `minimax-m3` | 65.7 | 5/5 |
 | $4.18 | `claude-opus-4-5` | 68.8 | 5/5 |
 | $4.33 | `kimi-k3` | 81.8 | 5/5 |
 | $4.67 | `claude-sonnet-5` | 76.1 | 5/5 |
@@ -217,6 +218,7 @@ A bold completion count means the model failed at least one task at that tier, w
 | $1.47 | `qwen3.8-27b` | 80.9 | 5/5 |
 | $2.15 | `deepseek-v3.2` | 63.9 | 5/5 |
 | $2.47 | `kimi-k2.7-code` | 71.7 | 5/5 |
+| $3.51 | `minimax-m3` | 60.6 | 5/5 |
 | $4.18 | `claude-opus-4-5` | 66.2 | 5/5 |
 | $4.33 | `kimi-k3` | 84.2 | 5/5 |
 | $4.67 | `claude-sonnet-5` | 80.5 | 5/5 |
@@ -239,6 +241,7 @@ A bold completion count means the model failed at least one task at that tier, w
 | $1.47 | `qwen3.8-27b` | 78.7 | 6/6 |
 | $2.15 | `deepseek-v3.2` | 62.1 | 6/6 |
 | $2.47 | `kimi-k2.7-code` | 69.6 | 6/6 |
+| $3.51 | `minimax-m3` | 56.8 | 6/6 |
 | $4.18 | `claude-opus-4-5` | 67.9 | 6/6 |
 | $4.33 | `kimi-k3` | 76.8 | 6/6 |
 | $4.67 | `claude-sonnet-5` | 77.5 | 6/6 |
@@ -261,6 +264,7 @@ A bold completion count means the model failed at least one task at that tier, w
 | $1.47 | `qwen3.8-27b` | 71.5 | **4/5** |
 | $2.15 | `deepseek-v3.2` | 56.0 | 5/5 |
 | $2.47 | `kimi-k2.7-code` | 58.5 | **3/5** |
+| $3.51 | `minimax-m3` | 59.7 | 5/5 |
 | $4.18 | `claude-opus-4-5` | 62.0 | 5/5 |
 | $4.33 | `kimi-k3` | 74.3 | 5/5 |
 | $4.67 | `claude-sonnet-5` | 73.7 | 5/5 |

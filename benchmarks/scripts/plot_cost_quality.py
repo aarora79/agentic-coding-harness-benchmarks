@@ -653,6 +653,106 @@ def _label_sides(
     return sides
 
 
+def _column_beside(
+    group: list[ModelPoint],
+    points: list[ModelPoint],
+    px: dict[int, tuple[float, float]],
+    widths: dict[int, float],
+    line_px: float,
+    y0_px: float,
+    y1_px: float,
+    to_data: Callable[[tuple[float, float]], tuple[float, float]],
+) -> dict[int, tuple[float, float]]:
+    """Place a bunched group's labels in a clear column just right of the group.
+
+    The column is anchored a little to the right of the group's rightmost dot,
+    left-aligned, with each label stacked near its own dot's height (one line
+    apart, slid inside the axes). Returns the data-coordinate anchor for every
+    member, or an empty dict when the band to the right is not clear of other
+    dots -- in which case the caller leaves the group where it was.
+    """
+    member_ids = {id(p) for p in group}
+    anchor_px = max(px[id(p)][0] for p in group) + 16
+    band_width = max(widths[id(p)] for p in group)
+    top_px = max(px[id(p)][1] for p in group) + line_px
+    bottom_px = min(px[id(p)][1] for p in group) - line_px
+    for other in points:
+        if id(other) in member_ids:
+            continue
+        ox, oy = px[id(other)]
+        if anchor_px - 8 <= ox <= anchor_px + band_width and bottom_px <= oy <= top_px:
+            return {}  # a dot sits in the target band; do not route over it
+
+    ordered = sorted(group, key=lambda p: px[id(p)][1])
+    ys = _spread([px[id(p)][1] for p in ordered], line_px * 1.4)
+    shift = 0.0
+    if min(ys) - line_px / 2 < y0_px:
+        shift = y0_px - (min(ys) - line_px / 2)
+    elif max(ys) + line_px / 2 > y1_px:
+        shift = y1_px - (max(ys) + line_px / 2)
+    anchor_x_data = to_data((anchor_px, 0.0))[0]
+    return {
+        id(point): (anchor_x_data, to_data((0.0, y_px + shift))[1])
+        for point, y_px in zip(ordered, ys)
+    }
+
+
+def _reroute_crowded_clusters(
+    ax,
+    fig,
+    points: list[ModelPoint],
+    label_weight: str,
+) -> dict[int, tuple[float, float]]:
+    """Move the pile of labels jammed at the left axis into open space beside it.
+
+    ``_label_offsets`` keeps labels from overlapping, but when several of the
+    cheapest models pile into the left margin at nearly the same x, all it can do
+    is stack their labels straight down the dot column against the y-axis -- a
+    crowded ladder of near-vertical leader lines, with no room to escape sideways
+    (there is no plot left of the axis). This finds that leftmost pile and, when
+    the band to its right is clear, relocates the whole group's labels to a single
+    anchor column in that band, each near its own dot's height, so their leaders
+    run out horizontally instead of stacking.
+
+    Only the leftmost cluster is touched, and only when it is genuinely jammed at
+    the edge: three or more dots inside the left twentieth of the axis, packed
+    closer than a label-height apart in x. Every other cluster has open plot above
+    it and is left to the ordinary vertical spread, so well-spread charts and the
+    denser mid-chart groups are untouched.
+
+    Returns ``{id(point): (anchor_cost, label_score)}`` in DATA coordinates for
+    each relocated label; points absent from the dict keep their offset placement.
+    """
+    to_px = ax.transData.transform
+    to_data = ax.transData.inverted().transform
+    px = {id(p): to_px((p.mean_cost, p.mean_score)) for p in points}
+    widths = _text_widths_px(ax, fig, points, label_weight)
+    line_px = POINT_LABEL_FONTSIZE * 1.35 * fig.dpi / 72.0
+    x0_px = ax.transAxes.transform((0.0, 0.0))[0]
+    x1_px = ax.transAxes.transform((1.0, 0.0))[0]
+    y0_px = ax.transAxes.transform((0.0, 0.0))[1]
+    y1_px = ax.transAxes.transform((0.0, 1.0))[1]
+
+    # Walk from the leftmost dot, adding neighbours while the x-gap stays under a
+    # label-height (dots that close together are practically stacked). Stop at the
+    # first real gap: that ends the left pile.
+    order = sorted(points, key=lambda p: px[id(p)][0])
+    pile: list[ModelPoint] = []
+    for point in order:
+        if pile and px[id(point)][0] - px[id(pile[-1])][0] > line_px * 1.2:
+            break
+        pile.append(point)
+
+    # Reroute only a real pile jammed at the axis: three or more dots whose
+    # leftmost sits inside the left twentieth of the plot.
+    jammed_at_edge = (
+        px[id(pile[0])][0] < x0_px + 0.05 * (x1_px - x0_px) if pile else False
+    )
+    if len(pile) < 3 or not jammed_at_edge:
+        return {}
+    return _column_beside(pile, points, px, widths, line_px, y0_px, y1_px, to_data)
+
+
 def _text_widths_px(ax, fig, points: list[ModelPoint], weight: str) -> dict[int, float]:
     """Return each label's real rendered width in pixels, keyed by ``id(point)``.
 
@@ -732,7 +832,10 @@ def _label_offsets(
     # Vertical clearance one label needs from another. Kept above a bare line
     # height so descenders and the leader-line elbow have room.
     y_touch_px = line_px * 1.6
-    step_px = line_px * 2.5
+    # Spread spacing between labels in a cluster. Kept just above y_touch so a
+    # displaced label clears its neighbour without being flung far from its dot:
+    # a bigger step only lengthens the leader lines without buying legibility.
+    step_px = line_px * 1.8
 
     x0_px, x1_px = (
         ax.transAxes.transform((0.0, 0.0))[0],
@@ -1141,6 +1244,11 @@ def _plot(
         if avoid_markers
         else {id(p): "right" for p in points}
     )
+    # A pile-up of dots at one x (the cheap models in the left margin) cannot be
+    # fixed by vertical spread alone -- the labels just stack down the dot column.
+    # Route such a group's labels into the clear band beside it instead; a no-op
+    # when nothing is that crowded.
+    reroute = _reroute_crowded_clusters(ax, fig, points, label_weight)
     # A centred label spans half its width each side of the dot, so it can only
     # be centred while both halves stay inside the axes.
     x0_px, x1_px = (
@@ -1149,6 +1257,41 @@ def _plot(
     )
     half_w_px = (POINT_LABEL_FONTSIZE * 0.6 * label_chars) / 2
     for point in points:
+        if id(point) in reroute:
+            anchor_x, label_y = reroute[id(point)]
+            ax.annotate(
+                _label(point),
+                (point.mean_cost, point.mean_score),
+                textcoords="data",
+                xytext=(anchor_x, label_y),
+                fontsize=POINT_LABEL_FONTSIZE,
+                fontweight=label_weight,
+                color=theme["ink"],
+                ha="left",
+                va="center",
+                zorder=4,
+                bbox=(
+                    {
+                        "boxstyle": "round,pad=0.3",
+                        "facecolor": theme["surface"],
+                        "edgecolor": "none",
+                        "alpha": 0.85,
+                    }
+                    if label_backing
+                    else None
+                ),
+                arrowprops={
+                    "arrowstyle": "-",
+                    "color": theme["leader"],
+                    "linewidth": 0.8,
+                    "shrinkA": 2,
+                    "shrinkB": 3,
+                    # Horizontal into the label (angleA=0), vertical off the dot
+                    # (angleB=90): an L-shaped callout reaching out to the column.
+                    "connectionstyle": "angle,angleA=0,angleB=90,rad=0",
+                },
+            )
+            continue
         dy_pts = dy_by_point[id(point)]
         moved = abs(dy_pts) > 1e-6
         on_left = sides[id(point)] == "left"

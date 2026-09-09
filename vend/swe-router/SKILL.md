@@ -35,7 +35,7 @@ Everything below assumes a substantial coding task about to begin: a feature, a 
 
 These sit beside this one:
 
-- **`models.json`** — 17 models measured on a 21-task benchmark: mean score out of 100, cost per task in dollars, hosting, and how many tasks each finished. Read the `provenance` block: it names the date, harness, dataset and judge.
+- **`models.json`** — 18 models measured on a 21-task benchmark: mean score out of 100, cost per task in dollars, hosting, and how many tasks each finished. Read the `provenance` block: it names the date, harness, dataset and judge.
 - **`model-aliases.json`** — the same models under the names different assistants use, plus the rules for matching them.
 - **`route.py`** — runs the selection. Standard library only, so `python3 route.py` works wherever the skill is installed.
 - **`allowed-models.txt`** — the organisation's approved model list, and a hard constraint when present. One model per line, `#` starts a comment. `route.py` finds and reads it; you never open it. It ships allowing the five models on the measured frontier, which a platform team is expected to edit.
