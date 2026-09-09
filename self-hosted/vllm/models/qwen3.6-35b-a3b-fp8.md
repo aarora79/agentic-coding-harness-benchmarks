@@ -115,7 +115,10 @@ The failure is truncation, not parsing. Reasoning length varies run to run, so a
 Two consequences:
 
 - **Give this model a generous `max_output_tokens`.** Expect output-token counts, and so cost per task, to run higher than a non-reasoning model of the same size.
-- **`enable_thinking: false` cuts output about 7x** on that request (175 tokens to 26) and returns the same tool call. Pass it through `chat_template_kwargs`. Treat it as a cost lever to measure, not a default: it changes how the model works a problem, so a run with thinking off is a different result and has to be recorded as one. The published comparisons leave it on.
+- **Thinking stays on. That is the default for this repo, and the serve command above sets nothing to change it.** Reasoning is how the model does the work, and the models it is measured against on the frontier reason too, so turning it off here would compare a different thing.
+
+> [!NOTE]
+> **`enable_thinking: false` is a cost lever, not a setting to leave on.** Passed through `chat_template_kwargs`, it returned the same tool call in **26 completion tokens against 175** -- about 7x less output on that request. It is worth measuring on a real dataset, because output tokens drive cost per task. But it changes how the model works a problem, so any run with thinking off is a **separate result**: record it as its own configuration and never merge its scores into a table built with thinking on.
 
 `--max-num-seqs 32` is set in the command above as a precaution: the 30 linear-attention layers each need a state block per decode sequence from a pool sized independently of the KV cache, and vLLM's default of 256 exceeds that pool on the sibling 27B. It did not fail here, but 32 is far above any concurrency this repo sweeps and costs nothing.
 
