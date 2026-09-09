@@ -43,6 +43,7 @@ from typing import Any
 import requests
 import yaml
 
+from bedrock_pricing import cost_usd as _bedrock_cost_usd
 from dataset_loader import Dataset, DatasetError, Task, load_dataset
 from runner_config import (
     RunnerConfig,
@@ -1916,6 +1917,278 @@ def _run_kiro(
     return result
 
 
+CODEX_BIN = "codex"
+
+# item.completed item types that count as one agent step for num_turns: an
+# assistant message or a shell command the model issued.
+CODEX_STEP_ITEM_TYPES = frozenset({"agent_message", "command_execution"})
+
+
+def _build_codex_env(config: RunnerConfig) -> dict[str, str]:
+    """Build the environment for a codex exec run.
+
+    For provider=bedrock, pins AWS_REGION so codex uses the right region.
+    For provider=endpoint, sets OPENAI_BASE_URL and OPENAI_API_KEY so codex
+    routes through the LiteLLM proxy.
+
+    Args:
+        config: The runner config.
+
+    Returns:
+        A copy of the current environment with routing vars set.
+    """
+    env = os.environ.copy()
+    if config.is_bedrock:
+        region = config.resolved_region()
+        if region:
+            env["AWS_REGION"] = region
+    else:
+        env["OPENAI_BASE_URL"] = (config.endpoint or "").rstrip("/") + "/v1"
+        env["OPENAI_API_KEY"] = config.api_key or "local"
+    return env
+
+
+def _build_codex_cmd(config: RunnerConfig, clone_path: Path, prompt: str) -> list[str]:
+    """Assemble the ``codex exec`` argument vector.
+
+    codex exec runs non-interactively, outputs JSON lines, and supports
+    ``--model`` to select any Bedrock or OpenAI-compatible model. ``--cd``
+    sets the working directory to the cloned repo so codex file tools operate
+    on the task. The SKILL.md is inlined ahead of the task payload (codex has
+    no ``--skill`` flag, same as kiro).
+
+    On ``--dangerously-bypass-approvals-and-sandbox``: every harness here runs
+    unattended against a throwaway clone, so all of them pre-approve tool use
+    (claude uses bypassPermissions, omp --auto-approve, kiro --trust-all-tools).
+    codex additionally wraps model-issued shell commands in a bubblewrap
+    sandbox, and that sandbox cannot start on the EC2 hosts this benchmark runs
+    on: both ``--sandbox read-only`` and ``--sandbox workspace-write`` abort
+    with ``bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted``
+    (creating a loopback interface in an unprivileged user namespace is not
+    permitted there), so the agent completes no shell work at all. Bypassing is
+    therefore required for the run to function, not a convenience. The blast
+    radius is the benchmark host itself, so run this agent only on a disposable
+    instance -- the same assumption the other harnesses already make.
+
+    Args:
+        config: The runner config (model, provider).
+        clone_path: Path to the cloned task repo.
+        prompt: The hydrated task prompt (from ``_build_prompt`` agent="codex").
+
+    Returns:
+        The command as a list of arguments (never a shell string).
+    """
+    skill_md = _skill_path(config).read_text(encoding="utf-8")
+    full_prompt = (
+        f"{skill_md}\n\n"
+        "===TASK===\n"
+        "Follow the skill instructions above to complete the following task.\n\n"
+        f"{prompt}"
+    )
+    cmd = [
+        CODEX_BIN,
+        "exec",
+        "--json",
+        "--skip-git-repo-check",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--cd",
+        str(clone_path),
+        "--model",
+        model_to_wire_id(config.model or ""),
+    ]
+    if config.is_bedrock:
+        cmd += ["-c", "model_provider=amazon-bedrock"]
+    # Config-derived values (model, clone path, prompt) are passed as separate
+    # list elements, never interpolated into a shell string, and the executable
+    # is the hardcoded CODEX_BIN.
+    cmd += ["--", full_prompt]
+    return cmd
+
+
+def _codex_result_from_events(
+    events: list[dict[str, Any]],
+    returncode: int,
+    elapsed: float,
+    model: str = "",
+) -> dict[str, Any]:
+    """Normalize codex JSON-lines output to the claude-shaped result dict.
+
+    codex exec emits JSON-lines events. The ``turn.completed`` event carries
+    token usage; ``item.completed`` events carry the agent's steps. Cost is
+    derived from the token counts using the local Bedrock price table in
+    ``bedrock_pricing``, because codex exec reports no billed cost of its own.
+
+    codex's ``input_tokens`` is the TOTAL prompt size, with
+    ``cached_input_tokens`` and ``cache_write_input_tokens`` as subsets of it
+    (a measured turn: input 50768 = cached 36741 + cache_write 13817 + fresh
+    210). The claude-shaped ``usage`` this harness passes around is additive
+    instead -- ``input_tokens`` there means fresh, non-cached tokens, which is
+    also what ``bedrock_pricing.cost_usd`` documents -- so the cached and
+    cache-written portions are subtracted out here. Without that subtraction
+    the cached prompt is billed twice, once at the full input rate and again
+    at the cache rate, which overstates cost by roughly 80% on a
+    cache-dominated agentic run. This mirrors the partition handling in
+    ``token_accounting.py`` (see issue #136).
+
+    ``reasoning_output_tokens`` is deliberately NOT added to ``output_tokens``:
+    it is a subset of it, not a sibling.
+
+    Args:
+        events: Parsed JSON event dicts from codex exec stdout.
+        returncode: The process exit code.
+        elapsed: Wall-clock seconds measured by the harness.
+        model: The model id used for cost derivation.
+
+    Returns:
+        The claude-shaped result dict.
+    """
+    usage: dict[str, int] = {}
+    last_message = ""
+    agent_steps = 0
+    for event in events:
+        if event.get("type") == "turn.completed":
+            u = event.get("usage", {})
+            total_input = int(u.get("input_tokens", 0) or 0)
+            cache_read = int(u.get("cached_input_tokens", 0) or 0)
+            cache_write = int(u.get("cache_write_input_tokens", 0) or 0)
+            # Clamp: a future codex build reporting these as siblings rather
+            # than subsets must not produce a negative fresh-token count.
+            fresh_input = max(total_input - cache_read - cache_write, 0)
+            usage = {
+                "input_tokens": fresh_input,
+                "output_tokens": int(u.get("output_tokens", 0) or 0),
+                "cache_read_input_tokens": cache_read,
+                "cache_creation_input_tokens": cache_write,
+            }
+        if event.get("type") == "item.completed":
+            item = event.get("item", {})
+            if item.get("type") in CODEX_STEP_ITEM_TYPES:
+                agent_steps += 1
+            if item.get("type") == "agent_message":
+                last_message = item.get("text", "")
+
+    cost = (
+        _bedrock_cost_usd(
+            model,
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+            cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
+        )
+        if model
+        else None
+    )
+
+    is_error = returncode != 0
+    return {
+        "usage": usage,
+        # codex emits exactly one turn.completed per exec, so that count says
+        # nothing about how hard the agent worked. Count the agent's completed
+        # steps instead -- messages and shell commands -- which is the closest
+        # analogue to the turn counts the other harnesses report.
+        "num_turns": agent_steps,
+        "total_cost_usd": cost,
+        "is_error": is_error,
+        "subtype": "success" if not is_error else f"exit_{returncode}",
+        "duration_ms": round(elapsed * 1000),
+        "result": last_message if not is_error else f"exit_{returncode}",
+    }
+
+
+def _run_codex(
+    cmd: list[str],
+    env: dict[str, str],
+    timeout: int,
+    model: str = "",
+) -> dict[str, Any]:
+    """Run ``codex exec --json`` and normalize its JSON-lines output.
+
+    codex exec streams JSON-lines events to stdout. We accumulate them and
+    parse on completion. Each line is also echoed to stderr as a live trace.
+
+    The deadline is enforced by a watchdog timer rather than by checking the
+    clock inside the read loop: a codex process that stalls without writing a
+    line leaves that loop blocked on read, so a clock check there never runs
+    and the run would hang until the outer harness gave up. The watchdog kills
+    the process at the deadline, which ends the read loop and lets this
+    function raise. That matters because run-multi-model-benchmark.sh drives
+    unattended multi-day batches.
+
+    Args:
+        cmd: The codex exec command argument vector.
+        env: Environment for the subprocess.
+        timeout: Wall-clock timeout in seconds.
+        model: The model id used for cost derivation.
+
+    Returns:
+        The claude-shaped result dict (see ``_codex_result_from_events``).
+
+    Raises:
+        RuntimeError: If codex times out or produces no output.
+    """
+    start = time.time()
+    proc = subprocess.Popen(  # nosec B603 B607 - hardcoded 'codex', list args, no shell
+        cmd,
+        env=env,
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if proc.stdout is None:  # pragma: no cover
+        raise RuntimeError("codex produced no stdout stream")
+
+    timed_out = threading.Event()
+
+    def _kill_on_deadline() -> None:
+        timed_out.set()
+        proc.kill()
+
+    watchdog = threading.Timer(timeout, _kill_on_deadline)
+    watchdog.daemon = True
+    watchdog.start()
+
+    events: list[dict[str, Any]] = []
+    try:
+        for line in proc.stdout:
+            sys.stderr.write(line)
+            sys.stderr.flush()
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                # codex interleaves human-readable diagnostics with the JSON
+                # event stream; skip them the way the pi/omp readers do.
+                continue
+            if isinstance(parsed, dict):
+                events.append(parsed)
+        try:
+            proc.wait(timeout=max(timeout - (time.time() - start), 1))
+        except subprocess.TimeoutExpired as exc:
+            proc.kill()
+            raise RuntimeError(f"codex exec timed out after {timeout}s") from exc
+    finally:
+        watchdog.cancel()
+        # The pipe stays open when the read loop exits via an exception (a
+        # killed child), so close it here rather than leaking the descriptor
+        # across a multi-task run.
+        proc.stdout.close()
+
+    if timed_out.is_set():
+        raise RuntimeError(f"codex exec timed out after {timeout}s")
+
+    elapsed = time.time() - start
+
+    if not events:
+        raise RuntimeError(f"codex produced no output (exit {proc.returncode}).")
+    result = _codex_result_from_events(events, proc.returncode, elapsed, model=model)
+    result["_elapsed_seconds"] = round(elapsed, 1)
+    return result
+
+
 TOOL_RESULT_PREVIEW_CHARS = 500
 
 
@@ -2499,6 +2772,17 @@ def _run_task(
                 label,
                 run_kind,
             )
+        elif config.is_codex:
+            # codex exec runs non-interactively with --json output and full token
+            # accounting. The SKILL.md is inlined into the prompt (codex has no
+            # --skill flag, same as kiro).
+            cmd = _build_codex_cmd(config, clone_path, prompt)
+            env = _build_codex_env(config)
+            logger.info(
+                "  %s Running codex exec %s (agent=codex, no turn cap)...",
+                label,
+                run_kind,
+            )
         else:
             cmd = _build_claude_cmd(
                 config, prompt, stream=stream, clone_path=clone_path
@@ -2552,6 +2836,11 @@ def _run_task(
                 # stderr; _run_kiro normalizes that to the same result shape.
                 result = _run_kiro(
                     cmd, env, config.timeout_seconds, config.kiro_dollars_per_credit
+                )
+            elif config.is_codex:
+                # codex exec outputs JSON-lines events; _run_codex normalizes them.
+                result = _run_codex(
+                    cmd, env, config.timeout_seconds, model=config.model or ""
                 )
             elif stream:
                 result = _run_claude_streaming(
@@ -2685,6 +2974,8 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
             cmd = _build_omp_cmd(config, prompt)
         elif config.is_kiro:
             cmd = _build_kiro_cmd(config, prompt)
+        elif config.is_codex:
+            cmd = _build_codex_cmd(config, placeholder, prompt)
         else:
             cmd = _build_claude_cmd(config, prompt, clone_path=placeholder)
         print(f"\n=== {task.id} [{task.complexity}] ref={ref} ===")
@@ -3219,8 +3510,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--agent",
         help="Override: coding agent that runs the task ('claude' for Claude "
-        "Code, 'pi' for the pi coding agent). Both support provider=endpoint "
-        "or provider=bedrock.",
+        "Code, 'pi' for the pi coding agent, 'omp' for oh-my-pi, 'kiro' for "
+        "kiro-cli, 'codex' for OpenAI Codex). All support provider=bedrock; "
+        "all except kiro also support provider=endpoint.",
     )
     parser.add_argument(
         "--skill",

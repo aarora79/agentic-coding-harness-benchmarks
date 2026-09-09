@@ -144,7 +144,14 @@ AGENT_KIRO = "kiro"
 # waiting for EOF unless its stdin is closed. Like pi it supports
 # provider=endpoint and provider=bedrock.
 AGENT_OMP = "omp"
-VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI, AGENT_KIRO, AGENT_OMP}
+# "codex" is the OpenAI Codex agent (`codex exec --json`). It runs
+# non-interactively and outputs JSON-lines events. Like kiro it has no --skill
+# flag so the SKILL.md is inlined into the prompt. Supports provider=bedrock
+# (via AWS_REGION + ambient credentials) and provider=endpoint (via
+# OPENAI_BASE_URL / OPENAI_API_KEY). Cost is derived from token counts using
+# the local bedrock_pricing table (not metered directly by the CLI).
+AGENT_CODEX = "codex"
+VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI, AGENT_KIRO, AGENT_OMP, AGENT_CODEX}
 DEFAULT_AGENT = AGENT_CLAUDE
 
 # Artifacts are grouped by the coding agent (the "harness") that produced them,
@@ -157,6 +164,7 @@ HARNESS_SLUGS = {
     AGENT_PI: "pi",
     AGENT_KIRO: "kiro-cli",
     AGENT_OMP: "omp",
+    AGENT_CODEX: "codex",
 }
 
 # kiro-cli bills in credits, not tokens; the harness translates credits (parsed
@@ -452,6 +460,11 @@ class RunnerConfig(BaseModel):
     def is_kiro(self) -> bool:
         """True when the kiro-cli agent drives the task."""
         return self.agent == AGENT_KIRO
+
+    @property
+    def is_codex(self) -> bool:
+        """True when the codex agent drives the task."""
+        return self.agent == AGENT_CODEX
 
     @property
     def harness_slug(self) -> str:
