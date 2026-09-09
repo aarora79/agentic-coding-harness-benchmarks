@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 50,
+      "notes": "The issue provides unusually concrete acceptance criteria, failure statuses, non-goals, and named repository integration points. Its central framing is incorrect: repository history for #399 implements a server-side store for the entire session payload, while docs/jwt-token-vending.md shows that the existing Get JWT Token feature mints a self-signed registry JWT rather than returning upstream IdP credentials. Keeping groups in the cookie also fails to eliminate the documented Entra large-group-membership overflow class, and MongoDB is not universally required because the repository supports STORAGE_BACKEND=file. No independent task statement was supplied, so claims about required upstream-token retrieval or specific IdP validation could not be verified."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 4,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 43,
+      "notes": "The LLD is well grounded in real files and symbols such as auth_server/server.py, mongodb_groups_enrichment._get_mongodb, and the existing Fernet and TTL-index patterns. Its core persistence design is broken because StoredOAuthTokens.model_dump() contains token_ref but not _id, while get_by_reference and delete query _id, so inserted records cannot be retrieved by the cookie reference. It also falsely claims POST automatically receives existing CSRF protection—the auth-server only installs metrics middleware—and removing id_token from the cookie breaks registry/auth/routes.py, which reads that field to construct id_token_hint. The design additionally contradicts itself about GET versus POST and whether an expired-but-not-yet-deleted document returns 404 or 200, while its latency and storage-size estimates are unsupported."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 52,
+      "notes": "The review identifies several meaningful risks, including residual id_token size, callback failure handling, rate limiting, key visibility, decryption failure, and cache control. Its post-revision conclusion incorrectly declares every blocker resolved despite auth_server/server.py having no global CSRF middleware and registry/auth/routes.py still depending on id_token from the cookie for logout. It also misses the fatal token_ref-versus-_id mismatch and accepts an endpoint that is not wired to the existing frontend token workflow. The claimed approximately 500-byte Entra cookie result is not demonstrated and does not account reliably for large group membership payloads."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 50,
+      "notes": "The plan supplies concrete HTTP statuses, response fields, negative cases, rollback checks, and outage scenarios rather than merely saying to verify the feature. Several oracles and commands are wrong: it expects expired records to return 200 despite the issue requiring 404, references nonexistent docker/docker-compose.yml, and runs python -m auth_server.server instead of the repository's actual uvicorn entrypoint. The submitted unit tests would fail because the fake insert requires _id, the decryption-failure test encrypts and decrypts with the same key, and the idempotency test expects four index creations although _ensure_indexes returns after the first two. Requests with a session cookie provide no CSRF token yet expect 200, so the plan neither verifies nor exposes the false CSRF claim."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 12,
+      "risk_awareness": 8,
+      "total": 28,
+      "notes": "The diff targets real baseline contexts and attempts the callback, encrypted store, retrieval endpoint, logout cleanup, configuration documentation, and tests. The implementation is nonfunctional because insert_one(doc.model_dump()) does not assign token_ref to _id, while every read and delete uses _id=token_ref; the supplied fake collection consequently raises KeyError during test setup. It also removes the OAuth callback's error RedirectResponse, provides no actual CSRF dependency, breaks registry-side OIDC logout by removing cookie id_token without updating registry/auth/routes.py, and omits Compose, Helm-secret, Terraform, frontend, and existing-test updates. The summary substantially oversells the patch, and its clean-apply assertion could not be independently dry-run because patch.diff was embedded only in the submission rather than present as a repository file."
+    }
+  },
+  "task_score": 44.6,
+  "verdict": "The submission is detailed and repository-aware in presentation, but it designs the wrong session boundary and ships a fundamentally unusable token store with broken tests and incomplete integration.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T20:32:10.962304Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1068405,
+      "cached_input_tokens": 921366,
+      "cache_write_input_tokens": 146619,
+      "output_tokens": 11285,
+      "reasoning_output_tokens": 6289
+    },
+    "duration_ms": 272576
+  }
+}

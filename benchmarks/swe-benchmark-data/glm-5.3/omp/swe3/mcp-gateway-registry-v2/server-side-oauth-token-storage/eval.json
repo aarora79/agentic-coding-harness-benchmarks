@@ -4,61 +4,61 @@
   "scores": {
     "github_issue": {
       "completeness": 20,
-      "correctness": 17,
-      "specificity": 21,
-      "risk_awareness": 18,
-      "total": 76,
-      "notes": "The issue provides concrete behavior, compatibility requirements, negative cases, and testable acceptance criteria around cookie contents, expiry, scoping, and failure handling. Its named integration points align with the submitted diff, including oauth2_callback, /api/tokens/generate, and session validation. The largest deficiency is that it promises restoration of the user-facing \"Get JWT Token\" behavior while explicitly leaving the existing modal on /api/tokens/generate, so only a new API is delivered. No independent task statement was supplied, and the asserted issue history and quantitative production-token sizes could not be independently verified."
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 75,
+      "notes": "The issue provides unusually concrete acceptance criteria for encryption, expiry, revocation, user scoping, degradation, and backward compatibility. Its largest defect is narrowing the cookie problem to access and refresh tokens while retaining id_token and groups, whereas the repository's shipped resolution for #399 moved the complete OAuth session server-side and explicitly fixed id_token remaining in cookies. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) This means the promised sub-4096-byte cookie is not guaranteed for the Entra group-overage case identified by the repository. No independent task statement was supplied, and the submitted size estimates and historical issue claims could not all be independently verified."
     },
     "lld": {
-      "completeness": 21,
+      "completeness": 20,
       "correctness": 13,
       "specificity": 22,
-      "risk_awareness": 17,
+      "risk_awareness": 18,
       "total": 73,
-      "notes": "The LLD is unusually concrete about files, data shape, authorization, expiry, rollout, configuration, and backward-compatible failure behavior. Its endpoint examples reference token_store globally, but its only committed import is local to oauth2_callback; the submitted implementation consequently leaves both internal handlers without a defined token_store binding. It also contradicts itself on database failures because get_tokens swallows them as None, making the documented 503 path unreachable, and it omits cache-control requirements for a GET response containing live credentials. Exact repository line numbers and several deployment assertions could not be independently checked because repository command execution was unavailable."
+      "notes": "The LLD is highly concrete about data flow, schema, crypto construction, expiry, endpoints, files, rollout, and failure behavior. Its central operational assumption is wrong: it calls SECRET_KEY already required and shared, while the repository's eventual fix had to remove a per-replica random fallback and add mandatory deployment configuration. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) The proposed endpoint snippet also places a non-default Response parameter after defaulted parameters, query parameters expose usernames and references to ordinary access-log paths, and the registry example does not catch transport exceptions despite promising 502 behavior. Exact line references and patch applicability could not be independently confirmed because the provided local command runner failed before execution."
     },
     "review": {
-      "completeness": 20,
-      "correctness": 16,
-      "specificity": 21,
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 20,
       "risk_awareness": 18,
-      "total": 75,
-      "notes": "The review finds specific consequential defects, particularly the external-versus-internal auth-server URL, missing audit action, logout decode placement, and operational logging. The submitted patch confirms that the B1 and B2 recommendations materially changed registry/auth/routes.py and registry/api/server_routes.py. Its largest miss is approving the revised design without noticing the unresolved token_store binding, impossible 503 semantics, index-initialization retry hazard, or missing no-store response policy. Claims about CLI compatibility and exact repository line locations remained independently unverifiable."
+      "total": 71,
+      "notes": "The review surfaces real design issues including cache control, TTL configuration drift, frontend non-integration, id_token residual size, revocation failure, and query-string exposure. Its largest weakness is accepting the narrowed architecture without challenging the shared-secret assumption or recognizing that retaining id_token and groups does not eliminate the repository's cookie-size bug class. The repository ultimately resolved #399 with a full server-side session, mandatory stable SECRET_KEY handling, incompatible cookie migration, and deployment changes, contradicting several confident review conclusions. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) The query-logging concern is dismissed through an unsupported assertion that the services do not log query strings rather than a design-enforced mitigation."
     },
     "testing": {
-      "completeness": 21,
-      "correctness": 13,
-      "specificity": 21,
-      "risk_awareness": 18,
-      "total": 73,
-      "notes": "The plan covers unit, endpoint, compatibility, deployment, expiry, revocation, isolation, encryption, and fail-open behavior with mostly concrete oracles. In the submitted tests, _mock_auth_server_response never returns the two values its callers unpack, so three registry endpoint tests fail before exercising the route. The cookie-size test uses highly compressible repeated characters, weakening its ability to reproduce realistic oversized signed cookies, while the missing-field plan expects 400 although omitted required Pydantic fields normally produce 422 and the implementation test substitutes empty strings. The manual commands and internal-JWT assumptions could not be executed against the repository."
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 70,
+      "notes": "The plan covers unit, HTTP, lifecycle, expiry, revocation, compatibility, deployment, rollback, encryption, and concurrent-session behavior with generally concrete expected outcomes. It omits the most important regression case: OAUTH_STORE_TOKENS_IN_SESSION=true, plus multi-replica secret consistency, transient index-creation failure, logout-handler integration, and httpx transport exceptions. Several manual oracles are weak or incorrect: the user-scoping flow extracts part of a cookie rather than a token_ref, record-count checks do not identify the logged-out user's row, and global database query metrics cannot establish that oauth_tokens received no reads. The stated unit paths and commands could not be executed because the local command runner failed before launching."
     },
     "implementation": {
-      "completeness": 17,
-      "correctness": 6,
+      "completeness": 16,
+      "correctness": 10,
       "specificity": 18,
       "risk_awareness": 13,
-      "total": 54,
-      "notes": "The patch attempts the complete backend flow and includes encrypted scoped storage, TTL and unique indexes, callback wiring, retrieval, revocation, configuration, documentation, and substantial tests. However, retrieve_oauth_tokens and revoke_oauth_tokens reference token_store without any module-level binding because the only import is local to oauth2_callback; retrieval therefore converts a NameError to 503 and revocation fails with 500. Additional defects include the broken registry test helper, uncaught HTTP transport failures, callback reliance on store_tokens never raising, and caching the collection before successful index creation so a transient index failure prevents retries and can leave TTL cleanup absent. The claimed git apply --check and baseline compatibility could not be independently verified because repository command execution was unavailable."
+      "total": 57,
+      "notes": "The patch implements most of its narrower design: encrypted storage, lazy expiry, scoped retrieval, internal endpoints, a registry endpoint, best-effort logout deletion, cache control, and substantial tests. The critical defect is that it does not remove the existing OAUTH_STORE_TOKENS_IN_SESSION branch; its own test helper preserves that flag and only asserts credential-free cookies when false, so true still places access and refresh tokens in the cookie despite the summary's claim that only token_ref is stored. It also logs the plaintext username, permanently caches a store after transient TTL-index failure, maps transport failures to 500 rather than 502, and assumes a stable shared SECRET_KEY that the baseline deployment did not enforce; the repository's shipped fix required explicit secret enforcement and full session storage. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) I could not independently run git apply --check or inspect the local surrounding source because the repository command runner failed before executing any command, so the claimed applicability remains unverified."
     }
   },
-  "task_score": 70.2,
-  "verdict": "The design package is detailed and largely thoughtful, but the implementation's undefined token_store binding makes the central retrieval and revocation path nonfunctional, compounded by broken tests and the absence of an independent task statement.",
+  "task_score": 69.2,
+  "verdict": "The submission is detailed and security-conscious, but it solves only a narrower token subset and preserves configuration and deployment paths that can still produce oversized cookies or undecryptable records.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T00:33:15.624016Z",
+    "evaluated_at": "2026-09-08T02:49:48.914749Z",
     "repo_ref": "1.23.0",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 467503,
-      "cached_input_tokens": 385655,
-      "cache_write_input_tokens": 69720,
-      "output_tokens": 11802,
-      "reasoning_output_tokens": 9864
+      "input_tokens": 235718,
+      "cached_input_tokens": 143523,
+      "cache_write_input_tokens": 50673,
+      "output_tokens": 11086,
+      "reasoning_output_tokens": 8827
     },
-    "duration_ms": 134735
+    "duration_ms": 149660
   }
 }

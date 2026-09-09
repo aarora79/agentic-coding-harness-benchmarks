@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 8,
+      "specificity": 21,
+      "risk_awareness": 10,
+      "total": 58,
+      "notes": "The issue accurately inventories the relevant routes and the existing `verify_csrf_token_flexible` behavior in `registry/auth/csrf.py`. Its central proposal is unsafe because `auth_server/server.py::validate_request` emits `X-User` and `X-Auth-Method: session_cookie` after validating browser sessions, so those headers do not uniquely identify bearer authentication. It also contradicts itself by requiring one dependency on all six endpoints while separately preserving the legacy dependency and excluding `/api/internal/toggle`. No independent task statement or issue #891 content was supplied, so the proposed expansion to `/api/servers/toggle` cannot be independently verified."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 6,
+      "specificity": 22,
+      "risk_awareness": 8,
+      "total": 56,
+      "notes": "The LLD is unusually concrete about real files, symbols, route signatures, and nginx header forwarding, and most cited integration points exist at v1.0.20. Its browser sequence incorrectly assumes session requests reach FastAPI with no `X-User`, while `validate_request` sets identity and auth-method headers for both session and JWT validation, causing the proposed dependency to bypass browser CSRF checks. Consequently its backward-compatibility, threat-model, and rollout conclusions are unsound despite discussing direct FastAPI exposure. Claims about deployed metrics, dashboards, and operator runbooks could not be verified from the supplied task evidence."
+    },
+    "review": {
+      "completeness": 16,
+      "correctness": 6,
+      "specificity": 18,
+      "risk_awareness": 5,
+      "total": 45,
+      "notes": "The review identifies concrete secondary concerns such as the nginx trust boundary, fixture overrides, and previously unprotected virtual-server behavior. All reviewers nevertheless miss that session-cookie authentication also produces `X-User` and `X-Auth-Method`, then repeatedly approve the resulting browser CSRF bypass as safe. The security and overall verdicts therefore preserve the design's load-bearing flaw and incorrectly report that no blocking findings remain. Its claims that rollout is backward-compatible and net security improves are contradicted by `auth_server/server.py::validate_request`."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 6,
+      "specificity": 19,
+      "risk_awareness": 7,
+      "total": 50,
+      "notes": "The plan provides a broad, concrete matrix covering dependency branches, four route families, negative cases, and compatibility checks. It never models the production nginx-to-auth-server session flow, so its browser tests omit the identity headers that trigger the actual bypass. Several examples are also invalid or weak: the locally included server router has `/servers/toggle`, not `/api/servers/toggle`; changing `settings.secret_key` does not replace the module-level `_csrf_signer`; and success assertions permit 404 responses as long as they are not CSRF errors. The UX test merely asserts that a constant starts with `CSRF`, so it cannot detect a behavioral regression."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 4,
+      "specificity": 17,
+      "risk_awareness": 4,
+      "total": 35,
+      "notes": "The submitted patch applies cleanly to v1.0.20 and touches the stated route signatures and CSRF module. Its new dependency returns immediately whenever proxy identity headers exist, but `validate_request` emits those headers for session-cookie users too, disabling CSRF protection for normal proxied browser toggles. No dedicated behavior tests were added, `tests/integration/conftest.py` instead overrides the new dependency, and independent `tests/integration/test_virtual_server_api.py` clients are not updated and would encounter new 403 failures. The summary is therefore misleading when it says existing integration tests exercise the dependency, and the implementation diverges materially from the repository's v1.0.21 fix, which keys enforcement on session-cookie presence and adds focused CSRF unit tests."
+    }
+  },
+  "task_score": 48.8,
+  "verdict": "The submission is repository-specific and detailed, but its proxy-header test mistakes browser sessions for bearer clients and creates a critical CSRF bypass that neither the review nor tests detect.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T19:33:28.892197Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 833516,
+      "cached_input_tokens": 681368,
+      "cache_write_input_tokens": 151770,
+      "output_tokens": 11358,
+      "reasoning_output_tokens": 4041
+    },
+    "duration_ms": 251961
+  }
+}

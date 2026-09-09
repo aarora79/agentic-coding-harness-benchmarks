@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The issue provides unusually concrete settings, response semantics, endpoint identifiers, non-goals, and testable acceptance criteria. Its largest scope defect is claiming every server update is gated while omitting the real POST /api/edit/{service_path:path} update handler in registry/api/server_routes.py. The listed seven routes and the existing httpx dependency were verified, but forwarding the registration payload is underspecified regarding auth_credential and other sensitive fields. No independent task statement was supplied, and the requirement that REGISTRATION_GATE_URL have no default conflicts with an optional, disabled-by-default feature."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 12,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 67,
+      "notes": "The LLD is strongly grounded in real files and covers failure handling, redaction, metrics, deployment configuration, and precise insertion points. It nevertheless omits the actual server edit route, labels overwrite paths that call update_server as operation=create, and proposes server payloads missing submitted fields such as metadata, endpoints, and source timestamps. Its claim that every registration route sets audit context is contradicted by register_service and internal_register_service, and the shown helper uses urlparse without a module-level import. The absent independent task statement prevents verification of requirements beyond the repository and internally stated scope."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 22,
+      "total": 73,
+      "notes": "The review identifies concrete, consequential issues including plaintext credential disclosure, deny-reason sanitization, log injection, Helm validation, metrics, and payload drift. Its largest deficiency is failing to catch the omitted POST /api/edit/{service_path:path} server update path, incorrect create labeling for overwrite updates, and incomplete server payloads. It also incorrectly claims audit behavior was verified for every route and suggests CSRF protects the registration form, although register_service has neither set_audit_action nor a CSRF dependency. Broader alignment with upstream issue 809 cannot be verified because no independent task statement was provided."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 59,
+      "notes": "The helper test matrix has concrete oracles for allow, deny, timeout, transport failure, authentication headers, sanitization, and disabled behavior. The supposed per-endpoint integration examples never invoke route handlers; they call enforce_registration_gate directly, so they cannot detect missing wiring, incorrect arguments, or persistence occurring before the gate. The persistence mock in the agent example is never asserted, and the Helm stack command uses app.registrationGate* although the stack values place these settings under registry.app. Pytest, pytest-asyncio, pytest-mock, and asyncio_mode=auto were verified in pyproject.toml, but the central route-level acceptance coverage remains only asserted in prose."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 47,
+      "notes": "The inline diff targets real v1.0.19 symbols and implements a substantive fail-closed helper with timeout handling, bearer authentication, redaction, sanitization, URL validation, and metrics across the seven listed handlers. It does not gate the real server edit handler, misrepresents overwrite updates as create operations, and sends incomplete server payloads despite claiming the submitted registration payload is forwarded. The Helm hunk deletes the existing if .Values.ans.enabled opening while retaining its end, which breaks template structure, and the docker-compose hunk also removes GITHUB_PAT without justification. The new tests are unusable as written because _fake_async_client accepts response_status/response_text but callers pass status_code/body, transport tests replace the httpx exception classes with MagicMock attributes, and the integration suite never calls a route; the claimed git apply check could not be independently repeated because no repository-local patch.diff was supplied."
+    }
+  },
+  "task_score": 63.0,
+  "verdict": "The submission is detailed and security-conscious, but critical endpoint omissions, inaccurate repository assumptions, broken deployment templating, and nonfunctional route tests prevent it from being implementation-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T20:27:38.369156Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 532319,
+      "cached_input_tokens": 419290,
+      "cache_write_input_tokens": 112777,
+      "output_tokens": 8795,
+      "reasoning_output_tokens": 5156
+    },
+    "duration_ms": 174849
+  }
+}

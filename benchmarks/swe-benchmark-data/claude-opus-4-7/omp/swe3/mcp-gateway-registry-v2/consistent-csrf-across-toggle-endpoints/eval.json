@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-opus-4-7",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 76,
+      "notes": "The issue provides a strong endpoint inventory, explicit scope, concrete failure behavior, and testable browser-versus-machine criteria. Its largest defect is requiring bearer authentication with X-User/X-Scopes to return 200 on all six endpoints, despite its own table showing that /api/toggle uses enhanced_auth and /api/internal/toggle uses validate_internal_auth; the LLD and testing plan later concede that the former returns 401. The submitted patch context supports the listed route files and existing CSRF dependency locations. No independent task statement was supplied, and claims about default-disabled registrations and existing SPA header behavior could not be independently confirmed."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 85,
+      "notes": "The LLD is unusually concrete about registry/auth/csrf.py, all six handlers, dependency overrides, mixed credentials, JSON-body parsing, rollout, and compatibility. Its largest inconsistency is proposing route tests where every endpoint receives a bearer-only request expecting 200 while also correctly documenting that enhanced_auth makes that branch unreachable for /api/toggle and that the internal endpoint uses a different JWT. The named functions toggle_service_route, internal_toggle_service, toggle_service_api, toggle_agent, toggle_skill, and toggle_virtual_server all correspond to the supplied diff contexts. The assertion that every frontend caller uses the same CSRF-capable axios interceptor remains unverified and is itself left as a review action."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 83,
+      "notes": "The review materially stresses the design by identifying mixed cookie-plus-bearer behavior, JSON form-parsing risk, virtual-server frontend compatibility, observability, and long-term dependency ambiguity. Its largest omission is failing to challenge the impossible all-six bearer-success criterion and the LLD's contradictory six-endpoint bearer test matrix. The Cipher and Byte findings lead to specific classifier and JSON-header tests rather than generic approvals. Claims about the virtual-server axios instance, existing alerting, and workaround clients remain unresolved, yet the summary still treats all blocking concerns as closed."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 76,
+      "notes": "The plan has strong negative, compatibility, mixed-credential, JSON-body, UX, and end-to-end coverage with concrete statuses and response oracles. Its largest correctness defect is sending Authorization bearer tokens to http://localhost:7860 while the artifacts describe nginx as translating those tokens into X-User/X-Scopes, so the direct-registry curl commands do not exercise the intended authenticated path. The browser loop covers only five endpoints, omitting /api/internal/toggle, and the valid-token example covers only the agent route despite claiming a complete six-endpoint matrix. Several exact response bodies and test selectors remain unverified, and the promised test_csrf_toggle_matrix.py is absent from the implementation."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 19,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The production diff coherently adds verify_csrf_token_if_session, delegates cookie-bearing requests to the existing validator, and wires the dependency into all six named toggle handlers. The concrete edits preserve verify_csrf_token_flexible where non-toggle routes still need it and update affected dependency overrides consistently. The largest defect is test coverage: the new tests exercise only the dependency, while existing route tests override that dependency, so they cannot prove conditional behavior across the six routes or catch virtual-server SPA regressions; the summary overstates this coverage. Test execution was explicitly omitted, and local sandbox startup failure prevented independent git apply --check verification, so clean applicability remains an evidence gap rather than a scored code defect."
+    }
+  },
+  "task_score": 79.0,
+  "verdict": "Strong and mostly implementation-ready work, limited chiefly by contradictory endpoint-auth expectations and tests that do not exercise the real nginx bearer path or all six route integrations.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-02T04:48:52.084861Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 487826,
+      "cached_input_tokens": 353287,
+      "cache_write_input_tokens": 49706,
+      "output_tokens": 16819,
+      "reasoning_output_tokens": 14823
+    },
+    "duration_ms": 321815
+  }
+}

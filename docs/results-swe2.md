@@ -1,6 +1,8 @@
 # Results -- /swe2 (multi-agent skill)
 
-Full benchmark results for the **`/swe2`** skill (the multi-agent variant -- the agent may fan work out to sub-agents) on [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4`: **5 tasks**, each scored 0-100 by an independent LLM judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). The single-agent `/swe3` results (the primary view) live in [results-swe3.md](results-swe3.md).
+> **Not the headline result.** The reported run is the **[oh-my-pi](omp-setup.md)** (`omp`) harness with `/swe3` on the **v2** dataset -- 16 models, 21 tasks -- in [harness-omp-swe3.md](harness-omp-swe3.md). This page covers the multi-agent `/swe2` skill on the v1 dataset (5 tasks) under Claude Code. Different task sets and harnesses, so the scores here do not compare with it.
+
+Full benchmark results for the **`/swe2`** skill (the multi-agent variant -- the agent may fan work out to sub-agents) on [agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry) at tag `1.24.4`: **5 tasks**, each scored 0-100 by an independent LLM judge (`codex exec`, `gpt-5.6-sol`, high reasoning effort). The single-agent `/swe3` results live in [results-swe3.md](results-swe3.md).
 
 > **These results are a live snapshot, not final.** Benchmarks are re-run frequently and methodology keeps improving (e.g. counting sub-agent tokens, switching the default skill to the single-agent `/swe3` variant). Treat the numbers as directional.
 

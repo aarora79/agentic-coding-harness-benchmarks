@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "us.anthropic.claude-opus-4-7",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The issue provides a crisp operational problem, explicit non-goals, deployment surfaces, and mostly testable acceptance criteria. Its largest weakness is prescribing a process-wide singleton that the review correctly identifies as unsafe for constructor-supplied configuration and the implementation consequently rejects. The compatibility criterion is also internally inconsistent: it requires no new environment variables when unset, while the proposed mode and submitted deployment wiring introduce EMBEDDINGS_AUTH_MODE and empty IdP variables. No independent task statement exists, and local repository execution was unavailable, so endpoint and symbol claims could not all be independently confirmed."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The LLD names concrete files, interfaces, configuration fields, retry behavior, deployment wiring, and secret-handling decisions sufficient for implementation. Its largest deficiency is internal inconsistency after revision: it declares the manager non-singleton while the architecture diagram, scaling discussion, and file table still describe a singleton or one token per process. It also claims subsequent requests fail fast during an IdP outage despite specifying no failure cache or backoff, and its HTTPS-or-host-allowlist check is narrower than the existing SSRF concerns identified by the review. Exact baseline compatibility and the asserted LiteLLM behavior could not be independently verified because local commands failed before launch."
+    },
+    "review": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 91,
+      "notes": "The review is the strongest artifact: it finds concrete design defects involving singleton state, 401 exception handling, stale static credentials, Helm drift, exception exposure, SSRF, and outage pressure. Its prioritized resolutions are actionable and largely reflected in the patch, notably dropping the singleton and skipping API-key environment mutation in IdP mode. Minor weaknesses include technically weak suggestions around controlling httpx logging and leaving the identified outage backoff problem unresolved. The cited config_routes.py line and other repository-specific confirmations could not be independently checked in the unavailable local shell."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 72,
+      "notes": "The plan covers unit, compatibility, deployment, UI, negative, refresh, and rollback testing with unusually concrete commands and oracles. Its largest correctness error is the E2E cadence: with a 60-second token and a 60-second refresh buffer, the t=1 query cannot be a cache hit under the submitted algorithm. The purported byte-for-byte test checks only selected LiteLLM kwargs, later curl examples omit JSON content type, and the asserted 500 failure envelope is not established by the submitted evidence. The patch contains only test_token_manager.py, so the listed LiteLLM retry, settings-validation, and config-masking tests are plans rather than delivered coverage."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 66,
+      "notes": "The patch implements the principal token cache, per-call bearer injection, single authentication retry, configuration fields, masking entry, documentation, and Docker, Terraform, and Helm wiring. Its largest deficiency is omission of the critical client, settings, and config-route tests promised by the issue and testing plan; only tests/unit/embeddings/test_token_manager.py is added. The claimed byte-for-byte default behavior is false at the deployment level because both Compose files always inject the new variables and Helm's default static value causes EMBEDDINGS_AUTH_MODE to be emitted, while the manager also has no wired lifecycle close or outage backoff. The diff contexts are internally plausible, but git apply --check and direct source verification could not be completed because the read-only command sandbox failed before executing commands."
+    }
+  },
+  "task_score": 77.8,
+  "verdict": "Strong problem framing and review discipline are undermined by incomplete critical-path tests and deployment defaults that contradict the promised unchanged behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-02T05:08:51.485594Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 457325,
+      "cached_input_tokens": 341515,
+      "cache_write_input_tokens": 56736,
+      "output_tokens": 15119,
+      "reasoning_output_tokens": 12987
+    },
+    "duration_ms": 260239
+  }
+}

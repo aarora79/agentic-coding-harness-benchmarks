@@ -1,0 +1,64 @@
+{
+  "task": "default-create-in-idp-checkbox-unchecked",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 70,
+      "notes": "The issue is unusually concrete about the visible default, explicit opt-in behavior, and verified locations such as IAMGroups.tsx and management_create_group. The baseline confirms those defaults are true and that _buildScopeJson always sends the flag. Its largest defect is scope: the repository's actual #921 fix also changes the internal and external create endpoints in server_routes.py, while handleEditClick does not display or submit this setting in the baseline edit view. No independent task statement establishes the broader production-prevalence and operator-preference claims."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 10,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The LLD is strongly grounded in real symbols including _buildScopeJson, scope_service.import_group, GroupDetail, and the existing explicit true/false tests. Its largest omission is that five existing TestManagementCreateGroup tests will fail after the backend default changes, while another stops exercising its intended IdP path; the design updates none of them. The proposed frontend test is also invalid because the checkbox input and adjacent label are not associated, so role lookup by that accessible name fails. Its compatibility matrix incorrectly calls the management default change contract-clean despite elsewhere acknowledging that omitted-field callers break, and the independent task scope remains unavailable."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 51,
+      "notes": "The review usefully identifies release-note needs, rollback simplicity, and the observable API contract change. It misses the two merge-blocking defects: the inaccessible checkbox makes the new test fail, and unchanged management-route tests still assume omitted create_in_idp means true. Its claim that editing will overwrite the IdP preference is contradicted by handleUpdate, whose UpdateGroupPayload contains no create_in_idp field, and the claimed rollback after MongoDB failure does not exist in management_create_group. The reviewer personas provide detailed commentary but do not validate the exact endpoint scope implemented by the repository's #921 fix."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 20,
+      "risk_awareness": 13,
+      "total": 57,
+      "notes": "The backend cases have concrete payloads and meaningful oracles for default false, explicit true, explicit false, and scope persistence. The primary frontend test cannot locate the checkbox by name because IAMGroups.tsx renders an unassociated input and label. The prerequisites also claim Python 3.10+, while pyproject.toml requires Python 3.14+, and Node 22+ is not established by the repository. Reset and edit lifecycle coverage is mostly manual, and the plan overlooks the existing backend tests whose implicit-default assumptions must be updated."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 8,
+      "total": 42,
+      "notes": "The patch hunks match the v1.0.21 source and correctly flip the initial UI state, preview value, reset path, and management-route default. However, IAMGroups.test.tsx necessarily fails because the checkbox has no accessible name, and at least five unchanged TestManagementCreateGroup tests fail after their implicit IdP path becomes local-only. The patch also omits the internal and external create defaults in server_routes.py and the stale api/registry_client.py documentation changed by the repository's actual #921 fix. The summary admits tests were not run but overstates completeness, and its claim of reverse git-apply validation against an unmodified baseline is internally inconsistent."
+    }
+  },
+  "task_score": 55.6,
+  "verdict": "The submission is highly specific and partially implements the core default change, but misses required endpoint and test updates and adds a frontend test that cannot pass against the actual markup.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T19:36:54.739715Z",
+    "repo_ref": "v1.0.21",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 731908,
+      "cached_input_tokens": 621576,
+      "cache_write_input_tokens": 109954,
+      "output_tokens": 9129,
+      "reasoning_output_tokens": 4869
+    },
+    "duration_ms": 198849
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 84,
+      "notes": "The issue’s strongest aspect is its testable end-to-end scope across the parse endpoint, registration form, both modals, and search indexing. Patch context corroborates named locations including Dashboard.tsx, SkillCard.tsx, and registry/api/search_routes.py. Its largest gap is limited treatment of re-parse overwrites, stale derived values, and permissive hostname matching. No independent task statement establishes whether the UI and semantic-search expansion was required beyond the internally consistent artifacts and repository tags."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 13,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The LLD is unusually concrete about files, data flow, compatibility, re-indexing, and exact expected URL mappings. Its critical defect is in derive_repository_url: the blob regex has two capture groups, but `owner, repo, _, _ = match.groups()` attempts to unpack four, so ordinary GitHub blob URLs raise ValueError despite the claim that derivation never raises. The raw regex also accepts a path such as `/org/repo/main` despite lacking a file component. The claimed startup re-sync behavior could not be independently verified from executable repository evidence."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 73,
+      "notes": "The review’s strongest aspect is its concrete examination of parse-wins UX, old search documents, indexing duplication, rollback, and URL security. Its largest failure is approving the helper’s no-raise behavior while missing the two-group/four-variable unpacking error in the exact implementation it reviewed. The security discussion also overstates scheme safety because a URL such as `ftp://github.com/...` has a GitHub hostname and preserves the ftp scheme in the helper. Claims about registry/main.py startup indexing were not independently verifiable."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The plan provides strong, concrete oracles for helper outputs, API fields, editable auto-fill behavior, modal links, old indexed documents, deployment, and rollback. Most importantly, `test_blob_url_github_com` would immediately expose the implementation’s capture-group exception. Its largest gap is that route, search-mapping, and frontend behavior are covered primarily through manual procedures rather than durable automated tests. It also inconsistently refers to `GET /api/search` in backward-compatibility coverage while its concrete search command uses POST, and several external-host tests are conditional on reachability."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 22,
+      "risk_awareness": 11,
+      "total": 60,
+      "notes": "The patch is focused and carries repository_url through the parse response, form, stored skill modal, DocumentDB index/results, semantic-search model, and modal UI. The primary implementation defect is fatal: `r\"^/([^/]+)/([^/]+)/blob/[^/]+/.+$\"` captures two values but the code unpacks four, causing GitHub blob parsing to raise ValueError and likely return a server error. Raw URL handling and the remaining field plumbing are internally coherent, although the raw matcher accepts an underspecified one-segment suffix. The summary therefore overstates that the design was implemented exactly and successfully; its claimed apply check could not be independently confirmed."
+    }
+  },
+  "task_score": 75.2,
+  "verdict": "A strong, repository-specific design and testing package is undermined by a fatal capture-group unpacking bug that breaks the primary GitHub blob URL path, with broader scope also unconfirmed by an independent task statement.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-04T04:43:12.447123Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 179544,
+      "cached_input_tokens": 139253,
+      "cache_write_input_tokens": 39068,
+      "output_tokens": 7492,
+      "reasoning_output_tokens": 5254
+    },
+    "duration_ms": 138628
+  }
+}

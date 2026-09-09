@@ -3,62 +3,62 @@
   "model": "minimax-m2.5",
   "scores": {
     "github_issue": {
-      "completeness": 18,
-      "correctness": 10,
-      "specificity": 19,
-      "risk_awareness": 13,
-      "total": 60,
-      "notes": "The issue supplies concrete acceptance criteria, dependencies, and useful non-goals despite the absence of an independent task statement. Its largest flaw is diagnosing access and refresh tokens as the whole cookie problem while the shown session data retains `id_token`, groups, and identity metadata; the repository’s eventual fix moved the full OAuth session payload server-side.  Criteria such as cookie size, logout deletion, TTL expiry, and cookie-only validation are directly testable. Migration, encryption-key rotation, multi-instance behavior, and failure-mode policy remain insufficiently defined."
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 74,
+      "notes": "The issue clearly defines the cookie-size problem, desired storage behavior, exclusions, and six testable acceptance criteria. Its largest gap is underspecifying endpoint authorization, token-reference semantics, failure behavior, and the security consequences of one shared record per user and provider. The submitted baseline context contains OAUTH_STORE_TOKENS_IN_SESSION and the named OAuth callback, supporting the central problem and integration point. No independent task statement exists, and the referenced issue numbers and token-size examples could not be independently verified."
     },
     "lld": {
-      "completeness": 14,
+      "completeness": 15,
       "correctness": 8,
-      "specificity": 17,
-      "risk_awareness": 12,
-      "total": 51,
-      "notes": "The LLD is concrete about `auth_server/server.py`, its proposed document schema, indexes, endpoint responses, and storage operations. Its load-bearing registry integration is left as a TODO in Step 5, with direct database access and an internal endpoint both proposed but neither selected. Keeping `id_token` and groups in the cookie undermines the size goal, while fixed eight-hour expiry ignores actual token expiry and raw `oauth_tokens` access omits the repository’s namespace convention. Error handling, metrics, alternatives, and rollout are discussed, but startup index creation, rollback behavior, key rotation, caching controls, and existing-session compatibility are not resolved."
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 54,
+      "notes": "The LLD is concrete about files, callback flow, schema, endpoint responses, configuration, and rollout. Its central persistence design is incorrect because stored_at is an integer while MongoDB TTL indexes require a date-valued field, so automatic expiration would not occur. ([mongodb.com](https://www.mongodb.com/docs/manual/core/index-ttl/)) The sample also contains invalid Python syntax in `from typing import OAuthTokenDocument | None`, references undefined `settings`, never uses token_reference for lookup or binding, and leaves the existing UI integration unresolved. Claims about Motor, PBKDF2, validate_session_cookie, and exact repository conventions could not all be independently verified because local shell access failed."
     },
     "review": {
-      "completeness": 15,
-      "correctness": 10,
-      "specificity": 16,
-      "risk_awareness": 15,
-      "total": 56,
-      "notes": "The review’s strongest work is identifying the missing UI integration, key-rotation problem, startup-index requirement, rollback uncertainty, and audit needs. It nevertheless declares zero blockers even though the LLD never decides how the registry’s token feature obtains stored tokens, which is central to acceptance. The connection-overhead and constant-time-response recommendations are weakly supported, while more serious issues—large `id_token` retention, namespace isolation, response caching, and token-expiry semantics—are missed. Recommendations are generally specific and prioritized, but the verdict does not follow from the defects the reviewers themselves found."
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 49,
+      "notes": "The review usefully identifies UI wiring, key rotation, logging, token binding, rate limiting, configuration validation, and MongoDB failure concerns. Its largest deficiency is that several findings and resolutions are factually inconsistent: it claims atomic findOneAndDelete and index verification were implemented, while the patch uses find_one followed by delete_one and blindly calls create_index. It also alleges new database connections despite the LLD already calling get_documentdb_client, and it misses the invalid TTL field type, insecure base64 fallback, unused token reference, and removed logout provider validation. The asserted auth-server metrics middleware convention could not be verified."
     },
     "testing": {
-      "completeness": 16,
-      "correctness": 7,
-      "specificity": 16,
-      "risk_awareness": 13,
-      "total": 52,
-      "notes": "The plan covers storage, retrieval, logout, TTL indexes, feature flags, large tokens, compatibility, deployment, and an end-to-end flow with concrete commands. Several oracles are inadequate: document existence does not prove encryption, deleting all documents does not test expiry, and latency observation does not establish that session validation made no database call. It expects `/api/tokens/generate` to return `oauth_tokens` although the implementation does not add that behavior, and expects no `oauth_token_ref` key when the patch explicitly writes it as `None` while disabled. The statement that UX is unaffected directly contradicts both the review and implementation summary, and no executable unit-test cases are specified for encryption failure, tenant isolation, duplicate references, or stale-but-not-yet-purged documents."
+      "completeness": 14,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 43,
+      "notes": "The plan spans functional, negative, compatibility, deployment, rollback, end-to-end, and unit coverage with concrete expected responses. Much of it is not executable: synchronous unittest methods contain await expressions, docker compose set is not a valid environment-setting command, and the endpoint tests are explicitly placeholders. The TTL test manually deletes data and then re-authenticates, which would recreate it, while the E2E test inserts non-decryptable placeholder ciphertext without completing a valid login. It also never measures the 4096-byte criterion or proves normal request validation performs no database read, and the submitted container names and invented internal endpoints could not be verified."
     },
     "implementation": {
-      "completeness": 7,
-      "correctness": 5,
-      "specificity": 12,
-      "risk_awareness": 6,
-      "total": 30,
-      "notes": "The patch provides concrete store, retrieve, invalidate, and index functions and wires token persistence, retrieval, and logout deletion into `auth_server/server.py`. It does not implement the registry or UI integration needed for the promised “Get JWT Token” behavior, and the summary admits this omission while still claiming the feature is implemented. The diff visibly leaves `id_token` and identity data in `session_data`, creates indexes during every callback, uses an unnamespaced collection, lacks tests and deployment configuration, and cannot distinguish expiration from other missing-document cases. Exact `git apply --check` verification was unavailable because the repository shell sandbox failed before command execution, so patch applicability and the callback’s unqualified `get_documentdb_client()` reference could not be independently confirmed."
+      "completeness": 12,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 7,
+      "total": 42,
+      "notes": "The patch concretely adds repository operations, callback storage, an authenticated retrieval endpoint, configuration, and logout cleanup around the supplied server symbols. Its largest functional defect is the numeric stored_at TTL field, which cannot drive MongoDB TTL expiration; it also deliberately falls back to reversible base64 when encryption imports fail. ([mongodb.com](https://www.mongodb.com/docs/manual/core/index-ttl/)) The custom TTL is effectively ignored because a top-level oauth_token_repository module attempts `from .server`, token_reference is never compared with the stored value, the legacy cookie-token path remains available, and the patch removes the existing logout provider validation. The summary admits that UI wiring and metrics are absent, so the claimed Get JWT Token behavior is not end-to-end; local sandbox failure prevented an independent git apply --check."
     }
   },
-  "task_score": 49.8,
-  "verdict": "The submission is detailed but implements only a partial token-reference mechanism, leaving the actual oversized-session risk and end-to-end token retrieval path unresolved.",
+  "task_score": 52.4,
+  "verdict": "The submission is specific and well structured, but its core TTL mechanism is invalid and the implementation remains incomplete and security-fragile at the token-storage boundary.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T14:03:50.866906Z",
+    "evaluated_at": "2026-09-08T04:03:27.562904Z",
     "repo_ref": "1.23.0",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 283465,
-      "cached_input_tokens": 184464,
-      "cache_write_input_tokens": 40670,
-      "output_tokens": 13006,
-      "reasoning_output_tokens": 10997
+      "input_tokens": 182999,
+      "cached_input_tokens": 123438,
+      "cache_write_input_tokens": 31648,
+      "output_tokens": 12205,
+      "reasoning_output_tokens": 10414
     },
-    "duration_ms": 160743
+    "duration_ms": 158717
   }
 }

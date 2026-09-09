@@ -1,0 +1,153 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "high",
+  "tags": [
+    "authentication",
+    "oauth",
+    "session",
+    "mongodb",
+    "encryption",
+    "auth-server",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-7",
+  "model_slug": "claude-opus-4-7",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 85.9,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 93,
+    "output_tokens": 79095,
+    "cache_read_tokens": 13975045,
+    "cache_write_tokens": 189998,
+    "total_tokens": 14244231,
+    "total_cost_usd": 10.152849999999997,
+    "latency_seconds": 920.7,
+    "num_turns": 88,
+    "generation_tokens_per_sec": 85.9,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 93,
+  "output_tokens": 79095,
+  "latency_seconds": 920.7,
+  "num_turns": 88,
+  "total_cost_usd": 10.152849999999997,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 13975045,
+  "cache_creation_tokens": 189998,
+  "run_started_at": "2026-09-02T02:29:28.480217Z",
+  "run_ended_at": "2026-09-02T02:44:49.242724Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 93,
+    "output_tokens": 79095,
+    "cache_read_tokens": 13975045,
+    "cache_write_tokens": 189998,
+    "total_tokens": 14244231,
+    "total_cost_usd": 10.152849999999997,
+    "latency_seconds": 920.7,
+    "num_turns": 88,
+    "generation_tokens_per_sec": 85.9,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "server-side-oauth-token-storage",
+    "model": "us.anthropic.claude-opus-4-7",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 84,
+        "notes": "The issue provides unusually concrete acceptance criteria covering encryption, TTL cleanup, compatibility, revocation, rate limiting, and the `validate_session_cookie` hot path. Its largest weakness is the unsupported guarantee that retaining existing user metadata and groups will always keep the cookie below 1 KB; large group sets can independently violate that bound. The cited `auth_server/server.py` callback, `OAUTH_STORE_TOKENS_IN_SESSION`, `/api/tokens/generate`, and MongoDB collection requirements are consistent with the submitted patch context. No independent task statement was supplied, so provider-specific size claims and exact browser behavior could not be established as requirements."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 13,
+        "specificity": 17,
+        "risk_awareness": 21,
+        "total": 71,
+        "notes": "The LLD covers data flow, storage schema, indexes, encryption, rollout, fallback behavior, deployment surfaces, and operational observability in substantial detail. Its largest deficiency is that the R1-R13 override section contradicts much of the retained design: later sections still show `id_token` in the cookie, a `revoked` field, 403 cross-user responses, sentinel errors, endpoint-side deletion, and `POST /oauth2/session/revoke`. It also prescribes `verify_csrf_token_flexible` inside the auth server without resolving the registry-side dependency boundary that the implementation later cites as preventing that design. The explicit supersession notice makes the intended decisions recoverable, but an implementer must still reconcile numerous stale code sketches and schemas."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 23,
+        "total": 87,
+        "notes": "The review identifies concrete, consequential defects including timezone handling, unbounded rate-limit state, cross-user status disclosure, CSRF, duplicated `id_token`, revocation semantics, and startup observability. Its largest weakness is declaring those findings resolved even though the LLD's main API tables, schemas, and code sketches remain contradictory. It also misses that the limiter is keyed by username rather than the required session and does not validate whether the registry CSRF dependency can be used directly by `auth_server/server.py`. The recommendations are prioritized, technically actionable, and substantially improve the original design despite those omissions."
+      },
+      "testing": {
+        "completeness": 22,
+        "correctness": 14,
+        "specificity": 22,
+        "risk_awareness": 22,
+        "total": 80,
+        "notes": "The plan spans unit, endpoint, integration, compatibility, deployment, key-rotation, corruption, TTL, cookie-size, and full logout scenarios with mostly concrete expected statuses and values. Its largest correctness defect is the execution checklist's `python -m unittest discover` command for pytest-style tests, which may discover none of the submitted functions, while `ruff check --fix` mutates code rather than merely validating it. The proposed change-stream or document-count check cannot prove an absence of MongoDB reads, and the CSRF steps assume a registry-issued token can be validated directly by the auth server without specifying that integration. Nevertheless, tests such as 404-on-cross-user, ciphertext inspection, IdP issuer comparison, and the under-1024-byte cookie assertion would catch important regressions."
+      },
+      "implementation": {
+        "completeness": 12,
+        "correctness": 10,
+        "specificity": 17,
+        "risk_awareness": 12,
+        "total": 51,
+        "notes": "The patch implements an end-to-end access/refresh-token path across `oauth2_callback`, `OAuthTokenStore`, `GET /oauth2/session/tokens`, `/api/tokens/generate`, and logout, with encrypted storage, TTL indexing, user scoping, and bounded rate state. Its largest defect is deliberately retaining `id_token` in the cookie while not passing it to `OAuthTokenStore.put`, so the endpoint returns null for a required field and the under-1-KB cookie guarantee remains unproven; it also substitutes an `X-Requested-With` check for the required CSRF dependency. The limiter is keyed by username rather than session, deployment surfaces and observability metrics are omitted, and only store-level tests are added despite the callback, endpoint, registry merge, logout, and cookie-size changes. The summary honestly discloses most deviations, but local `git apply --check` and source-context verification could not be independently run because the provided command sandbox failed before executing any repository command."
+      }
+    },
+    "task_score": 74.6,
+    "verdict": "The design work is detailed and security-conscious, but contradictory revisions and an implementation that omits required `id_token`, CSRF, deployment, and integration-test behavior leave the central solution incomplete.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-02T05:41:29.077450Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 470635,
+        "cached_input_tokens": 355039,
+        "cache_write_input_tokens": 63850,
+        "output_tokens": 14822,
+        "reasoning_output_tokens": 12380
+      },
+      "duration_ms": 312125
+    }
+  }
+}

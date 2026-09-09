@@ -1,0 +1,153 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "medium",
+  "tags": [
+    "bug",
+    "security",
+    "nginx",
+    "routing",
+    "auth",
+    "python",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-7",
+  "model_slug": "claude-opus-4-7",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 86.5,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 575,
+    "output_tokens": 45423,
+    "cache_read_tokens": 4910757,
+    "cache_write_tokens": 130751,
+    "total_tokens": 5087506,
+    "total_cost_usd": 4.411022249999999,
+    "latency_seconds": 525.1,
+    "num_turns": 39,
+    "generation_tokens_per_sec": 86.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 575,
+  "output_tokens": 45423,
+  "latency_seconds": 525.1,
+  "num_turns": 39,
+  "total_cost_usd": 4.411022249999999,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 4910757,
+  "cache_creation_tokens": 130751,
+  "run_started_at": "2026-09-02T02:08:06.598770Z",
+  "run_ended_at": "2026-09-02T02:16:51.705109Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 575,
+    "output_tokens": 45423,
+    "cache_read_tokens": 4910757,
+    "cache_write_tokens": 130751,
+    "total_tokens": 5087506,
+    "total_cost_usd": 4.411022249999999,
+    "latency_seconds": 525.1,
+    "num_turns": 39,
+    "generation_tokens_per_sec": 86.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "nginx-location-trailing-slash-route-hijack",
+    "model": "us.anthropic.claude-opus-4-7",
+    "scores": {
+      "github_issue": {
+        "completeness": 20,
+        "correctness": 13,
+        "specificity": 22,
+        "risk_awareness": 12,
+        "total": 67,
+        "notes": "The issue clearly identifies the raw-prefix collision in `_create_location_block` and supplies concrete, testable containment criteria. Its largest flaw is the unnecessary exact redirect: nginx automatically redirects the slashless URI for a slash-terminated proxy location, while the added block can collide with existing exact locations and changes bare-path POST semantics. It also incorrectly claims authenticated collisions reach the true handler and that changing `/name` to `/name/` leaves proxy URI rewriting byte-identical; the selected location remains active, and the matched prefix length changes. No independent task statement exists, and repository line-number claims could not be independently verified because the provided shell sandbox failed before command execution."
+      },
+      "lld": {
+        "completeness": 21,
+        "correctness": 13,
+        "specificity": 23,
+        "risk_awareness": 13,
+        "total": 70,
+        "notes": "The LLD is unusually concrete about `_create_location_block`, `mcp_proxy_target`, startup regeneration, tests, and rollout. Its central deficiency is approving a redundant exact-match redirect without analyzing duplicate exact locations, permanent method-changing redirects, or nginx's built-in slash redirect for proxied locations. The claimed upstream-URI invariant is not established: asserting the unchanged `proxy_pass` text does not account for changing the replaced location prefix from `/name` to `/name/`, and the defensive root branch still renders the root location it claims to prevent. The local checkout and cited line numbers were not independently readable due the execution-sandbox failure, so applicability and several repository-wide validation claims remain unverified."
+      },
+      "review": {
+        "completeness": 18,
+        "correctness": 13,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 68,
+        "notes": "The review surfaces useful specific concerns including permanent-redirect caching, legacy slash inputs, reload timing, and the analogous virtual-server risk. It nevertheless approves the design without catching the highest-impact issues: duplicate exact-location configuration failures, 301 behavior for non-GET requests, nginx's automatic slash redirect, and the unproven proxy-URI invariant. Its security discussion calls the eventual `Location` header relative even though nginx normally expands a local redirect to an absolute response header, and its same-origin test checks only an unsubstituted template. The review also says documentation resolutions were applied while the cited cache and debounce refinements are not actually incorporated into the submitted LLD."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 10,
+        "specificity": 21,
+        "risk_awareness": 13,
+        "total": 64,
+        "notes": "The plan covers unit, compatibility, deployment, rollback, browser, and end-to-end levels with many concrete expected values. Several executable details are wrong: `uv run python api/populate-registry.sh` invokes a shell script as Python, and the line-oriented `grep 'location.*mcp-proxy'` cannot associate a location directive with a later `proxy_pass` line. The curl plan uses `-I` while claiming to inspect response bodies, expects a relative `Location` header despite nginx's normal absolute-redirect behavior, and tests upstream stability only by asserting unchanged configuration text rather than the URI observed upstream. It omits the duplicate-exact-location and bare-POST cases, while its claim that `/api/...` was always hijacked contradicts the documented longer `^~ /api/` locations."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 13,
+        "specificity": 22,
+        "risk_awareness": 12,
+        "total": 67,
+        "notes": "The patch implements the proposed slash normalization and all seven stated unit tests, and the core `/a/` containment change addresses the route-hijack class. The added `location =` block is redundant for a slash-terminated proxied location and can make nginx configuration invalid when a permitted server path duplicates an existing exact route such as a static asset or protected endpoint; its 301 can also alter a bare POST into a GET. The upstream test merely asserts the unchanged `proxy_pass` line and cannot detect the changed prefix-replacement result, while the root-path branch still emits a root-swallowing location despite claiming otherwise. The summary honestly discloses that tests were not run, but its `git apply --check` claim and source-context fit could not be independently confirmed because repository shell execution failed before startup."
+      }
+    },
+    "task_score": 67.2,
+    "verdict": "The submission is highly specific and implements the core trailing-slash fix, but its unnecessary exact redirect and several incorrect nginx assumptions create material compatibility, configuration-validity, and test-oracle gaps.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-02T05:23:36.470558Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 389478,
+        "cached_input_tokens": 260584,
+        "cache_write_input_tokens": 53899,
+        "output_tokens": 14814,
+        "reasoning_output_tokens": 12509
+      },
+      "duration_ms": 230246
+    }
+  }
+}

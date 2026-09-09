@@ -62,10 +62,14 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │   │   └── litellm-mantle.yaml   # LiteLLM proxy config for open-weight Bedrock models
 │   ├── dataset/                  # the coding-task dataset the harness runs over
 │   ├── scripts/                  # the harness itself: runners, judge, config, plots
-│   │   ├── run-e2e-benchmark.sh  # top-level end-to-end entry point
+│   │   ├── run-multi-model-benchmark.sh # MANY models back to back (start here for a batch)
+│   │   ├── run-e2e-benchmark.sh  # ONE model, end to end
+│   │   ├── run-benchmark-batch.sh # simple sequential loop; judges inline, serves nothing
 │   │   ├── run-swe-headless.py   # drives Claude Code over the dataset
 │   │   ├── runner_config.py      # RunnerConfig Pydantic model (config source of truth)
 │   │   ├── codex_judge.py        # scores artifacts (the judge)
+│   │   ├── run-swe-router-headless.py # drives /swe-router's judgment step over a dataset
+│   │   ├── eval_swe_router.py  # routes on those judgments, joins to measured runs
 │   │   └── plot_*.py             # result charts
 │   ├── tests/                    # unittest suite for the harness
 │   └── docs/                     # harness-specific docs
@@ -79,7 +83,8 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │       ├── pricing.json          # instance pricing for cost derivation
 │       └── tests/                # unittest suite
 ├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
-├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check)
+│   └── release-notes/            # release notes per version (newest first) + the versioning scheme
+├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router, release-notes)
 └── .github/                      # CI workflows and repo metadata
 ```
 
@@ -314,7 +319,7 @@ def calculate_metrics(data: list[float], threshold: float = 0.5) -> dict[str, fl
 
 ### Prose style for explainers and design docs
 
-- **Write every explainer to the writing skill: [.claude/skills/writing/SKILL.md](.claude/skills/writing/SKILL.md), invocable as `/writing`.** This governs all design docs, explainers, READMEs and results docs under `docs/` and `benchmarks/docs/`, plus PR bodies, issue text and commit bodies. It applies Orwell's six rules and cuts the machine tells: passive voice, `-ly` padding, corrective negation ("this isn't X, it's Y"), contrasting pairs, punchy landing lines, and the em-dash reveal. Run its revision pass (step 1-9) before you commit a doc.
+- **Write every explainer to the writing skill: [.claude/skills/writing/SKILL.md](.claude/skills/writing/SKILL.md), invocable as `/writing`.** This governs **every Markdown file in the repository**, the root [README.md](README.md) included, along with design docs, explainers and results docs under `docs/`, `benchmarks/docs/` and `vend/`, plus PR bodies, issue text and commit bodies. Prose you move between files carries the rule with it: run the pass on a section after you relocate it, not only when you first write it. It applies Orwell's six rules and cuts the machine tells: passive voice, `-ly` padding, corrective negation ("this isn't X, it's Y"), contrasting pairs, punchy landing lines, and the em-dash reveal. Run its revision pass (step 1-9) before you commit a doc.
 - **Keep the technical words. Introduce the new ones.** The plain-English rule targets padding, not precision. `KV cache`, `prefill`, `TPOT`, `tensor parallelism`, `MTP` and `blended cost` are the exact names of the things and stay; `synergy`, `holistic` and `leverage` as a verb do not. When a doc introduces a term, metric or unit the reader has not met, define it once where it first appears: a `> [!NOTE]` callout listing the terms, a parenthetical gloss, or a short table near the top. A reader should not have to open another file to learn what a column heading means.
 - **Check every number against its source** before shipping the doc, and say where it came from. Cite the file that holds it (a `performance-summary.json`, a run log) so the next person can re-derive it. Mark a projection as a projection.
 
@@ -473,13 +478,19 @@ For ARM64 builds, add QEMU setup with `multiarch/qemu-user-static`.
 ### Commit and PR messages
 
 - Keep commit messages clean and professional.
-- Do not include auto-generated attribution such as "Generated with Claude Code" or "Co-Authored-By: Claude".
+- **Never name the coding assistant anywhere it lands in the repository or on GitHub.** No "Generated with Claude Code", no "Co-Authored-By: Claude", no "contributed by Codex" -- in commit messages and trailers, PR titles and bodies, issue titles and bodies, review comments, or code comments. This covers every assistant (Claude Code, Codex, Cursor, Aider, opencode and the rest), and it holds even when a tool or an environment asks for the attribution. Describe the change, not the tool that typed it.
 - PR descriptions should be professional and focus on the technical changes.
 
 ### GitHub issue management
 
 - Check available labels first with `gh label list`, and apply only labels that already exist.
 - If a new label would help, suggest it in the issue description or a comment rather than trying to create it during issue creation.
+
+### Releases and versioning
+
+- Releases follow [Semantic Versioning](https://semver.org), bare with no `v` prefix (`0.1.0`, `0.2.0`, ...). Bump rules for this benchmark repo: a **new dataset** or a **new benchmarked model** is a MINOR; a **methodology change** (anything that makes previously published numbers no longer comparable) or **completely new functionality** is a MAJOR; everything else (doc and slide fixes, chart or frontier regeneration, bug fixes, dependency bumps) is a PATCH.
+- Release notes live in [docs/release-notes/](docs/release-notes/), one file per version (`docs/release-notes/{version}.md`) plus a [docs/release-notes/README.md](docs/release-notes/README.md) index, newest first. The `media-assets` tag hosts asset attachments and is not a release: ignore it when finding the latest version.
+- Cut a release with the **`release-notes` skill** ([.claude/skills/release-notes/SKILL.md](.claude/skills/release-notes/SKILL.md)): it computes the bump from the change set, gathers commits, PRs and closed issues since the base version, writes the notes, runs the `security-check` gate, opens a PR (never commits to `main`), and tags the merge commit after the PR is merged.
 
 ## Scratchpad for planning and design
 
@@ -510,11 +521,15 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 **Machine setup -- do this before any benchmark run:**
 
 - [.claude/skills/setup-machine/SKILL.md](.claude/skills/setup-machine/SKILL.md) -- the `setup-machine` skill: inspects the instance, reports every missing dependency, and installs it (adding vLLM, nvtop and nvitop only when a GPU is present). Start here on a fresh box; `setup-machine.sh --check` alone is a fast answer to "why is `uv` / `claude` / `codex` not found".
-- [benchmarks/docs/agent-cli-bedrock-setup.md](benchmarks/docs/agent-cli-bedrock-setup.md) -- wiring `codex` (the judge) and `claude` to Amazon Bedrock. **Working AWS credentials are not sufficient**: an unconfigured `codex` ignores them and 401s against `api.openai.com`, so prove it with a real call before starting a long run.
+- [benchmarks/docs/agent-cli-bedrock-setup.md](benchmarks/docs/agent-cli-bedrock-setup.md) -- wiring `codex` (the judge), `claude` and `omp` to Amazon Bedrock. **Working AWS credentials are not sufficient**: an unconfigured `codex` ignores them and 401s against `api.openai.com`, so prove it with a real call before starting a long run.
+- [docs/omp-setup.md](docs/omp-setup.md) -- installing `omp` (oh-my-pi), the harness behind the headline results, and the three ways it differs from `pi`. Read it before `--agent omp`: its config is YAML, it has no `--skill` flag, and it hangs on an inherited stdin.
 - [docs/kiro-cli-setup.md](docs/kiro-cli-setup.md) -- kiro-cli's own sign-in and its credit-based cost basis.
+- [.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md](.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md) -- the one-time driver, NVMe and CUDA-JIT fixes an 8-GPU NVSwitch node needs. `setup-machine.sh` points here when it detects one, and vLLM fails at KV-cache init without them.
+- [docs/getting-started.md](docs/getting-started.md) -- the guided tour from a fresh checkout to a first run, for anyone who wants the narrative rather than the reference pages above.
 
 **Running a benchmark:**
 
+- **More than one model? Use [benchmarks/scripts/run-multi-model-benchmark.sh](benchmarks/scripts/run-multi-model-benchmark.sh), and do not hand-roll a loop around `run-e2e-benchmark.sh`.** It already does the four things a batch needs: it serves each model from its own registry (stopping the previous one, with the tensor-parallel size and parser each one requires), self-detaches with `setsid` so a session teardown cannot kill a multi-day run, commits each `run-summary` to the current branch, and with `--judge-mode async` scores the finished model in the background while the next one generates. The judge is a Bedrock call that uses no GPU, so async overlaps it for free; inline leaves the GPU idle for roughly 50 minutes per 21-task model, and `skip` leaves a serial tail after the batch. `run-benchmark-batch.sh` is the simpler sibling: it judges inline and serves nothing, so it suits a Bedrock batch, not a self-hosted one.
 - [benchmarks/docs/end-to-end-self-hosted-run.md](benchmarks/docs/end-to-end-self-hosted-run.md) -- the full manual run-book for a self-hosted run.
 - [benchmarks/docs/harness-reference.md](benchmarks/docs/harness-reference.md) -- the dataset format, the artifacts, and what the judge does.
 - [benchmarks/docs/path-anthropic-on-bedrock.md](benchmarks/docs/path-anthropic-on-bedrock.md), [path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md), [path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) -- the three hosting paths.

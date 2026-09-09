@@ -1,0 +1,152 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "low",
+  "tags": [
+    "auth",
+    "oidc",
+    "logout",
+    "security",
+    "waf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-7",
+  "model_slug": "claude-opus-4-7",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 80.3,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 117,
+    "output_tokens": 80967,
+    "cache_read_tokens": 18733999,
+    "cache_write_tokens": 217480,
+    "total_tokens": 19032563,
+    "total_cost_usd": 12.751009499999995,
+    "latency_seconds": 1008.3,
+    "num_turns": 107,
+    "generation_tokens_per_sec": 80.3,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 117,
+  "output_tokens": 80967,
+  "latency_seconds": 1008.3,
+  "num_turns": 107,
+  "total_cost_usd": 12.751009499999995,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 18733999,
+  "cache_creation_tokens": 217480,
+  "run_started_at": "2026-09-02T04:11:51.134683Z",
+  "run_ended_at": "2026-09-02T04:28:39.405149Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 117,
+    "output_tokens": 80967,
+    "cache_read_tokens": 18733999,
+    "cache_write_tokens": 217480,
+    "total_tokens": 19032563,
+    "total_cost_usd": 12.751009499999995,
+    "latency_seconds": 1008.3,
+    "num_turns": 107,
+    "generation_tokens_per_sec": 80.3,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "logout-id-token-hint-out-of-browser-url",
+    "model": "us.anthropic.claude-opus-4-7",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 81,
+        "notes": "The issue provides unusually concrete scope, compatibility requirements, acceptance criteria, and named integration points such as `registry/auth/routes.py::logout_handler` and `auth_server/server.py::oauth2_logout`, which correspond to the submitted patch context. Its largest flaw is claiming the token leaves browser history and browser-facing URLs even though the explicitly retained auth-server-to-IdP 302 still carries `id_token_hint` through the browser. It also overlooks the post-mint failure case where ticket consumption fails after the registry has cleared the session, recreating a silent IdP-logout failure without a usable legacy fallback. WAF-default, shared-database, and exact baseline-path claims could not be independently verified because the read-only shell failed during sandbox initialization."
+      },
+      "lld": {
+        "completeness": 21,
+        "correctness": 15,
+        "specificity": 23,
+        "risk_awareness": 18,
+        "total": 77,
+        "notes": "The LLD commits to concrete APIs, schemas, persistence operations, precedence rules, rollout sequencing, and files that align closely with the submitted diff. Its central correctness defect is the assertion that the ID token is removed from every browser-emitted URL while its own sequence sends a browser 302 to the IdP containing that token. It also incorrectly characterizes consume failures as no worse than existing behavior: after a successful mint, expiry, decryption failure, or store outage leaves the new registry request without the legacy hint and may preserve the IdP session. The proposed setting is read by the auth-server process, yet deployment guidance often places it on the registry, and exact repository conventions could not be independently checked because local command execution was unavailable."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 15,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 74,
+        "notes": "The review identifies specific actionable issues involving TTL configuration, consume ordering, sensitive logging, documentation drift, and atomic single use rather than merely approving the design. It nevertheless misses the most consequential design contradictions: the final browser redirect still exposes the token, and a successful mint followed by consume failure can silently fail IdP logout. One claimed resolution is not actually reflected elsewhere: the review says both helpers use the `_store` suffix, while the LLD and patch retain `registry/auth/logout_ticket_client.py`. Assertions about frontend behavior, route-specific CORS, and DocumentDB timing were not independently verifiable from the unavailable repository shell."
+      },
+      "testing": {
+        "completeness": 21,
+        "correctness": 14,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 75,
+        "notes": "The plan supplies concrete setups and oracles for minting, single use, expiry, provider mismatch, authorization, fallback, precedence, deployment order, and log redaction. Its largest error is an impossible browser-history assertion: the plan simultaneously requires the auth-server-to-IdP `Location` to contain the JWT and claims no JWT-shaped logout URL appears in browser history. The Cognito scenario also allows ticket minting but then requires no `logout_ticket` in the browser URL, whereas the patch mints for any provider having a valid ID token. Commands such as the dual project-root unittest invocation, chart paths, setup script, and profiler procedure could not be verified against the repository, and the plan does not test the promised `expired` and `store_error` metric outcomes because the implementation collapses them into `miss`."
+      },
+      "implementation": {
+        "completeness": 14,
+        "correctness": 14,
+        "specificity": 19,
+        "risk_awareness": 12,
+        "total": 59,
+        "notes": "The diff implements the main registry-mint, encrypted-store, atomic-consume, provider-check, legacy-fallback, configuration, metrics, and documentation flow against plausible existing contexts and symbols. It omits all planned tests and does not implement the issue's `expired` and `store_error` consume outcomes, while its summary overstates removal from browser-facing URLs because the final IdP redirect still contains the token. Concrete implementation risks include permanently abandoning index creation after one transient failure, silently falling back to an unnamespaced collection on any naming error, accepting an unvalidated ticket response, and losing the hint entirely when consumption fails after minting. The patch summary acknowledges the test omission, but `git apply --check` and independent symbol verification could not be performed because every shell command failed before execution with the sandbox loopback error."
+      }
+    },
+    "task_score": 73.2,
+    "verdict": "The submission is highly specific and thoughtfully structured, but its core security claim is overstated and the untested implementation leaves material consume-failure, observability, and operational correctness gaps.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-02T05:16:45.879604Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 421053,
+        "cached_input_tokens": 346515,
+        "cache_write_input_tokens": 63261,
+        "output_tokens": 10603,
+        "reasoning_output_tokens": 8565
+      },
+      "duration_ms": 155899
+    }
+  }
+}

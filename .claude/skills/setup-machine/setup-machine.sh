@@ -95,6 +95,9 @@ ok()     { echo -e "${GREEN}[ok]${RESET}    $1"; }
 done_()  { echo -e "${GREEN}${BOLD}[done]${RESET}  $1"; }
 warn()   { echo -e "${YELLOW}[warn]${RESET}  $1"; }
 die()    { echo -e "${RED}[fail]${RESET}  $1" >&2; exit 1; }
+# Report a failure without exiting, so _run_installs can move on to the next
+# component. Returns 1 for callers that propagate it as a component failure.
+fail()   { echo -e "${RED}[fail]${RESET}  $1" >&2; return 1; }
 header() { echo -e "\n${BOLD}=== $1 ===${RESET}"; }
 rule()   { echo -e "${BOLD}=======================================================================${RESET}"; }
 
@@ -589,7 +592,8 @@ _install_gh() {
 # machine makes, and rewriting that later is a history rewrite.
 _install_gitconfig() {
     if [[ -z "$GIT_USER_NAME" || -z "$GIT_USER_EMAIL" ]]; then
-        die "git identity not supplied. Re-run with: --git-name 'Your Name' --git-email you@example.com"
+        fail "git identity not supplied. Re-run with: --git-name 'Your Name' --git-email you@example.com"
+        return 1
     fi
     git config --global user.name "$GIT_USER_NAME"
     git config --global user.email "$GIT_USER_EMAIL"

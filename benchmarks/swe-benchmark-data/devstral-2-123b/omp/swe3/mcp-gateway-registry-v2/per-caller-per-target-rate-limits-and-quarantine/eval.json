@@ -3,62 +3,62 @@
   "model": "devstral-2-123b",
   "scores": {
     "github_issue": {
-      "completeness": 20,
-      "correctness": 18,
-      "specificity": 19,
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 18,
       "risk_awareness": 17,
-      "total": 74,
-      "notes": "The issue clearly defines both capabilities, names affected management surfaces, and supplies concrete acceptance criteria and non-goals. Its caller_target axis and reserved quarantine groups align broadly with the repository's published 1.28.0 rate-limiting contract. The largest gap is that critical behavior—403 response semantics, admin eligibility, and backing-store failure policy—is deferred rather than specified, despite being central to an emergency kill switch. No independent task statement was supplied, so several proposed architectural details cannot be confirmed as requirements."
+      "total": 69,
+      "notes": "The issue clearly separates the per-pair quota and quarantine problems and supplies concrete scope, non-goals, and acceptance criteria. Its largest deficiency is leaving response semantics, admin bypass, backing-store failure behavior, and caller identity selection as future decisions rather than pinning down required behavior. The named /validate enforcement point, existing membership storage, reserved groups, and no-nginx-change boundary are concrete and internally coherent. No independent task statement was supplied, so the asserted issue number and full intended behavior could not be independently verified."
     },
     "lld": {
-      "completeness": 14,
-      "correctness": 6,
-      "specificity": 15,
+      "completeness": 12,
+      "correctness": 4,
+      "specificity": 9,
       "risk_awareness": 10,
-      "total": 45,
-      "notes": "The LLD names concrete files such as registry/rate_limiting/limiter.py and provides detailed models, routes, data flow, observability, and rollout sections. It conflicts with the repository contract by returning 429, quarantining administrators, and enabling quarantine by default, while the published behavior uses a plain 403, protects admin-group users, and is off by default. It is also internally inconsistent about admin bypass and configuration, contains a malformed QuarantineMembership code block, and promises CLI/UI support without designing it. Claims that DocumentDB handles the added cardinality and that lookups are O(1) are unsupported by a schema, index, or measured evidence."
+      "total": 35,
+      "notes": "The LLD names relevant files and attempts to cover APIs, persistence, failure handling, rollout, observability, and key-collision risk. Its central design contradicts the issue by introducing separate quarantine and emergency-bypass collections instead of reusing membership storage, while also proposing environment settings despite claiming no deployment configuration changes. The supplied designs contain duplicate check methods, malformed snippets, inconsistent raw-versus-base64 composite names, and a bypass where any one active exemption bypasses every applicable quarantine gate. Latency estimates, cache behavior, UI/CLI support, and the claimed security resolution are unsupported by executable evidence."
     },
     "review": {
-      "completeness": 9,
-      "correctness": 5,
-      "specificity": 10,
-      "risk_awareness": 10,
-      "total": 34,
-      "notes": "The review raises several relevant concerns, including key length, storage growth, rollback, monitoring, and operator UX. Its principal finding is resolved incorrectly by removing the established admin bypass, contradicting both backward-compatibility goals and the repository's admin quarantine guardrail. It misses larger defects in the LLD, including persistence construction, contradictory configuration, malformed model code, response semantics, and absent CLI/UI design, yet declares the design ready. The claim that UI mockups were added is not supported by the reviewed LLD."
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 51,
+      "notes": "The review's strongest contribution is identifying two concrete defects: colon-delimited composite-key collisions and the danger of a general admin quarantine bypass. It misses more fundamental contradictions, including abandoning existing membership storage, adding configuration and storage surfaces, and failing to design the promised CLI and UI paths. Its proposed multi-admin remedy is not enforced by the shown approve_request logic, which never requires approved_by to differ from requested_by and logs the approval token. Assertions of backward compatibility, minimal latency, and complete resolution were not verified and are inconsistent with the design excerpts."
     },
     "testing": {
-      "completeness": 8,
-      "correctness": 2,
-      "specificity": 6,
-      "risk_awareness": 7,
-      "total": 23,
-      "notes": "The plan at least identifies independent-caller quotas, quarantine enforcement, legacy definitions, invalid inputs, restart persistence, and performance as relevant areas. Most curl examples are incomplete or invalid, with missing headers and data flags, dangling backslashes, literal ellipses, and a rate-limit loop that issues extra requests instead of recording one response per iteration. It expects quarantine to return 429 rather than the repository's plain 403, and its window-reset test expects success while the target remains quarantined. CLI and UI testing are declared inapplicable despite explicit issue acceptance criteria, while asserted endpoints such as /api/auth/login and /api/config/full are not substantiated."
+      "completeness": 4,
+      "correctness": 3,
+      "specificity": 7,
+      "risk_awareness": 2,
+      "total": 16,
+      "notes": "The composite-key round-trip test has concrete inputs and equality assertions, including names containing colons. The artifact is truncated during the emergency-bypass command and omits actual quota enforcement, quarantine denial, counter non-mutation, failure-mode, compatibility, concurrency, CLI, and UI coverage. The caller-target creation command uses an encoded key in the URL but a raw test-user:test-server name in the body, and the HTTP examples assert neither status codes nor response state. The claimed executable end-to-end coverage cannot be verified from this incomplete plan."
     },
     "implementation": {
       "completeness": 3,
       "correctness": 0,
-      "specificity": 4,
-      "risk_awareness": 2,
-      "total": 9,
-      "notes": "The patch touches the intended model, limiter, and API areas, but it does not deliver a functioning end-to-end feature or the promised CLI, UI, and persistent storage. The submitted unified diff appends both new Python files without diff headers, deletes the definitions of identity and caller_type before using them, and creates a fresh in-memory QuarantineService for each API request and another for the limiter, so quarantine state cannot propagate or persist. Target removal also uses a different subject representation than insertion, while the summary falsely claims DocumentDB reuse, seamless integration, no breaking changes, and production readiness. A local git apply --check could not be executed because the provided read-only shell sandbox failed to initialize, but the malformed patch structure and runtime defects are directly visible in the submitted diff."
+      "specificity": 6,
+      "risk_awareness": 5,
+      "total": 14,
+      "notes": "The patch does not implement either feature end to end: it adds two repositories and model changes but contains no limiter integration, definitions lookup, API routes, configuration wiring, CLI, UI, or tests. In models.py, RateLimitDecision.allow still supplies only allowed and remaining after axis and entity_type become required, and dangling remnants of the old headers dictionary make the patched file syntactically invalid while removing the existing X-RateLimit-Throttled contract. The emergency bypass does not enforce separate approvers and logs its approval token, while the summary claims limiter.py changes that are absent from the submitted diff. The summary honestly admits the patch is partial and broken; a git apply dry-run could not be completed because the provided shell sandbox failed before command execution."
     }
   },
   "task_score": 37.0,
-  "verdict": "The issue is a useful foundation, but the design diverges from repository behavior and the implementation is structurally unapplyable and functionally broken.",
+  "verdict": "The submission has a useful issue and some genuine review findings, but the design is contradictory and overextended, the test plan is incomplete, and the implementation is syntactically unusable and lacks the critical integration path.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T11:46:47.517764Z",
+    "evaluated_at": "2026-09-08T06:05:20.217599Z",
     "repo_ref": "1.27.1",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 370697,
-      "cached_input_tokens": 281779,
-      "cache_write_input_tokens": 44458,
-      "output_tokens": 12643,
-      "reasoning_output_tokens": 10633
+      "input_tokens": 289623,
+      "cached_input_tokens": 219648,
+      "cache_write_input_tokens": 48503,
+      "output_tokens": 8414,
+      "reasoning_output_tokens": 7193
     },
-    "duration_ms": 458332
+    "duration_ms": 199717
   }
 }

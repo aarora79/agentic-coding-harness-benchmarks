@@ -1,0 +1,155 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.28.0",
+  "complexity": "high",
+  "tags": [
+    "semantic-search",
+    "embeddings",
+    "oauth",
+    "authentication",
+    "litellm",
+    "docker",
+    "terraform",
+    "helm",
+    "fixed-in-1.29.0"
+  ],
+  "model": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+  "model_slug": "claude-opus-4-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.12xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 56.6,
+  "token_accounting_warning": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 9379,
+    "output_tokens": 40821,
+    "cache_read_tokens": 9315955,
+    "cache_write_tokens": 194789,
+    "total_tokens": 9560944,
+    "total_cost_usd": 6.942828749999999,
+    "latency_seconds": 721.1,
+    "num_turns": 79,
+    "generation_tokens_per_sec": 56.6,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 9379,
+  "output_tokens": 40821,
+  "latency_seconds": 721.1,
+  "num_turns": 79,
+  "total_cost_usd": 6.942828749999999,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 9315955,
+  "cache_creation_tokens": 194789,
+  "run_started_at": "2026-09-01T22:22:22.384572Z",
+  "run_ended_at": "2026-09-01T22:34:23.565535Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 9379,
+    "output_tokens": 40821,
+    "cache_read_tokens": 9315955,
+    "cache_write_tokens": 194789,
+    "total_tokens": 9560944,
+    "total_cost_usd": 6.942828749999999,
+    "latency_seconds": 721.1,
+    "num_turns": 79,
+    "generation_tokens_per_sec": 56.6,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input)",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "idp-authenticated-embedding-endpoint",
+    "model": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 21,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 79,
+        "notes": "The issue clearly defines the authentication problem, opt-in behavior, deployment surfaces, testable acceptance criteria, and explicit non-goals. Its largest gap is that the promised configurable expiry buffer has no corresponding configuration parameter, while token-fetch failure and simultaneous static-key/IdP precedence are underspecified. It names real patch targets such as `LiteLLMClient`, `CONFIG_GROUPS`, and the Compose files, but `docs/embeddings.md` is later admitted by the implementation summary not to exist. No independent task statement was supplied, so requirements beyond the identifier and internally consistent artifacts could not be verified."
+      },
+      "lld": {
+        "completeness": 18,
+        "correctness": 13,
+        "specificity": 21,
+        "risk_awareness": 14,
+        "total": 66,
+        "notes": "The LLD provides concrete class signatures, data flow, configuration fields, integration points, and concurrency behavior around `EmbeddingsIdpAuthManager` and `LiteLLMClient.encode`. Its central deficiency is unresolved authentication failure semantics: a failed token fetch returns `None`, after which the embedding request proceeds without the IdP header while a static key may remain active. It also splits configuration between new `Settings` fields and direct `os.getenv` reads, hard-codes the supposedly configurable refresh buffer, and references `docs/embeddings.md` despite the implementation summary saying that file does not exist. The claimed revised HTTPS validation is absent from the submitted LLD text, and the asserted LiteLLM and deployment-surface behavior could not all be independently verified."
+      },
+      "review": {
+        "completeness": 14,
+        "correctness": 12,
+        "specificity": 17,
+        "risk_awareness": 16,
+        "total": 59,
+        "notes": "The review's strongest contribution is identifying concrete HTTPS endpoint validation and missing `Callable` import issues, with actionable resolutions. It nevertheless declares all blockers resolved while the submitted LLD still lacks the stated URL-validation revision and leaves larger issues such as unauthenticated fallback, configuration-source divergence, and the non-configurable buffer unchallenged. The SRE review calls deployment coverage complete even though the implementation omits Helm, ECS task wiring, entrypoint, tfvars, and embeddings-guide changes. Its proposed `mcpgw_registry_embedding_call_errors` metric is explicitly speculative and could not be verified."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 8,
+        "specificity": 18,
+        "risk_awareness": 12,
+        "total": 55,
+        "notes": "The plan spans token caching, validation, header injection, backward compatibility, deployment rendering, UI masking, and end-to-end refresh behavior with concrete expected values. The proposed LiteLLM tests patch `registry.embeddings.client.embedding`, although the design states that `embedding` is imported lazily inside `encode`, making that patch target inconsistent with the described implementation. The search-repository integration test performs no call and leaves every meaningful assertion commented out, while the static-key test never verifies an embedding request. Several API paths, config flags, Helm keys, and execution commands are not grounded by the submitted patch, and concurrency, token-response failures, and accidental static-key fallback lack effective coverage."
+      },
+      "implementation": {
+        "completeness": 10,
+        "correctness": 11,
+        "specificity": 17,
+        "risk_awareness": 9,
+        "total": 47,
+        "notes": "The patch implements the core manager, per-call bearer-header injection, search-repository wiring, settings, startup validation, Compose passthrough, and config masking around concrete symbols including `LiteLLMClient`, `create_embeddings_client`, `_get_embedding_model`, and `lifespan`. It does not satisfy its own end-to-end deployment scope: Terraform variables are declared but not wired into ECS, and Helm, tfvars, entrypoint, CDK, embeddings-guide, and test changes are absent. Token acquisition failure silently permits an embedding call without the IdP header, the 60-second buffer is not configurable, direct environment reads bypass the new settings object, and the unrelated `uv.lock` reproducibility constraint is removed. The summary falsely reports no LLD deviations and materially misstates line counts, while the claimed clean application against the baseline SHA could not be independently confirmed because local command execution was unavailable."
+      }
+    },
+    "task_score": 61.2,
+    "verdict": "The submission presents a detailed and plausible core design, but its implementation is incomplete across required deployment surfaces and leaves consequential authentication fallback and configuration-consistency defects unresolved.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-09-01T23:59:31.974639Z",
+      "repo_ref": "1.28.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 301069,
+        "cached_input_tokens": 235333,
+        "cache_write_input_tokens": 47830,
+        "output_tokens": 10547,
+        "reasoning_output_tokens": 8480
+      },
+      "duration_ms": 186671
+    }
+  }
+}

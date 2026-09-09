@@ -1,0 +1,64 @@
+{
+  "task": "pass-ssrf-allowlist-env-to-registry-container",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 87,
+      "notes": "The issue clearly defines the propagation defect, narrow YAML scope, non-goals, and testable acceptance criteria. Repository inspection confirms the variables exist in `docker-compose.yml`, `.env.example`, Helm, ECS, `Settings`, and `url_guard.py`, but are absent from both targeted compose files. Its largest factual weakness is calling `172.18.0.0/16` the default Podman network and saying every internal upstream is denied, despite the built-in `mcpgw-server` allowlist. No independent task statement was supplied, and issue `#1513` could not be verified from repository evidence."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The LLD provides exact files, insertion anchors, data flow, compatibility boundaries, and rollback guidance sufficient to implement this small change. The core repository analysis is accurate: the settings fields are at `registry/core/config.py:591-607`, the guard consumes them at `registry/utils/url_guard.py:190-193`, and both target manifests omit them. Its largest deficiency is several confident false claims: plain `${VAR}` defaults to blank rather than remaining literal, the fields appear through `/api/config/full` rather than `/api/config`, and `url_guard.py` has no startup log printing allowlist size or contents. The claimed external tracking issue and future release-note target were not verifiable locally."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 61,
+      "notes": "The review's strongest contributions are concrete maintenance concerns about compose drift, engine-specific validation commands, broad CIDR exposure, and implicit DHI inheritance. It nevertheless repeats the LLD's incorrect `${VAR}` and `/api/config` claims, invents startup allowlist logging, and calls a single-container Compose restart zero-downtime despite no replica or rolling-deployment configuration in these manifests. Its `BUILD_VERSION` resolution is internally contradictory: it alternately requires insertion before the comment, directly above `SECRET_KEY`, and above the comment, while the submitted patch actually inserts after the comment. The persona approvals and asserted resolutions were not backed by executed validation."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 6,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 56,
+      "notes": "The plan broadly covers resolved configuration, unset defaults, runtime environment, UI visibility, end-to-end health behavior, rollback, and untouched deployment surfaces. Its core static tests are unusable because `awk '/^  registry:/,/^  [a-z][a-z0-9-]*:$/'` ends on the starting `registry:` line; executing the proposed pipeline returned no SSRF matches and status 1. It also tests prebuilt deployment by merging two standalone full compose files even though `build_and_run.sh` selects only `docker-compose.prebuilt.yml`, and its UI oracle incorrectly curls `/api/config` for fields only present in grouped `/api/config/full` output. The runtime and Podman E2E claims remain unexecuted, and unsetting shell variables does not prove absence when `--env-file \"$REPO/.env\"` may still define them."
+    },
+    "implementation": {
+      "completeness": 24,
+      "correctness": 24,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 92,
+      "notes": "The patch fully implements the inferred task by adding the two canonical `${VAR:-}` entries and matching five-line comment to both missing registry environment blocks. `git apply --check` succeeds against exact tag `1.27.1`, and the target blob hashes and surrounding `SECRET_KEY`/`BUILD_VERSION` context match the real files. No caller, default, image, volume, dependency, or unrelated deployment surface is changed; the implementation follows the existing `docker-compose.yml` convention exactly. The main remaining limitation is absence of an automated compose-parity regression test, which the summary honestly records as a follow-up rather than claiming it was implemented."
+    }
+  },
+  "task_score": 74.8,
+  "verdict": "The submission contains an excellent, correct minimal patch and strong issue framing, but the design review and especially the testing plan contain multiple repository-contradicted operational claims and broken verification commands.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T20:15:55.907404Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 817092,
+      "cached_input_tokens": 684107,
+      "cache_write_input_tokens": 132607,
+      "output_tokens": 10682,
+      "reasoning_output_tokens": 4670
+    },
+    "duration_ms": 259222
+  }
+}

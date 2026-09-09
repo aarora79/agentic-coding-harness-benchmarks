@@ -3,62 +3,62 @@
   "model": "deepseek-v3.2",
   "scores": {
     "github_issue": {
-      "completeness": 20,
+      "completeness": 19,
       "correctness": 14,
-      "specificity": 19,
-      "risk_awareness": 17,
-      "total": 70,
-      "notes": "The issue clearly defines the WAF failure, relevant configuration, scope, non-goals, and mostly testable acceptance criteria. Its largest defect is contradiction: it requires the token never appear in browser-facing URLs and browser history while preserving both an IdP URL containing the token and a legacy fallback containing it. The submitted patch confirms the named internal and external auth-server URLs are central to the proposed flow. No independent task statement was supplied, and the claimed support expectations for all four IdPs could not be independently established."
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 68,
+      "notes": "The issue clearly describes the WAF and URL-leakage problem, defines testable redirect behavior, and supplies useful non-goals. Repository release evidence confirms encrypted server-side ID-token storage and the existing invariant that logout deletes the session record before clearing the cookie. Its proposed reuse of that same record conflicts with the invariant because the registry must leave it alive for the auth server, a lifecycle and replay risk the issue does not acknowledge. No independent task statement was supplied, so the referenced issue number, token-size range, and exact provider coverage could not be independently established."
     },
     "lld": {
       "completeness": 18,
-      "correctness": 11,
-      "specificity": 17,
-      "risk_awareness": 15,
-      "total": 61,
-      "notes": "The LLD gives concrete data flow and targets the same `registry/auth/routes.py` logout integration represented in the patch. Major decisions remain contradictory: the feature flag defaults both true and false, a boolean flag cannot perform the proposed percentage rollout, and the optional mechanisms are treated as rollout prerequisites. Its circuit breaker permits unrestricted HALF_OPEN requests and ignores non-exception failures, while `_validate_idp_redirect_url` uses unsafe substring matching and cannot support arbitrary Keycloak domains reliably. Claims about existing fallback, tracing, metrics, and trusted-host patterns could not all be independently verified against the repository."
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 60,
+      "notes": "The LLD names concrete repository files and symbols, and the submitted source context supports locations such as registry/auth/routes.py, auth_server/server.py, both session-store modules, and the existing logout counters. Its largest design flaw is claiming the session-deletion security invariant is preserved even though a cancelled or blocked registry-to-auth-server redirect leaves the record active after the browser cookie is cleared. It also gives contradictory defaults—session in the Settings example but direct in the compatibility and rollout sections—and alternates between separate signature parameters and an embedded signed payload. The design discusses store outages, races, observability, and rollout, but it does not resolve reference expiration, provider binding, or the no-follow redirect failure mode."
     },
     "review": {
-      "completeness": 17,
-      "correctness": 11,
-      "specificity": 16,
-      "risk_awareness": 16,
-      "total": 60,
-      "notes": "The review identifies relevant latency, pooling, internal-network, forwarded-header, logging, and observability concerns with actionable recommendations. It misses the central fallback-versus-no-token contradiction and declares flawed measures such as substring URL validation and the circuit breaker fully resolved. It also claims fallback preserves logout during a complete auth-server outage, although redirecting the browser to that unavailable service does not provide that guarantee. Several resolutions, including existing nginx rate limiting and POST CSRF behavior, are asserted without verifiable repository evidence."
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 19,
+      "total": 68,
+      "notes": "The review surfaces concrete concerns about store availability, mixed-version rollout, signed references, atomic consumption, provider association, and operational metrics. However, it records several concerns as resolved when they are not: the LLD contains no two-second timeout, no substantive flag-deprecation plan, and no resolution of the provider-binding question. It also treats atomic find-and-delete as fully preserving deletion safety while missing the case where the browser never reaches the auth server. The recommendations are generally prioritized and actionable, but the final approval is too confident given those unresolved security and compatibility decisions."
     },
     "testing": {
-      "completeness": 19,
-      "correctness": 7,
-      "specificity": 12,
-      "risk_awareness": 16,
-      "total": 54,
-      "notes": "The plan spans functional, provider, failure, security, performance, observability, and deployment scenarios. Several core tests cannot prove their stated behavior: the WAF curl lacks redirect following, while the token-redaction command captures client output rather than service logs and may capture the final IdP URL containing the token. Much of the plan tests components omitted by the implementation, including the feature flag, circuit breaker, shared pool, redirect validator, tracing, and new metrics. Exact log messages, POST logout CSRF behavior, test paths, and operational commands are unsupported or left as manual placeholders rather than executable tests with reliable oracles."
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 61,
+      "notes": "The plan covers both modes, signature tampering, concurrent logout, mixed versions, metrics, rollback, and provider redirect behavior with concrete expected parameters. Its store-outage test stops MongoDB before asking the registry to construct the session-mode redirect, so the registry cannot resolve the session and the test does not exercise the intended auth-server failure path. The old-auth-server case accepts failure to terminate the SSO session despite the issue promising preserved logout behavior, and most curl examples inspect output with grep rather than assert status and parameter values. The proposed tests/unit/auth and tests/integration/auth locations could not be independently verified, and important cases such as an unconsumed redirect and provider mismatch are absent."
     },
     "implementation": {
-      "completeness": 15,
-      "correctness": 14,
-      "specificity": 18,
-      "risk_awareness": 12,
-      "total": 59,
-      "notes": "The patch implements the core happy path in `logout_handler`: it calls the internal auth-server URL, forwards host and protocol context, consumes the redirect location, and retains the legacy fallback. It logs the first 100 characters of the returned IdP URL, which can expose token material and directly contradicts the summary's claim that no sensitive data is logged; it also accepts any returned Location without validation. A redirect response lacking Location causes `idp_redirect_url[:100]` to raise before the null check, although the broad exception handler converts that error into fallback behavior. The summary honestly lists several LLD omissions, but patch applicability and surrounding imports/symbols could not be independently checked because repository command execution was unavailable."
+      "completeness": 10,
+      "correctness": 1,
+      "specificity": 14,
+      "risk_awareness": 5,
+      "total": 30,
+      "notes": "The patch attempts the full designed path across configuration, metrics, registry logout, auth-server logout, and both session-store modules, but it is not mergeable. In auth_server/session_store.py, resolve_and_delete_session is inserted inside the still-open delete_session docstring, producing malformed Python, while registry/auth/routes.py removes the @router.get(\"/logout\") decorator and therefore unregisters the tested endpoint. The session-mode branch also stops incrementing the existing present/missing counters even though the summary claims they remain accurate, and no implementation tests are included. An independent git apply check could not run because the read-only command sandbox failed before command execution, but these defects are directly visible in the submitted unified diff."
     }
   },
-  "task_score": 60.8,
-  "verdict": "The submission presents a feasible core logout change, but contradictory security requirements, an overcomplicated and flawed design, largely non-executable testing, and token-bearing URL logging materially limit confidence.",
+  "task_score": 57.4,
+  "verdict": "The submission presents a detailed and mostly repository-shaped design, but unresolved session-lifecycle risks and a syntactically broken patch that removes the logout route make the implementation unusable.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-08-30T20:39:51.717563Z",
+    "evaluated_at": "2026-09-07T21:15:47.243071Z",
     "repo_ref": "1.27.1",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 288430,
-      "cached_input_tokens": 211823,
-      "cache_write_input_tokens": 38655,
-      "output_tokens": 11732,
-      "reasoning_output_tokens": 10076
+      "input_tokens": 149168,
+      "cached_input_tokens": 93783,
+      "cache_write_input_tokens": 33154,
+      "output_tokens": 9687,
+      "reasoning_output_tokens": 8061
     },
-    "duration_ms": 133186
+    "duration_ms": 129923
   }
 }

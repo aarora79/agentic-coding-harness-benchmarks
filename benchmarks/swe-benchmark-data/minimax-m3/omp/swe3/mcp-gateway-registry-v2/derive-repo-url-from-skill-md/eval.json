@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "minimax-m3",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 79,
+      "notes": "The issue provides unusually concrete acceptance criteria, explicit non-goals, and clear overwrite and missing-value behavior. Repository checks confirm the named parse endpoint, modal components, URL utilities, and existing SkillCard and SkillRegistrationRequest repository_url fields. Its largest gap is semantic-search propagation: registry/api/search_routes.py and the search-index metadata also require changes, while the issue only identifies frontend typing and hooks. No independent task statement was supplied, so broader requirement coverage beyond the task identifier and artifacts could not be verified."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 62,
+      "notes": "The LLD is highly specific about real files and correctly traces the primary parse-service, registration-form, listing-hook, and Dashboard-modal paths. Its major design failure is that SemanticSearchResults cannot receive repository_url because SkillSearchResult in registry/api/search_routes.py and registry/repositories/documentdb/search_repository.py omit it. It also incorrectly claims the frontend lacks a test directory, despite frontend/src/components/__tests__ and configured Testing Library dependencies, and its claim about existing parse success/error counters was not supported. SSRF, optional-schema compatibility, overwrite behavior, and rollback are discussed, but search-index migration and the inherited acceptance of hosts such as notgithub.com are not adequately mitigated."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 55,
+      "notes": "The review contains concrete, file-oriented observations about preserving user input, raw-host mapping, optional database fields, and SSRF boundaries. It misses the load-bearing design defect that the semantic-search backend model and index never carry repository_url, even though it declares the revised LLD ready. Several findings are poorly calibrated: a redundant regex guard is called must-fix, and the security section incorrectly implies debug logging of the full URL cannot leak it. The inconsistent blocker count and failure to challenge the false frontend-test claim further weaken its verdict and risk assessment."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 9,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 57,
+      "notes": "The helper cases and manual UX scenarios have clear inputs and expected values, including enterprise hosts, malformed input, hidden links, and preservation of typed values. The proposed endpoint tests are incomplete pseudocode and patch registry.services.skill_service.parse_skill_md, which does not exist as a module-level symbol; the real callable is SkillService.parse_skill_md obtained through get_skill_service. The plan also falsely says no frontend test directory exists, cites test_skill_routes_security.py as SSRF coverage when that file tests skill scanning, and uses a skills/example/SKILL.md URL absent from this repository. It does not test the semantic-search backend propagation or guard against the edit-form field deletions and version-mapping regression present in the patch."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 6,
+      "total": 36,
+      "notes": "The submitted diff applies cleanly to the exact v1.0.19 commit, and its URL helper, parse response field, registration auto-fill, and primary SkillCard link split fit the corresponding source. However, Dashboard.tsx deletes five required properties from the edit-mode setSkillForm object, which violates the strictly typed state shape and prevents the frontend from compiling; useSkills.ts also replaces version instead of adding repository_url, and the success toast is removed without justification. The semantic-search feature is incomplete because neither SkillSearchResult nor DocumentDB search indexing/results expose repository_url, so the added TypeScript field and link receive no value. The summary's claim of no LLD deviations is therefore false, and the helper-only tests do not cover these regressions or the required endpoint and UI behavior."
+    }
+  },
+  "task_score": 57.8,
+  "verdict": "The submission has a strong, specific issue and substantial design detail, but the implementation is incomplete and frontend-breaking, chiefly because semantic-search propagation is absent and the edit-form patch does not type-check.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-08T19:40:09.616024Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 759145,
+      "cached_input_tokens": 648578,
+      "cache_write_input_tokens": 110189,
+      "output_tokens": 12817,
+      "reasoning_output_tokens": 4276
+    },
+    "duration_ms": 187997
+  }
+}
