@@ -3510,8 +3510,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--agent",
         help="Override: coding agent that runs the task ('claude' for Claude "
-        "Code, 'pi' for the pi coding agent). Both support provider=endpoint "
-        "or provider=bedrock.",
+        "Code, 'pi' for the pi coding agent, 'omp' for oh-my-pi, 'kiro' for "
+        "kiro-cli, 'codex' for OpenAI Codex). All support provider=bedrock; "
+        "all except kiro also support provider=endpoint.",
     )
     parser.add_argument(
         "--skill",
