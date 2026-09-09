@@ -83,7 +83,8 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │       ├── pricing.json          # instance pricing for cost derivation
 │       └── tests/                # unittest suite
 ├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
-├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router)
+│   └── release-notes/            # release notes per version (newest first) + the versioning scheme
+├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router, release-notes)
 └── .github/                      # CI workflows and repo metadata
 ```
 
@@ -484,6 +485,12 @@ For ARM64 builds, add QEMU setup with `multiarch/qemu-user-static`.
 
 - Check available labels first with `gh label list`, and apply only labels that already exist.
 - If a new label would help, suggest it in the issue description or a comment rather than trying to create it during issue creation.
+
+### Releases and versioning
+
+- Releases follow [Semantic Versioning](https://semver.org), bare with no `v` prefix (`0.1.0`, `0.2.0`, ...). Bump rules for this benchmark repo: a **new dataset** or a **new benchmarked model** is a MINOR; a **methodology change** (anything that makes previously published numbers no longer comparable) or **completely new functionality** is a MAJOR; everything else (doc and slide fixes, chart or frontier regeneration, bug fixes, dependency bumps) is a PATCH.
+- Release notes live in [docs/release-notes/](docs/release-notes/), one file per version (`docs/release-notes/{version}.md`) plus a [docs/release-notes/README.md](docs/release-notes/README.md) index, newest first. The `media-assets` tag hosts asset attachments and is not a release: ignore it when finding the latest version.
+- Cut a release with the **`release-notes` skill** ([.claude/skills/release-notes/SKILL.md](.claude/skills/release-notes/SKILL.md)): it computes the bump from the change set, gathers commits, PRs and closed issues since the base version, writes the notes, runs the `security-check` gate, opens a PR (never commits to `main`), and tags the merge commit after the PR is merged.
 
 ## Scratchpad for planning and design
 

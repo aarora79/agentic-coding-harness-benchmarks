@@ -163,6 +163,7 @@ Where to read more, by topic:
 | [docs/gpu-selection-h200-vs-l40s.md](docs/gpu-selection-h200-vs-l40s.md) | Which GPU to serve on: one H200 slice of a p5en vs a whole g6e.4xlarge (1x L40S), same model and config. Why the H200 slice is 41% cheaper per unit of work despite costing 2.6x per hour, and what it costs to serve N developers. Public on-demand prices, no discounts. |
 | [docs/cost-per-task-methodology.md](docs/cost-per-task-methodology.md) | How the cost numbers are derived: the two cost lenses, prompt-caching accounting (API vs self-hosted), and why agentic coding is prefill-bound. |
 | [docs/serving-optimization-notes.md](docs/serving-optimization-notes.md) | Portable vLLM serving defaults and why we do not tune the prefill knobs per model. |
+| [docs/release-notes/](docs/release-notes/) | Release notes per version, newest first, and the versioning scheme: new dataset or model is a minor, a methodology change or new functionality is a major. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) / [SECURITY.md](SECURITY.md) / [SUPPORT.md](SUPPORT.md) | How to contribute, report a vulnerability, and get help. |
 
 ## See also
