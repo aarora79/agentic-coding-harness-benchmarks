@@ -352,14 +352,16 @@ def _render(
     if any_hardware:
         note.append(
             " _hardware-derived (throughput)_ (self-hosted vLLM): a rented GPU has no "
-            "per-token bill, so cost is the model's blended cost-per-token -- measured "
-            "by the p5en.48xlarge throughput sweep at peak concurrency -- times the "
-            "tokens this run processed. EVERY self-hosted row is priced on that one "
-            "sweep, including models served on a smaller g6e.12xlarge box, so the "
-            "fleet shares a single basis and the dollars compare with each other. A "
-            "row is therefore the cost of that model's work on p5en, not a quote for "
-            "the box it happened to run on. This prices the real work done, unlike a "
-            "wall-clock estimate that would also charge idle agent-thinking time."
+            "per-token bill, so cost is the model's blended cost-per-token -- the "
+            "cheapest concurrency level of ITS OWN throughput sweep -- times the "
+            "tokens this run processed. Each row is priced at the rate of the "
+            "instance that model was actually served on, named in this column, at "
+            "that instance's rate in self-hosted/vllm/pricing.json. **The instance "
+            "differs by row, so a self-hosted dollar figure is the cost of that "
+            "model's work on ITS OWN hardware, not a common basis**; comparing two "
+            "self-hosted rows compares two model-plus-hardware pairings rather than "
+            "the models alone. This prices the real work done, unlike a wall-clock "
+            "estimate that would also charge idle agent-thinking time."
         )
     if any_metered:
         note.append(
