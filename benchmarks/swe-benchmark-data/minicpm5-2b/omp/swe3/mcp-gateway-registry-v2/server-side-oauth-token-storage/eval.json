@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 11,
+      "total": 60,
+      "notes": "The issue provides a crisp symptom, explicit scope, non-goals, dependencies, and mostly testable acceptance criteria. Its largest weakness is framing access and refresh tokens as the primary cookie-size cause, while repository issue #971 identifies the full session payload, especially groups, and the eventual fix stored the complete session behind an opaque session ID. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) The claimed cookie-only backward compatibility omits server-store availability, logout cleanup, key management, reference authorization, and raw-token endpoint risks. Because no independent task statement was supplied, the requirement for a token-returning endpoint could not be verified."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 3,
+      "specificity": 15,
+      "risk_awareness": 8,
+      "total": 38,
+      "notes": "The LLD is concrete about proposed files, fields, API shapes, configuration, and rollout stages. Its central retrieval design is invalid: it treats the signed cookie value as the reference ID without session validation or user scoping, then references an undefined doc variable while ignoring token_refs. The storage sketch uses nonexistent bson.MongoClient and timezone.utc.timedelta APIs, broken XOR encoding, plaintext token fields, and no TTL index despite claiming automatic expiry. It acknowledges weak encryption and MongoDB failure concerns, but leaves those load-bearing decisions open while also proposing an ungrounded rewrite of the unrelated file-based token refresher."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 14,
+      "risk_awareness": 13,
+      "total": 46,
+      "notes": "The review's strongest contribution is identifying XOR encryption, connection retry, rate limiting, key rotation, and refresher compatibility as concrete concerns. It nevertheless approves the design while missing its plaintext token fields, absent TTL index, unauthenticated lookup logic, undefined variables, and invalid MongoDB and datetime APIs. Recommendations such as motor.motor_asyncio.Session and client-side decryption are technically dubious or disconnected from the stated server-side design. The shipped repository solution used AES-GCM with HKDF, an opaque signed session ID, logout deletion, and an explicitly incompatible rollout, which are major architectural corrections this review did not demand. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md))"
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 12,
+      "risk_awareness": 9,
+      "total": 39,
+      "notes": "The plan covers callback storage, retrieval, expiry, revocation, compatibility, configuration, and end-to-end behavior with several concrete expected states. However, the expiry test modifies MongoDB only after calling the endpoint, literal reference_id cookie assertions do not account for signed serialization, and the proposed get_mongo_client verification targets a symbol absent from the patch. The pytest command masks both missing and failing tests with an unconditional success message, while several sections are scenarios rather than executable tests. Coverage omits user-isolation attacks, reference guessing, encryption integrity, MongoDB outage behavior, TTL-index creation and deletion, logout cleanup, and replay."
+    },
+    "implementation": {
+      "completeness": 1,
+      "correctness": 0,
+      "specificity": 5,
+      "risk_awareness": 1,
+      "total": 7,
+      "notes": "The patch contains only a token_store.py hunk, so the claimed callback integration, retrieval endpoint, and token_refresher changes are entirely absent. The summary calls this an added file, but the diff is not a new-file diff and assumes existing context; local git apply verification was unavailable because command sandbox initialization failed, so its repository applicability could not be confirmed. The submitted module is unusable due to bson.MongoClient, timezone.utc.timedelta, ord() on byte integers, decode() on a string, and undefined pymongo_asc. It also stores both tokens in plaintext reference fields, creates no TTL index, uses broken XOR rather than AES-GCM, and falsely claims no LLD deviations while listing core work as unfinished."
+    }
+  },
+  "task_score": 38.0,
+  "verdict": "The issue offers a useful starting point, but the design is technically unsound and the implementation is a nonfunctional, incomplete fragment that does not integrate the feature.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T10:44:57.407982Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 128793,
+      "cached_input_tokens": 76845,
+      "cache_write_input_tokens": 28426,
+      "output_tokens": 8571,
+      "reasoning_output_tokens": 6449
+    },
+    "duration_ms": 144095
+  }
+}

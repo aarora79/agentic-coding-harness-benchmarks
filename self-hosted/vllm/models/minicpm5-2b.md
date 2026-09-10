@@ -84,18 +84,68 @@ The 856K-token cache is the number that makes this model interesting for fan-out
 
 Weights plus activations come to roughly 7 GiB, so the whole 128K window fits well inside a 24 GB card. On a g6.xlarge (1x L4, 24 GB) expect roughly 13 GiB free for KV, which is about 318K tokens at bf16 — still 2.4 full-length sequences. The L4 costs less per hour but has about a third of the L40S's memory bandwidth (300 GB/s vs 864 GB/s) and about a third of its BF16 tensor throughput, and agentic coding is prefill-bound ([cost-per-task methodology](../../../docs/cost-per-task-methodology.md)), so the cheaper box is likely the more expensive one per task. Measure before assuming either way.
 
-## Benchmarking it
+## Measured results (omp, /swe3, mcp-gateway-registry-v2)
+
+Run of 2026-09-10 on this node. **Mean 42.59** over the 19 tasks that scored, median 41.40, standard deviation 8.97, range 23.4 to 60.2. Two tasks produced no artifacts at all and are excluded from the mean as model failures: `derive-repo-url-from-skill-md` and `registration-admission-control-gate`. Full table in the run's [run-summary.md](../../../benchmarks/swe-benchmark-data/minicpm5-2b/omp/swe3/mcp-gateway-registry-v2/run-summary.md).
+
+| Tier | n | Mean | Median |
+|---|---|---|---|
+| trivial | 5 | 43.8 | 41.8 |
+| **low** | 5 | **51.0** | **56.0** |
+| medium | 5 | 40.4 | 41.4 |
+| high | 4 | 33.5 | 36.2 |
+
+Scores fall from low through medium to high as expected, and the low tier is the model's best region by roughly 8 points over medium. Read the tier means as directional only: four or five tasks against a 9-point standard deviation does not separate them from noise, and both failures sit in medium and high, so the high tier's 33.5 already excludes its worst case.
+
+For scale, the published frontier on this dataset runs 76 to 83. A 2.5B model reaching 42.6 completed the work; it did not compete.
+
+### Two failure modes, both reproducible
+
+- **Runaway.** Four attempts across tasks 6, 11, 14 and 15 exceeded 110,000 output tokens and terminated on the 1800s wall clock rather than on completion, against a roughly 30,000-token norm. Two produced nothing. A guard that kills a session once output passes about 3x the median would reclaim half an hour of GPU each time without changing any result.
+- **Truncation.** A session ends cleanly and normally but short of six artifacts (4/6 or 5/6). The harness's top-up pass recovers some of these and not others.
+
+### Retry economics matter more than the mean
+
+Two thirds of tasks needed a second attempt, and the run reached its final tally only by leaning on `max_retries: 1` plus the top-up pass. **Budget roughly two agent sessions per completed task**, and one attempt in six spending a full 1800s producing nothing. A per-call price for a model this size looks trivially cheap; the effective cost is several times that, and no token price reveals the gap.
+
+## Throughput and cost (1x L40S, g6e.4xlarge)
+
+Seven-level agentic concurrency sweep, 600s per level, priced at the repo's 3-year commitment basis of $1.298/hr:
+
+| Concurrency | Output tok/s | Prefill tok/s | TTFT mean (ms) | TPOT mean (ms) | $/1M blended |
+|---|---|---|---|---|---|
+| 1 | 28.8 | 4,644 | 7,590 | 13.0 | 0.080 |
+| 2 | 79.5 | 3,084 | 3,059 | 19.0 | 0.110 |
+| **5** | 76.8 | 8,286 | 4,065 | 47.3 | **0.040** |
+| **7** | **82.5** | 6,597 | 6,555 | 68.5 | 0.050 |
+| 10 | 65.9 | 7,699 | 9,602 | 107.7 | 0.050 |
+| 15 | 40.8 | 4,904 | 32,677 | 253.4 | 0.070 |
+| 20 | 37.5 | 4,944 | 72,708 | 280.5 | 0.070 |
+
+**Peak sustained output is 82.5 tokens/sec at concurrency 7**; the cheapest point is concurrency 5 at **$0.04 per 1M blended tokens**, or **$0.0036 per task** at this model's measured 83,753 output tokens per task.
+
+Throughput peaks at 7 and falls away after 10, while TTFT climbs from 6.6s to 32.7s between 7 and 15 and TPOT quadruples. **Concurrency 7 to 10 is the usable ceiling on this card**; past it you pay in latency for throughput you do not get.
+
+Two caveats on this data:
+
+- **The c=1 TTFT of 7.6s is high**, and the sweep's own guidance treats a large uncontended TTFT as a signal to discard the run. Here the cause is prefill volume rather than queueing: agentic prompts run to tens of thousands of tokens and prefill measured 4,644 tokens/sec, which accounts for the latency directly. The c=1 output figure of 28.8 tokens/sec is correspondingly prefill-dominated and understates decode.
+- **KV-cache usage, running and waiting request gauges came back empty** for every level, so the saturation story rests on the throughput and latency curves alone. Worth fixing in the collector before quoting a concurrency ceiling with confidence.
+
+## Reproducing it
 
 ```bash
 # Quality (the server must already be running)
 cd benchmarks
 ./scripts/run-e2e-benchmark.sh --provider vllm --model minicpm5-2b \
     --dataset dataset/mcp-gateway-registry-v2.yaml --agent omp --skill swe3 --yes
+
+# Throughput
+cd self-hosted/vllm
+./scripts/run-throughput-sweep.sh --model minicpm5-2b --context-window 131072
 ```
 
-Set expectations before reading the score. This is a 2.5B model against a leaderboard whose cheapest entry is a 27B one, and `/swe3` asks for a complete design package plus a working patch on tasks drawn from real closed issues. The card's own claims (LiveCodeBench v6 69.1, SWE-bench Verified 46.4) sit far below the 78-83 band the published frontier occupies, and this repo exists because vendor numbers do not predict behaviour on someone else's repository.
-
-The interesting question is not where its mean lands but whether it clears anything in the **trivial** and **low** tiers of the complexity breakdown, and whether it is usable as a scout that feeds a frontier model — a role the current `models.json` has no measurement for, because every score in it comes from whole-task patch authoring.
+> [!WARNING]
+> `run-e2e-benchmark.sh` has **no stray-repo-root-write sweep**. That protection lives in `run-multi-model-benchmark.sh` (quality) and `run-throughput-harness.py` (throughput), so the single-model path the `/benchmark` skill drives is unprotected. This run leaked `fix_config.py`, `lld.md`, `patch.diff` and a `registry/` tree into the repository root, none of which the `.gitignore` name backstops cover. Check `git status` before staging, and never `git add -A` after a single-model run.
 
 ## Naming note
 
