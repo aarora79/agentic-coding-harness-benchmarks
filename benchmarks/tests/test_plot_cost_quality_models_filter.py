@@ -6,9 +6,14 @@ places -- a slug that produced nothing must be an error rather than a quiet gap,
 and a filtered frontier must not be written to the fleet-wide path where it would
 be read as the whole field. Both are pinned here.
 
-Also pinned: the cost-basis footnote survives matplotlib's MathText handling. A
-note that names two rates contains a pair of dollar signs, and unescaped that
-silently deletes the very figures the note exists to state.
+Also pinned: the cost-basis footnote survives matplotlib's MathText handling.
+Any dollar figure in that note must be escaped, or matplotlib silently deletes
+the very amounts the note exists to state.
+
+And pinned: the frontier writer refuses to rebuild a committed file from a
+different dataset scope. ``--repo`` still defaults to v1 while the headline
+results are v2, so the guard is what stands between a documented command and
+a silently replaced chart.
 
 And pinned: no two point labels overlap. With the white label plates removed,
 an overlap is unreadable rather than merely ugly, so the placer's fixed-point
@@ -179,10 +184,16 @@ class TestEscapeDollars(unittest.TestCase):
         self.assertEqual(cq._escape_dollars("Kiro credits"), "Kiro credits")
 
     def test_default_note_is_safe_to_render(self) -> None:
-        """The shipped default names two rates, so it needs the escape."""
+        """No bare ``$`` may reach MathText, whatever the shipped default says.
+
+        The note used to quote one fleet-wide rate and this asserted it. It no
+        longer can: the canonical throughput arms sit on different instances
+        (p5en, p6-b300, p5e, g6e.4xlarge) at rates from $1.298 to $94.91, so
+        naming a single one would be false. The escape invariant is what this
+        test is actually for, and it holds whether or not the note names money.
+        """
         escaped = cq._escape_dollars(cq._DEFAULT_COST_BASIS_NOTE)
         self.assertNotIn("$", escaped.replace(r"\$", ""))
-        self.assertIn(r"\$27.72/hr", escaped)
 
 
 class TestLabelOffsets(unittest.TestCase):
@@ -323,3 +334,90 @@ class TestLabelOffsets(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestScopeChangeGuard(unittest.TestCase):
+    """A frontier JSON must not be silently rebuilt from another dataset.
+
+    ``--repo`` defaults to the v1 dataset while the headline results are v2, so
+    running a documented command without the flag rebuilt a 19-model v2 chart
+    from whatever v1 runs existed and overwrote the good file. The scope is
+    already in the payload, so the writer compares it and refuses.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self._tmp.name) / "pareto-frontier-omp-swe3.json"
+        self.addCleanup(self._tmp.cleanup)
+
+    def _write(self, **scope: object) -> None:
+        self.path.write_text(json.dumps(scope), encoding="utf-8")
+
+    def test_same_scope_is_allowed(self) -> None:
+        self._write(harness="omp", skill="swe3", repo="mcp-gateway-registry-v2")
+        cq._guard_scope_change(
+            self.path, harness="omp", skill="swe3", repo="mcp-gateway-registry-v2"
+        )
+
+    def test_different_repo_is_refused(self) -> None:
+        """The exact mistake: the v1 default overwriting the v2 frontier."""
+        self._write(harness="omp", skill="swe3", repo="mcp-gateway-registry-v2")
+        with self.assertRaisesRegex(cq.ScopeMismatchError, "mcp-gateway-registry-v2"):
+            cq._guard_scope_change(
+                self.path, harness="omp", skill="swe3", repo="mcp-gateway-registry"
+            )
+
+    def test_reverse_mismatch_is_refused(self) -> None:
+        """And the same bug the other way: v2 scope over the v1 combined file."""
+        self._write(
+            harnesses=["claude-code", "pi"], skill="swe3", repo="mcp-gateway-registry"
+        )
+        with self.assertRaises(cq.ScopeMismatchError):
+            cq._guard_scope_change(
+                self.path,
+                harness="claude-code+pi",
+                skill="swe3",
+                repo="mcp-gateway-registry-v2",
+            )
+
+    def test_combined_shape_matching_scope_is_allowed(self) -> None:
+        """The combined file keys on ``harnesses`` (a list), not ``harness``."""
+        self._write(
+            harnesses=["claude-code", "pi"], skill="swe3", repo="mcp-gateway-registry"
+        )
+        cq._guard_scope_change(
+            self.path,
+            harness="claude-code+pi",
+            skill="swe3",
+            repo="mcp-gateway-registry",
+        )
+
+    def test_force_overrides_a_mismatch(self) -> None:
+        self._write(harness="omp", skill="swe3", repo="mcp-gateway-registry-v2")
+        cq._guard_scope_change(
+            self.path,
+            harness="omp",
+            skill="swe3",
+            repo="mcp-gateway-registry",
+            force=True,
+        )
+
+    def test_missing_file_is_allowed(self) -> None:
+        """A first run has nothing to clobber."""
+        cq._guard_scope_change(
+            self.path, harness="omp", skill="swe3", repo="mcp-gateway-registry-v2"
+        )
+
+    def test_unreadable_file_is_allowed(self) -> None:
+        """Writing a fresh file is the repair for a corrupt one."""
+        self.path.write_text("{not json", encoding="utf-8")
+        cq._guard_scope_change(
+            self.path, harness="omp", skill="swe3", repo="mcp-gateway-registry-v2"
+        )
+
+    def test_payload_without_scope_keys_is_allowed(self) -> None:
+        """A pre-guard file that never recorded a scope must not hard-fail."""
+        self._write(note="an older payload")
+        cq._guard_scope_change(
+            self.path, harness="omp", skill="swe3", repo="mcp-gateway-registry-v2"
+        )

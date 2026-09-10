@@ -142,10 +142,12 @@ def _blended_cost_per_token(
         arms: Optional ``{model: arm-directory}`` overrides. A model swept on
             more than one instance has one summary per arm, and the arm chosen
             decides the hardware basis of that point. The bare slug is the
-            CANONICAL arm (the p5en sweep, so the whole fleet shares one basis);
-            an alternative basis is a suffixed sibling (e.g. ``gemma-4-31b-g6e``)
-            and must be asked for by name, since mixing the two would put two
-            hardware bases on one cost axis.
+            CANONICAL arm; an alternative basis is a suffixed sibling (e.g.
+            ``gemma-4-31b-g6e``) and must be asked for by name. Note the
+            canonical arms are no longer one shared instance -- most are p5en,
+            but kimi-k3 is p6-b300, minimax-m3 is p5e and minicpm5-2b is
+            g6e.4xlarge -- so a cost axis built from them already mixes hardware
+            bases and is directional across models (see _DEFAULT_COST_BASIS_NOTE).
     """
     arm = (arms or {}).get(model, model)
     summary = _read_json(PERF_SUMMARY_DIR / arm / PERF_SUMMARY_FILENAME)
@@ -509,6 +511,67 @@ def _point_dict(p: ModelPoint) -> dict:
     return entry
 
 
+class ScopeMismatchError(RuntimeError):
+    """An output file was built from a different (harness, skill, repo)."""
+
+
+def _guard_scope_change(
+    out_path: Path,
+    *,
+    harness: str,
+    skill: str,
+    repo: str,
+    force: bool = False,
+) -> None:
+    """Refuse to overwrite a frontier JSON that was built from another scope.
+
+    ``--repo`` defaults to the v1 dataset while the headline results are v2, so
+    running a documented command without the flag silently rebuilds a 19-model
+    v2 chart from whatever v1 runs happen to exist, and the wrong file is
+    written before anyone notices. The scope is already recorded in the payload,
+    so compare it with what is on disk and stop rather than clobber. Both
+    directions matter: rebuilding the v1 combined chart at v2 scope is the same
+    bug in reverse.
+
+    Args:
+        out_path: The JSON about to be written.
+        harness: Harness slug for the run being written.
+        skill: Skill folder for the run being written.
+        repo: Dataset scope for the run being written.
+        force: Overwrite despite a mismatch. For a deliberate re-scope.
+
+    Raises:
+        ScopeMismatchError: The file exists, records a different scope, and
+            ``force`` is not set.
+    """
+    if force or not out_path.exists():
+        return
+    try:
+        existing = json.loads(out_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return  # Unreadable or not ours: writing a fresh one is the repair.
+
+    def _harness_of(doc: dict) -> str | None:
+        """Read the harness from either shape: single-harness or combined."""
+        one = doc.get("harness")
+        if isinstance(one, str):
+            return one
+        many = doc.get("harnesses")
+        return "+".join(many) if isinstance(many, list) and many else None
+
+    was = (_harness_of(existing), existing.get("skill"), existing.get("repo"))
+    now = (harness, skill, repo)
+    if None in was or was == now:
+        return
+    raise ScopeMismatchError(
+        f"{out_path.name} was built from harness={was[0]} skill={was[1]} "
+        f"repo={was[2]}, but this run is harness={now[0]} skill={now[1]} "
+        f"repo={now[2]}. Writing would replace it with a different dataset's "
+        f"numbers. Re-run with --repo {was[2]} to regenerate what is there, or "
+        f"pass --force if the re-scope is deliberate."
+    )
+
+
 def _write_frontier_json(
     points: list[ModelPoint],
     *,
@@ -519,6 +582,7 @@ def _write_frontier_json(
     stem: str | None = None,
     models_filter: list[str] | None = None,
     throughput_arms: dict[str, str] | None = None,
+    force: bool = False,
 ) -> Path:
     """Emit the Pareto frontier (score vs cost/task) as machine-readable JSON.
 
@@ -574,6 +638,7 @@ def _write_frontier_json(
     out_dir.mkdir(parents=True, exist_ok=True)
     name = stem or f"pareto-frontier-{HARNESS_CODES.get(harness, harness)}-{skill}"
     out_path = out_dir / f"{name}.json"
+    _guard_scope_change(out_path, harness=harness, skill=skill, repo=repo, force=force)
     out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     logger.info("wrote %s", out_path)
     return out_path
@@ -990,17 +1055,21 @@ def _escape_dollars(text: str) -> str:
     return re.sub(r"(?<!\\)\$", r"\\$", text)
 
 
-# Every self-hosted point is priced on the p5en sweep -- the canonical arm, the
-# bare model slug -- so the fleet shares one basis even where a model was served
-# on a smaller g6e box. Naming g6e's rate here would imply some points carry it.
-# A chart that deliberately prices on the g6e arm (--throughput-arm) must pass
-# its own note via --cost-basis-note.
+# Each self-hosted point is priced from its OWN throughput sweep (the canonical
+# arm, the bare model slug), on whichever instance that model was actually
+# served on. That was one shared basis while every sweep ran on p5en, but it no
+# longer is: kimi-k3 was swept on p6-b300.48xlarge, minimax-m3 on p5e.48xlarge
+# and minicpm5-2b on g6e.4xlarge. Even among the p5en arms the hourly rate
+# varies from $3.465 to $27.72 with TP proration. So the note must NOT promise a
+# single fleet-wide rate. A chart that deliberately prices on a non-canonical
+# arm (--throughput-arm) should still pass its own note via --cost-basis-note.
 _DEFAULT_COST_BASIS_NOTE = (
-    "Self-hosted cost basis: every self-hosted point is priced on the "
-    "p5en.48xlarge throughput sweep at $27.72/hr (3-year EC2 Instance Savings "
-    "Plan), prorated by TP for a partial-box run, so the fleet shares one basis "
-    "even where a model was served on a smaller box -- see "
-    "self-hosted/vllm/pricing.json."
+    "Self-hosted cost basis: each point is priced from that model's own "
+    "throughput sweep, at the rate of the instance it was served on (3-year EC2 "
+    "Instance Savings Plan, prorated by TP for a partial-box run) -- see "
+    "self-hosted/vllm/pricing.json. Most models were swept on p5en.48xlarge, but "
+    "not all, and the prorated rate differs between them, so self-hosted dollars "
+    "are directional across rows rather than one common basis."
 )
 
 
@@ -1510,6 +1579,15 @@ def _parse_args() -> argparse.Namespace:
         "--dark", action="store_true", help="Render the dark-mode theme"
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Overwrite outputs even when the existing Pareto-frontier JSON was "
+            "built from a different --repo / --harness / --skill. Without this, a "
+            "scope mismatch is an error rather than a silent replacement."
+        ),
+    )
+    parser.add_argument(
         "--metrics-dir",
         type=Path,
         default=DEFAULT_METRICS_DIR,
@@ -1599,6 +1677,19 @@ def main() -> None:
             point.n_tasks,
         )
     frontier = _pareto_frontier(points)
+    metrics_dir = args.metrics_dir.expanduser().resolve()
+    stem = f"pareto-frontier-{output.stem}" if args.models else None
+    # Check the scope on BOTH themes, before either output is touched: the dark
+    # run writes no JSON, so without this it would clobber the dark image using
+    # the very scope the light run just refused.
+    _guard_scope_change(
+        metrics_dir
+        / f"{stem or f'pareto-frontier-{HARNESS_CODES.get(args.harness, args.harness)}-{args.skill}'}.json",
+        harness=args.harness,
+        skill=args.skill,
+        repo=args.repo,
+        force=args.force,
+    )
     # Emit the machine-readable frontier once (light run), theme-independent.
     if not args.dark:
         _write_frontier_json(
@@ -1606,11 +1697,12 @@ def main() -> None:
             harness=args.harness,
             skill=args.skill,
             repo=args.repo,
-            out_dir=args.metrics_dir.expanduser().resolve(),
+            out_dir=metrics_dir,
             # A filtered run names its own artifacts (enforced above), so derive
             # the JSON stem from the image and never clobber the fleet-wide file.
-            stem=f"pareto-frontier-{output.stem}" if args.models else None,
+            stem=stem,
             models_filter=args.models,
+            force=args.force,
         )
     # Colour carries the cost BASIS, which is the chart's main reading hazard: a
     # metered Bedrock bill and a hardware-derived self-hosted figure are dollars
@@ -1671,4 +1763,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ScopeMismatchError as exc:
+        # A wrong --repo is a mistake to correct, not a stack trace to read.
+        logger.error("%s", exc)
+        raise SystemExit(2) from None
