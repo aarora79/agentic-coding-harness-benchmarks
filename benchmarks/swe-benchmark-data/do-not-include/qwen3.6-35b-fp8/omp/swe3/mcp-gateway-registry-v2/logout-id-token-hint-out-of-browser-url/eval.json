@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 60,
+      "notes": "The issue clearly identifies the WAF and URL-leakage problem and names the relevant logout routes. Its largest deficiency is contradictory scope: acceptance requires server-side SSO termination, while the out-of-scope section defers provider implementations, and the compatibility fallback deliberately restores token-bearing URLs. The submitted patch context supports the referenced registry/auth/routes.py logout_handler and auth_server/server.py logout flow. No independent task statement establishes the added endpoint, configuration, or metrics as requirements, and the dependency on \"issue #1503 (this issue)\" is circular."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 6,
+      "specificity": 15,
+      "risk_awareness": 11,
+      "total": 44,
+      "notes": "The LLD is unusually concrete about files, models, configuration, rollout, and failure paths. Its prescribed placement puts the new decorator after app.include_router(internal_router); FastAPI copies routes when the router is included, so that endpoint will not be exposed. The revised RFC 7009 approach also conflates token revocation with terminating the user's browser SSO session, and several claimed provider revocation endpoints or ID-token semantics are unsupported. The original stub-based design remains alongside conflicting review resolutions, including contradictory claims about a startup check and a supposedly shared per-request client."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 70,
+      "notes": "The review's strongest aspect is its concrete identification of unfinished helpers, excessive scope, fallback leakage, timeout, pooling, logging, and deployment-order risks. It correctly refuses unconditional approval and gives prioritized actions tied to the LLD. However, its recommendation to use RFC 7009 universally for ID-token revocation is technically unsound as a browser SSO termination mechanism, while Content-Type enforcement is mischaracterized as CSRF protection. It also misses the fatal placement of the endpoint after include_router and does not substantiate several provider capability claims."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 13,
+      "total": 50,
+      "notes": "The plan covers success, authentication, malformed input, fallback, compatibility, deployment, and multi-provider cases with concrete expected responses. Several procedures cannot prove their stated oracle: curl -s does not report status codes, stopping a service is not a 500 response, and port 9999 produces connection failure rather than 404. AUTH_SERVER_INTERNAL_LOGOUT_URL is used inconsistently with and without /internal, warnings emitted by the registry are attributed to auth-server logs, and FastAPI may reject the non-JSON body before the handler's Content-Type check. The plan lacks repository-native automated test locations, explicit assertions for the new metric, and a direct server-side session-deletion oracle."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 13,
+      "risk_awareness": 6,
+      "total": 30,
+      "notes": "The patch touches the expected routing, configuration, and metrics files, but it adds internal_logout_session after app.include_router(internal_router), leaving the route unregistered and causing configured registries to fall back to the legacy token-bearing URL. The imported logout_internal_path counter is never incremented, failure branches incorrectly increment the missing-token counter, and a malformed legacy token is counted as present. Revoking an ID token does not terminate the browser's IdP session, authentication failures are treated as successful revocation, the network-error branch does not actually retry, and the in-memory idempotency cache is race-prone, replica-local, and unbounded. Local git apply verification was unavailable because the managed shell sandbox could not initialize, so the summary's clean-application claim could not be independently confirmed; regardless, the visible route-registration defect prevents the implementation from delivering the stated design."
+    }
+  },
+  "task_score": 50.8,
+  "verdict": "The submission is detailed and repository-aware, but the implementation leaves its internal endpoint unregistered, so the fallback continues exposing the ID token in the browser URL.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T01:06:49.927490Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 228483,
+      "cached_input_tokens": 128151,
+      "cache_write_input_tokens": 33428,
+      "output_tokens": 11417,
+      "reasoning_output_tokens": 9209
+    },
+    "duration_ms": 205060
+  }
+}

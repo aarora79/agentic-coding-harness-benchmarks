@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 64,
+      "notes": "The issue clearly identifies the affected dependencies, authentication paths, non-goals, and observable 403 failure. Its largest defect is an internal contradiction: it requires CSRF validation on every cookie-bearing toggle endpoint while explicitly leaving three endpoints without CSRF. The v1.0.21 release notes corroborate the narrower agent/skill bearer-token defect, not the broader claim that every registration pipeline or all six endpoints required modification. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) No independent task statement was supplied, so broader scope claims remain unverifiable."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 61,
+      "notes": "The LLD names real modules and functions and commits to concrete dependency and data-flow changes. It nevertheless says all six endpoints are modified while its file plan changes only three, leaving the stated browser-CSRF consistency goal unmet. Its exact function locations align with the submitted patch, but the shipped release describes the fix specifically as bearer-token agent/skill toggles. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) It does not establish that absence of the registry session cookie always proves non-cookie authentication, yet declares that security-sensitive heuristic settled with no open questions."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 11,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 49,
+      "notes": "The review usefully examines mixed browser/header authentication and recommends documenting the cookie heuristic. Its dominant weakness is rubber-stamping the design without catching the contradiction between protecting every browser toggle and leaving multiple endpoints CSRF-free. It also asserts that no other code uses `verify_csrf_token_flexible` without repository evidence, then recommends retaining it for hypothetical compatibility. The security and SRE sections do not demand executable regression tests or analyze the impact of an unrelated or stale cookie on a bearer request."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 48,
+      "notes": "The plan attempts browser, bearer, invalid-token, unauthenticated, compatibility, deployment, and registration-pipeline coverage. Several commands conflict with repository conventions: project documentation exposes agents under `/api/agents`, while the plan repeatedly calls `/agents`, including registration and toggle flows. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/a2a.md)) The submitted `toggle_agent` signature declares `enabled: bool` as a query parameter, but the plan sends it as multipart form data, and its cookie-less CSRF case simultaneously says validation is skipped and expects a CSRF-specific 403. Most checks are manual curl comments rather than assertions, and no concrete unit-test implementation is provided for the new dependency."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 15,
+      "specificity": 16,
+      "risk_awareness": 10,
+      "total": 54,
+      "notes": "The patch implements the core narrow behavior by adding `verify_csrf_token_adaptive` and replacing the dependency in the agent, skill, and legacy server toggle functions; that direction matches the subsequently documented bearer-toggle fix. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) It does not implement the design's claimed browser protection across all six endpoints and adds no regression tests for a security-sensitive authentication branch. The diff leaves the prior flexible imports unremoved and inserts new relative imports amid or after unrelated import blocks, contrary to normal repository-style import grouping, while the summary inaccurately claims complete implementation with no follow-ups. The managed local shell failed before executing read-only commands, so `git apply --check` and full baseline-context verification could not be completed."
+    }
+  },
+  "task_score": 55.2,
+  "verdict": "The submission identifies and patches the narrow bearer-token CSRF failure, but contradictory all-endpoint security claims, incorrect test commands, and absent implementation tests make it unreliable as an end-to-end change.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T00:37:49.983098Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 168425,
+      "cached_input_tokens": 97537,
+      "cache_write_input_tokens": 27077,
+      "output_tokens": 10526,
+      "reasoning_output_tokens": 9103
+    },
+    "duration_ms": 349017
+  }
+}
