@@ -57,7 +57,7 @@ One command per model. The `/benchmark` skill runs the pre-flight checks, the ha
 /benchmark provider=bedrock model=claude-opus-5 dataset=dataset/mcp-gateway-registry-v2.yaml agent=omp
 ```
 
-`agent` names the coding agent that drives the task and defaults to `claude`. The run charted below used `omp` on the `/swe3` skill, which is the default skill. The same flow runs headless from [`run-e2e-benchmark.sh`](benchmarks/scripts/run-e2e-benchmark.sh) (`--provider bedrock|litellm|vllm --model ... --dataset ... --agent claude|pi|omp|kiro --skill swe2|swe3`). Repeat across your model list, then the generators plot the frontier.
+`agent` names the coding agent that drives the task and defaults to `claude`. Five harnesses are supported: `claude` (Claude Code), `pi`, `omp` (oh-my-pi), `kiro` (kiro-cli) and `codex` (OpenAI Codex, `codex exec --json`). The run charted below used `omp` on the `/swe3` skill, which is the default skill. The same flow runs headless from [`run-e2e-benchmark.sh`](benchmarks/scripts/run-e2e-benchmark.sh) (`--provider bedrock|litellm|vllm --model ... --dataset ... --agent claude|pi|omp|kiro|codex --skill swe2|swe3`). Repeat across your model list, then the generators plot the frontier.
 
 ![Cost vs. quality Pareto frontier, omp harness on /swe3](docs/images/cost-quality-omp-swe3.png)
 
