@@ -83,6 +83,7 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 │       ├── pricing.json          # instance pricing for cost derivation
 │       └── tests/                # unittest suite
 ├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
+│   ├── faq/                      # FAQ: one file per question + an index (README.md) linking each
 │   └── release-notes/            # release notes per version (newest first) + the versioning scheme
 ├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router, release-notes)
 └── .github/                      # CI workflows and repo metadata
@@ -316,6 +317,7 @@ def calculate_metrics(data: list[float], threshold: float = 0.5) -> dict[str, fl
 - Never add emojis to source code, comments, docstrings, documentation files, log messages, or shell scripts. Use plain text only. Emojis cause encoding issues, reduce accessibility, and render inconsistently.
 - **Do not hard-wrap prose in Markdown files.** Write each paragraph or sentence as a single line and let the editor / renderer soft-wrap it. Hard wrapping creates noisy diffs and breaks tables, lists, and links. Tables, fenced code blocks, and list structure are unaffected.
 - A good README includes prerequisites, links to external resources, clear command examples (with env-var variants), a development-workflow section, and performance warnings for time-intensive operations.
+- **A question someone will ask again belongs in [docs/faq/](docs/faq/), one file per question.** Write the file next to the others and add a row to [docs/faq/README.md](docs/faq/README.md), which is the index: a question in the reader's words and a link, nothing else. Two rules keep it useful. Phrase the heading as the question a reader types, not as the name the code uses ("How do I wire codex to an open-weight model on Bedrock?", not "codex endpoint provider configuration"). And do not restate a setup or reference page: link it and answer the question. Where a fact belongs in both, pick one owner -- `docs/codex-setup.md` owns installing and configuring codex, [docs/faq/wiring-codex-to-models.md](docs/faq/wiring-codex-to-models.md) owns the per-path recipes, and each points at the other.
 
 ### Prose style for explainers and design docs
 
@@ -548,7 +550,11 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 - [docs/results-swe3-v2.md](docs/results-swe3-v2.md) -- results on the v2 dataset (15 release-sourced tasks, complexity-balanced). **Never merge v2 scores into a v1 table**; the task sets, refs and difficulty mixes differ.
 - [docs/model-selection-by-complexity.md](docs/model-selection-by-complexity.md) -- which model to use for which class of work, derived from the v2 complexity tiers.
 
-When you solve a setup problem that was not written down, **write it down** -- in the model guide if it is model-specific, in the setup doc if it is machine-specific -- and link it here.
+**Questions rather than reference pages:**
+
+- [docs/faq/](docs/faq/) -- one file per question, indexed in [docs/faq/README.md](docs/faq/README.md). Check it before rediscovering something: [wiring codex to a model](docs/faq/wiring-codex-to-models.md) already covers the LiteLLM bridge an open-weight Bedrock model needs, the tool parsers a vLLM endpoint needs, and the stdin redirect every codex run needs.
+
+When you solve a setup problem that was not written down, **write it down** -- in the model guide if it is model-specific, in the setup doc if it is machine-specific, in [docs/faq/](docs/faq/) if it is the answer to a question someone will ask again -- and link it here.
 
 ## References
 
