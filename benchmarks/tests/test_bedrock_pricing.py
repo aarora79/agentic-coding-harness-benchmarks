@@ -49,10 +49,38 @@ class CostUsdTest(unittest.TestCase):
         self.assertLess(cached, fresh)
 
     def test_price_table_rows_are_complete(self) -> None:
+        # input and output are always required; a caching-incapable model
+        # carries no cache rate at all (see test_cached_tokens_against_...).
         for model, rates in PRICES.items():
-            for key in ("input", "output", "cache_read", "cache_write"):
+            for key in ("input", "output"):
                 self.assertIn(key, rates, f"{model} missing {key}")
-                self.assertGreaterEqual(rates[key], 0.0)
+            for key, rate in rates.items():
+                self.assertGreaterEqual(rate, 0.0, f"{model}.{key} is negative")
+
+    def test_version_suffix_and_instruct_alias_resolve(self) -> None:
+        # The Bedrock id, the LiteLLM alias the harness records, and the bare
+        # key are the same model. A miss here reads as a free run.
+        bare = cost_usd("qwen.qwen3-coder-30b-a3b", 1_000_000, 1_000_000)
+        self.assertAlmostEqual(bare, 0.1545 + 0.6180, places=6)
+        for spelling in (
+            "qwen.qwen3-coder-30b-a3b-v1:0",
+            "qwen.qwen3-coder-30b-a3b-instruct",
+            "us.qwen.qwen3-coder-30b-a3b-v1:0",
+        ):
+            self.assertEqual(cost_usd(spelling, 1_000_000, 1_000_000), bare)
+
+    def test_cached_tokens_against_an_uncached_model_returns_none(self) -> None:
+        # Bedrock refuses a cachePoint for Qwen, so a non-zero cached count is
+        # a measurement bug. Pricing it at 0 would understate the bill and look
+        # exactly like a genuinely cheap run.
+        priced = cost_usd("qwen.qwen3-coder-30b-a3b", 1000, 1000)
+        self.assertIsNotNone(priced)
+        self.assertIsNone(
+            cost_usd("qwen.qwen3-coder-30b-a3b", 1000, 1000, cache_read_tokens=500)
+        )
+        self.assertIsNone(
+            cost_usd("qwen.qwen3-coder-30b-a3b", 1000, 1000, cache_write_tokens=500)
+        )
 
     def test_prices_carry_an_as_of_date(self) -> None:
         # Rates move; an undated table cannot be audited against the source.
