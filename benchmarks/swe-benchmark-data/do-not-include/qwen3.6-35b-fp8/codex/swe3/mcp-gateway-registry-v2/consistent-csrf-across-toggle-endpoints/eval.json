@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 86,
+      "notes": "The issue provides a concrete endpoint inventory, explicit exclusions, and acceptance criteria that can mostly be translated into tests. Its largest gap is migration risk: newly enforcing CSRF may break existing browser callers, while no coordinated compatibility requirement is included. The submitted virtual-server signature uses nginx_proxied_auth, contradicting the table's characterization of its authentication as only an admin check. No independent task statement was supplied, so broader requirement coverage cannot be verified."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 74,
+      "notes": "The LLD names concrete files, symbols, dependency parameters, and execution paths sufficient to implement the core change. It identifies auth/routes.py and ans_routes.py as additional consumers of verify_csrf_token_flexible but never analyzes the behavioral impact of changing that shared dependency globally. It also leaves the possible SPA breakage unresolved, contains an alternatives table that incorrectly labels the chosen design as rejected Alternative 2, and makes unproven dependency-order claims. Exact source applicability and several frontend assertions could not be independently verified because the repository shell failed before read-only commands executed."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 20,
+      "total": 73,
+      "notes": "The review surfaces relevant risks including existing SPA callers, form parsing, invalid bearer tokens, dual authentication, logging, and other users of the shared dependency. Its largest defect is declaring all blockers resolved without adequate evidence and despite recommending that the backend deploy before a potentially required frontend update. The claimed SPA investigation cites server_routes.py line 1542, which is backend route evidence rather than a frontend call site, and the review simultaneously claims no breaking changes while acknowledging possible new 403 responses. Its assertions about FastAPI dependency order and actual SPA header behavior remain unverified."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 56,
+      "notes": "The plan covers all six endpoint names and includes bearer, cookie, invalid-token, compatibility, and registration-to-enable scenarios with expected status codes. Its main correctness problem is directing requests to localhost:8000 while the design says nginx_proxied_auth relies on headers established by nginx; a raw bearer header sent directly to FastAPI may therefore never produce the expected authenticated 200 response. It also hardcodes the configurable cookie name as session, leaves the six-endpoint loop unimplemented, and generally checks only status rather than verifying the persisted toggle state or lack of mutation after rejection. The promised unit and integration tests are checklist items without repository-grounded test files, fixtures, or executable test-runner commands."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 20,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 76,
+      "notes": "The patch coherently implements the stated design by adding dependencies to internal_toggle_service, toggle_service_api, and toggle_virtual_server and placing the bearer check before form-token extraction. The submitted contexts and imports are internally consistent with those symbols, but exact application against the working tree could not be independently confirmed because the read-only shell sandbox failed before git apply --check could run. The largest deficiency is the absence of regression tests for a security-sensitive shared dependency whose new behavior also affects non-toggle consumers. The summary acknowledges that existing SPA calls may lack CSRF headers but supplies no compatibility mitigation and understates that potential user-facing breakage as merely a follow-up."
+    }
+  },
+  "task_score": 73.0,
+  "verdict": "The submission presents a plausible and focused implementation, but unsupported frontend and dependency-order claims, weak executable testing, and an unresolved browser compatibility risk materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T07:21:16.182431Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 213445,
+      "cached_input_tokens": 138208,
+      "cache_write_input_tokens": 31844,
+      "output_tokens": 12309,
+      "reasoning_output_tokens": 10531
+    },
+    "duration_ms": 185569
+  }
+}
