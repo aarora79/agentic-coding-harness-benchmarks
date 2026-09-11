@@ -1,23 +1,36 @@
 # How do I wire codex to a model?
 
-`codex` appears twice in this repository, configured separately each time. It is the **judge** that scores every run, always against Amazon Bedrock, and it is one of five **coding harnesses** (`--agent codex`) that can drive a task. This answers the harness half: pointing `--agent codex` at a model on each of the three hosting paths.
+Three ways to point `codex` at a model: an open-weight model on Amazon Bedrock, an open-weight model you serve yourself with vLLM, or an OpenAI model on Bedrock. Each ends with a `codex exec` call you can run by hand.
 
-For installing codex, wiring it to Bedrock, and the one-line proof that the judge works, see [codex-setup.md](../codex-setup.md). This page assumes `codex --version` already answers.
+For installing codex and wiring it to Bedrock, see [codex-setup.md](../codex-setup.md). This page assumes `codex --version` already answers.
+
+> [!NOTE]
+> **Every command below was run before this page shipped**, on a `g6e.4xlarge` (1x L40S) with `codex-cli 0.153.4`. Each `codex exec` example returned `OK`: the Bedrock one against `openai.gpt-5.6-luna`, the vLLM one against a live `qwen3.6-35b-fp8` server at a 262,144-token window, and the bridge one against `qwen.qwen3-coder-30b-a3b-v1:0` through LiteLLM on port 4002. Where a command emits a warning anyway, this page says so.
 
 ## The one fact everything follows from
 
-**codex speaks the OpenAI Responses API and nothing else.** codex 0.153.4 removed the chat-completions wire and rejects the fallback outright:
+**codex speaks the OpenAI Responses API and nothing else.** codex 0.153.4 removed the chat-completions wire and rejects the fallback:
 
 ```
 Error loading config.toml: `wire_api = "chat"` is no longer supported.
 How to fix: set `wire_api = "responses"` in your provider config.
 ```
 
-So whatever serves the model must answer `POST /v1/responses`. Amazon Bedrock does that for the `openai.*` family only, which is why an open-weight model on Bedrock needs a bridge and a model on your own vLLM server does not.
+So whatever serves the model must answer `POST /v1/responses`. Bedrock does that for the `openai.*` family only, which is why an open-weight Bedrock model needs a bridge and your own vLLM server does not.
 
-## How do I wire codex to an open-weight model on Bedrock (Qwen, Kimi, DeepSeek)?
+**Close stdin on every call.** `codex exec` reads stdin even when the prompt arrives as an argument, and blocks forever on an open, empty one. Every example below ends with `< /dev/null`.
 
-Put a LiteLLM proxy in front that speaks Responses to codex and Converse to Bedrock. Use LiteLLM's **native `bedrock/` provider**, which authenticates from ambient AWS credentials with no bearer token:
+## Open-weight model on Bedrock (Qwen, Kimi, DeepSeek)
+
+Bedrock will not answer Responses for these:
+
+```
+The model 'qwen.qwen3-coder-30b-a3b-v1:0' does not support the '/openai/v1/responses' API
+```
+
+The model works there; it just does not answer that API. Put a LiteLLM proxy in front that speaks Responses to codex and Converse to Bedrock, using LiteLLM's native `bedrock/` provider, which authenticates from ambient AWS credentials with no bearer token.
+
+**1. Write the proxy config.**
 
 ```yaml
 # litellm-responses-bedrock.yaml
@@ -31,70 +44,81 @@ litellm_settings:
   drop_params: true
 ```
 
+**2. Start it.**
+
 ```bash
 uv run --with 'litellm[proxy]' litellm --config litellm-responses-bedrock.yaml \
     --host 127.0.0.1 --port 4002
 ```
 
-Then run the harness against it as an endpoint:
+**3. Point codex at it.**
 
 ```bash
-cd benchmarks
-./scripts/run-e2e-benchmark.sh --provider litellm --endpoint http://127.0.0.1:4002 \
-    --agent codex --skill swe3 --model qwen.qwen3-coder-30b-a3b-instruct \
-    --dataset dataset/mcp-gateway-registry-v2.yaml --yes < /dev/null
-```
+export OPENAI_API_KEY=local     # the proxy ignores the value; codex requires the variable
 
-Without the bridge, Bedrock rejects the request:
-
+codex exec --json --skip-git-repo-check \
+  --model qwen.qwen3-coder-30b-a3b-instruct \
+  -c model_provider=litellm \
+  -c model_providers.litellm.name=litellm \
+  -c model_providers.litellm.base_url=http://127.0.0.1:4002/v1 \
+  -c model_providers.litellm.wire_api=responses \
+  -c model_providers.litellm.env_key=OPENAI_API_KEY \
+  -- "Reply with exactly: OK" < /dev/null
 ```
-The model 'qwen.qwen3-coder-30b-a3b-v1:0' does not support the '/openai/v1/responses' API
-```
-
-The model works on Bedrock; it just does not answer that API. `aws bedrock-runtime converse` against the same id returns normally.
 
 **Two traps.**
 
-The committed [litellm-mantle.yaml](../../benchmarks/config/litellm-mantle.yaml) **cannot** serve this path. It registers each model as `openai/<id>` against the `bedrock-mantle` endpoint, so LiteLLM forwards `/v1/responses` untouched and mantle rejects it for a non-`openai.*` model. That config exists for Claude Code, which speaks the Anthropic Messages API. Write a separate config with the `bedrock/` provider for codex.
+The committed [litellm-mantle.yaml](../../benchmarks/config/litellm-mantle.yaml) **cannot** serve this path. It registers each model as `openai/<id>` against the `bedrock-mantle` endpoint, so LiteLLM forwards `/v1/responses` untouched and mantle rejects it for a non-`openai.*` model. That config exists for Claude Code, which speaks the Anthropic Messages API. Write a separate config with the `bedrock/` provider.
 
 Pin nothing older than current LiteLLM. The range the mantle script uses, `litellm[proxy]>=1.72,<1.84`, fails the bridge with `500 'NoneType' object has no attribute 'encode'`.
 
 ### Prompt caching does not happen on this route
 
-Bedrock Converse caching is opt-in per request: the caller must place `cachePoint` blocks in the message content. codex has no cache-control concept and LiteLLM's bridge adds none, so `cache_read_tokens` is 0 on every task and every token is billed fresh. Measured over the 21-task `mcp-gateway-registry-v2` run: 83,488,690 input tokens, zero cache reads, $13.17.
+Bedrock Converse caching is opt-in per request: the caller must place `cachePoint` blocks in the message content. codex has no cache-control concept and LiteLLM's bridge adds none, so `cache_read` is 0 and every token is billed fresh.
 
-Two separate limits hide behind that zero, and it is worth knowing which one applies:
+Two separate limits hide behind that zero:
 
 | Model | `cachePoint` on Converse |
 |---|---|
 | `qwen.qwen3-coder-30b-a3b-v1:0` | `AccessDeniedException: You invoked an unsupported model or your request did not allow prompt caching` |
 | `us.anthropic.claude-haiku-4-5` | cold call writes `cacheWriteInputTokens: 5204`; warm call reads `cacheReadInputTokens: 5204` |
 
-Qwen cannot cache on Bedrock at all, and a model that can still will not through this bridge. Because Qwen publishes no cache rate, its row in [bedrock_pricing.py](../../benchmarks/scripts/bedrock_pricing.py) carries no `cache_read` or `cache_write` key, and `cost_usd` returns `None` rather than pricing cached tokens at zero if a caller ever reports them.
+Qwen cannot cache on Bedrock at all, and a model that can still will not through this bridge. A self-hosted vLLM server is the opposite: its prefix caching is automatic and server-side, needing nothing from the client.
 
-## How do I wire codex to an open-weight model I serve on vLLM?
+## Open-weight model you serve with vLLM
 
-Serve the model, then point codex at the server:
-
-```bash
-cd benchmarks
-./scripts/run-e2e-benchmark.sh --provider vllm --agent codex --skill swe3 \
-    --model qwen3.6-35b-fp8 --dataset dataset/mcp-gateway-registry-v2.yaml < /dev/null
-```
-
-The harness builds codex's provider block on the command line rather than through environment variables, because **codex 0.153.4 ignores `OPENAI_BASE_URL`** and takes its base URL from whichever provider its config selects. Exporting that variable alone sent endpoint runs wherever `~/.codex/config.toml` pointed, which on a judge-configured machine is Bedrock, producing the misleading `404 The model 'minicpm5-2b' does not exist` (issue #183). What it passes:
+**1. Serve it.** Take `MODEL`, `SERVED_NAME`, `TP`, `MAX_MODEL_LEN` and `TOOL_PARSER` from the model's guide under [self-hosted/vllm/models/](../../self-hosted/vllm/models/) rather than inventing them. For `qwen3.6-35b-fp8`:
 
 ```bash
-codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox \
-  --cd <clone> --model <served-name> \
-  -c model_provider=<name> \
-  -c model_providers.<name>.base_url=http://127.0.0.1:8000/v1 \
-  -c model_providers.<name>.wire_api=responses \
-  -c model_providers.<name>.env_key=OPENAI_API_KEY \
-  -c model_context_window=262144
+cd self-hosted/vllm/scripts
+MODEL="Qwen/Qwen3.6-35B-A3B-FP8" \
+SERVED_NAME="qwen3.6-35b-fp8" \
+TP=1 \
+PORT=8000 \
+MAX_MODEL_LEN=262144 \
+GPU_MEM_UTIL=0.92 \
+TOOL_PARSER="qwen3_coder" \
+EXTRA_ARGS="--max-num-seqs 32 --kv-cache-dtype fp8" \
+  ./vllm-serve.sh
 ```
 
-`OPENAI_API_KEY` travels in the environment, never on the command line, so no local user can read it out of `ps`. A vLLM server that wants no key still needs the variable set; the harness uses `local`.
+**2. Point codex at it.**
+
+```bash
+export OPENAI_API_KEY=local     # vLLM ignores the value; codex requires the variable
+
+codex exec --json --skip-git-repo-check \
+  --model qwen3.6-35b-fp8 \
+  -c model_provider=vllm \
+  -c model_providers.vllm.name=vllm \
+  -c model_providers.vllm.base_url=http://127.0.0.1:8000/v1 \
+  -c model_providers.vllm.wire_api=responses \
+  -c model_providers.vllm.env_key=OPENAI_API_KEY \
+  -c model_context_window=262144 \
+  -- "Reply with exactly: OK" < /dev/null
+```
+
+**The base URL must travel in the provider block.** codex 0.153.4 ignores `OPENAI_BASE_URL` and takes its base URL from whichever provider its config selects. Exporting that variable alone sends the call wherever `~/.codex/config.toml` points, which on a judge-configured machine is Bedrock, producing the misleading `404 The model 'minicpm5-2b' does not exist` (issue #183).
 
 **The tool-call parser must accept Responses-shaped tools.** The Responses API sends a flat tool definition, `{"type": "function", "name": ...}`; chat completions nests it under `"function"`. Seven of vLLM 0.29.0's parsers read only the nested shape, abort tool extraction on the flat one, end the stream with no `response.completed`, and make codex retry every request five times before failing the turn:
 
@@ -102,51 +126,39 @@ codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandb
 |---|---|
 | `qwen3_coder`, `hermes` | `minicpm5xml`, `dots`, `hy_v3`, `hy_v4`, `rust`, `step3`, `step3p5` |
 
-Check the parser in the model's guide under [self-hosted/vllm/models/](../../self-hosted/vllm/models/) before choosing this agent. Verified working: `qwen3.6-35b-fp8` at a 262,144-token window with `qwen3_coder`.
+**Pass `model_context_window`.** A self-hosted model is unknown to codex, so it sizes the conversation from fallback metadata unless told the real window. Passing the flag does **not** silence the warning -- the run above still logged `Model metadata for 'qwen3.6-35b-fp8' not found. Defaulting to fallback metadata` with `model_context_window=262144` set. Treat that line as noise; what matters is that the window codex plans against matches the one vLLM booted.
 
-**Tell codex the context window.** A self-hosted model is unknown to codex, which warns `Model metadata not found. Defaulting to fallback metadata` and sizes its context from that guess. Pass `--context-window` so the harness forwards `model_context_window`.
+## OpenAI model on Bedrock
 
-## How do I wire codex to an OpenAI model hosted on Bedrock?
-
-Nothing to bridge. Bedrock serves the Responses API natively for the `openai.*` family:
+Nothing to bridge. Bedrock answers Responses natively for the `openai.*` family, so codex needs only its own provider and a region:
 
 ```bash
-cd benchmarks
-./scripts/run-e2e-benchmark.sh --provider bedrock --agent codex --skill swe3 \
-    --model openai.gpt-5.6-luna --dataset dataset/mcp-gateway-registry-v2.yaml < /dev/null
+codex exec --json --skip-git-repo-check \
+  --model openai.gpt-5.6-luna \
+  -c model_provider=amazon-bedrock \
+  -c model_providers.amazon-bedrock.aws.region=us-east-2 \
+  -- "Reply with exactly: OK" < /dev/null
 ```
 
-The harness pins `AWS_REGION` from the config and passes `-c model_provider=amazon-bedrock`; authentication comes from the ambient credential chain, with no proxy and no bearer token. This is the same provider the judge uses.
+Authentication comes from the ambient AWS credential chain: no proxy, no bearer token. Set the same two values in `~/.codex/config.toml` to make them the default for every call, which is how the judge is configured ([codex-setup.md](../codex-setup.md)).
 
-Cost is derived from the token counts through [bedrock_pricing.py](../../benchmarks/scripts/bedrock_pricing.py), because `codex exec` reports usage but never a billed cost. A model missing from that table yields a null cost rather than a misleading zero.
+**This is the one route where codex gets prompt caching.** The call above reported `cache_write_input_tokens: 8761` on a cold run, so a repeated prefix is read back cheaply on the next call. Bedrock's Responses implementation handles the cache itself, with nothing for the caller to place -- unlike Converse behind the LiteLLM bridge, where caching needs `cachePoint` blocks that nothing in the chain inserts.
 
-## Why does my codex run hang before the first request?
+## Which route serves which model
 
-Because stdin is open. `codex exec` reads stdin even when the prompt arrives as an argument, and it blocks forever on an open, empty one. The log stops after `Reading additional input from stdin...`, the rollout file under `~/.codex/sessions/` stops growing, and the server sees no requests. One run sat like that for ten minutes and finished in 78 seconds once relaunched with stdin closed.
-
-Redirect on every launch:
-
-```bash
-./scripts/run-e2e-benchmark.sh ... < /dev/null > .scratchpad/e2e-<slug>.log 2>&1
-```
-
-A frozen rollout file is the fastest way to tell a hung run from a slow one:
-
-```bash
-tail -f "$(ls -t ~/.codex/sessions/*/*/*/*.jsonl | head -1)"
-```
-
-## Which path serves which model?
-
-| You want to benchmark | Flags | Bridge needed |
+| Model | Route | Bridge needed |
 |---|---|---|
-| `openai.*` on Bedrock | `--provider bedrock` | no |
-| Any model on your own vLLM server | `--provider vllm` | no, but the tool parser must be Responses-safe |
-| Open-weight on Bedrock (Qwen, Kimi, DeepSeek) | `--provider litellm --endpoint ...` | yes, LiteLLM with the native `bedrock/` provider |
-| Anthropic models | any | codex reaches them on Bedrock, though Claude Code is the better-measured harness for them |
+| `openai.*` on Bedrock | native `amazon-bedrock` provider | no |
+| Any model on your own vLLM server | provider block at `:8000` | no, but the tool parser must be Responses-safe |
+| Open-weight on Bedrock (Qwen, Kimi, DeepSeek) | LiteLLM with the native `bedrock/` provider | yes |
+| Anthropic models on Bedrock | native `amazon-bedrock` provider | no |
+
+## Driving a benchmark with this wiring
+
+The harness builds these provider blocks itself, so a benchmark run needs only `--agent codex` and a provider. See [harness-reference.md](../../benchmarks/docs/harness-reference.md#choosing-the-agent) for the agent's flags and cost accounting, and the [benchmark skill](../../.claude/skills/benchmark/SKILL.md) for the end-to-end flow.
 
 ## Related
 
-- [agent-cli-bedrock-setup.md](../../benchmarks/docs/agent-cli-bedrock-setup.md) -- wiring the `codex` judge and `claude` to Bedrock, and proving it with a live call before a long run.
-- [harness-reference.md](../../benchmarks/docs/harness-reference.md#choosing-the-agent) -- every supported agent, its providers, and how each one's cost is accounted.
-- [cost-per-task-methodology.md](../cost-per-task-methodology.md) -- why a metered Bedrock bill and a hardware-derived self-hosted figure do not compare as raw dollars.
+- [codex-setup.md](../codex-setup.md) -- installing codex, wiring it to Bedrock, and its failure-mode table.
+- [agent-cli-bedrock-setup.md](../../benchmarks/docs/agent-cli-bedrock-setup.md) -- wiring both CLIs to Bedrock and proving it with a live call.
+- [self-hosted/vllm/README.md](../../self-hosted/vllm/README.md) -- installing vLLM and the serving-config reference.
