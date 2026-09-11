@@ -4,6 +4,9 @@ Three ways to point `codex` at a model: an open-weight model on Amazon Bedrock, 
 
 For installing codex and wiring it to Bedrock, see [codex-setup.md](../codex-setup.md). This page assumes `codex --version` already answers.
 
+> [!NOTE]
+> **Every command below was run before this page shipped**, on a `g6e.4xlarge` (1x L40S) with `codex-cli 0.153.4`. Each `codex exec` example returned `OK`: the Bedrock one against `openai.gpt-5.6-luna`, the vLLM one against a live `qwen3.6-35b-fp8` server at a 262,144-token window, and the bridge one against `qwen.qwen3-coder-30b-a3b-v1:0` through LiteLLM on port 4002. Where a command emits a warning anyway, this page says so.
+
 ## The one fact everything follows from
 
 **codex speaks the OpenAI Responses API and nothing else.** codex 0.153.4 removed the chat-completions wire and rejects the fallback:
@@ -123,7 +126,7 @@ codex exec --json --skip-git-repo-check \
 |---|---|
 | `qwen3_coder`, `hermes` | `minicpm5xml`, `dots`, `hy_v3`, `hy_v4`, `rust`, `step3`, `step3p5` |
 
-**Pass `model_context_window`.** A self-hosted model is unknown to codex, which warns `Model metadata not found. Defaulting to fallback metadata` and sizes its context from that guess.
+**Pass `model_context_window`.** A self-hosted model is unknown to codex, so it sizes the conversation from fallback metadata unless told the real window. Passing the flag does **not** silence the warning -- the run above still logged `Model metadata for 'qwen3.6-35b-fp8' not found. Defaulting to fallback metadata` with `model_context_window=262144` set. Treat that line as noise; what matters is that the window codex plans against matches the one vLLM booted.
 
 ## OpenAI model on Bedrock
 
