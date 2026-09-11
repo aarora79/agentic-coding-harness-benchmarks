@@ -27,7 +27,9 @@ set -uo pipefail
 #   --dataset PATH        dataset YAML relative to benchmarks/ (mcp-gateway-registry)
 #   --dollars-per-hour N  instance $/hr, recorded in the summary (0 = unset)
 #   --agent NAME          coding agent that runs each task: claude (default), pi,
-#                         omp (oh-my-pi), or kiro
+#                         omp (oh-my-pi), codex (OpenAI Codex), or kiro. codex
+#                         needs a Responses-safe tool parser on the vllm path
+#                         (qwen3_coder, hermes -- see issue #183)
 #   --skill NAME          SWE skill: swe3 (default, single-agent) or swe2 (multi-agent)
 #   --timeout-seconds N   per-task wall-clock timeout passed to run-e2e-benchmark.sh.
 #                         Unset uses the harness default, which is tuned for the
@@ -196,8 +198,8 @@ done
 
 # --- Validate the agent + skill ---------------------------------------------
 case "$AGENT" in
-  claude|pi|omp|kiro) ;;
-  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi, omp, kiro." ;;
+  claude|pi|omp|kiro|codex) ;;
+  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi, omp, kiro, codex." ;;
 esac
 case "$SKILL" in
   swe2|swe3) ;;

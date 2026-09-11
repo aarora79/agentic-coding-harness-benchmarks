@@ -67,7 +67,10 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 REPO_ROOT = _SCRIPTS_DIR.parent.parent
 BENCHMARKS_DIR = _SCRIPTS_DIR.parent
 
-from token_accounting import compute_total_tokens_processed  # noqa: E402
+from token_accounting import (  # noqa: E402
+    cache_partition_for_agent,
+    compute_total_tokens_processed,
+)
 
 # The router skill ships beside the repo's other skills; route.py is imported
 # rather than shelled out to so the selection under test is the real one.
@@ -136,7 +139,11 @@ def _blended_cost_per_token(model: str) -> float | None:
     return min(rates) if rates else None
 
 
-def _task_cost(task: dict[str, Any], per_token: float | None) -> float:
+def _task_cost(
+    task: dict[str, Any],
+    per_token: float | None,
+    agent: str | None = None,
+) -> float:
     """Cost of one recorded task run, on the model's own cost basis.
 
     A self-hosted model is priced hardware-derived (its measured $/token times
@@ -147,6 +154,9 @@ def _task_cost(task: dict[str, Any], per_token: float | None) -> float:
     Args:
         task: One entry from a run-summary's ``tasks`` list.
         per_token: The model's blended $/token, or None when metered.
+        agent: The agent that produced the run. An agent with disjoint token
+            counts (codex) declares its cache shape instead of having it
+            detected from the data (issue #183).
 
     Returns:
         Cost in USD.
@@ -160,6 +170,7 @@ def _task_cost(task: dict[str, Any], per_token: float | None) -> float:
         task.get("cache_read_tokens") or 0,
         task.get("cache_write_tokens") or task.get("cache_creation_tokens") or 0,
         context=f"eval_swe_router:{task.get('task')}",
+        cache_partition=cache_partition_for_agent(agent),
     )
     return tokens * per_token
 
@@ -198,7 +209,7 @@ def _load_results(
             failed = bool(task.get("failed")) or task_id in failed_ids or not score
             per_task[task_id] = {
                 "score": None if failed else float(score),
-                "cost_usd": _task_cost(task, per_token),
+                "cost_usd": _task_cost(task, per_token, summary.get("agent")),
                 "failed": failed,
                 "complexity": task.get("complexity"),
                 "cost_basis": "hardware-derived" if per_token else "metered",

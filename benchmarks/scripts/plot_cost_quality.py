@@ -41,7 +41,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from token_accounting import compute_total_tokens_processed
+from token_accounting import cache_partition_for_agent, compute_total_tokens_processed
 
 import matplotlib
 
@@ -331,6 +331,7 @@ def _blended_mean_cost(
             task.get("cache_read_tokens") or 0,
             task.get("cache_write_tokens") or task.get("cache_creation_tokens") or 0,
             context=f"plot_cost_quality:{model_slug}/{task.get('task')}",
+            cache_partition=cache_partition_for_agent(summary.get("agent")),
         )
         if tokens > 0:
             costs.append(tokens * per_token)

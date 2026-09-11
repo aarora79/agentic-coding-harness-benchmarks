@@ -1653,13 +1653,67 @@ class CodexHarnessTest(unittest.TestCase):
         self.assertIn("PROMPT-BODY", cmd[-1])
         self.assertIn("swe3", cmd[-1])
 
-    def test_codex_cmd_omits_bedrock_provider_on_endpoint(self) -> None:
+    def test_codex_endpoint_declares_its_own_provider_block(self) -> None:
+        # codex resolves the base URL from the provider its config selects and
+        # ignores OPENAI_BASE_URL, so an endpoint run that passes no provider
+        # block reaches whatever ~/.codex/config.toml points at -- Amazon
+        # Bedrock on a judge-configured machine (issue #183).
+        cmd = harness._build_codex_cmd(
+            _config(
+                agent="codex",
+                provider="endpoint",
+                endpoint="http://127.0.0.1:8000/",
+                context_window=262144,
+            ),
+            Path("/tmp/clone"),
+            "P",
+        )
+        self.assertNotIn("model_provider=amazon-bedrock", cmd)
+        provider = harness.CODEX_ENDPOINT_PROVIDER
+        self.assertIn(f"model_provider={provider}", cmd)
+        self.assertIn(
+            f"model_providers.{provider}.base_url=http://127.0.0.1:8000/v1", cmd
+        )
+        # codex 0.153.4 removed the chat-completions wire and rejects it.
+        self.assertIn(f"model_providers.{provider}.wire_api=responses", cmd)
+        self.assertIn(f"model_providers.{provider}.env_key=OPENAI_API_KEY", cmd)
+        self.assertIn("model_context_window=262144", cmd)
+
+    def test_codex_endpoint_omits_context_window_when_unset(self) -> None:
         cmd = harness._build_codex_cmd(
             _config(agent="codex", provider="endpoint"),
             Path("/tmp/clone"),
             "P",
         )
-        self.assertNotIn("model_provider=amazon-bedrock", cmd)
+        self.assertFalse(any(c.startswith("model_context_window=") for c in cmd))
+
+    def test_codex_endpoint_rejects_credentials_in_the_url(self) -> None:
+        # The provider block travels in argv, where ps exposes it to any local
+        # user, so a URL carrying userinfo is refused rather than trimmed.
+        with self.assertRaisesRegex(ValueError, "must not embed credentials"):
+            harness._build_codex_cmd(
+                _config(
+                    agent="codex",
+                    provider="endpoint",
+                    endpoint="https://user:secret@proxy.example.com",
+                ),
+                Path("/tmp/clone"),
+                "P",
+            )
+
+    def test_codex_endpoint_rejects_a_non_http_scheme(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must be http or https"):
+            harness._codex_base_url("ws://127.0.0.1:8000")
+
+    def test_codex_endpoint_requires_a_value(self) -> None:
+        with self.assertRaisesRegex(ValueError, "needs an endpoint"):
+            harness._codex_base_url("")
+
+    def test_codex_base_url_appends_v1_once(self) -> None:
+        self.assertEqual(
+            harness._codex_base_url("http://127.0.0.1:8000/"),
+            "http://127.0.0.1:8000/v1",
+        )
 
     def test_codex_env_bedrock_pins_region(self) -> None:
         env = harness._build_codex_env(
@@ -1697,6 +1751,20 @@ class CodexHarnessTest(unittest.TestCase):
         events = [_codex_turn(100, 900, 900, 10)]
         result = harness._codex_result_from_events(events, 0, 1.0)
         self.assertEqual(result["usage"]["input_tokens"], 0)
+
+    def test_codex_usage_sums_across_turns(self) -> None:
+        # One exec emits one turn.completed today, but a build that splits an
+        # exec into several turns (resume, compaction) must not lose all but
+        # the last (issue #183).
+        events = [
+            _codex_turn(1_000, 600, 200, 50),
+            _codex_turn(2_000, 1_500, 100, 70),
+        ]
+        usage = harness._codex_result_from_events(events, 0, 1.0)["usage"]
+        self.assertEqual(usage["input_tokens"], 200 + 400)
+        self.assertEqual(usage["output_tokens"], 120)
+        self.assertEqual(usage["cache_read_input_tokens"], 2_100)
+        self.assertEqual(usage["cache_creation_input_tokens"], 300)
 
     def test_codex_cost_does_not_double_count_cache(self) -> None:
         # gpt-5.6-terra: input 4.00, cache_write 5.00, cache_read 0.40 per 1M.
@@ -1744,6 +1812,68 @@ class CodexHarnessTest(unittest.TestCase):
         )
         self.assertEqual(result["usage"], {})
         self.assertFalse(result["is_error"])
+
+
+class CodexTokenTotalsTest(unittest.TestCase):
+    """The normalized block must keep a codex run's cache read (issue #183)."""
+
+    def test_summary_total_keeps_cache_at_a_50_percent_hit_rate(self) -> None:
+        # fresh input equals the cache sum here, which is the detector's
+        # partition signature. codex counts are disjoint, so the total must add
+        # the cache read rather than drop it.
+        metrics = {
+            "input_tokens": 50_000,
+            "output_tokens": 900,
+            "cache_read_tokens": 50_000,
+            "cache_creation_tokens": 0,
+            "latency_seconds": 10.0,
+            "num_turns": 7,
+            "total_cost_usd": None,
+        }
+        codex = harness._summary_metrics({**metrics}, {}, 90.0, True, agent="codex")
+        self.assertEqual(codex["total_tokens"], 50_000 + 900 + 50_000)
+        # A detected agent with the same shape still reads as a partition.
+        claude = harness._summary_metrics({**metrics}, {}, 90.0, True, agent="claude")
+        self.assertEqual(claude["total_tokens"], 50_000 + 900)
+
+
+class ServerPromptTokenGapTest(unittest.TestCase):
+    """Retried requests are server prefill the agent never counted."""
+
+    def _metrics(self) -> dict[str, object]:
+        return {
+            "input_tokens": 1_972,
+            "cache_read_tokens": 33_536,
+            "cache_creation_tokens": 0,
+        }
+
+    def _vllm(self, prompt_tokens: float) -> dict[str, object]:
+        return {"counters": {harness.PROMPT_TOKENS_METRIC: prompt_tokens}}
+
+    def test_healthy_run_reconciles(self) -> None:
+        # Measured: codex reported 35,508 prompt tokens and vLLM counted 35,508.
+        gap = harness._server_prompt_token_gap(self._metrics(), self._vllm(35_508), 1)
+        assert gap is not None
+        self.assertTrue(gap["reconciled"])
+        self.assertEqual(gap["unaccounted_prompt_tokens"], 0)
+
+    def test_retried_requests_show_up_as_unaccounted_prefill(self) -> None:
+        # Measured on a retrying endpoint: 26,022 server prompt tokens against
+        # 8,700 reported, i.e. two abandoned requests the agent did not count.
+        gap = harness._server_prompt_token_gap(
+            {"input_tokens": 8_700, "cache_read_tokens": 0}, self._vllm(26_022), 1
+        )
+        assert gap is not None
+        self.assertFalse(gap["reconciled"])
+        self.assertEqual(gap["unaccounted_prompt_tokens"], 26_022 - 8_700)
+
+    def test_concurrent_run_is_not_attributable(self) -> None:
+        self.assertIsNone(
+            harness._server_prompt_token_gap(self._metrics(), self._vllm(99_999), 4)
+        )
+
+    def test_missing_counter_returns_none(self) -> None:
+        self.assertIsNone(harness._server_prompt_token_gap(self._metrics(), {}, 1))
 
 
 class CodexTimeoutTest(unittest.TestCase):

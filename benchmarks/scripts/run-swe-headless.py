@@ -39,6 +39,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 import yaml
@@ -51,7 +52,7 @@ from runner_config import (
     load_runner_config,
     model_to_wire_id,
 )
-from token_accounting import compute_total_tokens_processed
+from token_accounting import cache_partition_for_agent, compute_total_tokens_processed
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1131,6 +1132,78 @@ def _check_token_accounting(
     return message
 
 
+# An agent's prompt-token count may fall this far below the server's own counter
+# before the harness calls it a gap. The server counter is server-wide, so a
+# health probe or a stray request moves it by a handful of tokens even on an idle
+# box; a real gap is a whole retried request, which is orders of magnitude bigger.
+SERVER_PROMPT_GAP_TOLERANCE = 0.05
+
+
+def _server_prompt_token_gap(
+    metrics: dict[str, Any],
+    vllm_prometheus: dict[str, Any],
+    concurrency: int,
+) -> dict[str, Any] | None:
+    """Reconcile the agent's prompt tokens against vLLM's own counter.
+
+    An agent reports the requests it accepted. A request it abandoned and retried
+    still cost the server a full prefill, and for a self-hosted model that prefill
+    is real GPU time the cost per task is derived from. Codex retrying a truncated
+    stream produced exactly that: vLLM counted 26,022 prompt tokens across three
+    requests while codex reported 8,700 (issue #183). On a healthy path the two
+    agree to the token -- a measured codex turn reported 35,508 against the
+    server's 35,508 -- so this field reads 0 and says so.
+
+    Args:
+        metrics: The API-reported metrics from ``_metrics_from_result``.
+        vllm_prometheus: The nested vLLM Prometheus block from ``_vllm_metrics``.
+        concurrency: Tasks running at once. Above 1 the server counter aggregates
+            other tasks' prefill, so the comparison is not attributable and this
+            returns None rather than a misleading number.
+
+    Returns:
+        A dict with both counts, the shortfall, and a verdict; None when the
+        server counter is unavailable or the run was concurrent.
+    """
+    if concurrency > 1:
+        return None
+    server_prompt = (vllm_prometheus.get("counters") or {}).get(PROMPT_TOKENS_METRIC)
+    if server_prompt is None:
+        return None
+    agent_prompt = (
+        (metrics.get("input_tokens") or 0)
+        + (metrics.get("cache_read_tokens") or 0)
+        + (metrics.get("cache_creation_tokens") or 0)
+    )
+    server_prompt = int(server_prompt)
+    missing = server_prompt - agent_prompt
+    tolerated = int(SERVER_PROMPT_GAP_TOLERANCE * server_prompt)
+    reconciled = missing <= tolerated
+    if not reconciled:
+        logger.warning(
+            "vLLM prefilled %d prompt tokens but the agent reported %d (%d "
+            "unaccounted, %.1f%%). The agent counts only the requests it "
+            "accepted, so retried or abandoned requests are missing from its "
+            "tokens and from any cost derived from them (issue #183).",
+            server_prompt,
+            agent_prompt,
+            missing,
+            100.0 * missing / server_prompt if server_prompt else 0.0,
+        )
+    return {
+        "server_prompt_tokens": server_prompt,
+        "agent_prompt_tokens": agent_prompt,
+        "unaccounted_prompt_tokens": max(missing, 0),
+        "reconciled": reconciled,
+        "note": (
+            "vllm:prompt_tokens_total window delta vs the agent's own prompt "
+            "tokens (input + cache_read + cache_write). A shortfall is prefill "
+            "the server performed for requests the agent retried and did not "
+            "count, so token-derived cost understates the GPU work (issue #183)."
+        ),
+    }
+
+
 def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, Any]:
     """Extract the benchmark metrics from a claude -p JSON result.
 
@@ -1924,12 +1997,64 @@ CODEX_BIN = "codex"
 CODEX_STEP_ITEM_TYPES = frozenset({"agent_message", "command_execution"})
 
 
+# Name of the codex provider block the harness defines for an OpenAI-compatible
+# endpoint. codex resolves the base URL from the provider its config selects, so
+# the harness declares one per run rather than relying on whatever
+# ~/.codex/config.toml happens to set.
+CODEX_ENDPOINT_PROVIDER = "harness_endpoint"
+
+
+def _codex_base_url(endpoint: str | None) -> str:
+    """Return the ``/v1`` base URL for codex's provider block, or fail loudly.
+
+    The provider block travels in argv, so this value is visible to any local
+    user through ``ps`` and is printed by ``--dry-run``. A URL carrying userinfo
+    (``https://user:pass@host``) would put that credential there, so it is
+    rejected rather than trimmed: the harness authenticates with
+    ``OPENAI_API_KEY``, which stays in the environment, and no path here needs
+    credentials in the URL.
+
+    Args:
+        endpoint: The configured endpoint (``--endpoint`` or the runner config).
+
+    Returns:
+        The endpoint with a single ``/v1`` suffix.
+
+    Raises:
+        ValueError: If the endpoint is missing, is not http(s), or embeds
+            credentials.
+    """
+    raw = (endpoint or "").strip()
+    if not raw:
+        raise ValueError(
+            "agent=codex with provider=endpoint needs an endpoint. Pass "
+            "--endpoint http://127.0.0.1:8000 or set it in the runner config."
+        )
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"codex endpoint must be http or https, got '{raw}'. codex 0.153.4 "
+            "speaks the Responses API over HTTP only."
+        )
+    if parsed.username or parsed.password:
+        raise ValueError(
+            "codex endpoint must not embed credentials: the base URL is passed "
+            "on the command line, where any local user can read it from ps. "
+            "Use the endpoint host alone and put the key in api_key, which the "
+            "harness passes through the OPENAI_API_KEY environment variable."
+        )
+    return raw.rstrip("/") + "/v1"
+
+
 def _build_codex_env(config: RunnerConfig) -> dict[str, str]:
     """Build the environment for a codex exec run.
 
     For provider=bedrock, pins AWS_REGION so codex uses the right region.
-    For provider=endpoint, sets OPENAI_BASE_URL and OPENAI_API_KEY so codex
-    routes through the LiteLLM proxy.
+    For provider=endpoint, sets OPENAI_API_KEY, which the provider block in
+    ``_build_codex_cmd`` names as its ``env_key``. OPENAI_BASE_URL is set too,
+    but only for older codex builds that still read it: codex 0.153.4 ignores
+    it, which is why the base URL now travels in the provider block instead
+    (issue #183).
 
     Args:
         config: The runner config.
@@ -1970,6 +2095,22 @@ def _build_codex_cmd(config: RunnerConfig, clone_path: Path, prompt: str) -> lis
     radius is the benchmark host itself, so run this agent only on a disposable
     instance -- the same assumption the other harnesses already make.
 
+    ROUTING (issue #183). codex takes its base URL from the provider its config
+    selects, and codex 0.153.4 ignores ``OPENAI_BASE_URL`` entirely. Exporting
+    that variable alone therefore sent an endpoint run wherever
+    ``~/.codex/config.toml`` pointed -- on a machine configured for the judge,
+    straight to Amazon Bedrock, which answered ``404 The model
+    'minicpm5-2b' does not exist``. So provider=endpoint declares its own
+    provider block here. ``wire_api`` must be ``responses``: codex 0.153.4
+    removed the chat-completions wire and rejects ``wire_api = "chat"``.
+
+    A vLLM server therefore needs a tool-call parser that accepts
+    Responses-shaped tools (flat ``{"type": "function", "name": ...}``).
+    ``qwen3_coder`` and ``hermes`` do; ``minicpm5xml``, ``dots``, ``hy_v3``,
+    ``hy_v4``, ``rust``, ``step3`` and ``step3p5`` read the nested
+    chat-completions shape and abort tool extraction, which truncates the
+    stream and makes codex retry every request.
+
     Args:
         config: The runner config (model, provider).
         clone_path: Path to the cloned task repo.
@@ -1998,6 +2139,27 @@ def _build_codex_cmd(config: RunnerConfig, clone_path: Path, prompt: str) -> lis
     ]
     if config.is_bedrock:
         cmd += ["-c", "model_provider=amazon-bedrock"]
+    else:
+        base_url = _codex_base_url(config.endpoint)
+        provider = CODEX_ENDPOINT_PROVIDER
+        cmd += [
+            "-c",
+            f"model_provider={provider}",
+            "-c",
+            f"model_providers.{provider}.name={provider}",
+            "-c",
+            f"model_providers.{provider}.base_url={base_url}",
+            "-c",
+            f"model_providers.{provider}.wire_api=responses",
+            "-c",
+            f"model_providers.{provider}.env_key=OPENAI_API_KEY",
+        ]
+        # A self-hosted model is unknown to codex, which then warns "Model
+        # metadata not found. Defaulting to fallback metadata" and sizes its
+        # context from that guess. Tell it the served window when the config
+        # knows it.
+        if config.context_window > 0:
+            cmd += ["-c", f"model_context_window={config.context_window}"]
     # Config-derived values (model, clone path, prompt) are passed as separate
     # list elements, never interpolated into a shell string, and the executable
     # is the hardcoded CODEX_BIN.
@@ -2028,7 +2190,21 @@ def _codex_result_from_events(
     the cached prompt is billed twice, once at the full input rate and again
     at the cache rate, which overstates cost by roughly 80% on a
     cache-dominated agentic run. This mirrors the partition handling in
-    ``token_accounting.py`` (see issue #136).
+    ``token_accounting.py`` (see issue #136). Because the fields this returns
+    are disjoint, every total derived from them must be additive: callers pass
+    ``cache_partition=False`` via ``cache_partition_for_agent`` (issue #183).
+
+    One ``turn.completed`` carries the whole turn, VERIFIED against the server:
+    codex reported input 35508 / output 180 for a three-tool-call turn while
+    vLLM's own counters moved 35508 prompt / 180 generation tokens across the
+    turn's 4 requests. The counts here SUM across ``turn.completed`` events
+    anyway, so a build that splits one exec into several turns (resume,
+    compaction) cannot silently drop all but the last.
+
+    Retries are the one gap: codex counts the attempt it accepted and ignores
+    the ones it abandoned, so a flaky endpoint bills the GPU for prefill that
+    never reaches these numbers. ``_save_metrics`` records that gap for an
+    endpoint run by comparing this usage against vLLM's prompt-token counter.
 
     ``reasoning_output_tokens`` is deliberately NOT added to ``output_tokens``:
     it is a subset of it, not a sibling.
@@ -2055,10 +2231,15 @@ def _codex_result_from_events(
             # than subsets must not produce a negative fresh-token count.
             fresh_input = max(total_input - cache_read - cache_write, 0)
             usage = {
-                "input_tokens": fresh_input,
-                "output_tokens": int(u.get("output_tokens", 0) or 0),
-                "cache_read_input_tokens": cache_read,
-                "cache_creation_input_tokens": cache_write,
+                "input_tokens": usage.get("input_tokens", 0) + fresh_input,
+                "output_tokens": usage.get("output_tokens", 0)
+                + int(u.get("output_tokens", 0) or 0),
+                "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0)
+                + cache_read,
+                "cache_creation_input_tokens": usage.get(
+                    "cache_creation_input_tokens", 0
+                )
+                + cache_write,
             }
         if event.get("type") == "item.completed":
             item = event.get("item", {})
@@ -2511,8 +2692,11 @@ def _summary_metrics(
     # caching: total = input + output + cache_read + cache_write, so a
     # heavily-cached run is not understated ~100x). Adding the cache
     # unconditionally, as this used to, ~2x double-counted self-hosted partition
-    # runs. total_cost_usd is the agent's own metered bill (null for a
-    # self-hosted model, which has no per-token price).
+    # runs. An agent whose counts are already disjoint skips the detection and
+    # declares itself additive (codex; issue #183), because at a ~50% cache hit
+    # rate its fresh input equals its cache sum and the detector would drop the
+    # whole cache read. total_cost_usd is the agent's own metered bill (null for
+    # a self-hosted model, which has no per-token price).
     inp = metrics.get("input_tokens") or 0
     out = metrics.get("output_tokens") or 0
     total_tokens = compute_total_tokens_processed(
@@ -2521,6 +2705,7 @@ def _summary_metrics(
         cache_read or 0,
         cache_write or 0,
         context=f"run-swe-headless:_summary_metrics/{agent}",
+        cache_partition=cache_partition_for_agent(agent),
     )
     token_src = (
         f"{api}.modelUsage (per-model rollup; INCLUDES subagent tokens)"
@@ -2547,7 +2732,8 @@ def _summary_metrics(
         "total_tokens": (
             "total tokens processed once each (issue #136): input + output, plus "
             "cache_read + cache_write ONLY when the cache is additive (not a "
-            "partition of input)"
+            "partition of input). An agent with disjoint counts declares that "
+            "instead of being detected (issue #183)."
         ),
         "total_cost_usd": (
             f"{api}.total_cost_usd (metered)"
@@ -2644,6 +2830,14 @@ def _save_metrics(
         # this file are suspect (scores/turns/latency are not). Never publish a
         # token or cost column from a run where this is set.
         "token_accounting_warning": token_accounting_warning,
+        # Endpoint runs only: the agent's prompt tokens against vLLM's own
+        # counter, so retried requests the agent never counted are visible on
+        # disk instead of silently deflating token-derived cost (issue #183).
+        "prompt_token_reconciliation": (
+            _server_prompt_token_gap(metrics, vllm_prometheus, config.concurrency)
+            if include_vllm
+            else None
+        ),
         # The normalized, cross-agent metric block -- the single source of truth
         # for tokens/cost/turns/latency + provenance. summarize_run and the charts
         # read this. Filled to whatever extent the agent reports (nulls where a
@@ -3121,6 +3315,8 @@ def _write_cost_totals(
         # total_tokens is derived, not additive; recompute it from the summed
         # parts so the partition-vs-additive rule (issue #136) is applied
         # consistently and does not ~2x double-count self-hosted partition runs.
+        # The agent recorded in the file decides whether the shape is declared
+        # (disjoint counts) or detected (issue #183).
         if "total_tokens" in block:
             block["total_tokens"] = compute_total_tokens_processed(
                 totals.get("input_tokens") or 0,
@@ -3128,6 +3324,7 @@ def _write_cost_totals(
                 totals.get("cache_read_tokens") or 0,
                 totals.get("cache_creation_tokens") or 0,
                 context=f"{context}/{block_name}",
+                cache_partition=cache_partition_for_agent(record.get("agent")),
             )
     record["agent_invocations"] = invocations
     if topped_up is not None:
