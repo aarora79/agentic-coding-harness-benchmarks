@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 78,
+      "notes": "The issue clearly defines override and deployment-mode fallback behavior, enumerates deployment surfaces, and provides mostly testable acceptance criteria. The submitted patch context corroborates the named Settings, CONFIG_GROUPS, React, Compose, Terraform, and Helm locations. Its claim that deployments without UI_TITLE see no behavior change conflicts with changing registry-only deployments from the existing hardcoded title to \"AI Registry.\" No independent task statement was supplied, and the issue does not resolve how the reportedly protected /api/config endpoint can supply branding to the unauthenticated Login page."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The LLD names concrete files and covers backend configuration, API flow, four UI surfaces, and three deployment mechanisms. Its design is internally inconsistent: one section says the backend returns a computed title, another says it returns the raw value for frontend computation, and the implementation steps retain per-component fetching after later prescribing a shared hook. It explicitly says /api/config requires authentication but still selects it for Login, and it never identifies the actual Terraform root module call needed to forward ui_title. Whitespace handling, 256-character warnings, a later 128-character limit, logging, and live refetch behavior are asserted without a consistent implementation decision."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 18,
+      "total": 67,
+      "notes": "The review's strongest finding is the exact Terraform propagation failure: defining root and child variables is insufficient unless the module call forwards ui_title. Its resolution then incorrectly declares that blocker resolved even though the submitted patch contains no module-call change. It also makes unsupported claims that CONFIG_GROUPS automatically supplies every required API/export representation and incorrectly states that Pydantic Field cannot enforce max_length on a string. The review identifies useful frontend loading, duplication, validation, and XSS concerns, but misses the unauthenticated Login dependency on an endpoint the LLD describes as protected."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 13,
+      "total": 55,
+      "notes": "The plan covers default, custom, and registry-only titles across backend, API, UI, Compose, Terraform, Helm, and end-to-end flows with concrete expected strings. Several tests have ineffective or contradictory oracles: the 129-character case does not fail when validation is absent, the whitespace case explicitly accepts either behavior, and grep-based Terraform checks cannot detect missing root-to-module forwarding. API tests assume particular data and groups response shapes, while the deployment curl omits authentication despite the plan and LLD saying /api/config requires it. Most frontend checks are browser-console expressions rather than repository-native automated tests, and the logo-alt test covers behavior explicitly deferred by the implementation."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 10,
+      "specificity": 17,
+      "risk_awareness": 8,
+      "total": 47,
+      "notes": "The patch concretely adds the Settings field and fallback property, CONFIG_GROUPS entry, hook type, three visible title replacements, Compose variables, registry-chart wiring, and child-module ECS wiring. Contrary to its summary, it only imports and reads config in Logout.tsx without replacing the hardcoded footer, and it contains no diff for charts/mcp-gateway-registry-stack/values.yaml. The known Terraform blocker remains because the new root variable is never passed at the module invocation, so tfvars input cannot reach the child module's var.ui_title. Exact git-apply compatibility could not be independently checked because the read-only shell sandbox failed before command execution, but the submitted diff itself clearly demonstrates these omissions and also leaves the protected-login API risk unresolved."
+    }
+  },
+  "task_score": 61.0,
+  "verdict": "The submission is detailed and repository-shaped, but contradictory design decisions and an implementation that omits Logout, stack-chart, and Terraform root-module wiring prevent the feature from working end to end.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T07:18:10.600449Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 225947,
+      "cached_input_tokens": 160801,
+      "cache_write_input_tokens": 35552,
+      "output_tokens": 8138,
+      "reasoning_output_tokens": 6741
+    },
+    "duration_ms": 97274
+  }
+}

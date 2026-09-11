@@ -25,7 +25,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from token_accounting import compute_total_tokens_processed
+from token_accounting import cache_partition_for_agent, compute_total_tokens_processed
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,13 +106,16 @@ def _task_row(task_dir: Path) -> dict[str, Any] | None:
         # write it as input+output+cache_read+cache_write unconditionally, which
         # ~2x double-counted self-hosted partition runs (where cache_read/write
         # already live inside input_tokens). Recomputing here keeps the derived
-        # total consistent regardless of what the metrics.json carried.
+        # total consistent regardless of what the metrics.json carried. The agent
+        # named in the file decides whether the cache shape is declared (disjoint
+        # counts, e.g. codex) or detected from the data (issue #183).
         "total_tokens": compute_total_tokens_processed(
             mm.get("input_tokens") or 0,
             mm.get("output_tokens") or 0,
             mm.get("cache_read_tokens") or 0,
             mm.get("cache_write_tokens") or mm.get("cache_creation_tokens") or 0,
             context=f"summarize_run:{task_dir.name}",
+            cache_partition=cache_partition_for_agent(metrics.get("agent")),
         ),
         "latency_seconds": mm.get("latency_seconds"),
         # Cost from the normalized block (which now carries it); fall back to the

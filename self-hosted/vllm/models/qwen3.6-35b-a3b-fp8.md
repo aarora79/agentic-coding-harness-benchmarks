@@ -94,6 +94,8 @@ Serving the window is half the job: the harness must also tell Claude Code the w
 
 Verified working at 262,144: plain completions, and tool calls parsed by `qwen3_coder` (`finish_reason: tool_calls`, arguments `{"city": "Tokyo"}`).
 
+**It also drives `codex` over vLLM's Responses API, which most parsers do not.** codex 0.153.4 speaks only the Responses API and sends flat tools (`{"type": "function", "name": "exec_command", ...}`). `qwen3_coder` never inspects those tool objects, so it works: a measured three-tool-call turn produced `response.function_call_arguments.done` plus a terminal `response.completed`, ran three separate shell commands with no retries, and reported input 35,508 / output 180 against vLLM's own 35,508 prompt / 180 generation counters. Seven other parsers -- `minicpm5xml`, `dots`, `hy_v3`, `hy_v4`, `rust`, `step3`, `step3p5` -- read the nested chat-completions shape (`tool.function.name`), abort tool extraction, and truncate the stream, which makes codex retry every request five times and fail the turn (issue #183).
+
 ## Environment failures before you reach the model
 
 Two node-level failures hit this box first, and both are documented in full under [qwen3.8-27b.md](qwen3.8-27b.md): the **`ninja` PATH** failure (`vllm-install.sh` puts ninja in the venv, `vllm-serve.sh` does not add it to `PATH`) and the **`libcudart` symlink** FlashInfer's JIT needs for the FP8-KV kernel. The serve command above exports both. Neither is specific to this model, but the ninja one killed its first boot after loading all 35.9 GB of weights, so budget for it on a fresh box.

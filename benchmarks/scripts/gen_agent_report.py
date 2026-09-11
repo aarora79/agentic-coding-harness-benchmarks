@@ -28,7 +28,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from token_accounting import compute_total_tokens_processed
+from token_accounting import cache_partition_for_agent, compute_total_tokens_processed
 
 logging.basicConfig(
     level=logging.INFO,
@@ -192,6 +192,7 @@ def _run_totals(summary: dict[str, Any]) -> dict[str, Any]:
             tcr,
             tcw,
             context=context,
+            cache_partition=cache_partition_for_agent(summary.get("agent")),
         )
     return {
         "input_tokens": tin,

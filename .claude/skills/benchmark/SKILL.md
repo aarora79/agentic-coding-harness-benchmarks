@@ -26,7 +26,9 @@ Collect these three, in order. Do not guess -- ask if any is missing.
 
 Optional fourth input:
 
-4. **agent** -- which coding agent drives the task, passed as `--agent` to the orchestrator. Default `claude` (Claude Code). Pass `pi` to drive the same `/swe2` task with the [pi coding agent](../../../self-hosted/vllm/scripts/run-pi.sh) instead; the task, artifacts, and judge are identical, only the agent changes. **`--agent pi` works only on the `vllm`/`litellm` paths** (it speaks the OpenAI-compatible endpoint); it has no native Amazon Bedrock mode, so it cannot run `--provider bedrock`. Only ask about this if the user brings it up -- otherwise default to `claude`.
+4. **agent** -- which coding agent drives the task, passed as `--agent` to the orchestrator. Default `claude` (Claude Code). The task, artifacts and judge are identical for every agent; only the agent binary changes. Options: `claude`, `pi`, `omp` (oh-my-pi), `codex` (OpenAI Codex), `kiro` (kiro-cli). **`--agent pi` works only on the `vllm`/`litellm` paths** (it speaks the OpenAI-compatible endpoint); it has no native Amazon Bedrock mode, so it cannot run `--provider bedrock`. Only ask about this if the user brings it up -- otherwise default to `claude`.
+
+   **`--agent codex` on the `vllm` path needs a Responses-safe tool parser.** codex 0.153.4 speaks only the Responses API (it removed the chat-completions wire), and seven of vLLM 0.29.0's tool parsers read the nested chat-completions tool shape and crash on the flat Responses shape: `minicpm5xml`, `dots`, `hy_v3`, `hy_v4`, `rust`, `step3`, `step3p5`. Against one of those, tool extraction aborts, the stream ends with no `response.completed`, and codex retries every request five times before failing the turn. `qwen3_coder` and `hermes` work -- verified with `qwen3.6-35b-fp8` at a 262,144-token window. Check the parser in the model guide before choosing this agent (issue #183).
 
 ## Workflow
 
@@ -154,7 +156,7 @@ aws sts get-caller-identity
 
 ## Step 3 - Pre-flight (see what will happen first)
 
-**3a. Both coding-agent CLIs must be installed, and both are expected to be wired to Amazon Bedrock.** The harness runs `claude -p` to produce the artifacts (or `pi -p` when `--agent pi` is chosen -- then confirm `pi` is on PATH instead of `claude`), and the judge runs `codex exec` to score them. Confirm both are on PATH:
+**3a. Both coding-agent CLIs must be installed, and both are expected to be wired to Amazon Bedrock.** The harness runs `claude -p` to produce the artifacts (or `pi -p` / `omp -p` / `codex exec` / `kiro-cli chat` when that `--agent` is chosen -- then confirm that binary is on PATH instead of `claude`), and the judge runs `codex exec` to score them. Confirm both are on PATH:
 
 ```bash
 command -v claude && command -v codex || echo "MISSING a required CLI"
@@ -193,7 +195,7 @@ Run the end-to-end script from `benchmarks/`. It re-runs every pre-flight check 
 
 ```bash
 cd benchmarks
-./scripts/run-e2e-benchmark.sh --provider {provider} --model {model} --dataset {dataset} [--agent claude|pi] [--yes] [--count N] [--skip-judge]
+./scripts/run-e2e-benchmark.sh --provider {provider} --model {model} --dataset {dataset} [--agent claude|pi|omp|codex|kiro] [--yes] [--count N] [--skip-judge]
 ```
 
 Tell the user, before it runs:

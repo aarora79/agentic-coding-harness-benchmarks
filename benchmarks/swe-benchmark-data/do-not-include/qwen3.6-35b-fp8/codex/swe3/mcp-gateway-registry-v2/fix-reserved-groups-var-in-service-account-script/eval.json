@@ -1,0 +1,64 @@
+{
+  "task": "fix-reserved-groups-var-in-service-account-script",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The issue clearly identifies both affected scripts, the verify_setup function, the observed exit status, and testable ShellCheck expectations. Its largest defect is the contradictory requirement that GROUPS be locally scoped after proposing that it be renamed, while the intended replacement variable is not clearly required to use Bash local. The reproduction and cited line locations agree with the submitted patch context for keycloak/setup/setup-agent-service-account.sh and setup-m2m-service-account.sh. The macos-setup caller impact, Keycloak version, related issue number, and repository-wide reserved-variable sweep could not be independently verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 21,
+      "risk_awareness": 12,
+      "total": 62,
+      "notes": "The LLD is concrete about the two files, affected functions, data flow, and exact before-and-after edits. Its central technical deficiency is that grep -qF still permits substring matches, while the claim that function assignments are local unless exported is the opposite of Bash scoping behavior. The proposed SA_GROUP_LIST assignment lacks local, and the alternative declare -l incorrectly treats the lowercase attribute as the mechanism for local scope. The claimed repository-wide sweep and macOS limitation on grep -qxF could not be independently verified."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 51,
+      "notes": "The review's strongest contribution is identifying that membership checks need protection from partial-name matches and considering exact-line matching. It then resolves that concern incorrectly with grep -qF, which changes regex interpretation but does not prevent a target such as restricted from matching mcp-servers-restricted. It also accepts the false assertion that SA_GROUP_LIST is function-local despite the design containing no local declaration. Platform portability and the assertion that command failures retain acceptable behavior were not substantiated against executable repository evidence."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 44,
+      "notes": "The plan provides concrete ShellCheck checks and meaningful exit-code and output oracles for the original failure. Its largest weakness is that it explicitly acknowledges grep -qF still matches substrings, contradicting the LLD and implementation claim without adding a test that distinguishes exact group names. The nonexistent-group case may fail during earlier group validation rather than exercise verify_setup, and the end-to-end commands omit the keycloak/setup path established elsewhere. The setup-m2m-service-account.sh --agent-id interface and claims that live tests cannot run in CI could not be verified."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 11,
+      "total": 65,
+      "notes": "The patch directly replaces GROUPS in both verify_setup functions and consistently updates the associated echo and membership checks, addressing the core reserved-variable failure. The largest defect is that grep -qF does not deliver the summary's promised prevention of partial substring matches, and SA_GROUP_LIST remains global because neither function declares it local. The hunks also modify assign_to_group in both files, matching the revised LLD, but the summary overstates that every acceptance item and review finding was addressed. Exact applicability, index hashes, surrounding repository conventions, and the claimed reserved-variable sweep could not be independently verified because the read-only command runner failed before repository inspection."
+    }
+  },
+  "task_score": 59.6,
+  "verdict": "The submission contains a credible targeted fix for the reserved GROUPS assignment, but incorrect Bash scoping and grep semantics materially weaken the design, review, tests, and implementation claims.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T07:27:16.672144Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 137430,
+      "cached_input_tokens": 93490,
+      "cache_write_input_tokens": 26535,
+      "output_tokens": 8172,
+      "reasoning_output_tokens": 6334
+    },
+    "duration_ms": 84199
+  }
+}

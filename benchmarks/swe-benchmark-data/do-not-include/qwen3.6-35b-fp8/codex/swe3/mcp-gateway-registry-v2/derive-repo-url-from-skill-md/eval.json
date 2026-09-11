@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 19,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 74,
+      "notes": "The issue clearly separates backend derivation, form auto-fill, and conditional UI links, with testable acceptance criteria and explicit non-goals. Its largest gap is undefined repeated-parse behavior: it does not say whether an old auto-filled repository URL must be cleared when the SKILL.md URL changes to a non-GitHub URL. The submitted patch corroborates the named endpoint, Dashboard form state, and SemanticSearchResults integration points, but the broad rule accepting hosts containing \"github\" lacks a precise trust boundary. No independent task statement was supplied, and local source verification was unavailable because read-only shell invocations failed during sandbox setup, so issue #846 and exact baseline claims could not be independently confirmed."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 13,
+      "total": 70,
+      "notes": "The LLD's strongest aspect is its concrete file-and-symbol map, including translate_skill_url, _parse_skill_md_content, parse_skill_md, handleParseSkillMd, and both link-rendering components. Its proposed `data.repository_url || prev.repository_url` assignment can retain a stale URL after parsing a different non-GitHub skill, contradicting the stated goal that such inputs leave the field empty. It also says the non-GitHub response field is absent while its route design always emits the key with null, and it duplicates GitHub path parsing without addressing divergence from the existing translator. The submitted diff matches the described plan, but exact source locations and existing helper behavior could not be independently verified due the repository-read sandbox failure."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "The review identifies a concrete enterprise-host defect, redundant import concern, layout risk, API compatibility consideration, and the need for URL-helper unit tests. Its largest omission is the stale form-state behavior caused by preserving `prev.repository_url`, which is more likely to produce incorrect stored data than several concerns it prioritizes. It also inaccurately praises three alternatives when the LLD contains two, and its claim that `[^/]+` excludes path-traversal characters is imprecise even though no filesystem traversal occurs here. Assertions about existing SSRF validation, deployment files, and source conventions could not be independently checked because local repository reads failed."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 59,
+      "notes": "The plan provides concrete expected URLs, covers public and enterprise forms, conditional links, editability, compatibility, and end-to-end registration behavior. Its principal flaw is that the endpoint fetches the supplied SKILL.md, while the curl cases use placeholder hosts and paths not connected to the prerequisite test file; malformed and inaccessible URLs can fail before the derivation oracle is reached. It lists unit tests only as a checklist item and omits the exact automated test file, mocks, repository test command, and the important GitHub-to-non-GitHub reparse transition that exposes stale state. The proposed localhost URL, authentication assumptions, and `tests/unit/` convention could not be verified against the checkout."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 10,
+      "total": 62,
+      "notes": "The patch is cohesive and implements its stated path through the utility, service result, API response, frontend type, form update, and two link-rendering surfaces. The largest behavioral defect is `data.repository_url || prev.repository_url`, which can silently retain the repository from a previously parsed skill when the new parse returns null. No tests are added despite the review and testing plan calling for pure-function unit coverage, and the summary's claim that a constraint against running tests prevented adding them is not valid. The diff contexts appear internally consistent, but clean application, target symbols, import conventions, and surrounding source could not be independently verified because all read-only shell commands failed at sandbox initialization."
+    }
+  },
+  "task_score": 66.6,
+  "verdict": "The submission is concrete and largely end-to-end, but unreliable executable testing and an unresolved stale repository-URL state transition materially limit confidence in the design and patch.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T07:25:52.460092Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 187965,
+      "cached_input_tokens": 135451,
+      "cache_write_input_tokens": 30005,
+      "output_tokens": 14115,
+      "reasoning_output_tokens": 12389
+    },
+    "duration_ms": 150915
+  }
+}

@@ -31,7 +31,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from token_accounting import compute_total_tokens_processed
+from token_accounting import cache_partition_for_agent, compute_total_tokens_processed
 
 import matplotlib
 
@@ -135,6 +135,7 @@ def _task_shape(data_dir: Path, harness: str, skill: str, repo: str) -> str | No
                 cr,
                 cw,
                 context=f"plot_cost_accuracy_bubble:{summ.get('model_slug')}/{task.get('task')}",
+                cache_partition=cache_partition_for_agent(summ.get("agent")),
             )
             if prompt_processed > 0 and o > 0:
                 ins.append(prompt_processed)
