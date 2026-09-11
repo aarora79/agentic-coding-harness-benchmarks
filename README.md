@@ -156,6 +156,8 @@ Where to read more, by topic:
 | [benchmarks/docs/path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) | Path 2 setup: open-weight models on Amazon Bedrock through the LiteLLM proxy. |
 | [benchmarks/docs/path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) | Path 3 setup: self-hosting a model on vLLM and pointing the harness at it. |
 | [docs/kiro-cli-setup.md](docs/kiro-cli-setup.md) | The kiro-cli harness: install, sign-in, headless use, the Bedrock-managed-only constraint, and how its Kiro-credit spend is calculated. Results: [harness-kiro-cli-swe3.md](docs/harness-kiro-cli-swe3.md). |
+| [docs/codex-setup.md](docs/codex-setup.md) | The codex harness: installing it, wiring it to Amazon Bedrock, the Responses-API constraint that decides which models it can reach, and a table of its known failure modes. |
+| [docs/faq/](docs/faq/) | FAQ, one file per question. First entry: [wiring codex to a model](docs/faq/wiring-codex-to-models.md) -- an open-weight model on Bedrock through a LiteLLM bridge, one you serve on vLLM, or an OpenAI model on Bedrock. |
 | [benchmarks/docs/end-to-end-self-hosted-run.md](benchmarks/docs/end-to-end-self-hosted-run.md) | The full manual run-book for an end-to-end self-hosted benchmark. |
 | [self-hosted/vllm/README.md](self-hosted/vllm/README.md) | Standing up a vLLM server: install, tensor parallelism, tool-call parsers, and the serving-config reference. |
 | [self-hosted/vllm/models/](self-hosted/vllm/models/) | Per-model serving guides (HF repo, context window, TP size, tool parser, hardware fit) for every benchmarked model. |
