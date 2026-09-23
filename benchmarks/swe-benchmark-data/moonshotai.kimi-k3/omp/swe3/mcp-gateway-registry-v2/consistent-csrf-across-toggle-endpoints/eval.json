@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "moonshotai.kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The issue's strongest aspect is its concrete audit of six real routes and their CSRF dependencies; the cited symbols and baseline locations exist, and agent registration is disabled by default in registry/services/agent_service.py. Its largest defect is the acceptance criterion claiming a cookieless M2M Bearer client can receive 200 from all six endpoints: /api/toggle/{service_path:path} uses enhanced_auth and therefore requires the session cookie, while /api/internal/toggle requires a separately signed internal JWT. It usefully identifies the shared-dependency blast radius and preserves cookie-bearing validation, but it does not reconcile that authentication heterogeneity with its uniform-success requirement. No independent task statement was supplied, so the candidate-selected 6/6 scope and upstream issue claims cannot be confirmed as required scope."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The LLD is unusually repository-specific: registry/auth/csrf.py and registry/auth/dependencies.py do read the same settings.session_cookie_name, validate_internal_auth is header-only, and the named route signatures and frontend axios interceptor exist. Its architecture nevertheless depicts cookieless M2M traffic to any toggle proceeding through nginx_proxied_auth, which is false for the enhanced_auth-only form route and the internal-JWT route. There are also revision inconsistencies: Data Models still says two dependency declarations, the numbered implementation steps omit the internal-route edit, and the observability claim that set_audit_action covers every toggle is unsupported for the form and internal handlers. Risk treatment of inherited behavior, token validation, body parsing, rollback, and cookie-name coupling is strong, but the absence of an independent task statement leaves the broadened 6/6 policy unverified."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 77,
+      "notes": "The review identifies several real, specific concerns, especially the cookie-name coupling, shared-dependency scope inheritance, request.form interaction, frontend call path, and internal-auth model, and it records actionable resolutions. Its largest miss is the contradiction between the all-six Bearer-success criterion and the actual enhanced_auth and validate_internal_auth dependencies; it also overstates that every toggle has its own authorization check, since toggle_service_api performs authentication but no explicit permission check. Repository inspection supports the axios, form-token, route-ordering, and internal-JWT observations, while the claimed username context for the CSRF skip log was never implemented or resolved. Because no independent task statement exists, the review should have challenged rather than assumed the expanded uniform-coverage requirement."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 67,
+      "notes": "The plan has strong dependency-level cases with exact 403 details, session-mismatch coverage, real commands consistent with the repository's uv/pytest setup, and an end-to-end state oracle. It does not actually exercise its headline Bearer-success condition on all six routes: the enhanced_auth server-form route has no Bearer test, the internal route uses a separate undefined INTERNAL_ADMIN_TOKEN, and several endpoint sections abbreviate negative cases or omit fixture setup. The proposed expired-token test is not deterministic because a freshly generated itsdangerous token commonly remains valid with max_age=0 in the same timestamp second, and the submitted body-preservation test never asserts that receive or form parsing was not invoked. Live IdP, staging, and permission assumptions are not verifiable here, and the missing independent task statement prevents confirming that every manual scenario is required."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 77,
+      "notes": "The patch implements the revised LLD's cookie-first skip and declares verify_csrf_token_flexible on all six identified toggle routes; every target symbol and hunk context matches the v1.0.20 source, and repository history at v1.0.21 independently corroborates the core CSRF and virtual-server changes. It still cannot satisfy the artifact's all-six M2M-200 criterion because it leaves enhanced_auth and validate_internal_auth unchanged, while the extra external and internal route edits go beyond the repository's actual v1.0.21 fix and cannot be established as required without a task statement. The new test_expired_token_rejected is likely to fail or flake due to max_age=0, and test_no_session_cookie_does_not_read_body would pass even if the body were consumed. The summary otherwise accurately describes the diff and admits tests were not run, but it overstates that nothing remains when an automated test is defective and the route-level authentication behavior is untested."
+    }
+  },
+  "task_score": 75.0,
+  "verdict": "This is a well-grounded and mostly correct CSRF change, but its broadened all-six-endpoint contract conflicts with the repository's heterogeneous authentication paths and includes a defective expiry test.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-23T05:40:55.737039Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 919799,
+      "cached_input_tokens": 813790,
+      "cache_write_input_tokens": 105985,
+      "output_tokens": 11881,
+      "reasoning_output_tokens": 5421
+    },
+    "duration_ms": 128333
+  }
+}

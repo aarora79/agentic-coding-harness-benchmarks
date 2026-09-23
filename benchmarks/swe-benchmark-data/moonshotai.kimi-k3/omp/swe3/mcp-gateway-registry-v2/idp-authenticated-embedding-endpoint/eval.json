@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "moonshotai.kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 86,
+      "notes": "The issue clearly defines the OAuth2 client-credentials behavior, opt-in compatibility contract, secret handling, deployment surfaces, and testable concurrency and validation outcomes. Its repository references are largely accurate: LiteLLMClient, CONFIG_GROUPS, FederationAuthManager, and the DocumentDB embedding path all exist as described. The largest weakness is the overly absolute byte-for-byte compatibility criterion, since adding seven visible config fields changes an operational surface even when disabled, and it requires all seven parameters across Terraform and Helm without reconciling whether every surface needs each parameter. No independent task statement was supplied, so the exact required configuration names and breadth of deployment work cannot be externally verified."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The LLD is unusually concrete about real integration points, including registry/embeddings/client.py, Settings.__init__, DocumentDBSearchRepository._get_embedding_model(), and the existing Terraform secret pattern. Its largest design defect is deployment wiring: it proposes an embeddingsIdpClientSecretExistingSecret pair without adding the deployment.yaml secretKeyRef used by existing chart patterns, while Terraform omits scope, timeout, and refresh-buffer variables despite the issue requiring all seven parameters. It also overlooks that _embed_texts permanently sets _embedding_unavailable after a transient token-service failure, preventing later refresh attempts, and it permits IdP mode with sentence-transformers even though only LiteLLM consumes it. The per-call LiteLLM api_key approach is supported by the repository's later implementation, but the intended requirements remain partly unverifiable because no independent task statement was provided."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The review identifies concrete defects such as expires_in coercion, response-body leakage, HTTPS enforcement, scope omission semantics, and early token revocation, and provides actionable resolutions. It nevertheless incorrectly declares the Helm existing-secret concern resolved: charts/registry/templates/deployment.yaml explicitly wires other ExistingSecret values through secretKeyRef, but the proposed patch never adds equivalent embeddings wiring. It also misses the permanent _embedding_unavailable latch after transient IdP errors, incomplete Terraform and Helm parameter exposure, and the absence of validation that IdP mode uses LiteLLM. Its assertion that the client secret exists only in the POST body is contradicted by the environment-based Settings and deployment configuration, while exact task-required scope cannot be verified independently."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 66,
+      "notes": "The plan supplies useful oracles for caching, refresh buffering, single-refresh concurrency, per-call api_key injection, error hygiene, defaults, and startup validation. The proposed E2E is not executable as written: the repository route is POST /api/search/semantic rather than /api/servers/search, the stub is plain HTTP despite HTTPS validation, its configured hostname does not point to that stub, and no functioning embedding endpoint or access-token setup is provided. The Helm existing-secret command contains a literal ellipsis and expects zero output without mounting the secret, while grep counts provide weak assurance for Docker and Terraform wiring. Coverage also misses recovery from the repository's _embedding_unavailable latch and the implementation patch omits the planned Settings tests, with no independent task statement available to establish further required cases."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 66,
+      "notes": "The core Python change fits the verified 1.28.0 symbols and implements a lock-guarded token cache, per-call LiteLLM api_key injection, fail-fast Settings validation, masked config UI entry, and DocumentDB factory wiring. The largest functional defect is Helm support: the new secret data is nested under the standalone-only shared-secret condition, and embeddingsIdpClientSecretExistingSecret is never consumed by deployment.yaml, so the advertised existing-secret and standard stack paths do not work. Terraform exposes only four of seven settings, making scope unavailable through its first-class surface, and a transient token-fetch failure can trip DocumentDBSearchRepository._embedding_unavailable permanently; IdP mode with sentence-transformers is also silently ignored. All shown diff contexts and files match the baseline, but no standalone patch.diff file was available for git apply --check, tests were not executed, and the summary's claim of exact LLD implementation overstates these deviations."
+    }
+  },
+  "task_score": 73.4,
+  "verdict": "The submission has a sound and well-grounded core token-refresh implementation, but incomplete and incorrect Helm and Terraform wiring plus a nonfunctional E2E plan keep it from being production-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-23T05:52:10.300049Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 662098,
+      "cached_input_tokens": 549607,
+      "cache_write_input_tokens": 112475,
+      "output_tokens": 9980,
+      "reasoning_output_tokens": 5326
+    },
+    "duration_ms": 113998
+  }
+}
