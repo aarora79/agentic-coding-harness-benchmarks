@@ -3,62 +3,62 @@
   "model": "moonshotai.kimi-k3",
   "scores": {
     "github_issue": {
-      "completeness": 14,
-      "correctness": 9,
-      "specificity": 20,
-      "risk_awareness": 15,
-      "total": 58,
-      "notes": "The issue provides unusually concrete acceptance criteria for encryption, expiry, isolation, logout, compatibility, and cookie size. Its core motivation is not grounded in the baseline: auth_server/server.py stores metadata and id_token in the cookie but explicitly excludes access_token and refresh_token, while POST /api/tokens/generate intentionally mints a self-signed gateway JWT rather than returning IdP tokens. Repository history at commit 986295ba, which closes #399, addresses large group claims by moving the full OAuth session payload server-side; retaining groups in the proposed cookie therefore does not reliably solve the documented overflow. No independent task statement was supplied, so the proposed raw-token retrieval endpoint cannot be verified as a requirement."
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The issue provides unusually concrete acceptance criteria, compatibility behavior, backend degradation, encryption, expiry, and explicit non-goals. Repository checks confirm the cited callback, OAUTH_STORE_TOKENS_IN_SESSION flag, credential encryption utility, MongoDB repository pattern, and internal JWT machinery exist. Its largest deficiency is scope inconsistency: it promises the Get JWT Token experience and eager replacement on subsequent login, while later artifacts leave every frontend caller on POST /api/tokens/generate and retain old records until TTL. The issue-number history, production token-size examples, and intended requirements could not be independently verified because no separate task statement was supplied."
     },
     "lld": {
-      "completeness": 16,
-      "correctness": 10,
-      "specificity": 21,
-      "risk_awareness": 16,
-      "total": 63,
-      "notes": "The LLD is highly specific about real files and patterns, including get_documentdb_client(), the backend-session TTL repository, Fernet derivation, factory singletons, and session-cookie decoding. Its architecture leaves potentially large groups and metadata in the cookie, unlike the repository's #399 fix, and it incorrectly treats exposing IdP tokens as restoration of a feature that repository documentation describes as self-signed token generation. The logout sequence deletes the token record before attempting id_token read-back, and the disable flag design promises a 404 although the endpoint pseudocode never checks that flag. It also claims Compose and Helm environment passthrough without accounting for the explicit Compose environment list or the nonexistent documented Helm value paths."
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The LLD is strongly grounded in real integration points including auth_server/server.py, registry/api/server_routes.py, registry/auth/dependencies.py, the repository factory, and credential_encryption.py. It is internally inconsistent about re-login: its goals promise eager deletion, but its implementation section generates a fresh reference and explicitly leaves the old valid record until TTL. It also incorrectly equates a valid internal JWT with registry-only authorization; registry/auth/internal.py accepts any signed subject and purpose, while the design adds no caller restriction for this credential-returning endpoint. The design covers many failures but does not address browser or intermediary caching of a GET response containing refresh tokens, XSS exposure, or permanent TTL-index absence after the repository's nonfatal first index-creation failure."
     },
     "review": {
-      "completeness": 15,
-      "correctness": 12,
-      "specificity": 19,
-      "risk_awareness": 16,
-      "total": 62,
-      "notes": "The review identifies concrete issues such as TTL-monitor lag, ownership-scoped deletion, response caching, ephemeral keys, configuration documentation, and logout availability. It misses the load-bearing defects: large group claims remain in the cookie, the proposed endpoint does not match the repository's Get JWT Token semantics, and deleting before id_token retrieval breaks SSO logout. The frontend review first says no UI changes are required and then acknowledges that the existing page only calls POST /api/tokens/generate, without checking the active React /generate-token flow in frontend/src. It also accepts environment passthrough and rollback claims that the submitted patch does not implement in docker-compose.yml or the charts."
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The review surfaces concrete, prioritized defects involving access-versus-refresh expiry, UI scope, TTL lag, rate limiting, error oracles, and the no-database-read constraint. Its largest miss is declaring the registry-trust concern resolved by logging, even though validate_internal_auth authenticates any holder of the shared SECRET_KEY and does not enforce subject or purpose. It also accepts orphaning the prior login record despite the issue's eager-rotation criterion and misses cache controls and XSS implications of returning refresh tokens to browser JavaScript. The claimed defect in the unavailable initial LLD cannot be independently checked, although the revised LLD clearly incorporates the proposed expiry correction."
     },
     "testing": {
-      "completeness": 15,
-      "correctness": 9,
-      "specificity": 18,
-      "risk_awareness": 15,
-      "total": 57,
-      "notes": "The plan covers repository round trips, encryption, expiry, ownership, callback behavior, compatibility, outage handling, and cache headers with concrete expected states. Several functional commands are not executable as written: curl cannot complete an interactive Keycloak login, MONGODB_URL is undefined, and the Compose service is mongodb rather than documentdb. Searching the signed itsdangerous cookie for eyJ cannot prove token absence, while comparing two users' tokens for inequality does not prove cross-user isolation. The plan also omits a real regression test for delete-before-read logout ordering and lists endpoint tests that are absent from the implementation."
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The plan spans repository behavior, callback wiring, endpoint authorization, compatibility, expiry, deployment checks, and concrete response oracles. A central lifecycle command is wrong: POST /logout supplies no CSRF token, while registry/auth/routes.py protects that route with verify_csrf_token_flexible, so the expected 303 will instead be rejected. The submitted repository test also guarantees failure by mocking ciphertext as enc:access-plain and then asserting access-plain is absent, while the re-login script only prints reference presence and never compares the references. Coverage omits expected-caller or purpose enforcement, cache headers, reliable TTL deletion, and a focused logout unit test; the proposed tests were not executed, so no passing evidence is available."
     },
     "implementation": {
-      "completeness": 10,
-      "correctness": 7,
-      "specificity": 18,
-      "risk_awareness": 10,
-      "total": 45,
-      "notes": "The embedded diff targets symbols and contexts present at commit 0038b687 and implements encryption, scoped queries, TTL cleanup, application-level expiry, and no-store responses coherently. In registry/auth/routes.py it deletes the record before later calling get_tokens for id_token, so successful storage prevents the intended SSO id_token_hint from being recovered. OAUTH_TOKEN_STORE_ENABLED is not checked by the retrieval endpoint and neither new variable is passed by docker-compose.yml, making the claimed disable and rollback behavior false; the TTL override also replaces rather than caps session lifetime. The patch retains unbounded groups in cookies, does not wire the active token UI, and supplies no endpoint, logout, configuration, or cookie-size regression tests, so it does not complete either the repository's #399 solution or its own stated UX."
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 64,
+      "notes": "The diff targets real files and matching symbols at tag 1.23.0 and implements the core encrypted store, callback reference, retrieval routes, expiry guard, logout deletion, configuration, compose wiring, and tests. Its largest security defect is that POST /internal/oauth-tokens is not registry-only: validate_internal_auth accepts any correctly signed internal token without checking sub or purpose, yet the endpoint returns both access and refresh tokens and adds no Cache-Control: no-store response policy. The implementation also leaves all verified frontend call sites using POST /api/tokens/generate and never deletes a prior login's record, contradicting the issue while the summary claims no LLD deviations. The test suite contains the guaranteed plaintext-substring assertion failure, and refresh-token decryption failure returns the access token alone despite the LLD contract that any decryption failure maps the record to missing."
     }
   },
-  "task_score": 57.0,
-  "verdict": "The submission is concrete and security-conscious, but it solves a misidentified token-retrieval problem while leaving the actual large-session overflow and several critical implementation paths broken.",
+  "task_score": 71.8,
+  "verdict": "The submission is detailed and repository-aware, but the implementation remains incomplete and exposes sensitive retrieval through an internal-auth contract that does not actually restrict callers to the registry service.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-09-23T06:11:35.260354Z",
+    "evaluated_at": "2026-09-23T20:52:59.018723Z",
     "repo_ref": "1.23.0",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 673596,
-      "cached_input_tokens": 558516,
-      "cache_write_input_tokens": 115062,
-      "output_tokens": 10417,
-      "reasoning_output_tokens": 5954
+      "input_tokens": 842357,
+      "cached_input_tokens": 724211,
+      "cache_write_input_tokens": 118126,
+      "output_tokens": 11673,
+      "reasoning_output_tokens": 7291
     },
-    "duration_ms": 120374
+    "duration_ms": 164215
   }
 }

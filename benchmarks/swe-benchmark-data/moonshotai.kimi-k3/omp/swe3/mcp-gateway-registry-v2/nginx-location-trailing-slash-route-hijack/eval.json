@@ -3,62 +3,62 @@
   "model": "moonshotai.kimi-k3",
   "scores": {
     "github_issue": {
-      "completeness": 22,
-      "correctness": 17,
+      "completeness": 18,
+      "correctness": 14,
       "specificity": 22,
-      "risk_awareness": 18,
-      "total": 79,
-      "notes": "The issue precisely identifies the real bare-prefix render in registry/core/nginx_service.py::_create_location_block and supplies concrete acceptance criteria for ordinary, virtual, and unhealthy-server blocks. Its largest weakness is inaccurate routing detail: /api/health and /api/version already have longer ^~ locations, and a server at /a cannot match /oauth2 paths. It also claims registration strips trailing slashes, but the registration handlers only add a leading slash; _normalize_server_path is used by other routes. No independent task statement was supplied, so the proposed exact-match redirect could not be verified as a required behavior."
+      "risk_awareness": 16,
+      "total": 70,
+      "notes": "The issue precisely identifies `NginxConfigService._create_location_block`, gives testable output criteria, and scopes the primary named-server change. It incorrectly claims `/a` hijacks `/api/...`, despite the longer `location {{ROOT_PATH}}/api/` in both nginx templates, and says bare `/name` falls through even though nginx automatically redirects this slash-terminated proxy location. It also excludes virtual-server prefix collisions and misses root/slashes-only paths, both addressed by the repository's 1.28.0 fix. No independent task statement was supplied, so broader requirement coverage is inferred from the task identifier and the 1.28.0 history."
     },
     "lld": {
-      "completeness": 20,
-      "correctness": 15,
-      "specificity": 23,
-      "risk_awareness": 18,
-      "total": 76,
-      "notes": "The LLD is unusually concrete about real integration points, including _generate_virtual_server_blocks, the auth-server mcp-proxy route, ROOT_PATH substitution, and _write_and_validate_config. Its largest error is the root-path analysis: _location_base_path(\"/\") returns an empty string, so with empty ROOT_PATH the patch emits invalid nginx syntax, location =  {, even though the baseline explicitly permits root registration. The exact redirect also creates ownership of bare SPA or OAuth paths without a reserved-path guard, while the design treats that guard as deferred. Claims that nginx -t gates every write are too absolute because _write_and_validate_config can promote without nginx when validation is not required."
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 70,
+      "notes": "The LLD is strongly grounded in real symbols including `_create_location_block`, `_normalize_server_path`, `_generate_version_map`, and `_write_and_validate_config`, and its central render-time normalization is implementable. Its bare-path behavior is wrong: repository commit `164af86d` documents nginx's automatic 301 for these trailing-slash proxy locations, while startup in `registry/main.py` regenerates and then seeds the scheduler hash rather than relying on the first poll tick. Treating `/` as a valid status-quo edge case is unsafe, and deferring virtual-server normalization omits work present in the 1.28.0 repair. The exact SPA-versus-JSON response claimed for a bare path was not established by the inspected nginx integration."
     },
     "review": {
-      "completeness": 22,
-      "correctness": 18,
-      "specificity": 22,
-      "risk_awareness": 21,
-      "total": 83,
-      "notes": "The review substantively challenges the design, identifying sanitizer ordering, ROOT_PATH behavior, nested paths, regeneration operations, and duplicate static locations rather than merely approving it. Its largest deficiency is that it notices but does not resolve the bare-path collision question, and it accepts the invalid root rendering as deterministic behavior. The security claim that /o or /oauth2 necessarily captures configured OAuth login and callback routes overlooks nginx longest-prefix selection of the longer static locations. The review otherwise gives prioritized, actionable resolutions grounded in named repository symbols."
-    },
-    "testing": {
-      "completeness": 20,
-      "correctness": 13,
-      "specificity": 20,
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 21,
       "risk_awareness": 16,
       "total": 69,
-      "notes": "The proposed unit tests have concrete config-text oracles for normalization, query preservation, nested paths, virtual servers, and ROOT_PATH substitution. The operational commands are materially wrong: compose runs nginx inside the registry service rather than an nginx container, and /api/servers/register accepts form fields named name and description rather than the submitted JSON with server_name. Cleanup also uses a nonexistent DELETE /api/servers/a endpoint; the repository exposes POST /api/servers/remove. Several collision checks would already pass before the fix, and the plan omits the accepted root-path case that produces invalid config."
+      "notes": "The review produces concrete actions, notably the negative location assertion and the residual `/virtual/dev` versus `/virtual/dev-tools` collision. It nevertheless endorses the incorrect catch-all behavior for bare paths and fails to identify the slashes-only path hazard later fixed by `ec0b952a`. Its rollout discussion also misses that `registry/main.py` writes startup configuration before `NginxReloadScheduler.seed_hash`. With no independent task statement, the review's assertion that two-file scope is sufficient cannot be fully verified and conflicts with the broader 1.28.0 fix."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 57,
+      "notes": "The unit-test section names real test paths and provides useful positive and negative renderer oracles for all three transports. The live setup is not executable as written: there is no `POST /api/servers` JSON registration route, and `docker-compose.yml` has a `registry` service containing nginx rather than an `nginx` service for `docker compose exec nginx`. The sibling `startswith` loops merely assert Python string literals, while `/api/auth/login` cannot reproduce the claimed hijack because a longer nginx API location wins. The plan also omits root/slashes-only and virtual-server coverage and asserts the incorrect catch-all outcome for bare `/a`."
     },
     "implementation": {
       "completeness": 18,
-      "correctness": 13,
-      "specificity": 21,
-      "risk_awareness": 14,
-      "total": 66,
-      "notes": "The embedded diff targets the exact 1.27.1 blobs and real symbols, and it correctly changes normal MCP and virtual-server locations to trailing-slash prefixes with focused unit coverage. The largest defect is _location_base_path(\"/\"): the repository accepts root registrations, but the resulting location =  { fails nginx validation and can block subsequent regeneration. The exact redirect also claims safe route isolation without implementing a corresponding reserved-path policy, and no repository release note implements the promised regeneration guidance. The summary accurately admits tests were not run, but its claim of no LLD deviation oversells a patch with these unresolved compatibility and rollout gaps."
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 12,
+      "total": 68,
+      "notes": "The submitted diff passes `git apply --check` against the exact `1.27.1` commit, and the target symbols and test insertion point exist. `path.rstrip(\"/\") + \"/\"` correctly fixes named-server sibling prefix collisions through the shared render point, and the added tests accurately pin its generated form and idempotency. The patch omits virtual-server normalization and root/slashes-only rejection that are part of the repository's 1.28.0 repair, leaving documented collision and gateway-wide-location risks. Its summary also falsely says bare paths reach the catch-all; repository commit `164af86d` confirms they receive nginx's automatic 301, which can expose an unusable internal absolute redirect behind TLS termination."
     }
   },
-  "task_score": 74.6,
-  "verdict": "The submission is highly specific and mostly grounded, but the implementation mishandles the repository-supported root path and the executable testing runbook contains several invalid commands and APIs.",
+  "task_score": 66.8,
+  "verdict": "The submission implements the central named-server normalization cleanly, but significant nginx behavior errors, unusable end-to-end commands, and omitted root and virtual-server cases limit its reliability.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-09-23T06:00:54.259469Z",
+    "evaluated_at": "2026-09-23T20:40:50.461052Z",
     "repo_ref": "1.27.1",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 1791632,
-      "cached_input_tokens": 1629265,
-      "cache_write_input_tokens": 162337,
-      "output_tokens": 14250,
-      "reasoning_output_tokens": 7952
+      "input_tokens": 474747,
+      "cached_input_tokens": 390185,
+      "cache_write_input_tokens": 84546,
+      "output_tokens": 9019,
+      "reasoning_output_tokens": 3843
     },
-    "duration_ms": 168985
+    "duration_ms": 120030
   }
 }

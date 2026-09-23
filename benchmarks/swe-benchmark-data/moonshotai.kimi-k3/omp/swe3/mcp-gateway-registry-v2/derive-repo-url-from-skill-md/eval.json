@@ -4,61 +4,61 @@
   "scores": {
     "github_issue": {
       "completeness": 22,
-      "correctness": 22,
-      "specificity": 23,
-      "risk_awareness": 20,
-      "total": 87,
-      "notes": "The issue defines concrete derivation rules, API/UI behavior, testable acceptance criteria, and explicit non-goals. Its named endpoints, components, existing repository_url fields, and URL helpers all exist at v1.0.19. The largest omission is the existing frontend normalization/edit flow: useSkills.ts drops repository_url and Dashboard.tsx initializes it to an empty string when editing, neither of which is reflected in acceptance criteria. No independent task statement was supplied, so the broader semantic-search and enterprise requirements are supported only by the artifacts and repository history."
-    },
-    "lld": {
-      "completeness": 16,
-      "correctness": 14,
+      "correctness": 18,
       "specificity": 22,
       "risk_awareness": 18,
-      "total": 70,
-      "notes": "The LLD is unusually concrete about real symbols, both SkillInfo construction sites, and the three DocumentDB extraction blocks, all verified in the repository. Its largest defect is omitting frontend/src/hooks/useSkills.ts, whose explicit mapping discards repository_url, so the primary SkillCard modal cannot receive the new field; it also misses Dashboard.tsx's edit initialization that would clear a stored value. The claimed end-to-end semantic-search flow discusses only DocumentDB despite registry/repositories/factory.py also selecting FaissSearchRepository for non-database storage. It does address overwrite behavior, stale search documents, optional-field compatibility, SSRF boundaries, and rollback, but the absent independent task statement prevents verifying whether its expanded search scope was required."
+      "total": 80,
+      "notes": "The issue gives testable acceptance criteria for parsing, persistence, both modals, editable form behavior, enterprise hosts, and legacy records. Its largest deficiency is an incomplete frontend data-flow diagnosis: frontend/src/hooks/useSkills.ts manually projects API objects but repository_url is absent, so changing SkillInfo and the Skill type alone cannot feed SkillCard or edit mode. The stated backend models and existing repository_url fields were verified in registry/schemas/skill_models.py, as were the two SkillInfo construction sites. No independent task statement was supplied, and the claim that most skills lack repository_url cannot be verified from repository evidence."
     },
-    "review": {
-      "completeness": 16,
-      "correctness": 15,
-      "specificity": 21,
-      "risk_awareness": 20,
-      "total": 72,
-      "notes": "The review identifies concrete hazards including duplicated backend projection sites, stale indexed documents, manual-value overwrite, and safe href reconstruction. It nevertheless misses the decisive frontend integration defect: useSkills.ts omits repository_url, while Dashboard.tsx sets repository_url to an empty string when opening an existing skill. Its statement that no blockers remain is therefore unsupported, and its frontend persona's claim that the field is fully wired is contradicted by those files. The review is otherwise actionable and repository-specific, though broader requirements cannot be independently confirmed without a task statement."
-    },
-    "testing": {
-      "completeness": 18,
-      "correctness": 19,
+    "lld": {
+      "completeness": 17,
+      "correctness": 14,
       "specificity": 21,
       "risk_awareness": 19,
-      "total": 77,
-      "notes": "The plan supplies concrete URL cases, expected values, API status oracles, compatibility checks, and the repository-valid command uv run pytest tests/. The largest gap is the absence of automated API or frontend coverage for data propagation through useSkills.ts and existing-skill editing, exactly where the submitted patch is defective. Manual modal and edit checks could expose some failures, but the patch includes only the helper unit test and does not exercise either SkillInfo path or any search extraction path. The reachability and content of the external anthropics URLs cannot be verified from this repository, although the plan acknowledges that unreachable URLs return 400."
+      "total": 71,
+      "notes": "The LLD is unusually concrete about registry/utils/url_utils.py, both SkillInfo construction sites, search-index mappings, form state, modal links, and re-index staleness, and those symbols exist at the described baseline. Its critical omission is frontend/src/hooks/useSkills.ts, whose field-by-field transformation drops repository_url before Dashboard passes skills to SkillCard and before edit-mode initialization. It also names POST /api/search, while registry/api/search_routes.py defines /semantic under the /api/search prefix, making the actual endpoint POST /api/search/semantic. The rollout, compatibility, SSRF, user-editability, and no-backfill risks are otherwise addressed proportionately."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 20,
+      "total": 71,
+      "notes": "The review finds real defects, notably edit-mode clearing, duplicated SkillInfo construction, index staleness, and the need to test conditional links and both list paths. Its largest failure is declaring the whole data path fixed and all blocking findings resolved without noticing the manual projection in frontend/src/hooks/useSkills.ts, the exact integration defect that prevents the main modal and edit form from receiving repository_url. The frontend and SMTS verdicts therefore overstate correctness despite otherwise actionable recommendations tied to real files. Its security and operational analysis is well grounded in the existing SSRF checks and index-on-update behavior in registry/services/skill_service.py."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 70,
+      "notes": "The plan supplies strong value-level oracles for URL derivation, null handling, editable state, conditional links, legacy records, list paths, and index refresh behavior. All semantic-search curl examples use POST /api/search, but the verified route is POST /api/search/semantic, so those checks return the wrong result. The claimed fast-path request omits include_disabled=true even though registry/api/skill_routes.py treats the default false value as a field filter, and several registration/E2E examples use nonexistent org/repo URLs despite registration validating reachability. Manual UX checks could expose the missing useSkills projection, but no automated hook, API propagation, or component test pins that critical regression."
     },
     "implementation": {
-      "completeness": 15,
-      "correctness": 12,
+      "completeness": 17,
+      "correctness": 15,
       "specificity": 20,
       "risk_awareness": 14,
-      "total": 61,
-      "notes": "The patch's target files, symbols, and contexts match v1.0.19, and it correctly implements derivation, parse-response propagation, both SkillInfo constructors, DocumentDB projections, typed modal links, and focused helper tests. The largest defect is that frontend/src/hooks/useSkills.ts still omits repository_url from its transformation, so SkillCard receives no repository URL and the primary View Repo requirement fails. Dashboard.tsx also still initializes repository_url to an empty string for existing skills, meaning an unrelated edit can erase a stored repository URL; the repository's merged follow-up explicitly changed both locations. The summary's claim of no deviations is therefore false, and its stale-index discussion does not cover these user-visible and data-loss risks."
+      "total": 66,
+      "notes": "Most hunks match the baseline source and correctly implement derivation, parse and list serialization, DocumentDB search propagation, semantic result typing, editable auto-fill, and conditional modal links. The patch omits frontend/src/hooks/useSkills.ts, whose transformation at lines 34-57 discards repository_url, so the main SkillCard View Repo link remains hidden and edit mode still submits an empty value, contrary to the summary's end-to-end claim. The added tests cover the pure helper well but do not test API propagation, either modal, form behavior, or this mapper, and the helper's claim to never raise is not protected against every urlparse failure. No standalone patch.diff exists in the repository, so git apply --check could not be run directly, although the submitted hunk contexts and symbols were manually verified."
     }
   },
-  "task_score": 73.4,
-  "verdict": "The submission is well grounded and detailed, but it misses two critical frontend data-propagation paths, leaving the primary repository link broken and risking deletion of stored URLs during edits.",
+  "task_score": 71.6,
+  "verdict": "The submission is detailed and largely repository-grounded, but missing the useSkills repository_url projection leaves a central UI and edit workflow broken despite repeated claims of end-to-end completion.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-09-23T05:44:55.243354Z",
+    "evaluated_at": "2026-09-23T20:19:54.082004Z",
     "repo_ref": "v1.0.19",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 494436,
-      "cached_input_tokens": 392590,
-      "cache_write_input_tokens": 101832,
-      "output_tokens": 8606,
-      "reasoning_output_tokens": 4345
+      "input_tokens": 954502,
+      "cached_input_tokens": 835059,
+      "cache_write_input_tokens": 119421,
+      "output_tokens": 9756,
+      "reasoning_output_tokens": 4717
     },
-    "duration_ms": 91887
+    "duration_ms": 143124
   }
 }

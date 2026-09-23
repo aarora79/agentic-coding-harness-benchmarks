@@ -3,62 +3,62 @@
   "model": "moonshotai.kimi-k3",
   "scores": {
     "github_issue": {
-      "completeness": 24,
-      "correctness": 24,
+      "completeness": 23,
+      "correctness": 16,
       "specificity": 24,
-      "risk_awareness": 22,
-      "total": 94,
-      "notes": "The issue precisely defines the tab-specific behavior, preserved controls, navigation target, acceptance criteria, and non-goals. Its claims match Dashboard.tsx: viewFilter controls the six tabs, handleRegisterServer navigates to /servers/register, and the skills and virtual sections expose their own contextual actions. The largest minor gap is limited treatment of permission and feature-flag variants, although those are explicitly excluded and do not undermine the requested fix. No independent task statement was supplied and the linked upstream issue could not be checked, but the task identifier and repository commit 4526a623 confirm the described defect and intended behavior."
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The issue provides unusually concrete per-tab acceptance criteria, preserves neighboring controls, and explicitly excludes route, form, and backend changes. Its largest defect is expanding the change to External Registries: repository commit `4526a623` states Register remains relevant there and implements only `viewFilter !== 'skills' && viewFilter !== 'virtual'`. The cited button, `/servers/register` route, Add Skill action, and Add Virtual Server action all exist in the named files. No independent task statement was supplied, but the local history for issue #793 directly contradicts the proposed External-tab behavior."
     },
     "lld": {
-      "completeness": 24,
-      "correctness": 23,
-      "specificity": 24,
-      "risk_awareness": 23,
-      "total": 94,
-      "notes": "The LLD is unusually well grounded for this small change, naming the correct state union, handlers, route, JSX sections, feature flags, and exact button-level integration point in Dashboard.tsx. Its allowlist preserves the enclosing viewFilter !== 'discover' header condition and therefore leaves search and Refresh Health visible on skills and virtual tabs as designed. The largest weakness is the unverifiable assertion that upstream issue #793 proposed changing the entire wrapper; local history shows the accepted fix instead gated the button with an equivalent negative condition. Compatibility, future-tab behavior, permission inconsistency, rollback, and the risk of hiding unrelated controls are otherwise handled proportionately."
+      "completeness": 22,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 79,
+      "notes": "The LLD is highly specific about `Dashboard.tsx`, `viewFilter`, the outer Discover gate, `handleRegisterServer`, and the unchanged search and refresh controls. Its load-bearing decision is wrong: the positive servers-or-agents allowlist hides Register on External, while the repository's actual #793 fix preserves External and excludes only skills and virtual. It also incorrectly says Add Virtual Server opens `VirtualServerForm`; line 2101 instead navigates to `/settings/virtual-mcp/servers`, and its claim that every disabled-feature tab is unreachable is not true for virtual at this baseline. Most remaining path, symbol, route, and single-writer claims were verified, while the asserted product rationale that all External content is read-only is not supported by the baseline UI."
     },
     "review": {
-      "completeness": 21,
-      "correctness": 20,
-      "specificity": 21,
-      "risk_awareness": 21,
-      "total": 83,
-      "notes": "The review surfaces concrete concerns rather than only approving: header layout shift, missing automated regression coverage, and the pre-existing Register permission inconsistency all map to real code. It correctly recognizes that the patch changes presentation only and that RegisterPage.tsx independently checks register_service and publish_agent permissions. Its clearest factual error is saying Discover has no search, because DiscoverTab.tsx renders its own search input even though the dashboard header row is absent. The claim that backend scopes enforce every relevant authorization path was not demonstrated, and the multi-persona repetition adds less value than a focused verification of the proposed tests would have."
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 70,
+      "notes": "The review usefully identifies the External-tab expansion as a product decision and calls out the substantial mocking surface of a Dashboard unit test. Its largest failure is treating the known scope concern as documentation-only and approving it, despite repository commit `4526a623` explicitly preserving Register on External. Checks concerning the sole `setViewFilter` writer and the permission enforcement in `RegisterPage.tsx` were verified against the source. The review's claim that External is uniformly read-only is not established because the tab is tag-derived and only deletion of federated entries is explicitly disabled."
     },
     "testing": {
-      "completeness": 22,
-      "correctness": 19,
+      "completeness": 20,
+      "correctness": 14,
       "specificity": 21,
-      "risk_awareness": 21,
-      "total": 83,
-      "notes": "The plan provides a concrete per-tab visibility matrix, navigation oracle, DOM absence check, tab-switch regression case, compatibility checks, viewport checks, and valid npm start/build/test commands from frontend/package.json. It directly tests the critical distinction that Register disappears while search and Refresh Health remain on virtual and skills tabs. The Discover oracle is incorrect as written: frontend/src/components/DiscoverTab.tsx contains a separate search input, so asserting that Discover has no search bar at all would fail even on the baseline. The optional component examples are also not executable without substantial mocks and refer to a nonexistent TestProviders helper and pages/__tests__ directory, leaving the primary coverage manual."
+      "risk_awareness": 19,
+      "total": 74,
+      "notes": "The plan has concrete visibility oracles for each tab, navigation checks, neighboring-control regression coverage, direct-route coverage, and the valid `cd frontend && npm run build` command. Its central expected result for External is wrong and would codify the behavior contradicted by the repository's #793 implementation. The optional Playwright example also omits the existing `loginAsAdmin` setup used by `frontend/e2e/virtual-server-dashboard.spec.ts`, so `page.goto('/')` is not a faithful authenticated test, and the stated registration-permission prerequisite is unnecessary because the header button itself is unconditional. Manual outcomes and build success are explicitly unexecuted and therefore remain unverifiable."
     },
     "implementation": {
-      "completeness": 22,
-      "correctness": 24,
-      "specificity": 24,
-      "risk_awareness": 21,
-      "total": 91,
-      "notes": "The patch applies cleanly to v1.0.18 and correctly wraps only the Register button with an allowlist for servers, agents, and external, leaving the surrounding search and Refresh Health JSX unchanged. This produces the same current-tab behavior as repository fix commit 4526a623, which used the equivalent skills/virtual exclusion condition, while preserving handleRegisterServer and /servers/register. The largest limitation is the absence of automated regression coverage or executed build verification, which the summary reports honestly rather than overstating. There is no material deviation from the LLD, and omission of generated frontend assets is not treated as a defect because the repository production build generates the bundle from frontend source."
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 71,
+      "notes": "The patch applies cleanly to `v1.0.18` and correctly hides Register on virtual and skills while leaving the outer header row, search input, Refresh Health button, route, and handler untouched. Its largest defect is the positive servers-or-agents allowlist, which also removes Register from External Registries; the repository's actual fix uses `viewFilter !== 'skills' && viewFilter !== 'virtual'` and explicitly retains External. The summary accurately describes the submitted patch and openly identifies the extra External behavior, but proceeding without confirmation does not mitigate that regression or the future-tab default-to-hidden risk. No tests or build were run and no automated regression test was included, although the summary reports that limitation honestly."
     }
   },
-  "task_score": 89.0,
-  "verdict": "The submission is technically correct and exceptionally well grounded for a trivial UI fix, with its main limitation being manual-heavy testing that includes an incorrect Discover search-bar oracle.",
+  "task_score": 75.4,
+  "verdict": "The submission is detailed and repository-aware, but it knowingly broadens a two-tab fix to hide Register on External Registries, contradicting the repository's actual #793 behavior.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-09-23T05:48:28.799741Z",
+    "evaluated_at": "2026-09-23T20:23:53.898802Z",
     "repo_ref": "v1.0.18",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 330071,
-      "cached_input_tokens": 275737,
-      "cache_write_input_tokens": 54318,
-      "output_tokens": 7313,
-      "reasoning_output_tokens": 3280
+      "input_tokens": 293267,
+      "cached_input_tokens": 222071,
+      "cache_write_input_tokens": 71184,
+      "output_tokens": 7978,
+      "reasoning_output_tokens": 3688
     },
-    "duration_ms": 77779
+    "duration_ms": 91539
   }
 }

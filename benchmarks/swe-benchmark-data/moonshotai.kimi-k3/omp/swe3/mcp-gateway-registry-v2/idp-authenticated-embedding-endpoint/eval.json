@@ -8,57 +8,57 @@
       "specificity": 23,
       "risk_awareness": 21,
       "total": 86,
-      "notes": "The issue clearly defines the OAuth2 client-credentials behavior, opt-in compatibility contract, secret handling, deployment surfaces, and testable concurrency and validation outcomes. Its repository references are largely accurate: LiteLLMClient, CONFIG_GROUPS, FederationAuthManager, and the DocumentDB embedding path all exist as described. The largest weakness is the overly absolute byte-for-byte compatibility criterion, since adding seven visible config fields changes an operational surface even when disabled, and it requires all seven parameters across Terraform and Helm without reconciling whether every surface needs each parameter. No independent task statement was supplied, so the exact required configuration names and breadth of deployment work cannot be externally verified."
+      "notes": "The issue provides unusually concrete acceptance criteria, deployment surfaces, compatibility expectations, and non-goals. Its central repository claims are supported by registry/embeddings/client.py, registry/core/config.py, and the _embedding_unavailable behavior in the DocumentDB search repository. The largest limitation is that it prescribes an extensive solution before an independent task statement establishes the full required scope, and the good-first-issue label understates the cross-platform complexity. Requirement coverage beyond the task identifier and repository evidence cannot be independently verified."
     },
     "lld": {
-      "completeness": 19,
-      "correctness": 16,
-      "specificity": 22,
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 23,
       "risk_awareness": 17,
       "total": 74,
-      "notes": "The LLD is unusually concrete about real integration points, including registry/embeddings/client.py, Settings.__init__, DocumentDBSearchRepository._get_embedding_model(), and the existing Terraform secret pattern. Its largest design defect is deployment wiring: it proposes an embeddingsIdpClientSecretExistingSecret pair without adding the deployment.yaml secretKeyRef used by existing chart patterns, while Terraform omits scope, timeout, and refresh-buffer variables despite the issue requiring all seven parameters. It also overlooks that _embed_texts permanently sets _embedding_unavailable after a transient token-service failure, preventing later refresh attempts, and it permits IdP mode with sentence-transformers even though only LiteLLM consumes it. The per-call LiteLLM api_key approach is supported by the repository's later implementation, but the intended requirements remain partly unverifiable because no independent task statement was provided."
+      "notes": "The LLD is strongly grounded in real integration points including LiteLLMClient.encode, create_embeddings_client, Settings, config_routes.py, and the Terraform, Helm, and CDK layouts. Its largest correctness defect is extending a token's internal lifetime when expires_in is at or below the refresh buffer, which causes expired bearer tokens to be reused rather than fixing the buffer calculation. It also contradicts the issue's HTTPS requirement by allowing arbitrary remote HTTP token URLs, and leaves the httpx.Client without the cleanup that its own review identified. The deployment analysis misses that placing Helm values into the shown secret-template region excludes them when the umbrella chart sets global.sharedSecretName."
     },
     "review": {
-      "completeness": 18,
-      "correctness": 17,
-      "specificity": 22,
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 21,
       "risk_awareness": 18,
-      "total": 75,
-      "notes": "The review identifies concrete defects such as expires_in coercion, response-body leakage, HTTPS enforcement, scope omission semantics, and early token revocation, and provides actionable resolutions. It nevertheless incorrectly declares the Helm existing-secret concern resolved: charts/registry/templates/deployment.yaml explicitly wires other ExistingSecret values through secretKeyRef, but the proposed patch never adds equivalent embeddings wiring. It also misses the permanent _embedding_unavailable latch after transient IdP errors, incomplete Terraform and Helm parameter exposure, and the absence of validation that IdP mode uses LiteLLM. Its assertion that the client secret exists only in the POST body is contradicted by the environment-based Settings and deployment configuration, while exact task-required scope cannot be verified independently."
+      "total": 73,
+      "notes": "The review surfaces concrete repository-specific concerns about expires_in parsing, Bedrock incompatibility, factory wiring, Helm configuration, secret handling, and HTTP-client lifecycle. Its most serious mistake is recommending warn-only handling for every HTTP token URL, despite that transmitting a client secret to a remote plaintext endpoint violates the issue's explicit acceptance criterion. It also endorses the invalid TTL clamp and records the client cleanup concern without resolving it. The frontend review overlooks config_routes.py's automatic _token sensitivity pattern, which masks the token URL regardless of the tuple's false flag."
     },
     "testing": {
-      "completeness": 18,
-      "correctness": 12,
-      "specificity": 20,
-      "risk_awareness": 16,
-      "total": 66,
-      "notes": "The plan supplies useful oracles for caching, refresh buffering, single-refresh concurrency, per-call api_key injection, error hygiene, defaults, and startup validation. The proposed E2E is not executable as written: the repository route is POST /api/search/semantic rather than /api/servers/search, the stub is plain HTTP despite HTTPS validation, its configured hostname does not point to that stub, and no functioning embedding endpoint or access-token setup is provided. The Helm existing-secret command contains a literal ellipsis and expects zero output without mounting the secret, while grep counts provide weak assurance for Docker and Terraform wiring. Coverage also misses recovery from the repository's _embedding_unavailable latch and the implementation patch omits the planned Settings tests, with no independent task statement available to establish further required cases."
+      "completeness": 19,
+      "correctness": 9,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 64,
+      "notes": "The plan covers concurrency, caching, failure handling, backward compatibility, secret exposure, deployment rendering, rollback, and end-to-end behavior with concrete oracles. Several key oracles are wrong: an immediate second call with a 3595-second buffer and 3600-second token should not refresh, while the proposed expires_in=1 expiry test cannot refresh because the implementation clamps its cache lifetime to 360 seconds. The config test targets /api/config and .embeddings.fields even though the grouped response is at /api/config/full, and the proposed server registration and semantic-search endpoints do not match the repository routes. It also incorrectly claims Terraform planning needs no cloud access despite numerous AWS data sources, omits the promised stub implementation, and tests only standalone Helm, missing the umbrella-chart failure."
     },
     "implementation": {
-      "completeness": 16,
-      "correctness": 15,
-      "specificity": 21,
-      "risk_awareness": 14,
-      "total": 66,
-      "notes": "The core Python change fits the verified 1.28.0 symbols and implements a lock-guarded token cache, per-call LiteLLM api_key injection, fail-fast Settings validation, masked config UI entry, and DocumentDB factory wiring. The largest functional defect is Helm support: the new secret data is nested under the standalone-only shared-secret condition, and embeddingsIdpClientSecretExistingSecret is never consumed by deployment.yaml, so the advertised existing-secret and standard stack paths do not work. Terraform exposes only four of seven settings, making scope unavailable through its first-class surface, and a transient token-fetch failure can trip DocumentDBSearchRepository._embedding_unavailable permanently; IdP mode with sentence-transformers is also silently ignored. All shown diff contexts and files match the baseline, but no standalone patch.diff file was available for git apply --check, tests were not executed, and the summary's claim of exact LLD implementation overstates these deviations."
+      "completeness": 14,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 56,
+      "notes": "The submitted diff contexts and symbols match the 1.28.0 baseline, and the core happy path does acquire, cache, single-flight refresh, and pass a token through LiteLLM's per-call api_key argument. The largest functional defect is falsifying short token lifetimes by changing expires_in values at or below the buffer to buffer+60, causing already-expired credentials to be reused. Security and deployment gaps are also material: arbitrary remote HTTP token endpoints are accepted, the Helm block is inside the standalone-only global.sharedSecretName conditional, and the CDK config sample does not expose the new non-secret fields. No tests are added despite the broad change, the entrypoint still warns that EMBEDDINGS_API_KEY is missing in valid IdP mode, and the summary therefore overstates complete cross-surface compatibility."
     }
   },
-  "task_score": 73.4,
-  "verdict": "The submission has a sound and well-grounded core token-refresh implementation, but incomplete and incorrect Helm and Terraform wiring plus a nonfunctional E2E plan keep it from being production-ready.",
+  "task_score": 70.6,
+  "verdict": "The submission has strong, repository-specific design work and a plausible core implementation, but incorrect token-lifetime handling, insecure HTTP acceptance, broken umbrella Helm wiring, and multiple invalid test procedures prevent it from being production-ready.",
   "judge": {
     "model": "openai.gpt-5.6-sol",
     "provider": "codex-exec",
     "repo_grounded": true,
-    "evaluated_at": "2026-09-23T05:52:10.300049Z",
+    "evaluated_at": "2026-09-23T20:29:09.787075Z",
     "repo_ref": "1.28.0",
     "reasoning_effort": "high",
     "token_usage": {
-      "input_tokens": 662098,
-      "cached_input_tokens": 549607,
-      "cache_write_input_tokens": 112475,
-      "output_tokens": 9980,
-      "reasoning_output_tokens": 5326
+      "input_tokens": 1026710,
+      "cached_input_tokens": 882852,
+      "cache_write_input_tokens": 143838,
+      "output_tokens": 12129,
+      "reasoning_output_tokens": 6463
     },
-    "duration_ms": 113998
+    "duration_ms": 175021
   }
 }
