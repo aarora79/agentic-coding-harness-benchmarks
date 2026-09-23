@@ -50,6 +50,13 @@ PRICES: dict[str, dict[str, float]] = {
         "cache_read": 0.04,
         "output": 1.80,
     },
+    # Kimi K3 — Global CRIS, Standard tier.
+    "moonshotai.kimi-k3": {
+        "input": 3.00,
+        "cache_write": 3.75,
+        "cache_read": 0.30,
+        "output": 15.00,
+    },
     # Qwen3 Coder 30B A3B — Standard tier. No cache keys: Bedrock refuses a
     # cachePoint for this family, so a cached-token count here is a bug, not a
     # discount. Flex and Batch are both $0.0773 / $0.3090, Priority is

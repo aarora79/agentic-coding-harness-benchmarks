@@ -1204,7 +1204,11 @@ def _server_prompt_token_gap(
     }
 
 
-def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, Any]:
+def _metrics_from_result(
+    result: dict[str, Any],
+    elapsed: float,
+    model: str = "",
+) -> dict[str, Any]:
     """Extract the benchmark metrics from a claude -p JSON result.
 
     Token counts come from ``_claude_token_usage`` (modelUsage-first, so subagent
@@ -1213,6 +1217,9 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
     Args:
         result: The parsed JSON result object from `claude -p`.
         elapsed: Wall-clock seconds measured around the subprocess call.
+        model: The model id, used to derive cost from the Bedrock price
+            table when the agent itself reports no cost (e.g. omp via the
+            LiteLLM proxy).
 
     Returns:
         A metrics dictionary keyed by the dataset's metric names.
@@ -1222,12 +1229,21 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
     duration_ms = result.get("duration_ms")
     latency = round(duration_ms / 1000, 1) if duration_ms else round(elapsed, 1)
     is_error = result.get("is_error", False)
+    cost = result.get("total_cost_usd")
+    if cost is None and model:
+        cost = _bedrock_cost_usd(
+            model,
+            input_tokens=tokens["input_tokens"],
+            output_tokens=tokens["output_tokens"],
+            cache_read_tokens=tokens["cache_read_tokens"],
+            cache_write_tokens=tokens["cache_creation_tokens"],
+        )
     metrics = {
         "input_tokens": tokens["input_tokens"],
         "output_tokens": tokens["output_tokens"],
         "latency_seconds": latency,
         "num_turns": result.get("num_turns", 0),
-        "total_cost_usd": result.get("total_cost_usd"),
+        "total_cost_usd": cost,
         "is_error": is_error,
         # claude -p's result subtype: "success", "error_max_turns" (hit the
         # --max-turns cap), "error_during_execution", etc. Recorded so the retry
@@ -3046,7 +3062,9 @@ def _run_task(
         vllm_after = (
             _snapshot_vllm_metrics(metrics_endpoint) if metrics_endpoint else None
         )
-        metrics = _metrics_from_result(result, result.get("_elapsed_seconds", 0))
+        metrics = _metrics_from_result(
+            result, result.get("_elapsed_seconds", 0), model=config.model or ""
+        )
         metrics["run_started_at"] = run_started_at
         metrics["run_ended_at"] = run_ended_at
         vllm_block = _vllm_metrics(vllm_before, vllm_after)
