@@ -1,0 +1,64 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "model": "moonshotai.kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 72,
+      "notes": "The issue precisely maps all five flags to API fields and supplies concrete acceptance criteria and non-goals. Its largest defect is the claim that omitting URLs permits a client-secret-only edit without losing configuration: EgressConfigRequest defaults omitted URLs to None, and egress_auth_routes.py validates those values before persistence, so such an edit is rejected rather than preserved. Repository checks also found list_provider_names(), not the cited list_providers(), and EgressOAuthConfig in registry/core/schemas.py declares four custom fields rather than all five. No independent task statement was supplied, so broader requirement coverage cannot be verified beyond the identifier and repository."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The LLD accurately identifies the parser, cmd_egress_configure, RegistryClient.configure_egress_auth, API model, provider resolver, enum, tests, and documentation integration points. Its main weakness is an internal contradiction: it promises omitted fields will not null stored values, then says omitted custom URLs are stored as None, while the actual route rejects missing URLs during validate_url before update_server runs. It also incorrectly says registry/core/schemas.py stores all five custom fields and shows /oauth2/callback rather than the implemented /oauth2/egress/callback. Risk treatment is otherwise strong, particularly for UI edits dropping the three custom fields the form does not round-trip."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 82,
+      "notes": "The review surfaces the important replace-versus-merge behavior, UI field loss, enum duplication, SSRF exposure, documentation, and regression-test needs with prioritized recommendations. However, it repeatedly says a URL-omitting custom edit silently persists None, whereas registry/api/egress_auth_routes.py validates the empty URL and returns 400 before persistence. Its proposed invalid-choice test does not actually guard enum drift because adding a third server enum value would leave that test passing. The summary also claims the issue explicitly tracks merge semantics, but the submitted issue's Out of Scope section does not do so."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 77,
+      "notes": "The planned unit tests have strong payload oracles for full, partial, omitted, built-in-provider, command-forwarding, parser-acceptance, and invalid-choice behavior. The manual control curl is unreliable: it sends Bearer $(cat $TOKEN_FILE), which is invalid for the JSON token formats supported by _create_client, and it does not assert the HTTP status. The plan also incorrectly predicts that the full flagged command fails pre-change with exit 1 and a provider error, although the old argparse parser rejects the unknown flags with exit 2; the missing-URL case likewise expects resolve_provider text despite earlier URL validation. Security coverage is useful, though the combined HTTP metadata-address case proves only whichever validation branch fails first."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 23,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 90,
+      "notes": "The patch implements the five parser flags, command forwarding, optional client parameters, conditional JSON keys, focused tests, and documentation end to end. Every production hunk's file, symbol, and context matches the 1.28.0 tree, and the changes follow the existing argparse and RegistryClient body-building conventions; the repository's later fix commit uses essentially the same production approach. The remaining behavioral limitation is that a custom-provider edit must re-pass both URLs, so the issue's secret-only edit story is not fulfilled, although the patch documents this accurately. The submitted tests were not executed, but their imports, parser invocation, mocks, endpoints, and assertions are consistent with the repository."
+    }
+  },
+  "task_score": 81.0,
+  "verdict": "Strong, repository-grounded implementation and detailed artifacts, limited mainly by incorrect and contradictory claims about custom-provider edit semantics and several flawed manual-test expectations.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-23T20:06:12.923041Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 775509,
+      "cached_input_tokens": 665859,
+      "cache_write_input_tokens": 109630,
+      "output_tokens": 9496,
+      "reasoning_output_tokens": 4150
+    },
+    "duration_ms": 159985
+  }
+}

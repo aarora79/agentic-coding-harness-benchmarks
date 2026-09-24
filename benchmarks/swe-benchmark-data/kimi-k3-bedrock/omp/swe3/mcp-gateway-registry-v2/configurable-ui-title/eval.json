@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "moonshotai.kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 15,
+      "total": 74,
+      "notes": "The issue gives concrete mode-dependent defaults, deployment surfaces, non-goals, and testable acceptance criteria tied to real files such as `Layout.tsx` and `config_routes.py`. Its largest defect is calling `/api/config` public: both nginx templates route it through the protected `/api/` location, so unauthenticated Login and Logout pages cannot obtain the configured title. The identified hardcoded strings and Docker, Terraform, and Helm paths exist at the submitted 1.23.0 commit. No independent task statement was supplied, so broader requirements beyond the identifier and artifacts cannot be verified."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The LLD is unusually concrete about the real Settings model, frontend hook, deployment wiring, whitespace handling, fallbacks, and rollout. Its load-bearing error is treating the mode-filter allowlist as an authentication exemption; `docker/nginx_rev_proxy_http_only.conf` and both HTTPS server blocks protect `/api/config`, making the proposed pre-login data flow fail. It also registers raw `ui_title` in `CONFIG_GROUPS`, while `_get_field_value()` returns that raw value rather than `ui_title_resolved`, so the admin panel and exports show an unset value instead of the promised effective default. The plan additionally proposes editing `docker-compose.dhi.yml` despite that override having no registry environment block, though the implementation summary later corrects this."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 54,
+      "notes": "The review raises specific concerns about loading flashes, Helm environment ordering, length limits, React escaping, and the existing hook. It nevertheless misses the critical nginx authentication boundary and incorrectly endorses `/api/config` as suitable for Login and Logout without an authenticated session. Its backend conclusion that adding `ui_title` to `CONFIG_GROUPS` exposes the effective title is contradicted by `config_routes.py::_get_field_value`, which reads the raw setting. The review also overstates caching because concurrent `useRegistryConfig` consumers can each request configuration before the module cache is populated, and no claimed verification was executed."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The plan covers mode defaults, explicit overrides, whitespace, validation, admin display, exports, all deployment surfaces, rollback, and concrete UI oracles. Its unauthenticated `/api/config` curls would return 401 through the repository's nginx configuration, but the plan does not identify this as the critical pre-login integration boundary and allows direct-uvicorn testing to mask it. The `/api/config/full` jq assertion correctly expects a resolved value and would expose the implementation's raw-field defect. Export checks only grep for the key, the older-frontend explanation incorrectly attributes fallback code to the old bundle, and automated property and endpoint tests are left optional despite established pytest coverage."
+    },
+    "implementation": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 59,
+      "notes": "The diff is tightly scoped and its target blobs and contexts match commit `0038b687d8c3b83395d13ea199134733ee707e7f`; it implements the setting, authenticated header, deployment wiring, documentation, validation, and Helm collision guard. The central defect is that Login and Logout fetch `/api/config` through `useRegistryConfig`, while nginx protects that route, so custom and registry-only titles fall back permanently on unauthenticated pages. Registering `ui_title` rather than `ui_title_resolved` also leaves the System Config panel and exports unset when a mode-derived default is active, and stripping an explicit value contradicts the issue's exact-string promise. The DHI omission and generated-asset omission are justified, but no automated tests were added and the summary overstates end-to-end completion."
+    }
+  },
+  "task_score": 66.0,
+  "verdict": "The submission is detailed and mostly repository-grounded, but it misses the pre-authentication API boundary and exposes the raw rather than effective title in admin configuration.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-23T20:11:59.709927Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 815195,
+      "cached_input_tokens": 703590,
+      "cache_write_input_tokens": 111583,
+      "output_tokens": 10749,
+      "reasoning_output_tokens": 5037
+    },
+    "duration_ms": 150396
+  }
+}

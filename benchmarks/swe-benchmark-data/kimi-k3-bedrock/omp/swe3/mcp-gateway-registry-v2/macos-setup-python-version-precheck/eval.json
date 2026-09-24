@@ -1,0 +1,64 @@
+{
+  "task": "macos-setup-python-version-precheck",
+  "model": "moonshotai.kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 20,
+      "risk_awareness": 9,
+      "total": 53,
+      "notes": "The issue provides unusually concrete acceptance criteria, scope boundaries, and output expectations. Baseline evidence confirms `.claude/skills/macos-setup/SKILL.md` only checks `python3 --version`, while `pyproject.toml` requires `>=3.14`. However, its central premise that Phase 5 `uv sync` uses the PATH interpreter is contradicted by repository commit `d49cae31`, which explains that uv selects managed interpreters and that gating PATH can reject a working setup. No independent task statement establishes the proposed remote metadata fetch or unchanged Homebrew remediation, so those requirements remain unverifiable candidate inventions."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 5,
+      "specificity": 21,
+      "risk_awareness": 11,
+      "total": 55,
+      "notes": "The LLD is highly specific about real files, phase ordering, shell compatibility, parsing, fallback behavior, and output markers. Its cited locations and values match the baseline, including `requires-python = \">=3.14\"`, the Phase 1 block, and the documentation prerequisite. The load-bearing design is nevertheless wrong because it validates PATH's `python3`, while repository history records that `uv sync` ignores that interpreter and may successfully use a uv-managed 3.14 installation. It also reads an existing installation before Phase 2 asks whether to use or replace it, so a tree later re-cloned can supply a stale requirement despite the design's tag-skew claims."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 5,
+      "specificity": 19,
+      "risk_awareness": 10,
+      "total": 51,
+      "notes": "The review identifies concrete parser and existing-clone concerns and records actionable resolutions for patch-level versions and local-first metadata. Its largest omission is the actual integration question: the backend review explicitly claims the checked `python3` is what `uv sync` resolves, directly contradicting repository follow-up `d49cae31`. The security review also says poisoned metadata can only cause failure, although a lowered fetched minimum can produce a false pass and defer failure. Consequently, the review is detailed but approves a design that repository history demonstrates produces false failures on valid uv-managed installations."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 6,
+      "specificity": 20,
+      "risk_awareness": 10,
+      "total": 51,
+      "notes": "The plan supplies concrete fixtures, expected output, fallback coverage, patch-level boundaries, and compatibility checks against tag `1.27.1`. It tests only simulated PATH interpreters and never exercises the decisive case of an old system Python with a compliant uv-managed interpreter, so it would bless the principal regression documented in `d49cae31`. The missing-interpreter command sets PATH to an empty directory before invoking bare `bash`, meaning the harness itself may not start, and most listed assertions are manual observations rather than commands that fail on mismatch. The live fetch case also depends on mutable `main`, limiting reproducibility, although the offline branch is covered."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 2,
+      "specificity": 18,
+      "risk_awareness": 6,
+      "total": 36,
+      "notes": "The diff is tightly scoped to the real Phase 1 block and faithfully implements the candidate LLD's parser, timeout, fallback, messages, and marker preservation. However, default `git apply --check` reports a corrupt patch because the second hunk declares seven old and new lines while containing six; only `--recount` accepts it. Even after recounting, it gates PATH's `python3` rather than `uv python find '>=3.14'`, falsely blocking setups where uv already has a suitable managed interpreter, exactly the defect corrected by repository commit `d49cae31`. The summary's claims that ordinary `git apply` was verified and that no work remains are therefore false, and no test covers the uv-managed interpreter behavior."
+    }
+  },
+  "task_score": 49.2,
+  "verdict": "The submission is concrete and repository-aware at a superficial level, but it chooses the wrong interpreter contract and supplies a malformed patch, so it does not correctly solve the setup precheck.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-23T20:38:50.345819Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 582291,
+      "cached_input_tokens": 509926,
+      "cache_write_input_tokens": 72345,
+      "output_tokens": 10991,
+      "reasoning_output_tokens": 4220
+    },
+    "duration_ms": 145426
+  }
+}

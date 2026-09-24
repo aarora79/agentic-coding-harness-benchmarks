@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "moonshotai.kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The issue provides unusually concrete acceptance criteria, compatibility behavior, backend degradation, encryption, expiry, and explicit non-goals. Repository checks confirm the cited callback, OAUTH_STORE_TOKENS_IN_SESSION flag, credential encryption utility, MongoDB repository pattern, and internal JWT machinery exist. Its largest deficiency is scope inconsistency: it promises the Get JWT Token experience and eager replacement on subsequent login, while later artifacts leave every frontend caller on POST /api/tokens/generate and retain old records until TTL. The issue-number history, production token-size examples, and intended requirements could not be independently verified because no separate task statement was supplied."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The LLD is strongly grounded in real integration points including auth_server/server.py, registry/api/server_routes.py, registry/auth/dependencies.py, the repository factory, and credential_encryption.py. It is internally inconsistent about re-login: its goals promise eager deletion, but its implementation section generates a fresh reference and explicitly leaves the old valid record until TTL. It also incorrectly equates a valid internal JWT with registry-only authorization; registry/auth/internal.py accepts any signed subject and purpose, while the design adds no caller restriction for this credential-returning endpoint. The design covers many failures but does not address browser or intermediary caching of a GET response containing refresh tokens, XSS exposure, or permanent TTL-index absence after the repository's nonfatal first index-creation failure."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The review surfaces concrete, prioritized defects involving access-versus-refresh expiry, UI scope, TTL lag, rate limiting, error oracles, and the no-database-read constraint. Its largest miss is declaring the registry-trust concern resolved by logging, even though validate_internal_auth authenticates any holder of the shared SECRET_KEY and does not enforce subject or purpose. It also accepts orphaning the prior login record despite the issue's eager-rotation criterion and misses cache controls and XSS implications of returning refresh tokens to browser JavaScript. The claimed defect in the unavailable initial LLD cannot be independently checked, although the revised LLD clearly incorporates the proposed expiry correction."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The plan spans repository behavior, callback wiring, endpoint authorization, compatibility, expiry, deployment checks, and concrete response oracles. A central lifecycle command is wrong: POST /logout supplies no CSRF token, while registry/auth/routes.py protects that route with verify_csrf_token_flexible, so the expected 303 will instead be rejected. The submitted repository test also guarantees failure by mocking ciphertext as enc:access-plain and then asserting access-plain is absent, while the re-login script only prints reference presence and never compares the references. Coverage omits expected-caller or purpose enforcement, cache headers, reliable TTL deletion, and a focused logout unit test; the proposed tests were not executed, so no passing evidence is available."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 64,
+      "notes": "The diff targets real files and matching symbols at tag 1.23.0 and implements the core encrypted store, callback reference, retrieval routes, expiry guard, logout deletion, configuration, compose wiring, and tests. Its largest security defect is that POST /internal/oauth-tokens is not registry-only: validate_internal_auth accepts any correctly signed internal token without checking sub or purpose, yet the endpoint returns both access and refresh tokens and adds no Cache-Control: no-store response policy. The implementation also leaves all verified frontend call sites using POST /api/tokens/generate and never deletes a prior login's record, contradicting the issue while the summary claims no LLD deviations. The test suite contains the guaranteed plaintext-substring assertion failure, and refresh-token decryption failure returns the access token alone despite the LLD contract that any decryption failure maps the record to missing."
+    }
+  },
+  "task_score": 71.8,
+  "verdict": "The submission is detailed and repository-aware, but the implementation remains incomplete and exposes sensitive retrieval through an internal-auth contract that does not actually restrict callers to the registry service.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-23T20:52:59.018723Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 842357,
+      "cached_input_tokens": 724211,
+      "cache_write_input_tokens": 118126,
+      "output_tokens": 11673,
+      "reasoning_output_tokens": 7291
+    },
+    "duration_ms": 164215
+  }
+}
