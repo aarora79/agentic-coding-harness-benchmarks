@@ -17,6 +17,7 @@ claude-code-multi-model/
 ├── .claude/                   ← Claude Code skills shipped with the repo
 │   └── skills/
 │       ├── setup-machine/     /setup-machine — inspect a fresh box, install every dependency (start here)
+│       ├── onboard-benchmark/ /onboard-benchmark — stand this up on YOUR infra: your gateway, your private repos, your dataset
 │       ├── benchmark/         /benchmark — run one end-to-end benchmark (service + harness + judge)
 │       ├── swe/, swe2/, swe3/ /swe* — drive a model through a SWE task on any repo (swe3 is the default)
 │       ├── swe-router/      /swe-router — recommend the right model for a task, from these measurements

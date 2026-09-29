@@ -22,7 +22,9 @@ The point of this repo is to help you **pick the right coding agent and model fo
 
 ### Benchmark your own code repositories
 
-This is option 2 above -- building your own frontier on your own code. It is a few steps:
+This is option 2 above -- building your own frontier on your own code. It is a few steps.
+
+> **For a guided first run, use the [`onboard-benchmark`](../.claude/skills/onboard-benchmark/SKILL.md) skill (`/onboard-benchmark`).** It walks the whole sequence and makes each step prove itself: confirming one machine reaches both your model endpoint and your code host, picking the harness your gateway's API shape can drive, proving the agent and the judge with real calls, private-repo credentials and internal CA certificates, the dataset, and one scored smoke task. The rest of this page is the reference it draws on.
 
 1. **Create a dataset file** under [benchmarks/dataset/](../benchmarks/dataset/), for example `my-team.yaml`. Copy [mcp-gateway-registry.yaml](../benchmarks/dataset/mcp-gateway-registry.yaml) as a template. Minimal shape:
 
@@ -107,6 +109,10 @@ git config --global url."https://oauth2:${GHE_TOKEN}@ghe.example.com/".insteadOf
 ```
 
 A token needs read access only. The harness never pushes, commits, or opens a pull request: it edits a throwaway clone, captures the result as `patch.diff`, and deletes the clone.
+
+Pick the helper knowingly: `credential.helper store` writes the token **in plaintext** to `~/.git-credentials` (git creates it `0600`). That is normally fine on a single-purpose benchmark box and wrong on a shared one. The `insteadOf` form above keeps the token in the environment instead, and a platform credential manager or a deploy key avoids an on-disk secret altogether.
+
+Whichever you choose, never set `GIT_SSL_NO_VERIFY`. If TLS fails, the fix is to trust the CA, below.
 
 ### Trust an internal certificate authority
 
