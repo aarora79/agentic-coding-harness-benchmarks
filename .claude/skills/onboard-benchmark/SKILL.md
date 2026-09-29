@@ -35,6 +35,8 @@ Tell the person the honest timeline up front, from measured runs ([docs/harness-
 
 **Ask where this will run before anything else, and confirm that machine reaches two separate things.** Every task makes two network calls that must both succeed from the same host: a `git clone` from the code host, and a model call to the gateway. Those usually live in different places, and a box that reaches one but not the other cannot run a single task.
 
+Say plainly what qualifies, because people assume this needs dedicated infrastructure: anywhere Python runs and dependencies can be installed. An EC2 instance, a build or CI runner, or a development workstation or laptop all work. No GPU is required when the models are hosted elsewhere.
+
 Verify from the machine itself, never from a laptop or a network diagram:
 
 ```bash
