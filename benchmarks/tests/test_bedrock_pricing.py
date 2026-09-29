@@ -89,3 +89,43 @@ class CostUsdTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnthropicRatesTest(unittest.TestCase):
+    """Claude rows: id spellings, the Regional/Global split, and provenance."""
+
+    def test_haiku_profile_id_with_date_and_version_resolves(self) -> None:
+        # The id the Strands and Claude Code runs record for Haiku 4.5.
+        cost = cost_usd("us.anthropic.claude-haiku-4-5-20251001-v1:0", 1_000_000, 0)
+        self.assertAlmostEqual(cost, 1.10, places=6)
+
+    def test_context_window_tag_is_ignored(self) -> None:
+        self.assertEqual(
+            cost_usd("us.anthropic.claude-opus-4-8[1m]", 1_000_000, 1_000_000),
+            cost_usd("anthropic.claude-opus-4-8", 1_000_000, 1_000_000),
+        )
+
+    def test_bare_version_suffix_resolves(self) -> None:
+        self.assertIsNotNone(cost_usd("us.anthropic.claude-opus-4-6-v1", 1, 1))
+
+    def test_global_profile_uses_the_global_rate(self) -> None:
+        regional = cost_usd("us.anthropic.claude-sonnet-5", 1_000_000, 0)
+        global_ = cost_usd("global.anthropic.claude-sonnet-5", 1_000_000, 0)
+        self.assertEqual((regional, global_), (2.20, 2.00))
+
+    def test_every_claude_row_has_a_global_twin(self) -> None:
+        regional = {k for k in PRICES if k.startswith("anthropic.")}
+        global_ = {k[len("global.") :] for k in PRICES if k.startswith("global.")}
+        self.assertEqual(regional, global_)
+
+    def test_every_claude_row_prices_the_cache(self) -> None:
+        for key, rates in PRICES.items():
+            if "anthropic." in key:
+                self.assertEqual(
+                    set(rates), {"input", "output", "cache_read", "cache_write"}, key
+                )
+
+    def test_anthropic_rates_carry_an_as_of_date(self) -> None:
+        from bedrock_pricing import ANTHROPIC_PRICES_AS_OF
+
+        self.assertRegex(ANTHROPIC_PRICES_AS_OF, r"^\d{4}-\d{2}-\d{2}$")
