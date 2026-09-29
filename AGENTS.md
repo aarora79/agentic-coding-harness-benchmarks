@@ -85,7 +85,7 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 ├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
 │   ├── faq/                      # FAQ: one file per question + an index (README.md) linking each
 │   └── release-notes/            # release notes per version (newest first) + the versioning scheme
-├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router, release-notes)
+├── .claude/skills/               # repo skills (setup-machine, onboard-benchmark, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router, release-notes)
 └── .github/                      # CI workflows and repo metadata
 ```
 
@@ -529,6 +529,7 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 - [docs/codex-setup.md](docs/codex-setup.md) -- installing `codex`, wiring it to Bedrock, and the constraint that decides which models `--agent codex` can reach: it speaks only the Responses API, which Bedrock serves for `openai.*` models alone. Its failure-mode table is the fast answer to a hung run, a `404 ... does not exist` on an endpoint, or a request retried five times. Per-path recipes: [docs/faq/wiring-codex-to-models.md](docs/faq/wiring-codex-to-models.md).
 - [.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md](.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md) -- the one-time driver, NVMe and CUDA-JIT fixes an 8-GPU NVSwitch node needs. `setup-machine.sh` points here when it detects one, and vLLM fails at KV-cache init without them.
 - [docs/getting-started.md](docs/getting-started.md) -- the guided tour from a fresh checkout to a first run, for anyone who wants the narrative rather than the reference pages above.
+- [.claude/skills/onboard-benchmark/SKILL.md](.claude/skills/onboard-benchmark/SKILL.md) -- the `onboard-benchmark` skill, for a first run on **someone else's** infrastructure: their models behind a corporate gateway, their private or enterprise-hosted repositories, their own dataset. It covers what `benchmark` assumes is already true, and its first step is the one people skip -- confirming a single machine reaches both the model endpoint and the code host, since every task calls both.
 
 **Running a benchmark:**
 

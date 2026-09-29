@@ -411,5 +411,48 @@ class AutoCompactWindowTest(unittest.TestCase):
             load_runner_config(_write(text))
 
 
+class ApiKeyEnvTest(unittest.TestCase):
+    """api_key_env keeps a real gateway token out of the committed config file."""
+
+    def test_literal_api_key_used_when_no_env_named(self) -> None:
+        config = load_runner_config(_write(_MINIMAL + "api_key: sk-literal\n"))
+        self.assertEqual(config.resolved_api_key(), "sk-literal")
+
+    def test_env_var_wins_over_the_literal(self) -> None:
+        text = _MINIMAL + "api_key: sk-literal\napi_key_env: GATEWAY_TOKEN\n"
+        with mock.patch.dict(os.environ, {"GATEWAY_TOKEN": "sk-from-env"}):
+            config = load_runner_config(_write(text))
+            self.assertEqual(config.resolved_api_key(), "sk-from-env")
+
+    def test_missing_env_var_fails_at_load(self) -> None:
+        # Fail now, not hours into a batch when the first agent call is rejected
+        # with an authentication error that never mentions the variable.
+        text = _MINIMAL + "api_key_env: GATEWAY_TOKEN\n"
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(RunnerConfigError, "GATEWAY_TOKEN"):
+                load_runner_config(_write(text))
+
+    def test_empty_env_var_fails_at_load(self) -> None:
+        text = _MINIMAL + "api_key_env: GATEWAY_TOKEN\n"
+        with mock.patch.dict(os.environ, {"GATEWAY_TOKEN": ""}):
+            with self.assertRaisesRegex(RunnerConfigError, "unset or empty"):
+                load_runner_config(_write(text))
+
+    def test_cli_override_sets_the_env_name(self) -> None:
+        with mock.patch.dict(os.environ, {"GATEWAY_TOKEN": "sk-from-env"}):
+            config = load_runner_config(
+                _write(_MINIMAL), {"api_key_env": "GATEWAY_TOKEN"}
+            )
+            self.assertEqual(config.resolved_api_key(), "sk-from-env")
+
+    def test_bedrock_ignores_the_endpoint_key(self) -> None:
+        # Bedrock authenticates with ambient AWS credentials, so an unset key
+        # variable must not block a Bedrock run.
+        text = "provider: bedrock\nmodel: m\ndataset: d.yaml\naws_region: us-east-1\n"
+        with mock.patch.dict(os.environ, {}, clear=True):
+            config = load_runner_config(_write(text), {"aws_region": "us-east-1"})
+        self.assertTrue(config.is_bedrock)
+
+
 if __name__ == "__main__":
     unittest.main()
