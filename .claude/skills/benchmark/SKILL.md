@@ -38,6 +38,7 @@ Two optional inputs:
    | `claude` | Claude Code, `claude -p`. The default. | every provider |
    | `pi` | the pi coding agent, `pi -p --mode json` | `endpoint` and `bedrock` (it bundles the AWS SDK bedrock-runtime client) |
    | `codex` | OpenAI Codex, `codex exec --json` | `endpoint` (via `OPENAI_BASE_URL` / `OPENAI_API_KEY`) and `bedrock` |
+   | `strands` | [Strands Agents SDK](../../../docs/strands-setup.md). No CLI binary: it runs in-process from `strands_agent_runner.py` | `endpoint` and `bedrock` |
    | `kiro` | [kiro-cli](../../../docs/kiro-cli-setup.md), which drives Kiro's own managed models | `kiro` only, and it forces `--provider kiro` for you |
 
    `claude` remains the default, so only ask if the user brings it up. Two things worth knowing if they do: `omp` is what the published frontier was measured with, and only the `claude` agent gets the `--stream` live trace (the others emit their own event stream or plain text).
@@ -177,6 +178,8 @@ aws sts get-caller-identity
 
 **3a. Two CLIs must be installed: the chosen agent, and the judge.** The harness runs the agent binary to produce the artifacts, and the judge runs `codex exec` to score them. The agent binary follows `{agent}`: `claude -p`, `omp -p --mode json`, `pi -p --mode json`, `codex exec --json`, or `kiro-cli chat --no-interactive`. Confirm the one in play, plus codex:
 
+`--agent strands` is the exception: it has no binary, because it runs in-process from the Strands Agents SDK. It needs an optional uv dependency group instead, and the orchestrator installs it (`uv sync --group strands`) when it is missing. See [docs/strands-setup.md](../../../docs/strands-setup.md). Only codex needs to be on PATH for that agent.
+
 ```bash
 command -v {agent-binary} && command -v codex || echo "MISSING a required CLI"
 ```
@@ -229,7 +232,7 @@ Run the end-to-end script from `benchmarks/`. It re-runs every pre-flight check 
 ```bash
 cd benchmarks
 ./scripts/run-e2e-benchmark.sh --provider {provider} --model {model} --dataset {dataset} \
-    [--agent claude|pi|omp|codex|kiro] [--skill swe3|swe2] [--yes] [--count N] [--skip-judge]
+    [--agent claude|pi|omp|codex|strands|kiro] [--skill swe3|swe2] [--yes] [--count N] [--skip-judge]
 ```
 
 Tell the user, before it runs:

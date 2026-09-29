@@ -157,7 +157,22 @@ AGENT_OMP = "omp"
 # OPENAI_BASE_URL / OPENAI_API_KEY). Cost is derived from token counts using
 # the local bedrock_pricing table (not metered directly by the CLI).
 AGENT_CODEX = "codex"
-VALID_AGENTS = {AGENT_CLAUDE, AGENT_PI, AGENT_KIRO, AGENT_OMP, AGENT_CODEX}
+# "strands" is a Strands Agents SDK agent. Strands has no CLI, so the harness runs
+# scripts/strands_agent_runner.py as the agent subprocess; it emits JSON-lines
+# events like pi, omp and codex. The SKILL.md loads through the Strands
+# AgentSkills plugin (the counterpart of pi's --skill), and the agent uses the
+# stock Strands shell and file_editor tools. Supports provider=bedrock
+# (BedrockModel) and provider=endpoint (OpenAIModel). Needs the optional
+# `strands` dependency group: `uv sync --group strands`. See docs/strands-setup.md.
+AGENT_STRANDS = "strands"
+VALID_AGENTS = {
+    AGENT_CLAUDE,
+    AGENT_PI,
+    AGENT_KIRO,
+    AGENT_OMP,
+    AGENT_CODEX,
+    AGENT_STRANDS,
+}
 DEFAULT_AGENT = AGENT_CLAUDE
 
 # Artifacts are grouped by the coding agent (the "harness") that produced them,
@@ -171,6 +186,7 @@ HARNESS_SLUGS = {
     AGENT_KIRO: "kiro-cli",
     AGENT_OMP: "omp",
     AGENT_CODEX: "codex",
+    AGENT_STRANDS: "strands",
 }
 
 # kiro-cli bills in credits, not tokens; the harness translates credits (parsed
@@ -479,6 +495,11 @@ class RunnerConfig(BaseModel):
     def is_codex(self) -> bool:
         """True when the codex agent drives the task."""
         return self.agent == AGENT_CODEX
+
+    @property
+    def is_strands(self) -> bool:
+        """True when the Strands Agents runner drives the task."""
+        return self.agent == AGENT_STRANDS
 
     @property
     def harness_slug(self) -> str:
@@ -792,7 +813,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("config", help="Path to the runner config YAML file")
     parser.add_argument(
         "--agent",
-        help="Override: coding agent that runs the task (claude | pi | omp | kiro)",
+        help="Override: coding agent that runs the task "
+        "(claude | pi | omp | kiro | codex | strands)",
     )
     parser.add_argument(
         "--provider", help="Override: routing provider (endpoint | bedrock)"

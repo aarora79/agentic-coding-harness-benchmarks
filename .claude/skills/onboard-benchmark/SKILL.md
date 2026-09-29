@@ -79,7 +79,9 @@ Two facts decide everything downstream. **Ask; do not assume, and do not infer f
 | Anthropic Messages (`POST /v1/messages`) | `claude` | Claude Code drives `ANTHROPIC_BASE_URL` and needs the Anthropic route |
 | OpenAI Responses (`POST /v1/responses`) | `codex` | Recent codex speaks only the Responses API, not chat-completions |
 | Both chat-completions and Anthropic | `omp` | It produced this repository's headline results |
-| Native Amazon Bedrock, no gateway | any of `claude`, `pi`, `omp`, `codex` | Use `--provider bedrock` and ambient AWS credentials |
+| Native Amazon Bedrock, no gateway | any of `claude`, `pi`, `omp`, `codex`, `strands` | Use `--provider bedrock` and ambient AWS credentials |
+
+`strands` (the [Strands Agents SDK](../../../docs/strands-setup.md)) is a further option on either provider. Unlike the others it has no CLI binary, so there is nothing to install on PATH: it runs in-process and the orchestrator installs its optional dependency group with `uv sync --group strands`.
 
 Two notes on `codex` as the harness. It is also the judge, so running `--agent codex` has one tool on both sides of the run; keep the judge model different from the model under test. And on a self-hosted vLLM endpoint it needs a Responses-safe tool-call parser (`qwen3_coder` or `hermes` are verified; seven others crash on the flat Responses tool shape, issue #183).
 
