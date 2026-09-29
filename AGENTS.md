@@ -85,7 +85,7 @@ When a task is unscoped, the source worth reading lives under `benchmarks/` and 
 ├── docs/                         # cross-cutting docs: results, comparisons, methodology, slides
 │   ├── faq/                      # FAQ: one file per question + an index (README.md) linking each
 │   └── release-notes/            # release notes per version (newest first) + the versioning scheme
-├── .claude/skills/               # repo skills (setup-machine, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router, release-notes)
+├── .claude/skills/               # repo skills (setup-machine, onboard-benchmark, benchmark, swe/swe2/swe3, throughput, vllm-setup, security-check, swe-router, release-notes)
 └── .github/                      # CI workflows and repo metadata
 ```
 
@@ -530,6 +530,7 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 - [docs/strands-setup.md](docs/strands-setup.md) -- `--agent strands`, the Strands Agents SDK harness. Strands has no CLI, so the repo's [strands_agent_runner.py](benchmarks/scripts/strands_agent_runner.py) is the agent process; it needs the optional `uv sync --group strands` and reports token counts that the harness prices from the Bedrock price table, as for codex.
 - [.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md](.claude/skills/vllm-setup/p5en-h200-cuda-fixes.md) -- the one-time driver, NVMe and CUDA-JIT fixes an 8-GPU NVSwitch node needs. `setup-machine.sh` points here when it detects one, and vLLM fails at KV-cache init without them.
 - [docs/getting-started.md](docs/getting-started.md) -- the guided tour from a fresh checkout to a first run, for anyone who wants the narrative rather than the reference pages above.
+- [.claude/skills/onboard-benchmark/SKILL.md](.claude/skills/onboard-benchmark/SKILL.md) -- the `onboard-benchmark` skill, for a first run on **someone else's** infrastructure: their models behind a corporate gateway, their private or enterprise-hosted repositories, their own dataset. It covers what `benchmark` assumes is already true, and its first step is the one people skip -- confirming a single machine reaches both the model endpoint and the code host, since every task calls both.
 
 **Running a benchmark:**
 
