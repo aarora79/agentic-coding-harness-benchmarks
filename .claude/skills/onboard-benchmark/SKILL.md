@@ -45,6 +45,14 @@ curl -sS -o /dev/null -w 'gateway HTTP %{http_code}\n' "$GATEWAY_URL/v1/models" 
 
 If only one side is reachable, stop and say so. A subnet, security-group, peering or PrivateLink change is not something to work around from here, and it can take days to approve. Offer the useful fallback: run the first pass against one **public** repository so the pipeline is proven end to end while the network request is in flight, then swap the dataset over.
 
+**There is a third network dependency, and it is easy to forget: a package index.** Installing anything at all needs one, and a locked-down host often has neither:
+
+- **PyPI**, for `uv sync` in both projects. Allowlist `pypi.org` **and** `files.pythonhosted.org`; wheels come from the latter, so permitting only the first fails partway through the install. On an internal index, set `UV_DEFAULT_INDEX` (`UV_INDEX_URL` on older uv).
+- **`registry.npmjs.org`**, because the agent and the judge are npm packages (`@anthropic-ai/claude-code`, `@openai/codex`). On an internal mirror, `npm config set registry <url>`.
+- **The installer and OS sources**: `astral.sh` (uv), `deb.nodesource.com` (Node 22), `cli.github.com` (gh), `omp.sh` (omp), plus the distro's apt or dnf mirrors.
+
+Behind a proxy, `HTTPS_PROXY` and `NO_PROXY` need setting before the installer runs, and `NO_PROXY` must include the gateway and the git host or those calls get sent to the proxy too. If egress is closed entirely, the options are an internal mirror, a proxy, or a pre-baked image; say which applies rather than retrying a failing install.
+
 Then install the dependencies. No GPU is needed when the models are hosted elsewhere: this box clones repositories, runs a coding-agent CLI as a subprocess, and writes JSON, so it is bound by network and by the gateway's rate limit.
 
 ```bash
@@ -263,6 +271,9 @@ Close by naming an owner for the frontier and a cadence. New models and harness 
 | Symptom | Cause | Fix |
 |---|---|---|
 | Gateway reachable but `git clone` is not, or the reverse | The machine sits on one side of the network only | Step 1. Needs a network change, not a workaround; run against a public repo meanwhile |
+| `uv sync` resolves then fails downloading | `pypi.org` allowlisted but `files.pythonhosted.org` is not | Allowlist both, or point `UV_DEFAULT_INDEX` at the internal index |
+| `npm` install of the agent or judge hangs or 403s | No route to `registry.npmjs.org` | Internal mirror via `npm config set registry`, or a proxy |
+| Everything installs, then the gateway call goes to the proxy | `NO_PROXY` omits the gateway and git host | Add both to `NO_PROXY` |
 | `codex` 401s against its own default endpoint | Provider config missing; ambient AWS credentials are ignored | [agent-cli-bedrock-setup.md](../../../benchmarks/docs/agent-cli-bedrock-setup.md), then re-prove with a real call |
 | `git clone` prompts for a password | No credential helper entry, so an unattended run hangs | Step 5 |
 | TLS failure in git but not the agent, or the reverse | Only one of the two CA variables is set | `GIT_SSL_CAINFO` **and** `NODE_EXTRA_CA_CERTS` |
