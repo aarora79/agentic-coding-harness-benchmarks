@@ -1,6 +1,6 @@
 ---
 name: benchmark
-description: "Run one end-to-end SWE benchmark of an LLM on real coding tasks, driven by any supported coding agent (omp, Claude Code, pi, or kiro-cli) on any of the hosting paths (Anthropic on Bedrock, open-weight on Bedrock via the LiteLLM proxy, a self-hosted vLLM server, or any OpenAI/Anthropic-compatible endpoint). Drives the full flow: pre-flight checks including repository reachability, clearing stale artifact folders, running the harness over a dataset, and scoring the artifacts with the codex judge. Use when the user wants to benchmark a model, run the SWE harness end to end, score a model on a dataset, or compare models on coding tasks, AND the machine is already wired up. For a first run on new infrastructure (their own gateway, their own private repos) use onboard-benchmark instead. Wraps benchmarks/scripts/run-e2e-benchmark.sh and tells the user how to watch each step."
+description: "Run one end-to-end SWE benchmark of an LLM on real coding tasks, driven by any supported coding agent (omp, Claude Code, pi, codex, or kiro-cli) on any of the hosting paths (Anthropic on Bedrock, open-weight on Bedrock via the LiteLLM proxy, a self-hosted vLLM server, or any OpenAI/Anthropic-compatible endpoint). Drives the full flow: pre-flight checks including repository reachability, clearing stale artifact folders, running the harness over a dataset, and scoring the artifacts with the codex judge. Use when the user wants to benchmark a model, run the SWE harness end to end, score a model on a dataset, or compare models on coding tasks, AND the machine is already wired up. For a first run on new infrastructure (their own gateway, their own private repos) use onboard-benchmark instead. Wraps benchmarks/scripts/run-e2e-benchmark.sh and tells the user how to watch each step."
 license: Apache-2.0
 metadata:
   author: Amit Arora
@@ -37,9 +37,14 @@ Two optional inputs:
    | `omp` | [oh-my-pi](../../../docs/omp-setup.md), a fork of pi. **Produced this repository's headline results.** | `endpoint` (vllm/litellm) and `bedrock` |
    | `claude` | Claude Code, `claude -p`. The default. | every provider |
    | `pi` | the pi coding agent, `pi -p --mode json` | `endpoint` and `bedrock` (it bundles the AWS SDK bedrock-runtime client) |
+   | `codex` | OpenAI Codex, `codex exec --json` | `endpoint` (via `OPENAI_BASE_URL` / `OPENAI_API_KEY`) and `bedrock` |
    | `kiro` | [kiro-cli](../../../docs/kiro-cli-setup.md), which drives Kiro's own managed models | `kiro` only, and it forces `--provider kiro` for you |
 
    `claude` remains the default, so only ask if the user brings it up. Two things worth knowing if they do: `omp` is what the published frontier was measured with, and only the `claude` agent gets the `--stream` live trace (the others emit their own event stream or plain text).
+
+   **`--agent codex` on the `vllm` path needs a Responses-safe tool parser.** codex 0.153.4 speaks only the Responses API (it removed the chat-completions wire), and seven of vLLM 0.29.0's tool parsers read the nested chat-completions tool shape and crash on the flat Responses shape: `minicpm5xml`, `dots`, `hy_v3`, `hy_v4`, `rust`, `step3`, `step3p5`. Against one of those, tool extraction aborts, the stream ends with no `response.completed`, and codex retries every request five times before failing the turn. `qwen3_coder` and `hermes` work, verified with `qwen3.6-35b-fp8` at a 262,144-token window. Check the parser in the model guide before choosing this agent (issue #183).
+
+   **`--agent codex` makes the same tool produce and score the artifacts.** The judge is `codex exec` too (Step 4), on a separate call. That is not automatically wrong, since the judge runs over the artifacts on disk with its own model and prompt, but pick a judge model different from the one under test or the run marks its own homework.
 
 5. **skill** -- which SWE skill runs, passed as `--skill`. Default **`swe3`**, the single-agent variant: all work happens inline in the main loop with no subagent fan-out, so its token and cost accounting is complete and comparable across harnesses, including agents that have no subagent mechanism at all. `swe2` is the older multi-agent variant that fans out to parallel `Task` subagents; same six artifacts, but its main-agent usage undercounts subagent tokens. Both land in sibling folders and never overwrite each other.
 
@@ -170,7 +175,7 @@ aws sts get-caller-identity
 
 ## Step 3 - Pre-flight (see what will happen first)
 
-**3a. Two CLIs must be installed: the chosen agent, and the judge.** The harness runs the agent binary to produce the artifacts, and the judge runs `codex exec` to score them. The agent binary follows `{agent}`: `claude -p`, `omp -p --mode json`, `pi -p --mode json`, or `kiro-cli chat --no-interactive`. Confirm the one in play, plus codex:
+**3a. Two CLIs must be installed: the chosen agent, and the judge.** The harness runs the agent binary to produce the artifacts, and the judge runs `codex exec` to score them. The agent binary follows `{agent}`: `claude -p`, `omp -p --mode json`, `pi -p --mode json`, `codex exec --json`, or `kiro-cli chat --no-interactive`. Confirm the one in play, plus codex:
 
 ```bash
 command -v {agent-binary} && command -v codex || echo "MISSING a required CLI"
@@ -224,7 +229,7 @@ Run the end-to-end script from `benchmarks/`. It re-runs every pre-flight check 
 ```bash
 cd benchmarks
 ./scripts/run-e2e-benchmark.sh --provider {provider} --model {model} --dataset {dataset} \
-    [--agent claude|pi|omp|kiro] [--skill swe3|swe2] [--yes] [--count N] [--skip-judge]
+    [--agent claude|pi|omp|codex|kiro] [--skill swe3|swe2] [--yes] [--count N] [--skip-judge]
 ```
 
 Tell the user, before it runs:

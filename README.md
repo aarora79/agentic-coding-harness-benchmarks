@@ -57,7 +57,7 @@ One command per model. The `/benchmark` skill runs the pre-flight checks, the ha
 /benchmark provider=bedrock model=claude-opus-5 dataset=dataset/mcp-gateway-registry-v2.yaml agent=omp
 ```
 
-`agent` names the coding agent that drives the task and defaults to `claude`. The run charted below used `omp` on the `/swe3` skill, which is the default skill. The same flow runs headless from [`run-e2e-benchmark.sh`](benchmarks/scripts/run-e2e-benchmark.sh) (`--provider bedrock|litellm|vllm --model ... --dataset ... --agent claude|pi|omp|kiro --skill swe2|swe3`). Repeat across your model list, then the generators plot the frontier.
+`agent` names the coding agent that drives the task and defaults to `claude`. Five harnesses are supported: `claude` (Claude Code), `pi`, `omp` (oh-my-pi), `kiro` (kiro-cli) and `codex` (OpenAI Codex, `codex exec --json`). The run charted below used `omp` on the `/swe3` skill, which is the default skill. The same flow runs headless from [`run-e2e-benchmark.sh`](benchmarks/scripts/run-e2e-benchmark.sh) (`--provider bedrock|litellm|vllm --model ... --dataset ... --agent claude|pi|omp|kiro|codex --skill swe2|swe3`). Repeat across your model list, then the generators plot the frontier.
 
 ![Cost vs. quality Pareto frontier, omp harness on /swe3](docs/images/cost-quality-omp-swe3.png)
 
@@ -157,6 +157,8 @@ Where to read more, by topic:
 | [benchmarks/docs/path-open-weight-on-bedrock-litellm.md](benchmarks/docs/path-open-weight-on-bedrock-litellm.md) | Path 2 setup: open-weight models on Amazon Bedrock through the LiteLLM proxy. |
 | [benchmarks/docs/path-self-hosted-vllm.md](benchmarks/docs/path-self-hosted-vllm.md) | Path 3 setup: self-hosting a model on vLLM and pointing the harness at it. |
 | [docs/kiro-cli-setup.md](docs/kiro-cli-setup.md) | The kiro-cli harness: install, sign-in, headless use, the Bedrock-managed-only constraint, and how its Kiro-credit spend is calculated. Results: [harness-kiro-cli-swe3.md](docs/harness-kiro-cli-swe3.md). |
+| [docs/codex-setup.md](docs/codex-setup.md) | The codex harness: installing it, wiring it to Amazon Bedrock, the Responses-API constraint that decides which models it can reach, and a table of its known failure modes. |
+| [docs/faq/](docs/faq/) | FAQ, one file per question. Wiring each harness to a model, tested on real endpoints: [codex](docs/faq/wiring-codex-to-models.md), [omp](docs/faq/wiring-omp-to-models.md), [Claude Code](docs/faq/wiring-claude-code-to-models.md) -- an open-weight model on Bedrock, one you serve on vLLM, or a model on Bedrock directly. |
 | [benchmarks/docs/end-to-end-self-hosted-run.md](benchmarks/docs/end-to-end-self-hosted-run.md) | The full manual run-book for an end-to-end self-hosted benchmark. |
 | [self-hosted/vllm/README.md](self-hosted/vllm/README.md) | Standing up a vLLM server: install, tensor parallelism, tool-call parsers, and the serving-config reference. |
 | [self-hosted/vllm/models/](self-hosted/vllm/models/) | Per-model serving guides (HF repo, context window, TP size, tool parser, hardware fit) for every benchmarked model. |

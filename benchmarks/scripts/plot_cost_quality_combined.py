@@ -341,6 +341,7 @@ def _write_frontier_json(
     skill: str,
     repo: str,
     out_dir: Path,
+    force: bool = False,
 ) -> Path:
     """Emit the combined frontier plus the harness-selection rationale as JSON.
 
@@ -381,6 +382,16 @@ def _write_frontier_json(
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"pareto-frontier-{COMBINED_CODE}-{skill}.json"
+    # This chart covers the v1 dataset while --repo defaults there too, so the
+    # mismatch that bites here is the reverse of the single-harness one: a v2
+    # scope silently replacing the committed v1 combined frontier.
+    cq._guard_scope_change(
+        out_path,
+        harness="+".join(harnesses),
+        skill=skill,
+        repo=repo,
+        force=force,
+    )
     out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     logger.info("wrote %s", out_path)
     return out_path
@@ -429,6 +440,15 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--dark", action="store_true", help="Render the dark-mode theme"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Overwrite outputs even when the existing Pareto-frontier JSON was "
+            "built from a different --repo / --harnesses / --skill. Without this, "
+            "a scope mismatch is an error rather than a silent replacement."
+        ),
     )
     parser.add_argument(
         "--log-x",
@@ -488,6 +508,17 @@ def main() -> None:
         logger.info("  %-24s %s", record["model"], record["verdict"])
     frontier = cq._pareto_frontier(points)
 
+    metrics_dir = args.metrics_dir.expanduser().resolve()
+    # Check the scope on BOTH themes, before either output is touched: the dark
+    # run writes no JSON, so without this it would clobber the dark image using
+    # the very scope the light run just refused.
+    cq._guard_scope_change(
+        metrics_dir / f"pareto-frontier-{COMBINED_CODE}-{args.skill}.json",
+        harness="+".join(harnesses),
+        skill=args.skill,
+        repo=args.repo,
+        force=args.force,
+    )
     # Emit the machine-readable frontier once (light run), theme-independent.
     if not args.dark:
         _write_frontier_json(
@@ -496,7 +527,8 @@ def main() -> None:
             harnesses=harnesses,
             skill=args.skill,
             repo=args.repo,
-            out_dir=args.metrics_dir.expanduser().resolve(),
+            out_dir=metrics_dir,
+            force=args.force,
         )
     cq._plot(
         points,
@@ -519,4 +551,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except cq.ScopeMismatchError as exc:
+        # A wrong --repo is a mistake to correct, not a stack trace to read.
+        logger.error("%s", exc)
+        raise SystemExit(2) from None

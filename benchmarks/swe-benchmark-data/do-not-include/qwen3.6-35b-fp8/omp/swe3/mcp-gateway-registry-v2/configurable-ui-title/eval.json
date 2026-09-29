@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 76,
+      "notes": "The issue defines concrete behavior, non-goals, and deployment coverage, with target symbols such as Settings, /api/config, CONFIG_GROUPS, and the Terraform and Helm paths reflected in the patch. Its largest defect is the contradiction between deriving \"AI Registry\" for an unset registry-only deployment and claiming unset deployments see no behavior change, since the current title is described as hardcoded. It also says \"all four compose files\" while naming and patching only three, and assumes the compiled JavaScript needs no lifecycle consideration. No independent task statement was supplied, so requirements beyond the identifier and internally consistent artifacts could not be verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 78,
+      "notes": "The LLD is unusually concrete about real integration points, including Settings.ui_title, get_config(), CONFIG_GROUPS, useRegistryConfig, Helm reserved names, and the four-stage Terraform variable path. Its main weakness is an incomplete account of generated frontend assets: registry/static/index.html explicitly loads main.d2eb0b7d.js, yet the design neither specifies the build/regeneration lifecycle nor clearly limits when the checked-in bundle remains stale. The proposed hardcoded loading fallback still flashes the wrong title for custom and registry-only configurations, and the assertion that raw f-string ENV export handles arbitrary strings ignores newlines and other dotenv-sensitive content. Rollback, automated test placement, and behavior when config fetching fails are comparatively underdeveloped."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 70,
+      "notes": "The review identifies several concrete concerns, notably Terraform chain-of-custody, duplicated frontend resolution, Helm reserved variables, overflow, and React escaping. Its largest deficiency is declaring every blocker resolved when rendering a hardcoded fallback during asynchronous loading does not eliminate incorrect-content flashes for custom or registry-only titles. The security section inflates normal JSX attribute handling into a critical XSS concern, while the backend resolution incorrectly treats unquoted f-string ENV export as safe for arbitrary strings. It also misses the issue's backward-compatibility contradiction, the whitespace-only override discrepancy, and the absence of implementation tests."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 56,
+      "notes": "The plan covers both deployment modes, custom overrides, exports, Docker, Terraform, Helm, and compatibility with concrete expected title values. Its largest defect is that many shell checks can report failure yet exit successfully, such as `[ ... ] && echo PASS || echo FAIL`, while some grep sections print PASS unconditionally. Multiple API cases start servers on the same port without terminating earlier processes, and the purported UX coverage is manual or API-only, so it would not catch broken rendering, loading flashes, or ineffective truncation. The /api/config/full check requires a nonempty value even though the raw unset setting may legitimately be empty, and its response path and launch command were not independently verified."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 72,
+      "notes": "The patch implements the main path across 23 files: Settings.ui_title, the public and full configuration surfaces, a shared frontend hook, all four named UI locations, and Docker, Terraform, and Helm wiring. The backend fallback and useAppTitle integration are internally coherent, and the Terraform and Helm hunks follow the surrounding patterns shown in the diff. The largest gaps are the absence of automated tests and the loading fallback, which visibly shows the old title before custom configuration arrives; additionally, a whitespace-only UI_TITLE is returned verbatim by the backend but rejected by the hook's trim check. The claimed clean application against the base SHA could not be independently confirmed because the read-only shell failed during sandbox setup, although the submitted hunk contexts and symbols are internally consistent."
+    }
+  },
+  "task_score": 70.4,
+  "verdict": "This is a strong, repository-specific design and broadly complete patch, but unreliable testing and several overstated compatibility and loading-state claims materially limit confidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T00:31:55.331715Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 234418,
+      "cached_input_tokens": 149720,
+      "cache_write_input_tokens": 37827,
+      "output_tokens": 10554,
+      "reasoning_output_tokens": 9129
+    },
+    "duration_ms": 434689
+  }
+}

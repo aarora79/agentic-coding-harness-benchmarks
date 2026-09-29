@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 60,
+      "notes": "The issue clearly identifies five desired behaviors and provides mostly testable acceptance criteria. Its largest gap is the initial-status mandate: no mandated value is defined, and requiring status conflicts with allowing an unspecified status. Filtering the single-resource GET endpoint is also underspecified, including the expected result for a status mismatch. No independent task statement was supplied, so the claimed agents-and-skills scope and related issue #1330 could not be verified."
+    },
+    "lld": {
+      "completeness": 8,
+      "correctness": 5,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 31,
+      "notes": "The design names concrete handlers and files, including server_routes.py, webhook_service.py, and config.py. Its central scan design is unsound: it proposes running a second scan, discards scan_result in the sample, and invokes the async webhook sender without awaiting it. The HMAC design serializes separately from the HTTP request and therefore does not guarantee signing the exact transmitted bytes, while the boolean initial-status setting provides no required status value. Agents and skills, permission registration, secret rotation, delivery retry, and a real rollback strategy remain unresolved."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 6,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 32,
+      "notes": "The review usefully identifies the questionable merged reference and the unresolved agents-and-skills scope. It nevertheless approves claims that the scan webhook covers every flow and follows repository patterns without detecting that scan_result is unused and send_registration_webhook is not awaited. It also misses the separately serialized HMAC body, empty-secret signature, unconditional duplicate scans, unused configuration, and update-path patch_body reference. The headline security blocker concerns inbound verification, which is not part of the outbound signing requirement and distracts from the actual signing defects."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 5,
+      "specificity": 9,
+      "risk_awareness": 8,
+      "total": 33,
+      "notes": "The plan covers all five feature areas and includes some negative and backward-compatibility scenarios. Its HMAC test exercises an unestablished inbound webhook route and checks response headers, so it cannot verify the outbound request header or exact transmitted bytes. The registration curl combines multiple fields into one -F argument, PATCH requests omit JSON content type, and the proposed /api/servers/trace oracle is unsupported. Initial-status cases lack a configured required value, permission fixtures are unspecified, and agents, skills, retry behavior, and duplicate-scan behavior receive no effective coverage."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 2,
+      "specificity": 8,
+      "risk_awareness": 3,
+      "total": 18,
+      "notes": "The patch targets concrete server, configuration, and shared-webhook code, but it does not implement the feature end to end. _fire_scan_complete_webhook discards scan_result and calls the async send_registration_webhook without await, while registration and PATCH launch an additional scan unconditionally and update has no corresponding completion webhook. HMAC signs a separately serialized body and emits an empty-key signature when disabled; update_server_endpoint references patch_body, the permission flag is unused, and the get_server status parameter shadows the imported status namespace. Agents and skills, the collection filter, tests, and the required implementation summary are absent, and independent git-apply verification was unavailable because the read-only command runner failed before executing commands."
+    }
+  },
+  "task_score": 34.8,
+  "verdict": "The submission defines the intended feature set reasonably well, but the design and patch contain critical asynchronous, payload, authorization, filtering, and scope defects that leave the implementation largely nonfunctional.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T10:30:24.508892Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 218519,
+      "cached_input_tokens": 149775,
+      "cache_write_input_tokens": 39692,
+      "output_tokens": 10394,
+      "reasoning_output_tokens": 8552
+    },
+    "duration_ms": 150367
+  }
+}

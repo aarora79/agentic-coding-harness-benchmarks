@@ -40,10 +40,15 @@ set -euo pipefail
 #
 # Optional flags:
 #   --agent NAME           coding agent that runs the task: claude (Claude Code,
-#                          default), pi, omp (oh-my-pi), or kiro. Same task either
-#                          way. Both support every --provider: an
-#                          OpenAI-compatible endpoint (vllm/litellm) or native
-#                          Amazon Bedrock.
+#                          default), pi, omp (oh-my-pi), codex (OpenAI Codex) or
+#                          kiro. Same task either way. claude, pi, omp and codex
+#                          support every --provider: an OpenAI-compatible
+#                          endpoint (vllm/litellm) or native Amazon Bedrock.
+#                          codex speaks only the Responses API, so a vllm run
+#                          needs a tool-call parser that accepts
+#                          Responses-shaped tools (qwen3_coder, hermes -- NOT
+#                          minicpm5xml, dots, hy_v3, hy_v4, rust, step3,
+#                          step3p5). See issue #183.
 #   --skill NAME           SWE skill: swe3 (default, single-agent, no subagents)
 #                          or swe2 (multi-agent fan-out). Same six artifacts. The
 #                          default maps to the canonical harness folder; the
@@ -106,7 +111,7 @@ step()  { printf '\n\033[1;35m=== %s ===\033[0m\n' "$1"; }
 die()   { printf '\033[0;31m[FAIL]\033[0m  %s\n' "$1" >&2; exit 1; }
 
 usage() {
-    sed -n '3,45p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,50p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
@@ -158,8 +163,8 @@ case "$PROVIDER" in
 esac
 
 case "$AGENT" in
-    claude|pi|omp|kiro) ;;
-    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, omp, kiro." ;;
+    claude|pi|omp|kiro|codex) ;;
+    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, omp, kiro, codex." ;;
 esac
 case "$SKILL" in
     swe2|swe3) ;;
@@ -205,12 +210,12 @@ if [[ ! -f "$CONFIG" ]]; then
 fi
 ok "runner config: $CONFIG"
 
-# The two coding-agent CLIs this benchmark drives must be installed:
-#   - claude : the harness runs 'claude -p' to produce the artifacts (always).
-#   - codex  : the judge runs 'codex exec' to score them (unless --skip-judge).
+# The coding-agent CLIs this benchmark drives must be installed:
+#   - the chosen --agent : produces the artifacts ('claude -p', 'pi -p',
+#     'omp -p', 'kiro-cli chat' or 'codex exec').
+#   - codex : the judge runs 'codex exec' to score them (unless --skip-judge).
 # Check both here, up front, so a missing codex fails fast instead of after the
 # entire (long) harness run has already completed.
-# The harness runs the chosen agent: 'claude -p' (Claude Code) or 'pi -p' (pi).
 if [[ "$AGENT" == "pi" ]]; then
     command -v pi >/dev/null 2>&1 || die "pi CLI not found on PATH (--agent pi runs 'pi -p'). Install the pi coding agent (needs Node >=22)."
     ok "pi CLI found: $(command -v pi)"
@@ -220,6 +225,9 @@ elif [[ "$AGENT" == "omp" ]]; then
 elif [[ "$AGENT" == "kiro" ]]; then
     command -v kiro-cli >/dev/null 2>&1 || die "kiro-cli not found on PATH (--agent kiro runs 'kiro-cli chat'). Install it: curl -fsSL https://cli.kiro.dev/install | bash (see docs/kiro-cli-setup.md), then sign in with 'kiro-cli login'."
     ok "kiro-cli found: $(command -v kiro-cli)"
+elif [[ "$AGENT" == "codex" ]]; then
+    command -v codex >/dev/null 2>&1 || die "codex CLI not found on PATH (--agent codex runs 'codex exec'). Install codex."
+    ok "codex CLI found: $(command -v codex) ($(codex --version 2>/dev/null || echo 'version unknown'))"
 else
     command -v claude >/dev/null 2>&1 || die "claude CLI not found on PATH (the harness runs 'claude -p'). Install Claude Code."
     ok "claude CLI found: $(command -v claude)"

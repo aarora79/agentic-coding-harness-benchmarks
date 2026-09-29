@@ -39,10 +39,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 import yaml
 
+from bedrock_pricing import cost_usd as _bedrock_cost_usd
 from dataset_loader import Dataset, DatasetError, Task, load_dataset
 from runner_config import (
     DEFAULT_API_KEY,
@@ -51,7 +53,7 @@ from runner_config import (
     load_runner_config,
     model_to_wire_id,
 )
-from token_accounting import compute_total_tokens_processed
+from token_accounting import cache_partition_for_agent, compute_total_tokens_processed
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1140,7 +1142,83 @@ def _check_token_accounting(
     return message
 
 
-def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, Any]:
+# An agent's prompt-token count may fall this far below the server's own counter
+# before the harness calls it a gap. The server counter is server-wide, so a
+# health probe or a stray request moves it by a handful of tokens even on an idle
+# box; a real gap is a whole retried request, which is orders of magnitude bigger.
+SERVER_PROMPT_GAP_TOLERANCE = 0.05
+
+
+def _server_prompt_token_gap(
+    metrics: dict[str, Any],
+    vllm_prometheus: dict[str, Any],
+    concurrency: int,
+) -> dict[str, Any] | None:
+    """Reconcile the agent's prompt tokens against vLLM's own counter.
+
+    An agent reports the requests it accepted. A request it abandoned and retried
+    still cost the server a full prefill, and for a self-hosted model that prefill
+    is real GPU time the cost per task is derived from. Codex retrying a truncated
+    stream produced exactly that: vLLM counted 26,022 prompt tokens across three
+    requests while codex reported 8,700 (issue #183). On a healthy path the two
+    agree to the token -- a measured codex turn reported 35,508 against the
+    server's 35,508 -- so this field reads 0 and says so.
+
+    Args:
+        metrics: The API-reported metrics from ``_metrics_from_result``.
+        vllm_prometheus: The nested vLLM Prometheus block from ``_vllm_metrics``.
+        concurrency: Tasks running at once. Above 1 the server counter aggregates
+            other tasks' prefill, so the comparison is not attributable and this
+            returns None rather than a misleading number.
+
+    Returns:
+        A dict with both counts, the shortfall, and a verdict; None when the
+        server counter is unavailable or the run was concurrent.
+    """
+    if concurrency > 1:
+        return None
+    server_prompt = (vllm_prometheus.get("counters") or {}).get(PROMPT_TOKENS_METRIC)
+    if server_prompt is None:
+        return None
+    agent_prompt = (
+        (metrics.get("input_tokens") or 0)
+        + (metrics.get("cache_read_tokens") or 0)
+        + (metrics.get("cache_creation_tokens") or 0)
+    )
+    server_prompt = int(server_prompt)
+    missing = server_prompt - agent_prompt
+    tolerated = int(SERVER_PROMPT_GAP_TOLERANCE * server_prompt)
+    reconciled = missing <= tolerated
+    if not reconciled:
+        logger.warning(
+            "vLLM prefilled %d prompt tokens but the agent reported %d (%d "
+            "unaccounted, %.1f%%). The agent counts only the requests it "
+            "accepted, so retried or abandoned requests are missing from its "
+            "tokens and from any cost derived from them (issue #183).",
+            server_prompt,
+            agent_prompt,
+            missing,
+            100.0 * missing / server_prompt if server_prompt else 0.0,
+        )
+    return {
+        "server_prompt_tokens": server_prompt,
+        "agent_prompt_tokens": agent_prompt,
+        "unaccounted_prompt_tokens": max(missing, 0),
+        "reconciled": reconciled,
+        "note": (
+            "vllm:prompt_tokens_total window delta vs the agent's own prompt "
+            "tokens (input + cache_read + cache_write). A shortfall is prefill "
+            "the server performed for requests the agent retried and did not "
+            "count, so token-derived cost understates the GPU work (issue #183)."
+        ),
+    }
+
+
+def _metrics_from_result(
+    result: dict[str, Any],
+    elapsed: float,
+    model: str = "",
+) -> dict[str, Any]:
     """Extract the benchmark metrics from a claude -p JSON result.
 
     Token counts come from ``_claude_token_usage`` (modelUsage-first, so subagent
@@ -1149,6 +1227,9 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
     Args:
         result: The parsed JSON result object from `claude -p`.
         elapsed: Wall-clock seconds measured around the subprocess call.
+        model: The model id, used to derive cost from the Bedrock price
+            table when the agent itself reports no cost (e.g. omp via the
+            LiteLLM proxy).
 
     Returns:
         A metrics dictionary keyed by the dataset's metric names.
@@ -1158,12 +1239,21 @@ def _metrics_from_result(result: dict[str, Any], elapsed: float) -> dict[str, An
     duration_ms = result.get("duration_ms")
     latency = round(duration_ms / 1000, 1) if duration_ms else round(elapsed, 1)
     is_error = result.get("is_error", False)
+    cost = result.get("total_cost_usd")
+    if cost is None and model:
+        cost = _bedrock_cost_usd(
+            model,
+            input_tokens=tokens["input_tokens"],
+            output_tokens=tokens["output_tokens"],
+            cache_read_tokens=tokens["cache_read_tokens"],
+            cache_write_tokens=tokens["cache_creation_tokens"],
+        )
     metrics = {
         "input_tokens": tokens["input_tokens"],
         "output_tokens": tokens["output_tokens"],
         "latency_seconds": latency,
         "num_turns": result.get("num_turns", 0),
-        "total_cost_usd": result.get("total_cost_usd"),
+        "total_cost_usd": cost,
         "is_error": is_error,
         # claude -p's result subtype: "success", "error_max_turns" (hit the
         # --max-turns cap), "error_during_execution", etc. Recorded so the retry
@@ -1926,6 +2016,390 @@ def _run_kiro(
     return result
 
 
+CODEX_BIN = "codex"
+
+# item.completed item types that count as one agent step for num_turns: an
+# assistant message or a shell command the model issued.
+CODEX_STEP_ITEM_TYPES = frozenset({"agent_message", "command_execution"})
+
+
+# Name of the codex provider block the harness defines for an OpenAI-compatible
+# endpoint. codex resolves the base URL from the provider its config selects, so
+# the harness declares one per run rather than relying on whatever
+# ~/.codex/config.toml happens to set.
+CODEX_ENDPOINT_PROVIDER = "harness_endpoint"
+
+
+def _codex_base_url(endpoint: str | None) -> str:
+    """Return the ``/v1`` base URL for codex's provider block, or fail loudly.
+
+    The provider block travels in argv, so this value is visible to any local
+    user through ``ps`` and is printed by ``--dry-run``. A URL carrying userinfo
+    (``https://user:pass@host``) would put that credential there, so it is
+    rejected rather than trimmed: the harness authenticates with
+    ``OPENAI_API_KEY``, which stays in the environment, and no path here needs
+    credentials in the URL.
+
+    Args:
+        endpoint: The configured endpoint (``--endpoint`` or the runner config).
+
+    Returns:
+        The endpoint with a single ``/v1`` suffix.
+
+    Raises:
+        ValueError: If the endpoint is missing, is not http(s), or embeds
+            credentials.
+    """
+    raw = (endpoint or "").strip()
+    if not raw:
+        raise ValueError(
+            "agent=codex with provider=endpoint needs an endpoint. Pass "
+            "--endpoint http://127.0.0.1:8000 or set it in the runner config."
+        )
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"codex endpoint must be http or https, got '{raw}'. codex 0.153.4 "
+            "speaks the Responses API over HTTP only."
+        )
+    if parsed.username or parsed.password:
+        raise ValueError(
+            "codex endpoint must not embed credentials: the base URL is passed "
+            "on the command line, where any local user can read it from ps. "
+            "Use the endpoint host alone and put the key in api_key, which the "
+            "harness passes through the OPENAI_API_KEY environment variable."
+        )
+    return raw.rstrip("/") + "/v1"
+
+
+def _build_codex_env(config: RunnerConfig) -> dict[str, str]:
+    """Build the environment for a codex exec run.
+
+    For provider=bedrock, pins AWS_REGION so codex uses the right region.
+    For provider=endpoint, sets OPENAI_API_KEY, which the provider block in
+    ``_build_codex_cmd`` names as its ``env_key``. OPENAI_BASE_URL is set too,
+    but only for older codex builds that still read it: codex 0.153.4 ignores
+    it, which is why the base URL now travels in the provider block instead
+    (issue #183).
+
+    Args:
+        config: The runner config.
+
+    Returns:
+        A copy of the current environment with routing vars set.
+    """
+    env = os.environ.copy()
+    if config.is_bedrock:
+        region = config.resolved_region()
+        if region:
+            env["AWS_REGION"] = region
+    else:
+        env["OPENAI_BASE_URL"] = (config.endpoint or "").rstrip("/") + "/v1"
+        # resolved_api_key() honours api_key_env, so a real gateway token can come
+        # from the environment instead of the config file. Reading config.api_key
+        # directly here would send the "local" placeholder to a gateway that needs
+        # a genuine credential.
+        env["OPENAI_API_KEY"] = config.resolved_api_key() or "local"
+    return env
+
+
+def _build_codex_cmd(config: RunnerConfig, clone_path: Path, prompt: str) -> list[str]:
+    """Assemble the ``codex exec`` argument vector.
+
+    codex exec runs non-interactively, outputs JSON lines, and supports
+    ``--model`` to select any Bedrock or OpenAI-compatible model. ``--cd``
+    sets the working directory to the cloned repo so codex file tools operate
+    on the task. The SKILL.md is inlined ahead of the task payload (codex has
+    no ``--skill`` flag, same as kiro).
+
+    On ``--dangerously-bypass-approvals-and-sandbox``: every harness here runs
+    unattended against a throwaway clone, so all of them pre-approve tool use
+    (claude uses bypassPermissions, omp --auto-approve, kiro --trust-all-tools).
+    codex additionally wraps model-issued shell commands in a bubblewrap
+    sandbox, and that sandbox cannot start on the EC2 hosts this benchmark runs
+    on: both ``--sandbox read-only`` and ``--sandbox workspace-write`` abort
+    with ``bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted``
+    (creating a loopback interface in an unprivileged user namespace is not
+    permitted there), so the agent completes no shell work at all. Bypassing is
+    therefore required for the run to function, not a convenience. The blast
+    radius is the benchmark host itself, so run this agent only on a disposable
+    instance -- the same assumption the other harnesses already make.
+
+    ROUTING (issue #183). codex takes its base URL from the provider its config
+    selects, and codex 0.153.4 ignores ``OPENAI_BASE_URL`` entirely. Exporting
+    that variable alone therefore sent an endpoint run wherever
+    ``~/.codex/config.toml`` pointed -- on a machine configured for the judge,
+    straight to Amazon Bedrock, which answered ``404 The model
+    'minicpm5-2b' does not exist``. So provider=endpoint declares its own
+    provider block here. ``wire_api`` must be ``responses``: codex 0.153.4
+    removed the chat-completions wire and rejects ``wire_api = "chat"``.
+
+    A vLLM server therefore needs a tool-call parser that accepts
+    Responses-shaped tools (flat ``{"type": "function", "name": ...}``).
+    ``qwen3_coder`` and ``hermes`` do; ``minicpm5xml``, ``dots``, ``hy_v3``,
+    ``hy_v4``, ``rust``, ``step3`` and ``step3p5`` read the nested
+    chat-completions shape and abort tool extraction, which truncates the
+    stream and makes codex retry every request.
+
+    Args:
+        config: The runner config (model, provider).
+        clone_path: Path to the cloned task repo.
+        prompt: The hydrated task prompt (from ``_build_prompt`` agent="codex").
+
+    Returns:
+        The command as a list of arguments (never a shell string).
+    """
+    skill_md = _skill_path(config).read_text(encoding="utf-8")
+    full_prompt = (
+        f"{skill_md}\n\n"
+        "===TASK===\n"
+        "Follow the skill instructions above to complete the following task.\n\n"
+        f"{prompt}"
+    )
+    cmd = [
+        CODEX_BIN,
+        "exec",
+        "--json",
+        "--skip-git-repo-check",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--cd",
+        str(clone_path),
+        "--model",
+        model_to_wire_id(config.model or ""),
+    ]
+    if config.is_bedrock:
+        cmd += ["-c", "model_provider=amazon-bedrock"]
+    else:
+        base_url = _codex_base_url(config.endpoint)
+        provider = CODEX_ENDPOINT_PROVIDER
+        cmd += [
+            "-c",
+            f"model_provider={provider}",
+            "-c",
+            f"model_providers.{provider}.name={provider}",
+            "-c",
+            f"model_providers.{provider}.base_url={base_url}",
+            "-c",
+            f"model_providers.{provider}.wire_api=responses",
+            "-c",
+            f"model_providers.{provider}.env_key=OPENAI_API_KEY",
+        ]
+        # A self-hosted model is unknown to codex, which then warns "Model
+        # metadata not found. Defaulting to fallback metadata" and sizes its
+        # context from that guess. Tell it the served window when the config
+        # knows it.
+        if config.context_window > 0:
+            cmd += ["-c", f"model_context_window={config.context_window}"]
+    # Config-derived values (model, clone path, prompt) are passed as separate
+    # list elements, never interpolated into a shell string, and the executable
+    # is the hardcoded CODEX_BIN.
+    cmd += ["--", full_prompt]
+    return cmd
+
+
+def _codex_result_from_events(
+    events: list[dict[str, Any]],
+    returncode: int,
+    elapsed: float,
+    model: str = "",
+) -> dict[str, Any]:
+    """Normalize codex JSON-lines output to the claude-shaped result dict.
+
+    codex exec emits JSON-lines events. The ``turn.completed`` event carries
+    token usage; ``item.completed`` events carry the agent's steps. Cost is
+    derived from the token counts using the local Bedrock price table in
+    ``bedrock_pricing``, because codex exec reports no billed cost of its own.
+
+    codex's ``input_tokens`` is the TOTAL prompt size, with
+    ``cached_input_tokens`` and ``cache_write_input_tokens`` as subsets of it
+    (a measured turn: input 50768 = cached 36741 + cache_write 13817 + fresh
+    210). The claude-shaped ``usage`` this harness passes around is additive
+    instead -- ``input_tokens`` there means fresh, non-cached tokens, which is
+    also what ``bedrock_pricing.cost_usd`` documents -- so the cached and
+    cache-written portions are subtracted out here. Without that subtraction
+    the cached prompt is billed twice, once at the full input rate and again
+    at the cache rate, which overstates cost by roughly 80% on a
+    cache-dominated agentic run. This mirrors the partition handling in
+    ``token_accounting.py`` (see issue #136). Because the fields this returns
+    are disjoint, every total derived from them must be additive: callers pass
+    ``cache_partition=False`` via ``cache_partition_for_agent`` (issue #183).
+
+    One ``turn.completed`` carries the whole turn, VERIFIED against the server:
+    codex reported input 35508 / output 180 for a three-tool-call turn while
+    vLLM's own counters moved 35508 prompt / 180 generation tokens across the
+    turn's 4 requests. The counts here SUM across ``turn.completed`` events
+    anyway, so a build that splits one exec into several turns (resume,
+    compaction) cannot silently drop all but the last.
+
+    Retries are the one gap: codex counts the attempt it accepted and ignores
+    the ones it abandoned, so a flaky endpoint bills the GPU for prefill that
+    never reaches these numbers. ``_save_metrics`` records that gap for an
+    endpoint run by comparing this usage against vLLM's prompt-token counter.
+
+    ``reasoning_output_tokens`` is deliberately NOT added to ``output_tokens``:
+    it is a subset of it, not a sibling.
+
+    Args:
+        events: Parsed JSON event dicts from codex exec stdout.
+        returncode: The process exit code.
+        elapsed: Wall-clock seconds measured by the harness.
+        model: The model id used for cost derivation.
+
+    Returns:
+        The claude-shaped result dict.
+    """
+    usage: dict[str, int] = {}
+    last_message = ""
+    agent_steps = 0
+    for event in events:
+        if event.get("type") == "turn.completed":
+            u = event.get("usage", {})
+            total_input = int(u.get("input_tokens", 0) or 0)
+            cache_read = int(u.get("cached_input_tokens", 0) or 0)
+            cache_write = int(u.get("cache_write_input_tokens", 0) or 0)
+            # Clamp: a future codex build reporting these as siblings rather
+            # than subsets must not produce a negative fresh-token count.
+            fresh_input = max(total_input - cache_read - cache_write, 0)
+            usage = {
+                "input_tokens": usage.get("input_tokens", 0) + fresh_input,
+                "output_tokens": usage.get("output_tokens", 0)
+                + int(u.get("output_tokens", 0) or 0),
+                "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0)
+                + cache_read,
+                "cache_creation_input_tokens": usage.get(
+                    "cache_creation_input_tokens", 0
+                )
+                + cache_write,
+            }
+        if event.get("type") == "item.completed":
+            item = event.get("item", {})
+            if item.get("type") in CODEX_STEP_ITEM_TYPES:
+                agent_steps += 1
+            if item.get("type") == "agent_message":
+                last_message = item.get("text", "")
+
+    cost = (
+        _bedrock_cost_usd(
+            model,
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+            cache_write_tokens=usage.get("cache_creation_input_tokens", 0),
+        )
+        if model
+        else None
+    )
+
+    is_error = returncode != 0
+    return {
+        "usage": usage,
+        # codex emits exactly one turn.completed per exec, so that count says
+        # nothing about how hard the agent worked. Count the agent's completed
+        # steps instead -- messages and shell commands -- which is the closest
+        # analogue to the turn counts the other harnesses report.
+        "num_turns": agent_steps,
+        "total_cost_usd": cost,
+        "is_error": is_error,
+        "subtype": "success" if not is_error else f"exit_{returncode}",
+        "duration_ms": round(elapsed * 1000),
+        "result": last_message if not is_error else f"exit_{returncode}",
+    }
+
+
+def _run_codex(
+    cmd: list[str],
+    env: dict[str, str],
+    timeout: int,
+    model: str = "",
+) -> dict[str, Any]:
+    """Run ``codex exec --json`` and normalize its JSON-lines output.
+
+    codex exec streams JSON-lines events to stdout. We accumulate them and
+    parse on completion. Each line is also echoed to stderr as a live trace.
+
+    The deadline is enforced by a watchdog timer rather than by checking the
+    clock inside the read loop: a codex process that stalls without writing a
+    line leaves that loop blocked on read, so a clock check there never runs
+    and the run would hang until the outer harness gave up. The watchdog kills
+    the process at the deadline, which ends the read loop and lets this
+    function raise. That matters because run-multi-model-benchmark.sh drives
+    unattended multi-day batches.
+
+    Args:
+        cmd: The codex exec command argument vector.
+        env: Environment for the subprocess.
+        timeout: Wall-clock timeout in seconds.
+        model: The model id used for cost derivation.
+
+    Returns:
+        The claude-shaped result dict (see ``_codex_result_from_events``).
+
+    Raises:
+        RuntimeError: If codex times out or produces no output.
+    """
+    start = time.time()
+    proc = subprocess.Popen(  # nosec B603 B607 - hardcoded 'codex', list args, no shell
+        cmd,
+        env=env,
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if proc.stdout is None:  # pragma: no cover
+        raise RuntimeError("codex produced no stdout stream")
+
+    timed_out = threading.Event()
+
+    def _kill_on_deadline() -> None:
+        timed_out.set()
+        proc.kill()
+
+    watchdog = threading.Timer(timeout, _kill_on_deadline)
+    watchdog.daemon = True
+    watchdog.start()
+
+    events: list[dict[str, Any]] = []
+    try:
+        for line in proc.stdout:
+            sys.stderr.write(line)
+            sys.stderr.flush()
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                # codex interleaves human-readable diagnostics with the JSON
+                # event stream; skip them the way the pi/omp readers do.
+                continue
+            if isinstance(parsed, dict):
+                events.append(parsed)
+        try:
+            proc.wait(timeout=max(timeout - (time.time() - start), 1))
+        except subprocess.TimeoutExpired as exc:
+            proc.kill()
+            raise RuntimeError(f"codex exec timed out after {timeout}s") from exc
+    finally:
+        watchdog.cancel()
+        # The pipe stays open when the read loop exits via an exception (a
+        # killed child), so close it here rather than leaking the descriptor
+        # across a multi-task run.
+        proc.stdout.close()
+
+    if timed_out.is_set():
+        raise RuntimeError(f"codex exec timed out after {timeout}s")
+
+    elapsed = time.time() - start
+
+    if not events:
+        raise RuntimeError(f"codex produced no output (exit {proc.returncode}).")
+    result = _codex_result_from_events(events, proc.returncode, elapsed, model=model)
+    result["_elapsed_seconds"] = round(elapsed, 1)
+    return result
+
+
 TOOL_RESULT_PREVIEW_CHARS = 500
 
 
@@ -2248,8 +2722,11 @@ def _summary_metrics(
     # caching: total = input + output + cache_read + cache_write, so a
     # heavily-cached run is not understated ~100x). Adding the cache
     # unconditionally, as this used to, ~2x double-counted self-hosted partition
-    # runs. total_cost_usd is the agent's own metered bill (null for a
-    # self-hosted model, which has no per-token price).
+    # runs. An agent whose counts are already disjoint skips the detection and
+    # declares itself additive (codex; issue #183), because at a ~50% cache hit
+    # rate its fresh input equals its cache sum and the detector would drop the
+    # whole cache read. total_cost_usd is the agent's own metered bill (null for
+    # a self-hosted model, which has no per-token price).
     inp = metrics.get("input_tokens") or 0
     out = metrics.get("output_tokens") or 0
     total_tokens = compute_total_tokens_processed(
@@ -2258,6 +2735,7 @@ def _summary_metrics(
         cache_read or 0,
         cache_write or 0,
         context=f"run-swe-headless:_summary_metrics/{agent}",
+        cache_partition=cache_partition_for_agent(agent),
     )
     token_src = (
         f"{api}.modelUsage (per-model rollup; INCLUDES subagent tokens)"
@@ -2284,7 +2762,8 @@ def _summary_metrics(
         "total_tokens": (
             "total tokens processed once each (issue #136): input + output, plus "
             "cache_read + cache_write ONLY when the cache is additive (not a "
-            "partition of input)"
+            "partition of input). An agent with disjoint counts declares that "
+            "instead of being detected (issue #183)."
         ),
         "total_cost_usd": (
             f"{api}.total_cost_usd (metered)"
@@ -2381,6 +2860,14 @@ def _save_metrics(
         # this file are suspect (scores/turns/latency are not). Never publish a
         # token or cost column from a run where this is set.
         "token_accounting_warning": token_accounting_warning,
+        # Endpoint runs only: the agent's prompt tokens against vLLM's own
+        # counter, so retried requests the agent never counted are visible on
+        # disk instead of silently deflating token-derived cost (issue #183).
+        "prompt_token_reconciliation": (
+            _server_prompt_token_gap(metrics, vllm_prometheus, config.concurrency)
+            if include_vllm
+            else None
+        ),
         # The normalized, cross-agent metric block -- the single source of truth
         # for tokens/cost/turns/latency + provenance. summarize_run and the charts
         # read this. Filled to whatever extent the agent reports (nulls where a
@@ -2509,6 +2996,17 @@ def _run_task(
                 label,
                 run_kind,
             )
+        elif config.is_codex:
+            # codex exec runs non-interactively with --json output and full token
+            # accounting. The SKILL.md is inlined into the prompt (codex has no
+            # --skill flag, same as kiro).
+            cmd = _build_codex_cmd(config, clone_path, prompt)
+            env = _build_codex_env(config)
+            logger.info(
+                "  %s Running codex exec %s (agent=codex, no turn cap)...",
+                label,
+                run_kind,
+            )
         else:
             cmd = _build_claude_cmd(
                 config, prompt, stream=stream, clone_path=clone_path
@@ -2563,6 +3061,11 @@ def _run_task(
                 result = _run_kiro(
                     cmd, env, config.timeout_seconds, config.kiro_dollars_per_credit
                 )
+            elif config.is_codex:
+                # codex exec outputs JSON-lines events; _run_codex normalizes them.
+                result = _run_codex(
+                    cmd, env, config.timeout_seconds, model=config.model or ""
+                )
             elif stream:
                 result = _run_claude_streaming(
                     cmd, env, config.timeout_seconds, verbose=verbose
@@ -2573,7 +3076,9 @@ def _run_task(
         vllm_after = (
             _snapshot_vllm_metrics(metrics_endpoint) if metrics_endpoint else None
         )
-        metrics = _metrics_from_result(result, result.get("_elapsed_seconds", 0))
+        metrics = _metrics_from_result(
+            result, result.get("_elapsed_seconds", 0), model=config.model or ""
+        )
         metrics["run_started_at"] = run_started_at
         metrics["run_ended_at"] = run_ended_at
         vllm_block = _vllm_metrics(vllm_before, vllm_after)
@@ -2724,6 +3229,8 @@ def _dry_run(config: RunnerConfig, dataset: Dataset, tasks: list[Task]) -> None:
             cmd = _build_omp_cmd(config, prompt)
         elif config.is_kiro:
             cmd = _build_kiro_cmd(config, prompt)
+        elif config.is_codex:
+            cmd = _build_codex_cmd(config, placeholder, prompt)
         else:
             cmd = _build_claude_cmd(config, prompt, clone_path=placeholder)
         print(f"\n=== {task.id} [{task.complexity}] ref={ref} ===")
@@ -2869,6 +3376,8 @@ def _write_cost_totals(
         # total_tokens is derived, not additive; recompute it from the summed
         # parts so the partition-vs-additive rule (issue #136) is applied
         # consistently and does not ~2x double-count self-hosted partition runs.
+        # The agent recorded in the file decides whether the shape is declared
+        # (disjoint counts) or detected (issue #183).
         if "total_tokens" in block:
             block["total_tokens"] = compute_total_tokens_processed(
                 totals.get("input_tokens") or 0,
@@ -2876,6 +3385,7 @@ def _write_cost_totals(
                 totals.get("cache_read_tokens") or 0,
                 totals.get("cache_creation_tokens") or 0,
                 context=f"{context}/{block_name}",
+                cache_partition=cache_partition_for_agent(record.get("agent")),
             )
     record["agent_invocations"] = invocations
     if topped_up is not None:
@@ -3258,8 +3768,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--agent",
         help="Override: coding agent that runs the task ('claude' for Claude "
-        "Code, 'pi' for the pi coding agent). Both support provider=endpoint "
-        "or provider=bedrock.",
+        "Code, 'pi' for the pi coding agent, 'omp' for oh-my-pi, 'kiro' for "
+        "kiro-cli, 'codex' for OpenAI Codex). All support provider=bedrock; "
+        "all except kiro also support provider=endpoint.",
     )
     parser.add_argument(
         "--skill",

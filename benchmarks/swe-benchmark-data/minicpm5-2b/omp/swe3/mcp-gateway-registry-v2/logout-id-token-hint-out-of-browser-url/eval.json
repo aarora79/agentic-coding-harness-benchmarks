@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 65,
+      "notes": "The issue clearly defines the observed WAF and disclosure problems, identifies provider compatibility, and supplies mostly testable acceptance criteria plus explicit exclusions. Its largest defect is an internal contradiction: it promises removal from browser history and logs while requiring the auth server to put the same hint into Keycloak, Entra, and Okta logout parameters, which ordinarily become the browser's IdP redirect URL. The gateway-to-auth-server body requirement is concrete, but “deployments without the new path continue to function” lacks defined fallback behavior or an oracle. No independent task statement was supplied, and the related issue, token-size claims, and configuration dependency could not be independently verified from the repository because local shell access failed in the evaluation environment."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 3,
+      "specificity": 10,
+      "risk_awareness": 7,
+      "total": 33,
+      "notes": "The LLD names the intended files, handlers, provider branches, data flow, configuration, and rollout concerns, making its proposed change boundary unusually explicit. Its core mechanics are not viable: it proposes POSTing to an endpoint shown as `@app.get`, uses nonstandard `request.is_form_type` and `request.json.get` calls, performs synchronous `httpx.post` inside async handlers, and treats `resp.url` as the redirect response's Location. The sequence also alternately claims the browser sends a GET with a body and that the provider receives the hint in a body, neither of which follows from the proposed redirects. Critical questions about auth-server reachability, fallback, and URL configuration remain unresolved, and exact repository grounding could not be independently checked due the shell sandbox failure."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 8,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 50,
+      "notes": "The review identifies several real concerns, including hardcoded auth-server addressing, missing HTTP error handling, token validation, body logging, metrics, and maintenance of two logout paths. It nevertheless approves a design with fatal defects and incorrectly treats `request.is_form_type` as a usable API that merely returns false, while missing the unchanged GET-only route, `resp.url` misuse, blocking synchronous HTTP call, and cookie-clearing bypass. Recommendations are concrete but resolutions frequently accept or defer the concern without requiring a corrected design or implementation. The multiple perspectives provide useful risk coverage, but their verdicts are not defensible against the submitted patch."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 3,
+      "specificity": 10,
+      "risk_awareness": 8,
+      "total": 31,
+      "notes": "The plan attempts functional, compatibility, failure, deployment, and end-to-end coverage and explicitly checks for absence of the hint from a Location URL. Most tests target the wrong flow: they POST JSON to the registry's `/oauth2/logout/keycloak` path instead of the submitted `/logout` handler, expect inconsistent 200/302 statuses, and cannot observe an internal outgoing request body through the shown curl commands. The shell snippets use non-shell `assert` syntax, the end-to-end test reintroduces the hint as a query parameter, and several oracles merely check that some logout URL or status exists. Provider configuration, a valid authenticated session, cookie transmission, exact redirect headers, token precedence, malformed bodies, and automated repository test locations are not concretely established."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 0,
+      "specificity": 8,
+      "risk_awareness": 1,
+      "total": 14,
+      "notes": "The patch attempts both required code areas and consistently substitutes `hint_for_params` across the shown Keycloak, Entra, and Okta branches, but it does not implement a functioning end-to-end flow. The diff adds the literal line `Wall time: 0.00 seconds` to `registry/auth/routes.py`, making the Python file syntactically invalid; it also POSTs to an endpoint the design leaves GET-only, parses the body with invalid Request APIs, and redirects using `resp.url` rather than the response Location. The successful `logout_post` branch bypasses the existing cookie deletion, synchronous `httpx.post` blocks an async handler, no status or exception handling provides the claimed fallback, and the final IdP parameters still expose the token in a browser redirect. `git apply --check` and exact source-context verification could not be completed because every local command failed before execution with the evaluation sandbox's `bwrap` error, but the defects visible directly in the submitted unified diff are independently fatal."
+    }
+  },
+  "task_score": 38.6,
+  "verdict": "The submission frames the problem clearly and discusses relevant risks, but the design is technically inconsistent and the submitted patch is syntactically invalid and cannot deliver the promised logout behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T10:32:14.910416Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 150831,
+      "cached_input_tokens": 101849,
+      "cache_write_input_tokens": 28470,
+      "output_tokens": 8941,
+      "reasoning_output_tokens": 6920
+    },
+    "duration_ms": 110388
+  }
+}

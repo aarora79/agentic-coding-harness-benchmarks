@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "moonshotai.kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The issue gives testable acceptance criteria for parsing, persistence, both modals, editable form behavior, enterprise hosts, and legacy records. Its largest deficiency is an incomplete frontend data-flow diagnosis: frontend/src/hooks/useSkills.ts manually projects API objects but repository_url is absent, so changing SkillInfo and the Skill type alone cannot feed SkillCard or edit mode. The stated backend models and existing repository_url fields were verified in registry/schemas/skill_models.py, as were the two SkillInfo construction sites. No independent task statement was supplied, and the claim that most skills lack repository_url cannot be verified from repository evidence."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 19,
+      "total": 71,
+      "notes": "The LLD is unusually concrete about registry/utils/url_utils.py, both SkillInfo construction sites, search-index mappings, form state, modal links, and re-index staleness, and those symbols exist at the described baseline. Its critical omission is frontend/src/hooks/useSkills.ts, whose field-by-field transformation drops repository_url before Dashboard passes skills to SkillCard and before edit-mode initialization. It also names POST /api/search, while registry/api/search_routes.py defines /semantic under the /api/search prefix, making the actual endpoint POST /api/search/semantic. The rollout, compatibility, SSRF, user-editability, and no-backfill risks are otherwise addressed proportionately."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 20,
+      "total": 71,
+      "notes": "The review finds real defects, notably edit-mode clearing, duplicated SkillInfo construction, index staleness, and the need to test conditional links and both list paths. Its largest failure is declaring the whole data path fixed and all blocking findings resolved without noticing the manual projection in frontend/src/hooks/useSkills.ts, the exact integration defect that prevents the main modal and edit form from receiving repository_url. The frontend and SMTS verdicts therefore overstate correctness despite otherwise actionable recommendations tied to real files. Its security and operational analysis is well grounded in the existing SSRF checks and index-on-update behavior in registry/services/skill_service.py."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 70,
+      "notes": "The plan supplies strong value-level oracles for URL derivation, null handling, editable state, conditional links, legacy records, list paths, and index refresh behavior. All semantic-search curl examples use POST /api/search, but the verified route is POST /api/search/semantic, so those checks return the wrong result. The claimed fast-path request omits include_disabled=true even though registry/api/skill_routes.py treats the default false value as a field filter, and several registration/E2E examples use nonexistent org/repo URLs despite registration validating reachability. Manual UX checks could expose the missing useSkills projection, but no automated hook, API propagation, or component test pins that critical regression."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 66,
+      "notes": "Most hunks match the baseline source and correctly implement derivation, parse and list serialization, DocumentDB search propagation, semantic result typing, editable auto-fill, and conditional modal links. The patch omits frontend/src/hooks/useSkills.ts, whose transformation at lines 34-57 discards repository_url, so the main SkillCard View Repo link remains hidden and edit mode still submits an empty value, contrary to the summary's end-to-end claim. The added tests cover the pure helper well but do not test API propagation, either modal, form behavior, or this mapper, and the helper's claim to never raise is not protected against every urlparse failure. No standalone patch.diff exists in the repository, so git apply --check could not be run directly, although the submitted hunk contexts and symbols were manually verified."
+    }
+  },
+  "task_score": 71.6,
+  "verdict": "The submission is detailed and largely repository-grounded, but missing the useSkills repository_url projection leaves a central UI and edit workflow broken despite repeated claims of end-to-end completion.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-23T20:19:54.082004Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 954502,
+      "cached_input_tokens": 835059,
+      "cache_write_input_tokens": 119421,
+      "output_tokens": 9756,
+      "reasoning_output_tokens": 4717
+    },
+    "duration_ms": 143124
+  }
+}

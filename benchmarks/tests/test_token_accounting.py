@@ -51,6 +51,36 @@ class ComputeTotalTokensTest(unittest.TestCase):
         total = ta.compute_total_tokens_processed(None, None, None, None)  # type: ignore[arg-type]
         self.assertEqual(total, 0)
 
+    def test_declared_disjoint_keeps_cache_at_a_50_percent_hit_rate(self) -> None:
+        # codex reports the total prompt with the cache as subsets, and the
+        # harness subtracts them out before this call, so the fields are
+        # disjoint. At a ~50% cache hit rate fresh input equals the cache sum,
+        # which is the detector's partition signature: left to detect, the total
+        # would lose the whole 50_000-token cache read and halve the derived
+        # cost (issue #183).
+        detected = ta.compute_total_tokens_processed(50_000, 900, 50_000, 0)
+        self.assertEqual(detected, 50_000 + 900)
+        declared = ta.compute_total_tokens_processed(
+            50_000, 900, 50_000, 0, cache_partition=False
+        )
+        self.assertEqual(declared, 50_000 + 900 + 50_000)
+
+    def test_declared_partition_overrides_an_additive_signature(self) -> None:
+        total = ta.compute_total_tokens_processed(
+            2, 1_000, 180_000, 500, cache_partition=True
+        )
+        self.assertEqual(total, 2 + 1_000)
+
+
+class CachePartitionForAgentTest(unittest.TestCase):
+    def test_codex_counts_are_declared_disjoint(self) -> None:
+        self.assertIs(ta.cache_partition_for_agent("codex"), False)
+        self.assertIs(ta.cache_partition_for_agent("CODEX"), False)
+
+    def test_other_agents_are_detected_from_the_data(self) -> None:
+        for agent in ("claude", "pi", "omp", "kiro", "", None):
+            self.assertIsNone(ta.cache_partition_for_agent(agent))
+
 
 class IsCachePartitionTest(unittest.TestCase):
     def test_exact_partition(self) -> None:

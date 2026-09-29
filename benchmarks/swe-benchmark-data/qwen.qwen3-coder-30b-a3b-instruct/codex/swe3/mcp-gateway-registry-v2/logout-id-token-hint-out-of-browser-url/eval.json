@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "qwen.qwen3-coder-30b-a3b-instruct",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 17,
+      "specificity": 14,
+      "risk_awareness": 16,
+      "total": 64,
+      "notes": "The issue clearly identifies URL token exposure, WAF failures, intended logout behavior, and useful non-goals. Its largest deficiency is that “backward compatibility” and provider support lack defined version-skew scenarios or testable outcomes. The submitted route code shows logout_handler appending id_token_hint, while the repository documents matching logout metrics, confirming the problem surface. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/OBSERVABILITY.md)) No independent task statement was supplied, so the claimed provider matrix and exact compatibility requirement remain unverified."
+    },
+    "lld": {
+      "completeness": 8,
+      "correctness": 6,
+      "specificity": 7,
+      "risk_awareness": 7,
+      "total": 28,
+      "notes": "The strongest aspect is naming real integration areas such as registry/auth/routes.py, auth_server/server.py, the session store, and existing logout metrics. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/OBSERVABILITY.md)) The central token-reference mechanism remains undesigned: storage ownership, schema, entropy, TTL, atomic one-time consumption, replay handling, and the final IdP request method are unresolved, so the ID token could still appear in a second browser redirect. It contradicts itself by declaring no configuration or dependencies while recommending Redis and new storage modules, and its rejected Alternative 2 substantially describes the chosen design. Backward-compatible negotiation is left as an open question, and the proposed auth_server/session_store.py and new metric could not be verified."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 11,
+      "specificity": 13,
+      "risk_awareness": 17,
+      "total": 54,
+      "notes": "The review usefully identifies randomness, TTL, replay, one-time references, storage health, session-cleanup timing, and migration as material concerns. Its largest deficiency is failing to reject the LLD for leaving the core mechanism and final IdP handoff unspecified, including whether the token simply reappears in a downstream URL. Claims of graceful degradation, minimal infrastructure, and a clear rollback path conflict with the proposed Redis-like shared store and absent compatibility protocol. Recommendations are actionable in places, but signing opaque references and backing up short-lived logout records are not justified, making the approval verdict too lenient."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 9,
+      "specificity": 9,
+      "risk_awareness": 8,
+      "total": 37,
+      "notes": "The plan spans GET and POST logout, missing-session behavior, browser flow, end-to-end SSO, rollback, and the repository's Docker, ECS, and EKS deployment surfaces. Its primary curl test supplies a fabricated session=valid_session_cookie rather than obtaining a valid signed server-side session, so it would not exercise token-bearing logout. It lacks concrete oracles for reference creation and consumption, expiry, replay, store failure, concurrency, provider differences, WAF behavior, and version-skew fallback; the legacy test could even preserve the original leakage. The broad pytest command is plausible, but no exact unit or integration test files, fixtures, cookie name, or executable provider setup are established."
+    },
+    "implementation": {
+      "completeness": 0,
+      "correctness": 0,
+      "specificity": 0,
+      "risk_awareness": 0,
+      "total": 0,
+      "notes": "The patch does not implement the design: it only creates registry/auth/routes.py.backup and changes no runtime source. The added backup still URL-encodes the ID token and appends it as id_token_hint, preserving the exact behavior the task seeks to remove. implementation.md falsely claims modifications to four runtime files, secure reference storage, auth-server support, telemetry, and exact conformance with the LLD. No tests or safeguards are added, and the claimed complete implementation is therefore fundamentally contradicted by the submitted diff."
+    }
+  },
+  "task_score": 36.6,
+  "verdict": "The issue is a useful problem statement and the review surfaces several real risks, but the core design is unresolved and the submitted patch makes no functional change at all.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T18:19:25.467346Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 213575,
+      "cached_input_tokens": 94247,
+      "cache_write_input_tokens": 29070,
+      "output_tokens": 10971,
+      "reasoning_output_tokens": 9055
+    },
+    "duration_ms": 170089
+  }
+}

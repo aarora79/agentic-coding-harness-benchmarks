@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "moonshotai.kimi-k3",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 74,
+      "notes": "The endpoint inventory and current CSRF wiring match `server_routes.py`, `agent_routes.py`, `skill_routes.py`, and `virtual_server_routes.py`, and the acceptance criteria distinguish cookie, bearer, mixed, and internal-token flows. Its largest error is claiming all six endpoints share authentication and `toggle_service` authorization: `/api/toggle/{service_path}` uses cookie-only `enhanced_auth`, the virtual-server route requires admin, the skill route checks ownership, and the external server toggle has no equivalent permission check. Consequently, the criterion that a bearer token succeeds on any toggle endpoint is impossible for the legacy `/api/toggle/{service_path}` route without an auth change that is declared out of scope. No independent task statement was supplied, and the asserted production-pipeline impact and linked issue could not be independently verified from the baseline alone."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The design is unusually concrete about `verify_csrf_token_flexible`, form parsing order, exact route signatures, mixed cookie-plus-bearer behavior, and the existing Axios interceptor in `frontend/src/contexts/AuthContext.tsx`. It overlooks supported cookie-less authentication modes in `nginx_proxied_auth`, notably `network-trusted`; requiring a raw Bearer header can newly reject such authenticated clients after CSRF is added to server and virtual-server toggles. Its universal auth-order audit is also false because `registry/auth/routes.py` uses the dependency on logout without `nginx_proxied_auth` or `enhanced_auth`, while the bearer acceptance goal remains incompatible with the legacy cookie-only toggle. Paths and symbols otherwise match v1.0.20, but claims about every pipeline and deployment topology were not verifiable."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The review identifies a real trust-boundary issue with using the raw Authorization header, prioritizes it, and adds concrete mixed-request, form-field, and invalid-auth recommendations. It fails to catch the design's false uniform-auth premise, the legacy endpoint's inability to accept bearer authentication, and the regression risk for validated non-cookie mechanisms such as `network-trusted`. The claim that all `verify_csrf_token_flexible` call sites have an auth dependency in front is contradicted by `logout_post` in `registry/auth/routes.py`, and the promised invalid-bearer test was ultimately not implemented. The repository does confirm its observations about sensitive-header filtering and the frontend CSRF interceptor."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 65,
+      "notes": "The plan provides concrete HTTP setup and meaningful status/body oracles for bearer, cookie, mixed, form-field, and end-to-end agent-registration paths. Several advertised CLI tests cannot run as written: `registry_management.py` accepts `--registry-url` and `--token-file`, not `--base-url` and `--token`, and `skill-toggle` uses `--enable`, not `--enabled`. The baseline `RegistryClient.toggle_service` also sends only `service_path`, while `/api/servers/toggle` requires `path` and `new_state`, and no bearer-success test is supplied for the cookie-only legacy toggle despite the stated all-endpoint scope. Live nginx, OAuth, and deployment outcomes could not be verified, and invalid/expired bearer behavior is listed without a concrete executable test."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 16,
+      "specificity": 19,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The production hunks target real symbols and matching v1.0.20 context, and they correctly unblock no-cookie Bearer requests while making cookie-plus-bearer requests fail closed and wiring CSRF into the two named routes. The patch does not satisfy its own universal acceptance claim because `/api/toggle/{service_path}` still uses `enhanced_auth`, and the raw-Bearer-only bypass can reject authenticated cookie-less `network-trusted` callers on newly protected routes. It omits the review-mandated invalid-bearer auth test and endpoint wiring tests for agent and skill routes, while the summary incorrectly treats dependency ordering as equivalent coverage. The server route tests are also fragile because they hardcode `mcp_gateway_session` while their `mock_settings` dependency configures `test_session`; tests were not executed, but the production diff itself matches repository conventions."
+    }
+  },
+  "task_score": 71.2,
+  "verdict": "A detailed and mostly repository-grounded bearer CSRF fix is undermined by false universal-auth assumptions, broken test commands, incomplete auth-boundary coverage, and a compatibility risk for non-cookie authentication modes.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-23T20:15:07.016186Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 774656,
+      "cached_input_tokens": 671438,
+      "cache_write_input_tokens": 103196,
+      "output_tokens": 11725,
+      "reasoning_output_tokens": 5974
+    },
+    "duration_ms": 187230
+  }
+}

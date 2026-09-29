@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 74,
+      "notes": "The issue clearly defines custom and deployment-derived titles, identifies the relevant configuration and deployment surfaces, and supplies mostly testable acceptance criteria. Its largest defect is the contradiction between deriving \"AI Registry\" for an existing registry-only deployment and claiming that every deployment without UI_TITLE sees no change. Repository documentation confirms DEPLOYMENT_MODE, the public /api/config endpoint, and the System Config deployment group are real integration points. No independent task statement was supplied, so the asserted requirement to update every named frontend string and deployment surface could not be independently verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 12,
+      "risk_awareness": 7,
+      "total": 37,
+      "notes": "The design's strongest aspect is its concrete inventory of backend, frontend, Compose, Helm, and Terraform files. Its critical interface design is wrong: repository documentation shows GET /api/config returns top-level fields while grouped CONFIG_GROUPS data belongs to /api/config/full, but the LLD invents data.config and derived_title without designing their backend production. The proposed static <title>{fetchTitle()}</title> cannot execute JavaScript, and the frontend plan invokes an asynchronous function directly during rendering instead of defining state or a shared hook. It also misses empty-string normalization, exact ECS task-definition wiring, and stack-chart values while making unsupported claims about a 60-second cache, CLI flags, logging, and tracing."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 8,
+      "specificity": 12,
+      "risk_awareness": 9,
+      "total": 39,
+      "notes": "The review usefully raises None handling, fetch failure behavior, repeated requests, optional Compose syntax, and the need to wire Terraform into the task definition. It nevertheless approves a design whose central API shape and frontend rendering mechanism are invalid, missing the static-HTML limitation, Promise rendering, empty-string override problem, and absent public-endpoint derivation. Repository documentation distinguishes the top-level public /api/config response from grouped /api/config/full data, directly contradicting the reviewed data.config assumption. The XSS recommendation is poorly targeted because React text interpolation escapes content, while the SRE approval is inconsistent with its unresolved propagation questions."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 4,
+      "specificity": 11,
+      "risk_awareness": 6,
+      "total": 32,
+      "notes": "The plan covers model loading, API behavior, UI text, deployment files, backward compatibility, and both title modes with concrete expected strings. Most API commands inspect d['config'], although the documented public response is top-level, and setting DEPLOYMENT_MODE or UI_TITLE only on curl or after container startup cannot reconfigure the running server. The hard-coded /tmp/swe-clone-configurable-ui-title paths do not match the submitted workspace, grep merely proves text presence rather than correct wiring, and several compatibility and UX checks lack executable setup or precise oracles. It omits empty-string, API-failure, compile, Terraform task-definition, Helm-stack, and automated frontend tests, while the implementation supplies no tests at all."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 0,
+      "specificity": 7,
+      "risk_awareness": 1,
+      "total": 14,
+      "notes": "The patch touches many intended files but does not produce a usable implementation. registry/core/config.py contains unescaped double quotes that make Python parsing fail; Layout.tsx renders a Promise, uses the literal URL {apiUrl()}/api/config, and leaves an unmatched span, while Login.tsx and Logout.tsx reference an undefined fetchTitle and index.html displays literal template text. The backend never computes or exposes derived_title through the public top-level /api/config response, and Terraform declares ui_title without injecting it into an ECS task definition; docker-compose.dhi.yml, stack-chart values, and tests are also absent. The uncommented .env.example custom value changes the sample default, empty strings suppress nullish fallback, and the summary incorrectly reports the broken and incomplete change as complete."
+    }
+  },
+  "task_score": 39.2,
+  "verdict": "The issue provides a useful problem definition, but the design and tests rely on a false API contract and the submitted patch is syntactically invalid, incomplete, and nonfunctional.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T10:11:35.806067Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 178883,
+      "cached_input_tokens": 104010,
+      "cache_write_input_tokens": 29009,
+      "output_tokens": 9665,
+      "reasoning_output_tokens": 8265
+    },
+    "duration_ms": 166229
+  }
+}

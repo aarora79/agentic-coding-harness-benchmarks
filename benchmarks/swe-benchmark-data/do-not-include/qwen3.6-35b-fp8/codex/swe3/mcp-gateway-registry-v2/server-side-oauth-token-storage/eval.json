@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 57,
+      "notes": "The issue provides concrete acceptance criteria, provider scope, dependencies, and explicit non-goals. Its largest deficiency is framing tokens as the sole cookie-size cause while retaining groups and id_token; repository evidence identifies large group arrays as a direct cause and resolves it by moving the complete session payload server-side. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) It also promises an identity cross-check without defining a viable end-user identity binding for service-issued internal JWTs. Exact token-size estimates and the claimed behavior of related issue #490 could not be verified from the supplied task statement."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 7,
+      "specificity": 19,
+      "risk_awareness": 12,
+      "total": 51,
+      "notes": "The LLD is unusually concrete about files, models, indexes, configuration, encryption, and callback flow. Critical decisions are nevertheless unsound: it leaves large groups and id_token in the cookie, omits the required registry-side integration, removes the promised user cross-check, and proposes returning a different schema from the existing token endpoint. Its 24-hour document TTL conflicts with access-token expiry, while is_expired is computed only at insertion and the proposed get_tokens path never rejects expired access tokens. The repository's shipped solution instead stores the entire OAuth session under an opaque session ID and deletes it on logout, lifecycle behavior this design does not cover. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md))"
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 53,
+      "notes": "The review raises concrete integration, timeout, observability, key-rotation, import, and compatibility concerns rather than merely approving the design. However, it invents a concurrent-insert collision even though each callback generates a fresh random reference, and its assertion that Fernet lacks authenticated encryption contradicts the cryptography library's documentation. ([cryptography.io](https://cryptography.io/en/latest/fernet/)) It misses the load-bearing defects: large groups remain in the cookie, identity is not bound to retrieval, expiration is stale, and the existing response contract is incompatible. The overall approval verdict is therefore too permissive despite useful individual recommendations."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 15,
+      "total": 59,
+      "notes": "The plan covers storage, retrieval, authentication failures, backward compatibility, deployment, expiration, tampering, and end-to-end behavior with mostly explicit oracles. Several tests cannot validate the submitted implementation: null token_reference is rejected by Pydantic before the intended 404 handler, the Mongo commands use oauth_tokens rather than the documented namespaced collection, and the JWT header cannot reveal the issuer as claimed. The 15-second TTL test is unreliable because MongoDB's TTL cleanup task can run at roughly 60-second intervals or later. ([mongodb.com](https://www.mongodb.com/docs/v2.6/core/index-ttl/)) Unit-test mocking and five-provider coverage are checklist assertions rather than executable cases, and the UI expectation contradicts the stated no-UI-change scope."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 12,
+      "risk_awareness": 7,
+      "total": 28,
+      "notes": "The patch contains concrete encryption, storage, TTL-index, callback, and endpoint code, but it does not deliver a functioning end-to-end feature. The diff never imports oauth_token_store into server.py despite the summary claiming that change, so callback storage silently falls through its broad exception handler and the new retrieval endpoint fails; it also returns token_expires_in where OAuthTokenResponse expects expires_in and never stores that field. Returning _StoredTokenResponse through the existing GenerateTokenResponse route is incompatible with FastAPI response-model validation, and the explicitly omitted registry change means callers do not supply the new reference. ([fastapi.tiangolo.com](https://fastapi.tiangolo.com/tutorial/response-model/)) Local git apply --check could not be executed because the provided command sandbox failed before command execution, but the visible patch also leaves groups and id_token client-side, unlike the repository's complete server-side session solution. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md))"
+    }
+  },
+  "task_score": 49.6,
+  "verdict": "The submission is detailed but technically unsound: its implementation is nonfunctional and its token-only architecture does not address the repository's full oversized-session problem.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T07:52:05.599436Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 250678,
+      "cached_input_tokens": 164051,
+      "cache_write_input_tokens": 43919,
+      "output_tokens": 12282,
+      "reasoning_output_tokens": 10134
+    },
+    "duration_ms": 145866
+  }
+}

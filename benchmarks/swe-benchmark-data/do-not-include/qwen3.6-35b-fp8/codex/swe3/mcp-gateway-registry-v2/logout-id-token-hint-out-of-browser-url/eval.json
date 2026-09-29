@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 65,
+      "notes": "The issue clearly identifies the affected logout hops, names `registry/auth/routes.py::logout_handler` and `auth_server/server.py::oauth2_logout`, and supplies testable transport criteria. Its largest defect is contradictory scope: it promises removal from browser-visible URLs while requiring the browser-facing IdP redirect to retain `id_token_hint`. It also requires Cognito to receive the hint, whereas the LLD states Cognito does not support it, and labels frontend changes out of scope despite requiring an HTML form. No independent task statement was supplied, and the related issue and line-number claims could not be independently verified."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 20,
+      "risk_awareness": 12,
+      "total": 58,
+      "notes": "The LLD is highly concrete about files, endpoint shapes, data flow, provider behavior, metrics, and alternatives. Its architecture incorrectly claims the token is absent from every browser URL even though the auth server redirects the browser to an IdP URL containing it, and it claims registry error handling can catch an unreachable auth server after the browser has received the form. The proposed GET fallback deliberately restores URL exposure, while rollout omits the required auth-server-first deployment order needed to avoid transient 405 failures. Claims about existing JWT validation, logging behavior, exact session-store ordering, and repository line locations could not all be verified against the unavailable local source."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 54,
+      "notes": "The review raises concrete concerns about form parsing, duplicated handlers, JWT validation, JavaScript availability, proxy POST rules, and request-body logging. Its largest weakness is approving several issues as resolved when they are not: the IdP redirect and proposed fallback still expose the token in URLs, and body logging is explicitly left unverified by the implementation summary. It also incorrectly treats a `noscript` link as support for programmatic clients and says body logging was verified despite recommending that it still be checked. The review never challenges deployment ordering, inability to recover from browser-side POST failure, or the implementation's omission of the promised fallback token and shared helper."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 53,
+      "notes": "The plan provides concrete requests and expected status, header, form, compatibility, provider, JavaScript, proxy, and WAF checks. Several central procedures cannot establish their prerequisites: following an OAuth login URL with `curl -L` does not authenticate, and the CSRF logout example uses an unrelated or empty cookie jar. Its assertions conflict because one test requires `id_token_hint` in the fallback while another claims it appears exactly once; moreover, `grep -c` counts matching lines rather than occurrences, so the proposed oracle is ineffective for the one-line implementation. The synthetic large tokens are invalid JWTs and the tests do not verify session deletion, cookie clearing, real IdP logout, or repository-specific unit-test locations and commands."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 9,
+      "total": 52,
+      "notes": "The patch implements the main browser-form POST path and a corresponding FastAPI form endpoint with focused changes to the two stated files. Its largest functional defect is that the `noscript` link includes only `redirect_uri`, omitting the ID token promised by the LLD and tests, so IdP single logout may fail when the script cannot run. The POST handler delegates directly to the GET route rather than implementing the promised shared helper or explicit POST-token validation, changes callers from a 303 redirect to a 200 HTML document, and adds no regression tests or staged-deployment protection. The submitted diff context is internally plausible, but its claimed baseline commit and clean applicability could not be independently confirmed because the read-only repository command runner failed before file access."
+    }
+  },
+  "task_score": 56.4,
+  "verdict": "The submission is detailed and actionable on the happy path, but overstates removal of browser URL exposure and leaves important fallback, validation, testing, and rollout behavior unresolved.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T07:39:17.640746Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 132005,
+      "cached_input_tokens": 79978,
+      "cache_write_input_tokens": 29122,
+      "output_tokens": 10343,
+      "reasoning_output_tokens": 8767
+    },
+    "duration_ms": 112065
+  }
+}

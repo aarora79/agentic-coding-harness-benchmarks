@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The issue clearly defines five behaviors, concrete acceptance criteria, compatibility defaults, and explicit non-goals. Its largest defect is scoping lifecycle authorization to PATCH even though skills use PUT and agent batch or other update routes can bypass that boundary. The submitted review identifies `update_skill` as PUT-only, while repository documentation describes distinct server, agent, and skill scanning workflows rather than one uniform YARA scanner. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/security-scanner.md)) No independent task statement was supplied, so the proposed requirements and issue references could not be verified as authoritative."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 59,
+      "notes": "The LLD names concrete route, configuration, webhook, scanner, and permission integration points and discusses compatibility and scaling. Its largest deficiency is that appended review resolutions contradict unrevised sections, including separate versus extended webhook functions and initial-status enforcement on skill updates. The HMAC design serializes a canonical body for signing but never requires sending that same byte buffer; the implementation consequently signs one representation and transmits another through `json=payload`. Metrics dependency and exposure, permission provisioning, consumer-contract details, route-specific data shapes, and a real rollout or rollback procedure remain unsupported."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 18,
+      "total": 68,
+      "notes": "The review's strongest contribution is identifying concrete defects such as skill PUT routing, scanner-exception coverage, batch authorization, and the unverified metrics dependency. It nevertheless misses the critical exact-transmitted-body HMAC problem and the incomplete status filtering and initial-status implementation. Its claim that a long Prometheus scrape interval can miss increments is incorrect for a cumulative counter, and its server status-check resolution alternates between key presence and non-null value. The dashboard-visibility assertion is not established by `get_servers_json`, and the overall approval posture is inconsistent with Sage's unresolved critical findings."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 56,
+      "notes": "The plan covers all headline features, backward compatibility, deployment surfaces, negative cases, and an end-to-end lifecycle scenario. Its HMAC oracle reparses and canonically reserializes JSON instead of checking the raw received bytes, and the shown Python contains an unevaluated `<from_webhook_receiver_json>` placeholder. Several curls cannot verify their claimed HTTP status, the receiver API and CLI command are assumed rather than repository-grounded, and fixed sleeps make asynchronous tests flaky. It omits metric and documentation verification, unsafe-but-completed scans, explicit-null status authorization, and PUT or batch bypass cases."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 1,
+      "specificity": 10,
+      "risk_awareness": 6,
+      "total": 24,
+      "notes": "The patch does make concrete attempts in the relevant configuration, webhook, and route files, with a useful summary of several intentionally deferred risks. It introduces invalid Python in `agent_routes.py` by closing `logger.warning(...)` before leaving the original `f\"owned by ...\"` line and closing parenthesis behind. All three scan helpers import `.webhook_service` from `registry.api` although the cited service is under `registry.services`, and HMAC signs sorted canonical JSON while `httpx` transmits a separately serialized `json=payload` body. Initial-status enforcement exists only for servers, the agent status filter is absent, the skill filter parameter is never applied, severity counts are hard-coded to zero, and contract documentation and tests are absent; local `git apply --check` was unavailable because the execution sandbox failed before repository reads."
+    }
+  },
+  "task_score": 56.2,
+  "verdict": "The design package is broad and concrete, but the submitted implementation is non-runnable and omits or breaks several central requirements, especially exact-body HMAC signing and cross-asset status handling.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T07:37:25.562898Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 319465,
+      "cached_input_tokens": 211724,
+      "cache_write_input_tokens": 44771,
+      "output_tokens": 14588,
+      "reasoning_output_tokens": 12709
+    },
+    "duration_ms": 166124
+  }
+}

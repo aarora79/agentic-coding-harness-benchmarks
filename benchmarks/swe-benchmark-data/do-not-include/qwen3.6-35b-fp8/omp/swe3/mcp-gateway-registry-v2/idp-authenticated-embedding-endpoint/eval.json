@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 84,
+      "notes": "The issue clearly defines the token lifecycle, opt-in configuration, deployment surfaces, testable acceptance criteria, and explicit non-goals. Its largest weakness is overclaiming byte-for-byte compatibility without defining a practical oracle, while token revocation or an embedding-side 401 before expiry is not addressed. The cited files and settings align with the implementation patch contexts, including registry/embeddings/client.py and registry/api/config_routes.py. No independent task statement was supplied, so exact requirement coverage beyond the repository context and internally consistent artifacts remains unverifiable."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 69,
+      "notes": "The LLD is unusually concrete about classes, settings, token caching, locking, error handling, and Docker, Helm, and ECS integration. Its load-bearing defect is configuration propagation: create_embeddings_client() accepts scalar IdP arguments, yet the design declares search_repository.py unchanged and never shows existing callers passing the new Settings fields. The singleton is explicitly implemented with _instance and an initialization guard, but its first-configuration-wins behavior creates stale credential and test-isolation risks that the design does not resolve. Most named files match patch context, although exact baseline applicability and some external LiteLLM behavior claims could not be independently executed."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 52,
+      "notes": "The review covers backend, security, UI, and deployment concerns with concrete recommendations and a prioritized verdict. Its central blocker is factually wrong: the LLD already defines IdpTokenProvider as a singleton, already includes explicit Helm secret template code, links failures to _embedding_unavailable, and logs HTTP status without exception detail. It consequently misses the real integration defect that no caller passes the new settings into create_embeddings_client(). Several findings are specific but contradicted by the reviewed LLD, substantially weakening the review's correctness and prioritization."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 14,
+      "total": 55,
+      "notes": "The plan spans token caching, refresh, failures, compatibility, masking, deployment rendering, rollback, and end-to-end behavior. Several tests are unusable or have invalid oracles: the timeout stub returns an immediate empty response, the mocked embedding server is not the configured api_base, and the CDK example attempts to import TypeScript through Python. Compatibility sections often only update or read configuration without asserting an embedding result, while the secret-masking check accepts empty or null values and can pass without proving masking. Repository-specific API paths and mock-server methods were not independently verified, and the plan omits concurrency, malformed token fields, and revoked-token behavior."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 1,
+      "specificity": 10,
+      "risk_awareness": 5,
+      "total": 21,
+      "notes": "The patch does not provide a usable end-to-end implementation despite touching most proposed surfaces. In registry/embeddings/client.py it reads self._token_provider without assigning it, and invokes IdpTokenProvider without adding an import; registry/core/config.py deletes the _validate_egress_auth_config method declaration while still calling it. It also leaves search_repository.py unchanged so the new settings never reach the factory, removes the entrypoint's outer closing fi, omits the ECS timeout variable, and binds the IdP secret to the existing embeddings API-key secret rather than a separate key as the summary claims. The locking, expiry buffer, HTTPS validation, and masking show some risk consideration, but a direct git apply check could not be completed because repository command execution failed at sandbox initialization."
+    }
+  },
+  "task_score": 56.2,
+  "verdict": "The design artifacts are detailed and mostly well-scoped, but the implementation is nonfunctional due to multiple startup, wiring, import, and deployment defects on the critical path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T00:57:35.402142Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 172529,
+      "cached_input_tokens": 120995,
+      "cache_write_input_tokens": 40649,
+      "output_tokens": 9939,
+      "reasoning_output_tokens": 8677
+    },
+    "duration_ms": 156487
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 16,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 66,
+      "notes": "The issue clearly defines allow, deny, fail-closed, opt-in configuration, affected asset types, and explicit non-goals. Its largest factual defect is endpoint grounding: repository documentation places virtual-server creation under `/api/virtual-servers`, while the acceptance criteria specify `/virtual-servers`. It recognizes availability and credential-logging risks but omits payload minimization, webhook SSRF, deny-message exposure, and operational recovery. No independent task statement was supplied, so broader requirement completeness cannot be verified."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 64,
+      "notes": "The LLD provides concrete payload fields, status handling, configuration, integration points, rollout stages, and alternatives. Its repository model is inconsistent: it repeatedly directs changes to a nonexistent `RegistryConfig`, whereas the submitted patch context shows `Settings` and `settings = Settings()`. Choosing route-level enforcement cannot guarantee the stated all-registration invariant, and the described server integration does not resolve update branches that call `update_server()` within registration handlers. Security findings are useful, but the late redaction, HTTPS, and metrics resolutions are not consistently incorporated into earlier configuration and implementation sections."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 19,
+      "risk_awareness": 20,
+      "total": 74,
+      "notes": "The review's strongest contribution is identifying concrete credential leakage through `asset_data`, followed by actionable redaction and HTTPS requirements. It also addresses latency, observability, testing, error exposure, retries, and gate-outage behavior with prioritized recommendations. Its largest omission is repository-level validation: it does not catch the incorrect configuration class, virtual-server route prefix, or the inability of per-route checks to cover every service update branch. Some recommendations, especially readiness fallback and a circuit breaker that still blocks every registration, are insufficiently reconciled with strict fail-closed behavior."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 14,
+      "total": 49,
+      "notes": "The plan broadly enumerates allow, deny, timeout, unreachable, authentication, redaction, compatibility, deployment, and end-to-end scenarios. Most enabled-gate tests configure an `http://localhost` webhook even though the revised design and patch reject every non-HTTPS URL, and exporting settings after the process starts cannot reconfigure the module-level `settings = Settings()` instance. The redaction mock stores payload only in process memory, implements no `/captured` GET handler, and writes an unrelated empty file, so its stated oracle cannot work. Several paths and deployment expectations disagree with repository or implementation scope, and no concrete automated unit-test files or repository-native test commands are provided."
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 0,
+      "specificity": 9,
+      "risk_awareness": 7,
+      "total": 23,
+      "notes": "The patch is unusable because `registry/api/server_routes.py` contains three bare `result =` statements, producing a syntax error before the application can import. The configuration fields are inserted with function-body indentation immediately before module-level `settings = Settings()`, so they do not become fields on `Settings` as the summary claims. Unreachable and timeout failures raise uncaught `httpx.RequestError` rather than the promised HTTP 403, while `REGISTRY_ADMISSION_GATE_EXCLUDE_FIELDS` is read but ignored by the hard-coded redactor. Although the patch attempts all asset route files and adds HTTPS and redaction logic, server update branches remain ungated, Helm and Terraform changes are omitted, and the summary materially overstates end-to-end implementation."
+    }
+  },
+  "task_score": 55.2,
+  "verdict": "The design artifacts provide a useful security-oriented foundation, but repository mismatches and an implementation patch with fatal syntax, configuration-scope, and coverage defects prevent the feature from functioning.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-11T07:49:39.721527Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 198020,
+      "cached_input_tokens": 116824,
+      "cache_write_input_tokens": 41359,
+      "output_tokens": 7778,
+      "reasoning_output_tokens": 6142
+    },
+    "duration_ms": 86068
+  }
+}

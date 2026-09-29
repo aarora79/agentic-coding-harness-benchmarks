@@ -77,8 +77,11 @@ Two facts decide everything downstream. **Ask; do not assume, and do not infer f
 |---|---|---|
 | OpenAI Chat Completions (`POST /v1/chat/completions`) | `omp` (or `pi`) | The harness writes them an `openai-completions` provider block |
 | Anthropic Messages (`POST /v1/messages`) | `claude` | Claude Code drives `ANTHROPIC_BASE_URL` and needs the Anthropic route |
-| Both | `omp` | It produced this repository's headline results |
-| Native Amazon Bedrock, no gateway | any of `claude`, `pi`, `omp` | Use `--provider bedrock` and ambient AWS credentials |
+| OpenAI Responses (`POST /v1/responses`) | `codex` | Recent codex speaks only the Responses API, not chat-completions |
+| Both chat-completions and Anthropic | `omp` | It produced this repository's headline results |
+| Native Amazon Bedrock, no gateway | any of `claude`, `pi`, `omp`, `codex` | Use `--provider bedrock` and ambient AWS credentials |
+
+Two notes on `codex` as the harness. It is also the judge, so running `--agent codex` has one tool on both sides of the run; keep the judge model different from the model under test. And on a self-hosted vLLM endpoint it needs a Responses-safe tool-call parser (`qwen3_coder` or `hermes` are verified; seven others crash on the flat Responses tool shape, issue #183).
 
 Settle it with a real call rather than a document:
 
@@ -132,7 +135,7 @@ A successful `curl` in step 2 does not prove this. The CLI has its own configura
 
 ## Step 4 - Wire the judge, and prove it separately
 
-The judge is a **second, independent** model call and it is the step most often left until it is too late. `codex_judge.py` runs `codex exec` with the candidate's repository checked out read-only, so the judge can verify that files and functions the design cites actually exist.
+The judge is a **second, independent** model call and it is the step most often left until it is too late. `codex_judge.py` runs `codex exec` with the candidate's repository checked out read-only, so the judge can verify that files and functions the design cites actually exist. Note that `codex` can also be the harness (step 2), and the two roles are separate calls with separate models; if they chose `--agent codex`, the judge model must differ from the model under test.
 
 Two things to settle:
 

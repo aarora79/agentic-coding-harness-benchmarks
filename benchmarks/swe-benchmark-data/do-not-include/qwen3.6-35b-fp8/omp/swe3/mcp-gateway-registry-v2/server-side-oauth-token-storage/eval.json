@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "qwen3.6-35b-fp8",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 57,
+      "notes": "The issue provides unusually concrete acceptance criteria, configuration names, scope exclusions, and compatibility goals. Its central diagnosis conflicts with the baseline code shown in the patch, whose existing comment states that access and refresh tokens are never stored while `id_token` remains in `session_data`. Consequently, storing only access and refresh tokens server-side does not address oversized cookies caused by `id_token`, groups, or other user metadata, and no cookie-size acceptance test is specified. The claimed 7 KB sizing and provider-specific examples were not independently established because no task statement or measurements were supplied."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 18,
+      "risk_awareness": 9,
+      "total": 47,
+      "notes": "The design names concrete files and symbols such as `auth_server/server.py`, `oauth2_callback`, `generate_user_token`, and `get_documentdb_client`, and supplies implementation-level data flow. Two critical designs are invalid: `_derive_fernet_key` returns raw PBKDF2 bytes rather than a URL-safe base64 Fernet key, and the TTL index targets a numeric epoch while also applying a nonzero `expireAfterSeconds`. `_get_fernet()` repeats an explicitly expensive 876000-iteration derivation for every encrypted or decrypted field, contradicting the stated throughput assumptions, while database and decryption failures are collapsed into token absence. Claims about Motor availability, chart paths, deployment wiring, and refresh-token expiry were not adequately established by repository evidence."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 5,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 44,
+      "notes": "The review raises specific concerns about index initialization, key rotation, response consistency, health checks, and compatibility rather than offering only generic approval. Its most consequential conclusions are incorrect: it claims TTL follows each token's actual expiry despite the design adding a fixed offset to a numeric field, and it claims refresh-token lifetime is represented although only access-token `expires_in` is stored. It also endorses catch-all suppression of index-creation failures and misses the uncached PBKDF2 cost, invalid fallback key encoding, retained `id_token`, and differing response models. The unanimous approval verdict is therefore unsupported by the reviewed design."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 12,
+      "total": 51,
+      "notes": "The plan covers retrieval, authentication failures, backward compatibility, rollback, deployment surfaces, encryption rotation, and concrete response oracles. Several expectations contradict the patch: storage failure produces a session without `token_ref` and therefore a 200 null response, not the stated 404, while logout never invokes `delete_tokens()`. The TTL exercise inserts numeric data into `test_oauth_tokens`, where the implementation creates no index, so it cannot validate cleanup; the static source-string test also cannot prove the absence of indirect database reads. No executable unit or integration tests are supplied for the Fernet fallback, indexes, actual callback integration, or the primary cookie-size regression."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 4,
+      "specificity": 17,
+      "risk_awareness": 5,
+      "total": 36,
+      "notes": "The diff concretely touches the expected callback, token-generation handler, environment documentation, and a scoped storage module, with context matching the submitted `server.py` symbols. The SECRET_KEY fallback cannot construct Fernet because raw 32-byte PBKDF2 output is passed directly to `Fernet`, and the unconditional Motor import is not justified by the submitted dependency evidence. MongoDB TTL cleanup is nonfunctional because `expires_at` is stored as a float and the index additionally delays expiry by the configured TTL; errors creating that index are silently ignored. Most importantly, the patch leaves `id_token`, groups, and user metadata in the cookie even though baseline access and refresh tokens were already absent, while `delete_tokens()` is unused and promised deployment/test changes are missing; an independent `git apply --check` was unavailable because the repository shell sandbox failed before execution."
+    }
+  },
+  "task_score": 47.0,
+  "verdict": "The submission is detailed and concrete, but it misidentifies the cookie-bloat source and ships broken encryption-fallback and TTL behavior on the critical path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T01:28:45.235186Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 158517,
+      "cached_input_tokens": 101650,
+      "cache_write_input_tokens": 36705,
+      "output_tokens": 11009,
+      "reasoning_output_tokens": 8914
+    },
+    "duration_ms": 152078
+  }
+}

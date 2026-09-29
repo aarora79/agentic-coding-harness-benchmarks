@@ -134,3 +134,5 @@ Same **3B-active MoE economics** as the 30B coder default — per-token compute 
 ## Naming note
 
 Distinct from [Qwen3-32B](qwen3-32b.md), which is a **dense** 32.8B model from the earlier generation. This is a 35B **MoE** from the 3.6 generation — different architecture and different economics.
+
+Also distinct from [qwen3.6-35b-a3b-fp8.md](qwen3.6-35b-a3b-fp8.md), which serves the **FP8** weights of this same model on a **single L40S** (`g6e.4xlarge`, TP=1) and is served as `qwen3.6-35b-fp8`. Same model, different precision and hardware, so its numbers are a separate result — do not merge them into this file's. This file's BF16 4x L40S configuration is the one the published results were measured on.

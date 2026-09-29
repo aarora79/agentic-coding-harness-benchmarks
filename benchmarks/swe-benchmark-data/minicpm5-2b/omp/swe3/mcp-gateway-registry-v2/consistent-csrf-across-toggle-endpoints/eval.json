@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 11,
+      "total": 57,
+      "notes": "The issue provides six named endpoints, user stories, testable acceptance criteria, and explicit exclusions. Its central account is internally inconsistent: endpoints described as lacking CSRF cannot themselves return errors from verify_csrf_token_flexible. The proposed verifier still requires M2M clients to obtain a signed CSRF token while removing browser session binding, so it neither explains token acquisition nor preserves the claimed SPA behavior. No independent task statement was supplied, and local source verification was unavailable because the repository command runner failed during sandbox initialization."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 16,
+      "risk_awareness": 8,
+      "total": 44,
+      "notes": "The LLD names relevant files and dependencies and gives concrete request flow and implementation sketches. Its loads call omits max_age, so the claimed token expiration and SignatureExpired handling are ineffective, while applying the simple verifier to browser routes discards session binding. It also directs changing toggle_service_api near line 1542, whereas the submitted diff at that location changes edit_server_submit, whose docstring identifies a server edit form, and its diagrams alternate between five and six endpoints. The unresolved question of distinguishing browser-cookie requests from bearer requests is the load-bearing security decision rather than a follow-up detail."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 14,
+      "risk_awareness": 11,
+      "total": 46,
+      "notes": "The review correctly notices that the design bypasses session binding and raises a hybrid validation approach as an alternative. It nevertheless approves the design without resolving that blocker and incorrectly says browser toggles retain verify_csrf_token_flexible even though the LLD replaces it on those routes. The security section also states programmatic clients can toggle without a CSRF token, directly contradicting verify_csrf_token_simple's mandatory-token behavior, while the SRE section claims no security-boundary risk. Frontend token-generation and header behavior remain explicitly unverified."
+    },
+    "testing": {
+      "completeness": 12,
+      "correctness": 4,
+      "specificity": 10,
+      "risk_awareness": 8,
+      "total": 34,
+      "notes": "The plan includes missing, invalid, and expired-token cases plus M2M, SPA, compatibility, startup, and end-to-end coverage. Test 1 sends no CSRF token but expects success despite the proposed implementation rejecting missing tokens, and Test 2 expects a session cookie to remain required even though the new verifier never checks one. The expiration test cannot validate the patch because loads is called without max_age, and the registration flows use vague or mismatched routes such as enabling an agent through /servers/toggle. It does not define concrete tests for every named toggle endpoint or the critical cross-session-token rejection case, and the unittest command could not be verified against the repository."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 4,
+      "specificity": 12,
+      "risk_awareness": 3,
+      "total": 27,
+      "notes": "The patch concretely adds a verifier and modifies agent, skill, service-route, and virtual-server handlers. It claims six toggles are covered, but only five handlers are changed and one is edit_server_submit rather than the promised server API toggle; there is no corresponding hunk for toggle_service_api or the other claimed server toggle. The implementation still rejects bearer clients without a CSRF token, weakens browser protection by accepting tokens from unrelated sessions, and never supplies max_age for expiration enforcement. Patch applicability could not be independently checked because the local runner failed sandbox initialization, while the summary materially overstates endpoint coverage and preservation of browser behavior."
+    }
+  },
+  "task_score": 41.6,
+  "verdict": "The submission is concrete but implements a flawed CSRF model, misses claimed server toggle endpoints, and weakens browser session-bound protection.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-09-10T10:14:35.631629Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 176456,
+      "cached_input_tokens": 99162,
+      "cache_write_input_tokens": 27310,
+      "output_tokens": 10683,
+      "reasoning_output_tokens": 9339
+    },
+    "duration_ms": 179812
+  }
+}
