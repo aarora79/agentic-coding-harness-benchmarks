@@ -822,6 +822,53 @@ class BuildSettingsArgTest(unittest.TestCase):
         self.assertNotIn("CLAUDE_CODE_AUTO_COMPACT_WINDOW", settings["env"])
 
 
+class RedactApiKeyTest(unittest.TestCase):
+    """The claude command carries the API key inline, so dry-run must not print it."""
+
+    def test_real_key_is_redacted(self) -> None:
+        config = _config(endpoint="http://gw.example.com", api_key="sk-real-token")
+        text = harness._redact_api_key('{"ANTHROPIC_API_KEY": "sk-real-token"}', config)
+        self.assertNotIn("sk-real-token", text)
+        self.assertIn("***REDACTED***", text)
+
+    def test_local_placeholder_is_left_alone(self) -> None:
+        # Blanking the string "local" would mangle ordinary paths like
+        # ~/.local/bin, and the placeholder is not a secret.
+        config = _config(endpoint="http://127.0.0.1:8000")
+        text = harness._redact_api_key("/home/u/.local/bin/claude --key local", config)
+        self.assertEqual(text, "/home/u/.local/bin/claude --key local")
+
+    def test_bedrock_has_no_endpoint_key_to_redact(self) -> None:
+        config = _config(provider="bedrock", aws_region="us-east-1", endpoint=None)
+        self.assertEqual(
+            harness._redact_api_key("anything local", config), "anything local"
+        )
+
+
+class WrittenAgentConfigPermissionsTest(unittest.TestCase):
+    """The per-run agent config holds the endpoint key, so it must be owner-only."""
+
+    def test_omp_models_yml_is_owner_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            agent_dir = Path(tmp) / "omp-agent"
+            harness._write_omp_config(
+                _config(endpoint="http://gw.example.com", api_key="sk-real-token"),
+                agent_dir,
+            )
+            mode = (agent_dir / "models.yml").stat().st_mode & 0o777
+        self.assertEqual(mode, 0o600)
+
+    def test_pi_models_json_is_owner_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            agent_dir = Path(tmp) / "pi-agent"
+            harness._write_pi_models_json(
+                _config(endpoint="http://gw.example.com", api_key="sk-real-token"),
+                agent_dir,
+            )
+            mode = (agent_dir / "models.json").stat().st_mode & 0o777
+        self.assertEqual(mode, 0o600)
+
+
 class BuildEnvTest(unittest.TestCase):
     def test_auto_compact_window_set_in_process_env(self) -> None:
         env = harness._build_env(_config(context_window=262144))
