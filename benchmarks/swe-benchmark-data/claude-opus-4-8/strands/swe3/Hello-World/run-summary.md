@@ -17,4 +17,3 @@
 | add-contributing-guide | 6/6 | 14 | -- | -- | 78.2 |
 
 Mean over the 1 completed tasks: 78.2 (mean cost $None). A 0-score task is a model failure (missing artifacts) and is excluded from the means, pending investigation. Cost is a token-based estimate for self-hosted models.
-

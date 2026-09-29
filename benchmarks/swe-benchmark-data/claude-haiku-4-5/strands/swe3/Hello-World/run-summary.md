@@ -16,4 +16,3 @@
 | add-contributing-guide | 6/6 | 32 | -- | -- | 0.0 (model failure) |
 
 Mean over the 0 completed tasks: None (mean cost $None). A 0-score task is a model failure (missing artifacts) and is excluded from the means, pending investigation. Cost is a token-based estimate for self-hosted models.
-
