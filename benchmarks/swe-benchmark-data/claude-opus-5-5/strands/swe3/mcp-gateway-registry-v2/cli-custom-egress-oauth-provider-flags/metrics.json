@@ -1,0 +1,154 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.28.0",
+  "complexity": "low",
+  "tags": [
+    "bug",
+    "cli",
+    "python",
+    "egress-auth",
+    "oauth",
+    "api-parity",
+    "fixed-in-1.29.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 91.7,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 44,
+    "output_tokens": 21387,
+    "cache_read_tokens": 883096,
+    "cache_write_tokens": 65353,
+    "total_tokens": 969880,
+    "total_cost_usd": 1.02443,
+    "latency_seconds": 233.2,
+    "num_turns": 21,
+    "generation_tokens_per_sec": 91.7,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 44,
+  "output_tokens": 21387,
+  "latency_seconds": 233.2,
+  "num_turns": 21,
+  "total_cost_usd": 1.02443,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 883096,
+  "cache_creation_tokens": 65353,
+  "run_started_at": "2026-10-02T00:03:03.074416Z",
+  "run_ended_at": "2026-10-02T00:06:56.315629Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 44,
+    "output_tokens": 21387,
+    "cache_read_tokens": 883096,
+    "cache_write_tokens": 65353,
+    "total_tokens": 969880,
+    "total_cost_usd": 1.02443,
+    "latency_seconds": 233.2,
+    "num_turns": 21,
+    "generation_tokens_per_sec": 91.7,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "cli-custom-egress-oauth-provider-flags",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 19,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 86,
+        "notes": "The issue clearly defines the CLI parity failure, five flags, compatibility requirements, testable acceptance criteria, and explicit exclusions. The baseline confirms the missing parameters in `RegistryClient.configure_egress_auth`, the five request fields in `EgressConfigRequest`, and `custom` in `list_provider_names()`. Its largest defect is factual overstatement: `EgressOAuthConfig` lacks `custom_resource`, the React modal sends only the two URLs, and missing URLs are rejected by URL validation before `resolve_provider()` supplies the quoted error. No independent task statement was supplied, although the task identifier and the change later shipped in 1.29.0 strongly corroborate the central requirement."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 89,
+        "notes": "The LLD is implementation-ready, naming the correct client, command handler, parser, route, enum, transport behavior, tests, and documentation. Repository inspection confirms `/egress-auth` uses JSON, the server replaces the OAuth object while retaining only an omitted secret, and the proposed signature preserves existing positional calls. The main weaknesses are calling the appended parameters keyword-only when the signature has no `*`, treating an empty scope separator as meaningful despite `resolve_provider()` using `or \" \"`, and not noticing the absent `custom_resource` field in `EgressOAuthConfig`. The claim that the server already audits this POST was not independently verified."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 19,
+        "specificity": 22,
+        "risk_awareness": 22,
+        "total": 84,
+        "notes": "The review finds concrete issues with whole-object replacement, whitespace preservation, enum drift, logging exposure, parser-level coverage, and hand-built `Namespace` compatibility, then records actionable resolutions. The replacement and SSRF observations match `configure_egress_auth()` in `registry/api/egress_auth_routes.py`, and `getattr` is a defensible compatibility measure. Its largest miss is repeating that the modal sends all five fields when `Dashboard.tsx` sends only `custom_authorize_url` and `custom_token_url`; it also inaccurately calls the signature extension keyword-only. It does not identify the `custom_resource` omission from `registry/core/schemas.py`, despite discussing enum and model parity."
+      },
+      "testing": {
+        "completeness": 21,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 81,
+        "notes": "The plan provides concrete parser, client-body, omission, whitespace, enum-parity, compatibility, help, and end-to-end checks with meaningful expected values. The proposed pytest path and `uv run pytest` command fit the repository, and the direct endpoint and connect URL are real. Several oracles are wrong: a 400 response detail is not logged by `_make_request`, missing URLs fail URL validation before the quoted `resolve_provider` message, and the omitted-client-fields test already passes on the baseline despite the claim that all tests fail there. Compatibility coverage is also narrower than claimed because only one built-in OAuth body is asserted, while PAT, OBO, and none are manual checks without exact body oracles."
+      },
+      "implementation": {
+        "completeness": 23,
+        "correctness": 23,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 91,
+        "notes": "The patch implements the required path end to end: five parser flags flow through `cmd_egress_configure` into optional client parameters and non-None JSON keys, while preserving the POST endpoint and existing bodies. Every modified hunk matches the 1.28.0 source at commit `75a39fb347778c4654a2a81ad7e7b0baf9280b2b`, and the central change closely matches commit `15f5b831` that later shipped in 1.29.0. The tests add strong parser-level forwarding, invalid-choice, omission, verbatim-separator, and enum-drift coverage; the largest limitation is no server-backed persistence test, especially for the pre-existing `custom_resource` schema inconsistency. The summary honestly states tests were not run, but its prediction that the client tests all fail with `TypeError` is overstated because the omitted-fields client test passes unchanged on the baseline."
+      }
+    },
+    "task_score": 86.2,
+    "verdict": "This is a strong, repository-aligned implementation and design package whose largest limitation is a cluster of factual overclaims about existing frontend/model support and baseline error behavior.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-02T02:47:48.239758Z",
+      "repo_ref": "1.28.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 497278,
+        "cached_input_tokens": 396360,
+        "cache_write_input_tokens": 100902,
+        "output_tokens": 9628,
+        "reasoning_output_tokens": 4738
+      },
+      "duration_ms": 95918
+    }
+  }
+}

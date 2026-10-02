@@ -1,0 +1,64 @@
+{
+  "task": "pass-ssrf-allowlist-env-to-registry-container",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 24,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 93,
+      "notes": "The issue provides a crisp deployment-specific problem, explicit non-goals, and directly testable acceptance criteria. At baseline 1.27.1, only docker-compose.yml forwards the two variables; the prebuilt and Podman files omit them, while config.py, url_guard.py, Helm, and ECS support them as claimed. Its fail-closed compatibility discussion is sound, though container recreation with up -d is not made explicit in the acceptance criteria. No independent task statement was supplied, so requirements beyond the identifier and repository evidence could not be verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 89,
+      "notes": "The LLD identifies the exact files, settings, data flow, insertion values, test algorithm, rollout, and least-privilege rationale needed for this small change. The cited config.py and url_guard.py symbols, build_and_run.sh deployment paths, existing PyYAML dependency, and Helm/ECS wiring all exist. Its main factual defect is the claim that GET /api/config exposes the allowlist values; they belong to CONFIG_GROUPS served by /api/config/full, which has stricter authentication. Compatibility, metadata denial, secret exposure, recreation, and rollback risks are otherwise addressed proportionately, although no live deployment evidence was available."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 89,
+      "notes": "The review finds concrete defects rather than merely approving: service-scoped YAML assertions, vacuous discovery, exact interpolation values, container recreation, and broad-CIDR risk. Its repository claims about PyYAML, the DHI overlay, build_and_run.sh, empty defaults, and the metadata hard deny are supported. The largest omission is failure to catch the LLD's incorrect GET /api/config observability claim or the documented bearer-token failure on /api/config/full. It otherwise prioritizes realistic regression and security concerns for the change, but none of its operational claims were demonstrated by executed tests."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 21,
+      "total": 76,
+      "notes": "The plan covers static wiring, interpolation, unset behavior, container environment, negative allowlist behavior, metadata denial, rollback, and an end-to-end health oracle. Its primary config API command is invalid in this repository: docs/unified-parameter-reference.md states that bearer JWTs receive 401 from /api/config/full, which requires the browser cookie path. Copying .env.example also leaves required OPENBAO_TOKEN and DOCUMENTDB_PASSWORD values blank, so the compose config commands need additional setup, and the focused pytest command retains the repository's coverage threshold despite exercising no registry code. The plan correctly calls for up -d and negative checks, but its Podman command differs from build_and_run.sh's podman compose convention and no execution results were supplied."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 89,
+      "notes": "The patch applies cleanly to the exact 1.27.1 baseline, and the recorded source hashes and hunk contexts match both compose files. It adds the correct ${VAR:-} entries under each registry service, preserves the fail-closed empty default, uses the existing PyYAML dependency, and checks exact values for all three current registry compose files. The largest defect is that _registry_compose_files filters on an existing environment block, so a future compose file defining registry without environment is silently skipped, contrary to the issue and LLD; the summary's claim of no deviation is therefore inaccurate. Tests were explicitly reported as unexecuted, but the implementation itself is narrowly scoped and has no runtime migration or unrelated churn."
+    }
+  },
+  "task_score": 87.2,
+  "verdict": "The submission is strong and repository-grounded overall, with the largest limitation being a testing plan whose key API and command prerequisites do not work as written.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T03:18:42.744488Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 999992,
+      "cached_input_tokens": 887106,
+      "cache_write_input_tokens": 112862,
+      "output_tokens": 12795,
+      "reasoning_output_tokens": 5107
+    },
+    "duration_ms": 116394
+  }
+}

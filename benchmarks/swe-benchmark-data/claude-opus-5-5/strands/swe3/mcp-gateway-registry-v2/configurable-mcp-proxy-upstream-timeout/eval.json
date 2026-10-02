@@ -1,0 +1,64 @@
+{
+  "task": "configurable-mcp-proxy-upstream-timeout",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 24,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 93,
+      "notes": "The issue provides unusually concrete, testable behavior, deployment scope, compatibility guarantees, and explicit non-goals. Repository evidence confirms the hardcoded `httpx.AsyncClient(timeout=30.0)` in `auth_server/server.py`, the buffering through `_read_bounded`, and the absence of timeout directives in `_create_location_block`. Its largest weakness is that invalid environment values normally fail while constructing the global `Settings()` object, so the promised reader warning-and-default behavior is not the normal deployment path; the production anecdotes are also not independently verifiable. No independent task statement establishes the chosen variable name, bounds, or margin, but they are internally consistent and proportionately justified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The LLD is grounded in real integration points including `Settings`, `mcp_proxy`, `_create_location_block`, deployment manifests, and the nginx reload scheduler. Most paths and symbols match the 1.25.0 source, although the configuration group key is actually `CONFIG_GROUPS[\"auth\"]`, not `CONFIG_GROUPS[\"authentication\"]`. The largest technical gap is the claim that a ten-second nginx margin guarantees the auth-server times out first: httpx scalar timeouts reset on upstream read progress while `_read_bounded` withholds those chunks from nginx, so a slowly progressing response can still be cut off by nginx. It recognizes ALB limits, resource retention, rollback, validation, and configuration propagation, but does not enforce synchronization of the separate auth-server and registry Helm values."
+    },
+    "review": {
+      "completeness": 23,
+      "correctness": 23,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 93,
+      "notes": "The review finds consequential defects rather than merely approving the design, especially nginx's implicit 60-second limit, non-finite floats, missing upper bounds, and the need for an `AsyncClient` wiring assertion. Those findings are supported by `registry/core/nginx_service.py`, the global settings model, and the existing proxy test helper in `tests/auth_server/unit/test_server.py`. Its main omission is that it accepts the margin guarantee without examining the different inactivity semantics of httpx and nginx or the possibility of mismatched Helm values. The claimed initial draft is not submitted and therefore cannot be independently compared, but the documented resolutions align with the revised LLD and patch."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 85,
+      "notes": "The plan covers unit, functional, compatibility, deployment, rollback, and end-to-end behavior with concrete status codes, timeout values, rendered directives, and configuration values. Its strongest regression oracle is the 90-second call under a 120-second setting, which would expose the nginx 60-second cutoff. Several commands are defective or incomplete: the curl discards the body it says to inspect, `pytest ... -k upstream_timeout` does not match the submitted camel-case config test names, and the byte-comparison step never creates `/tmp/before.conf`. The slow MCP server and live deployment are prerequisites rather than repository fixtures, so those outcomes remain unverifiable, though the plan explicitly covers invalid values, bounds, rollback, ALB behavior, and unchanged 504 mapping."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The patch implements the design across the real proxy, settings model, nginx generator, admin configuration, Docker, Terraform, Helm, documentation, and focused tests; the target symbols and surrounding contexts match baseline commit `765f35c729f9d03af5f974874f59563ac7a9f682`. The core replacement of `timeout=30.0`, finite clamping, unchanged 504 detail, conditional nginx directives, and deployment propagation are internally consistent with the LLD. The largest remaining defect is the asserted guarantee that nginx always outlives the inner timeout, which does not hold for a chunk-producing upstream because `_read_bounded` consumes progress unseen by nginx; separate Helm values can also drift. The summary honestly identifies deviations and unimplemented load-balancer changes, but its test results cannot be verified because it explicitly states that pytest, Ruff, Terraform, and Helm were not executed."
+    }
+  },
+  "task_score": 90.2,
+  "verdict": "This is a strong, repository-grounded submission whose largest limitation is an overconfident nginx-margin design that does not cover slowly progressing buffered upstream responses.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T02:49:56.764548Z",
+    "repo_ref": "1.25.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1075310,
+      "cached_input_tokens": 964896,
+      "cache_write_input_tokens": 110388,
+      "output_tokens": 12308,
+      "reasoning_output_tokens": 6113
+    },
+    "duration_ms": 119783
+  }
+}
