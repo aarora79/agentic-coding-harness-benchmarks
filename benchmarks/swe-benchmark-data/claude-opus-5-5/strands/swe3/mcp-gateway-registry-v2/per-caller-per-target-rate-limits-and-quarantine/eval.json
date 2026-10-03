@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 89,
+      "notes": "The issue clearly defines both requested behaviors, explicit exclusions, management surfaces, and testable acceptance criteria. Its repository claims are well grounded: RateLimiter.check, _enforce_rate_limit, the floor settings, membership storage, and nginx's marker-based 403-to-429 handling all exist as described. The largest weakness is that it promises an immediate kill switch while later artifacts accept up to five seconds of cache propagation, and the lack of an independent task statement prevents verifying that all proposed semantics were actually required. The operator-demand motivation is also asserted without evidence, but it does not undermine the technical problem statement."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 82,
+      "notes": "The LLD is unusually concrete about real integration points, including registry/rate_limiting/limiter.py, the repository classes, auth_server/server.py, startup seeding, API, CLI, UI, metrics, and rollback behavior. Its core data flow, target normalization, composite counters, precedence, markerless 403, and atomic MongoDB operations are feasible against the inspected source. The largest design defect is retaining every expired membership-cache entry indefinitely for stale fallback without an eviction or age bound, creating unbounded process memory growth as caller cardinality accumulates; it also overlooks races with the existing replace-style membership PUT. Its claim of fully unchanged existing decisions is additionally inconsistent with the documented new fail-closed behavior for membership-store failures."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 83,
+      "notes": "The review finds concrete defects rather than merely approving the design, especially the verified slash mismatch between frontend server paths and _classify_rate_limit_target output, missing fake methods, disabled enforcement visibility, and unbounded store latency. Its recommendations map directly to real symbols and are prioritized with consequences and explicit resolutions. The largest omission is failure to challenge the stale-cache retention strategy or the lost-update race between quarantine mutations and the existing MembershipsRepository.upsert replacement path. It also accepts the broad backward-compatibility claim without highlighting that RATE_LIMIT_FAIL_OPEN=false changes membership-error behavior."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The plan provides concrete setup, actions, and strong oracles for pair independence, wildcard precedence, normalization, admin behavior, markerless 403 responses, stale-cache policy, seeding, rollback, and compatibility. The cited pytest paths, CLI entry point, API routes, configuration flags, and MCP target examples agree with the repository. Its largest gap is the absence of repository-level tests for the new MongoDB queries, idempotent seeding, and atomic add/remove behavior, including races with ordinary membership PUTs and cache-growth behavior. The substantial frontend change also lacks an explicit npm build, lint, or automated component-test command, while several deployment and rollback claims remain manual and unexecuted."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 77,
+      "notes": "The embedded patch implements the design across all major surfaces, and its target files and surrounding symbols match the pinned 5f725c1d baseline, including RateLimiter.check, MembershipsRepository, rate-limit routes, auth enforcement, CLI, frontend hooks, and tests. The normal-path implementation correctly builds per-pair counter keys, applies specific-over-wildcard precedence, normalizes targets, denies quarantine before counter operations, preserves markerless 403 behavior, and extends existing test doubles. The largest production defect is that MembershipsRepository now retains expired entries forever for stale fallback, making the auth-server cache unbounded; quarantine add/remove can also be undone by a concurrent stale replace-style membership PUT. The summary honestly reports unexecuted tests and the fail-closed compatibility deviation, but the implementation lacks safeguards or tests for those operational and concurrency risks."
+    }
+  },
+  "task_score": 82.2,
+  "verdict": "This is a strong, repository-grounded submission with an extensive implementation, but its unbounded stale membership cache and unresolved membership-update races materially weaken a security-critical kill switch.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T03:20:57.936177Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1310774,
+      "cached_input_tokens": 1135858,
+      "cache_write_input_tokens": 174896,
+      "output_tokens": 12762,
+      "reasoning_output_tokens": 8194
+    },
+    "duration_ms": 135177
+  }
+}

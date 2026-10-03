@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 21,
+      "total": 90,
+      "notes": "The issue provides unusually testable acceptance criteria covering parsing, persistence, both modals, semantic search, editing, and explicit non-goals. Repository inspection confirms the named endpoint, SkillInfo omission, explicit useSkills mapping, existing SkillCard.repository_url, and modal locations. Its largest gap is promising null for any non-GitHub parse request even though the endpoint must first fetch the URL and can return HTTP 400. No independent task statement was supplied, so the expanded semantic-search scope and issue #846 requirements cannot be independently verified beyond repository evidence and artifact consistency."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 92,
+      "notes": "The LLD traces the field through the real helper, parse service, two SkillInfo projections, DocumentDB search builders, hooks, form, and both modals. The cited files and symbols exist at v1.0.19, including all three search-result construction paths and update/toggle re-indexing behavior. Its main technical weakness is inheriting _is_github_hostname's broad substring heuristic, which treats arbitrary hosts containing \"github\" as enterprise hosts despite claiming arbitrary hosts return None; it also does not require a final SKILL.md segment. It also leaves the DocumentDB-only search boundary implicit even though the repository defaults to the file backend, whose FaissSearchRepository does not override index_skill."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 23,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 91,
+      "notes": "The review identifies concrete defects rather than merely approving the design, notably stale auto-fill state, urlparse().port ValueError, credential leakage through netloc, and divergent list projections. Those concerns are grounded in Dashboard.tsx, the two SkillInfo constructors, HttpUrl validation, and the repeated search builders, and the proposed resolutions are actionable. Its largest omission is failing to challenge the overbroad GitHub-host classifier or the unqualified semantic-search backend assumption. Because no independent task statement or issue body was supplied, the review's assertions about exact specification intent remain only internally supported."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 83,
+      "notes": "The plan has a strong URL matrix, a mocked parse-service test, compatibility cases, detailed UI scenarios, and an end-to-end register/list/search flow with concrete expected values. The pytest paths, npm start script, endpoint names, request entity_types value, token path, and delete route agree with the repository. Its largest weakness is that the list and search jq projections synthesize repository_url as null even when the key is absent, while the non-GitHub check permits HTTP 400 and most frontend behavior remains manual. The uvicorn prerequisite also defaults to port 8000 while REGISTRY_URL is set to http://localhost, and live GitHub Enterprise reachability cannot be established from repository evidence."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The inline patch implements the stated design end to end, and every shown target file, symbol, and hunk context matches the v1.0.19 baseline commit 9d031852c1acc2a095e33021bb8906b0affed4f4. It correctly handles invalid ports, strips userinfo, preserves user-entered form values, updates both list paths and all three DocumentDB search builders, and documents the lack of backfill. The largest defect is that derive_repository_url accepts any hostname containing \"github\" and accepts tree/raw paths without confirming a SKILL.md file, contradicting the stronger arbitrary-host and malformed-input claims. Automated tests cover the helper and parse result but not list/search propagation or either modal, and the claimed git apply --check execution could not be independently reproduced because no physical patch.diff was present."
+    }
+  },
+  "task_score": 88.8,
+  "verdict": "This is strong, repository-grounded work with an end-to-end implementation, limited mainly by overbroad GitHub URL recognition and weaker automated coverage of API and UI propagation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T02:58:10.608355Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 889940,
+      "cached_input_tokens": 769058,
+      "cache_write_input_tokens": 120862,
+      "output_tokens": 10675,
+      "reasoning_output_tokens": 5215
+    },
+    "duration_ms": 100521
+  }
+}

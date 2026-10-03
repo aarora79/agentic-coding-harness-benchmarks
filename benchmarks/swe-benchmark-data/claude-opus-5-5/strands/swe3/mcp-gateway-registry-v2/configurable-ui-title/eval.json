@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The issue provides concrete user stories, non-goals, deployment surfaces, and testable title-resolution criteria grounded in real files such as `Layout.tsx` and `registry/core/config.py`. Its largest defect is calling `GET /api/config` public and using it for pre-auth pages, while the standard nginx templates protect the generic `/api/` location and exempt only endpoints such as `/api/version`. Repository inspection also found another fixed product label in `frontend/src/components/UptimeDisplay.tsx` that the stated scope misses. No independent task statement establishes the added 100-character, control-character, or dual admin-row requirements, so coverage was judged primarily against the identifier and internally consistent issue."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 73,
+      "notes": "The LLD is highly specific about real symbols, including `Settings`, `CONFIG_GROUPS`, `_get_field_value`, the deployment-mode mutation in `registry/main.py`, and the Terraform and Helm wiring. Its load-bearing error is routing Login and Logout through `/api/config`; `docker/nginx_rev_proxy_http_only.conf` and both HTTPS server blocks require `auth_request /validate` for that path, so unauthenticated branding falls back to the historical title. It also omits `UptimeDisplay.tsx`, whose tooltip contains `AI Gateway and Registry`, despite presenting the backend title as the UI-wide source of truth. The extra validation policy and exporter behavior are technically detailed but cannot be traced to an independent task statement."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 74,
+      "notes": "The review surfaces genuine repository-specific concerns, including lazy mode derivation, Helm reserved names, manifest churn, Terraform validation, React escaping, and line injection into `_export_as_env`. Its largest miss is approving `/api/config` for Login and Logout without examining the nginx boundary that protects all non-exempt `/api/` requests. The cited `axios.defaults.baseURL = getBaseURL()` behavior in `AuthContext.tsx` is real but addresses path routing, not authentication, while `/api/version` is the verified public exception. The stated tfvars quote-escaping limitation is verified, but the claimed resolution of all blocking findings was not execution-validated and preserves the central pre-auth failure."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 77,
+      "notes": "The plan covers backend resolution, invalid values, exports, frontend fallback, UI rendering, Docker, Terraform, Helm, rollback, and runtime mode correction with concrete expected values. Its main correctness problem is that the unauthenticated `curl http://localhost/api/config` cases expect HTTP 200 even though the compose-exposed nginx port protects that route, meaning the core Login scenario would fail. The repository defines frontend tests through `react-scripts test`, so invoking raw `npx jest` is not a verified repository command, and the Terraform plan commands omit the broader variable and environment setup likely required by this stack. The implementation summary explicitly says none of these tests were run, so their outcomes remain unverified."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 68,
+      "notes": "The patch is tightly scoped and implements most of its LLD across settings, API output, React components, Compose, Terraform, Helm, documentation, and focused tests; every shown preimage blob ID matches baseline commit `0038b687`. The largest defect is that `useUiTitle()` fetches protected `/api/config`, so normal unauthenticated Login access through nginx receives an auth failure and uses `DEFAULT_CONFIG`, hiding registry-only and custom titles. It also leaves the fixed `AI Gateway and Registry` tooltip in `frontend/src/components/UptimeDisplay.tsx` and adds no layout constraint for a permitted 100-character header. The summary accurately reports that tests were not run, but its claim of no substantive deviation oversells an implementation that cannot brand the normal pre-login path."
+    }
+  },
+  "task_score": 73.2,
+  "verdict": "The submission is detailed and largely repository-grounded, but it misses nginx authentication on `/api/config`, breaking configurable branding on the critical unauthenticated Login path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T02:52:13.818274Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1713467,
+      "cached_input_tokens": 1538231,
+      "cache_write_input_tokens": 175206,
+      "output_tokens": 14174,
+      "reasoning_output_tokens": 6726
+    },
+    "duration_ms": 137031
+  }
+}

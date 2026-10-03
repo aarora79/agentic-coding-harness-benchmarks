@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 84,
+      "notes": "The issue is unusually concrete, with testable behavior for signing, filtering, registration policy, permissions, deployment wiring, and delivery semantics. Its repository claims about asynchronous scans, LifecycleStatus, webhook transport, and update paths are substantially supported by registry/api/*_routes.py and registry/services/webhook_service.py. The largest correctness concern is that repository commit 77ca01ef for issue #1330 establishes REGISTRATION_ENFORCED_STATUS and X-Registry-Signature, whereas this issue substitutes REGISTRATION_INITIAL_STATUS and X-Registry-Signature-256 and expands the contract without explaining compatibility. Non-goals and delivery risks are well covered, but no independent task statement confirms that the added CSV filters, event IDs, skipped outcome, and broader endpoint scope were required."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 79,
+      "notes": "The LLD names real files and integration points and makes detailed decisions about payload bytes, pagination fallbacks, Pydantic model_fields_set, update bypasses, deployment surfaces, and rollout. Several subtle repository facts are correct, including AgentRegistrationRequest.status defaulting to draft, server PUT using exclude_unset=False, and _ADMIN_ACTION_PREFIXES treating modify_* as administrative. The largest design flaw is that it misses the broader admin derivation: registry/auth/dependencies.py also makes register_service or publish_agent with all resources administrative, undermining the promised register-but-not-promote separation unless scopes use a non-all resource such as the repository's canonical '*' example. It also cannot distinguish explicit draft from omitted draft in persisted batch registrations, omits the umbrella Helm values surface, and documents risk mitigations without sanitizing scan exception text."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 81,
+      "notes": "The review finds multiple real defects rather than merely approving the design, notably omitted-status demotion in agent/server PUT, PATCH-only authorization bypasses, disabled-scan waiting, unsigned delivery, and the modify_* admin-prefix collision. Those findings are grounded in registry/api/agent_routes.py, registry/api/server_routes.py, registry/api/skill_routes.py, and registry/auth/dependencies.py and include actionable resolutions. Its largest omission is the still-load-bearing interaction between is_admin and register_/publish_ permissions with all resources, plus the batch register/replace loss of status explicitness. The summary overstates that all blockers are resolved because those authorization and batch-policy defects survive revision two, while the missing independent task statement leaves its endorsement of the expanded contract unverified."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 63,
+      "notes": "The plan spans unit, compatibility, deployment, UX, adversarial signature, and end-to-end checks with generally meaningful expected states rather than run-only assertions. Several executable details are wrong: docker-compose.yml names the service registry rather than mcp-gateway-registry, the skill registration example omits the required description field and would return 422, and the first jq expression applies .total_count to an array. The submitted tests cover helpers and webhook transport but omit route-level regression tests for the many registration and update paths, so they would not catch the batch explicit-draft defect, batch replace demotion, or missing umbrella Helm wiring. Error scenarios using unreachable agent or skill URLs are also dubious because endpoint validation occurs before scanning, and the no-ordering contract conflicts with the scenario expecting registration before scan_complete."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 67,
+      "notes": "The embedded patch mostly implements its own design across webhook transport, all three route modules, batch processing, settings, metrics, permissions, documentation, deployment files, and focused unit tests. Its target files, symbols, and line contexts match the 1.24.7 baseline, including send_registration_webhook, the scan helpers, LifecycleStatus, CONFIG_GROUPS, and the dual pagination paths. The largest correctness gap is contract divergence from repository issue #1330 as recorded in commit 77ca01ef, which uses REGISTRATION_ENFORCED_STATUS and X-Registry-Signature; this patch silently introduces incompatible public names instead. It also treats explicit batch status draft as omitted, demotes active agents on batch replace when status was omitted, emits unsanitized exception text externally, and omits the umbrella chart values and route-level tests; no standalone patch.diff was present to run git apply --check."
+    }
+  },
+  "task_score": 74.8,
+  "verdict": "The submission is detailed and largely repository-aware, but incompatible public contract names and unresolved authorization, batch-status, and verification gaps keep it from being safely implementation-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T03:10:35.677096Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1727009,
+      "cached_input_tokens": 1541279,
+      "cache_write_input_tokens": 185702,
+      "output_tokens": 15550,
+      "reasoning_output_tokens": 8785
+    },
+    "duration_ms": 159895
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "low",
+  "tags": [
+    "auth",
+    "oidc",
+    "logout",
+    "security",
+    "waf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 80.9,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 102,
+    "output_tokens": 72813,
+    "cache_read_tokens": 7850085,
+    "cache_write_tokens": 175661,
+    "total_tokens": 8098661,
+    "total_cost_usd": 4.295489000000001,
+    "latency_seconds": 900.2,
+    "num_turns": 50,
+    "generation_tokens_per_sec": 80.9,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 102,
+  "output_tokens": 72813,
+  "latency_seconds": 900.2,
+  "num_turns": 50,
+  "total_cost_usd": 4.295489000000001,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 7850085,
+  "cache_creation_tokens": 175661,
+  "run_started_at": "2026-10-02T22:05:01.206144Z",
+  "run_ended_at": "2026-10-02T22:20:01.401161Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 102,
+    "output_tokens": 72813,
+    "cache_read_tokens": 7850085,
+    "cache_write_tokens": 175661,
+    "total_tokens": 8098661,
+    "total_cost_usd": 4.295489000000001,
+    "latency_seconds": 900.2,
+    "num_turns": 50,
+    "generation_tokens_per_sec": 80.9,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "logout-id-token-hint-out-of-browser-url",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 82,
+        "notes": "The issue provides unusually concrete acceptance criteria, compatibility behavior, dependencies, and non-goals. Its references to `logout_handler`, `generate_internal_token`, both auth-server settings, and `TestInternalRouterGate` match the 1.27.1 repository. Its largest flaw is claiming every internal failure still reaches the IdP: an unknown-provider 404 causes the registry to redirect the browser to the same unknown provider's GET route, which also returns 404. No independent task statement establishes the intended compatibility policy, and the WAF-vendor claims cannot be verified from the repository."
+      },
+      "lld": {
+        "completeness": 21,
+        "correctness": 15,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 76,
+        "notes": "The LLD is highly repository-specific, correctly locating `internal_router` before `app.include_router`, the existing logout implementation, `_CounterAdapter`, and internal-call patterns. It commits to concrete models, failure labels, URL validation, rollout behavior, and file-level changes. Its critical error is relying on forwarded host/protocol headers for S2S redirect validation; repository commit `3de0eeb2` documents that the equivalent production flow lost those headers and required configured-external-host validation to work behind CloudFront. It also misses the unknown-provider fallback loop and leaves the public GET route capable of receiving hints, while the absence of an independent task statement limits verification of the chosen compatibility tradeoff."
+      },
+      "review": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 77,
+        "notes": "The review finds concrete defects such as uncaught `httpx.InvalidURL`, unsafe reuse of raw `redirect_uri`, non-dict JSON responses, unbounded metric diagnosis, and sensitive URL logging. These findings are technically grounded; installed httpx confirms `InvalidURL` is not an `HTTPError`, and the baseline GET fallback indeed reads the reassigned `redirect_uri`. The review nevertheless approves the forwarded-header design without catching the CloudFront/S2S failure later documented by `3de0eeb2`, and it misses that a new-server unknown-provider 404 produces a browser-visible second 404. Claims about existing network policies and independent persona validation are not demonstrable from the submitted evidence."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 75,
+        "notes": "The plan supplies concrete requests and oracles for authentication, provider parameters, malformed responses, unsafe redirects, fallback labels, compatibility, metrics, and WAF inspection. The proposed pytest paths and `uv run pytest` commands agree with the repository, and the added tests use its asyncio and auth-server fixture conventions. It omits the decisive production case where forwarded headers are absent on the S2S hop, an end-to-end unknown-provider fallback, and assertions that session deletion precedes every network outcome. Several curl examples target the container-only `auth-server:8888` hostname from an unspecified shell context, and no planned or implemented tests were executed."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 15,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 73,
+        "notes": "The patch contexts and symbols match baseline commit `5f725c1d`, and it implements the proposed endpoint, authenticated POST body, shared provider URL builder, fallback metric, documentation, and focused tests. The counter adapter supports the submitted `.labels(reason=...).inc()` usage, and the route placement before `include_router` is correct. The largest defect is that redirect safety still depends on S2S `X-Forwarded-Host` and `X-Forwarded-Proto`, the same assumption repository history shows failed behind CloudFront, while an unknown-provider response falls back to a GET that returns another 404. The public GET route remains exposed with `id_token_hint`, and the summary honestly reports that tests, linting, and builds were not executed."
+      }
+    },
+    "task_score": 76.6,
+    "verdict": "This is a detailed, mostly coherent submission whose central limitation is an unhandled production S2S redirect-validation failure, compounded by a broken unknown-provider fallback.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-02T22:56:39.612797Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1065001,
+        "cached_input_tokens": 930217,
+        "cache_write_input_tokens": 134762,
+        "output_tokens": 11677,
+        "reasoning_output_tokens": 6633
+      },
+      "duration_ms": 132028
+    }
+  }
+}

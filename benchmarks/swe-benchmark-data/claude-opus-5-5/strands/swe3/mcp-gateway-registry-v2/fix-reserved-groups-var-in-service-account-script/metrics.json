@@ -1,0 +1,153 @@
+{
+  "task": "fix-reserved-groups-var-in-service-account-script",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "low",
+  "tags": [
+    "bug",
+    "bash",
+    "keycloak",
+    "setup-scripts",
+    "shellcheck",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 90.7,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 34,
+    "output_tokens": 24454,
+    "cache_read_tokens": 724898,
+    "cache_write_tokens": 71464,
+    "total_tokens": 820850,
+    "total_cost_usd": 1.090667,
+    "latency_seconds": 269.5,
+    "num_turns": 16,
+    "generation_tokens_per_sec": 90.7,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 34,
+  "output_tokens": 24454,
+  "latency_seconds": 269.5,
+  "num_turns": 16,
+  "total_cost_usd": 1.090667,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 724898,
+  "cache_creation_tokens": 71464,
+  "run_started_at": "2026-10-01T23:58:31.488058Z",
+  "run_ended_at": "2026-10-02T00:03:00.942785Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 34,
+    "output_tokens": 24454,
+    "cache_read_tokens": 724898,
+    "cache_write_tokens": 71464,
+    "total_tokens": 820850,
+    "total_cost_usd": 1.090667,
+    "latency_seconds": 269.5,
+    "num_turns": 16,
+    "generation_tokens_per_sec": 90.7,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "fix-reserved-groups-var-in-service-account-script",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 20,
+        "specificity": 24,
+        "risk_awareness": 21,
+        "total": 88,
+        "notes": "The issue precisely identifies `GROUPS` assignments in four real scripts and gives testable exit-code, output, exact-match, and sweep criteria. Bash 5.1 reproduced the asserted silent exit, and repository flow confirms `verify_setup` precedes `generate_agent_token`. Its largest weakness is expanding a singular task into exact-match and three additional scripts without an independent task statement; it also overstates that Phase 12 necessarily halts, since the documented block records `$?` and continues. Keycloak 26.x compatibility is not established by this baseline, whose compose files use Keycloak 25.0."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 24,
+        "risk_awareness": 21,
+        "total": 88,
+        "notes": "The LLD is unusually well grounded: named functions, line locations, call order, local-variable convention, and all four `GROUPS=` sites match ref `1.27.1`. Separate `local` declarations and `grep -qxF --` are feasible and address both status masking and substring matching. The largest gap is weak treatment of existing `curl -s | jq` failure semantics without `pipefail`, while the asserted Keycloak 26.x target is unsupported by repository configuration. No evidence verifies its macOS Bash 3.2 and BSD grep compatibility claims, although the chosen constructs are reasonable."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 23,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 90,
+        "notes": "The review finds concrete design defects, especially SC2155-style status masking, output churn, grep option parsing, and consistency between assignment and verification checks. Those observations align with the real scripts, including exact group validation and unescaped JSON interpolation. Its largest omission is not challenging the unsupported Keycloak 26.x assumption or requiring an executable regression test, though it does identify the absence of an automated guard. The requested real macOS Bash 3.2 verification remains unevidenced."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 15,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 75,
+        "notes": "The plan supplies strong oracles for successful exit, generated configuration, idempotency, exact-name behavior, both setup scripts, and both `list-groups` commands. However, its end-to-end command is invalid: `generate-agent-token.sh` accepts a positional agent name and has neither `--agent-id` nor `--save`, and the subsequent `$TOKEN` is never populated. The live missing-membership procedure is not practically synchronized with the script, so its fallback snippet does not test the actual failure branch. Keycloak 26.x and real macOS Bash 3.2 execution are also not supported by submitted evidence, while this repository baseline configures Keycloak 25.0."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 11,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 69,
+        "notes": "The intended edits implement the design across all four verified sites, use valid local variables, and make both membership checks exact. The supplied combined diff does not apply: `git apply --check -` reports a corrupt patch at the final Terraform hunk because its `@@ -123,13 +123,15` counts exceed the submitted lines, directly contradicting the summary's claim that the check passed. The other three file diffs pass isolated apply checks, and the final replacement targets real matching source, so the semantic change is sound but the implementation artifact is unusable without repairing the diff. No automated regression test accompanies the broadened four-file change, and live Keycloak or Bash 3.2 verification was explicitly not executed."
+      }
+    },
+    "task_score": 82.0,
+    "verdict": "The design work is strong and repository-specific, but the implementation is materially limited by a malformed, non-applicable patch and the testing plan contains a broken end-to-end command.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-02T03:00:03.433029Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 362775,
+        "cached_input_tokens": 304220,
+        "cache_write_input_tokens": 58539,
+        "output_tokens": 12344,
+        "reasoning_output_tokens": 5303
+      },
+      "duration_ms": 104186
+    }
+  }
+}

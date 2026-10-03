@@ -1,0 +1,155 @@
+{
+  "task": "build-docker-images-from-uv-lock",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "medium",
+  "tags": [
+    "docker",
+    "build",
+    "uv",
+    "dependencies",
+    "reproducibility",
+    "ci",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 86.8,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 100,
+    "output_tokens": 48901,
+    "cache_read_tokens": 2858946,
+    "cache_write_tokens": 162218,
+    "total_tokens": 3070165,
+    "total_cost_usd": 2.597429,
+    "latency_seconds": 715.8,
+    "num_turns": 49,
+    "generation_tokens_per_sec": 86.8,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 100,
+  "output_tokens": 48901,
+  "latency_seconds": 715.8,
+  "num_turns": 49,
+  "total_cost_usd": 2.597429,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 2858946,
+  "cache_creation_tokens": 162218,
+  "run_started_at": "2026-10-01T23:47:23.815520Z",
+  "run_ended_at": "2026-10-01T23:55:00.256335Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 100,
+    "output_tokens": 48901,
+    "cache_read_tokens": 2858946,
+    "cache_write_tokens": 162218,
+    "total_tokens": 3070165,
+    "total_cost_usd": 2.597429,
+    "latency_seconds": 715.8,
+    "num_turns": 49,
+    "generation_tokens_per_sec": 86.8,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "agent_invocations": 2,
+  "evaluation": {
+    "task": "build-docker-images-from-uv-lock",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 19,
+        "correctness": 20,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 81,
+        "notes": "The issue gives concrete acceptance criteria, explicit exclusions, and correctly identifies the unlocked installs in the five named Dockerfiles. Repository inspection confirms the four missing lockfiles, the root CUDA-bearing torch lock, and the CPU-index preinstall in docker/Dockerfile.registry. Its largest limitation is scope: docker/Dockerfile.registry-cpu, the registry image built by terraform/aws-ecs/codebuild.tf, remains unresolved, while the later LLD also preserves unlocked torch in two MCP images, weakening the broad reproducibility promise. No independent task statement was supplied, so the intended scope beyond the task identifier and repository history cannot be verified."
+      },
+      "lld": {
+        "completeness": 21,
+        "correctness": 19,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 85,
+        "notes": "The LLD is unusually well grounded, naming real Dockerfiles, build callers, lock roots, uv flags, and the PyTorch source configuration. The repository confirms package=false in all nine projects, the relevant build contexts, and the need for --no-dev and CPU torch handling. Its central weakness is that it accepts residual unlocked torch in Dockerfile.mcp-server and Dockerfile.mcp-server-cpu while still describing byte-identical dependency sets; it also excludes the ECS registry-cpu image from the main outcome. The proposed coverage job checks PROJECT_ROOTS rather than the actual matrix, so its claim that it detects matrix omissions is not fully true."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 20,
+        "specificity": 21,
+        "risk_awareness": 21,
+        "total": 81,
+        "notes": "The review surfaces concrete design defects, including exact-sync removal of preinstalled torch, local CUDA-to-CPU behavior, matrix drift, action permissions, and the ECS registry-cpu gap. These findings are grounded in repository evidence: the MCP Dockerfiles preinstall torch, terraform/aws-ecs/codebuild.tf builds registry-cpu, and no Python source imports torchvision. The largest deficiency is its final approval despite two acknowledged outcomes that materially undercut the task: unlocked MCP torch and an unlocked primary ECS registry image. It also does not catch that the proposed coverage script validates a separate environment list rather than proving parity with the workflow matrix."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 14,
+        "specificity": 19,
+        "risk_awareness": 18,
+        "total": 71,
+        "notes": "The plan covers stale and missing locks, CPU torch contents, dev-dependency exclusion, image builds, compose startup, rollback, and CI behavior with concrete expected results. A key command is unusable: uv venv is not seeded with pip, and the runtime images copy only .venv rather than the builder's global uv binary, so both branches of the section 2.1 package-list command can fail. The baseline old tags are never actually built, the package-set oracle permits unspecified version differences, and the claimed E2E flow is not present in DEV_INSTRUCTIONS.md. It also omits the repository's linux/amd64 and linux/arm64 release-build coverage, which is important for the new platform-specific torch lock."
+      },
+      "implementation": {
+        "completeness": 4,
+        "correctness": 4,
+        "specificity": 10,
+        "risk_awareness": 14,
+        "total": 32,
+        "notes": "The visible workflow hunk is concrete and matches the repository's nine pyproject.toml roots and existing GitHub Actions conventions. The target Dockerfiles and manifest contexts exist at baseline commit 0038b687, but the submitted diff is truncated inside auth_server/uv.lock before any Dockerfile, root-lock, or remaining lockfile hunks appear. Consequently the patch is not a complete unified diff, cannot pass git apply --check, and none of the summary's core Docker or torch changes can be verified as implemented. The summary does honestly identify residual unlocked MCP torch, the excluded ECS registry-cpu image, and unexecuted Docker tests, but those are material remaining risks rather than completed behavior."
+      }
+    },
+    "task_score": 70.0,
+    "verdict": "The design artifacts are detailed and repository-aware, but the submitted implementation diff is truncated and therefore cannot demonstrate or apply the claimed end-to-end change.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-02T02:46:03.661485Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1430658,
+        "cached_input_tokens": 1230495,
+        "cache_write_input_tokens": 200145,
+        "output_tokens": 11209,
+        "reasoning_output_tokens": 6278
+      },
+      "duration_ms": 113525
+    }
+  }
+}

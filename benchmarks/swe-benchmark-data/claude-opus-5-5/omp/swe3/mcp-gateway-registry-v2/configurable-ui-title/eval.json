@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 72,
+      "notes": "The issue gives unusually concrete behavior, validation, deployment-surface coverage, acceptance criteria, and non-goals. Its load-bearing claim that GET /api/config is public is false for deployed traffic: docker/nginx_rev_proxy_http_only.conf and docker/nginx_rev_proxy_http_and_https.conf protect the general /api/ location while explicitly exempting /api/version. It also misses the hardcoded title in frontend/src/components/UptimeDisplay.tsx and requires a deployment-mode-derived fallback when a failed request supplies no deployment mode. No independent task statement was supplied, so requirement coverage beyond the identifier and repository evidence cannot be verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 70,
+      "notes": "The LLD is highly specific about Settings, CONFIG_GROUPS, frontend hooks, validation, Helm reserved names, Terraform flow, and rollout. Its central integration decision is unsound because useUiTitle reads /api/config, which nginx authenticates, so unauthenticated Login and direct Logout loads cannot retrieve configured branding. The repository also contains another product-title literal in frontend/src/components/UptimeDisplay.tsx, and arbitrary allowed quotes can produce invalid tfvars or YAML through the existing string interpolation in registry/api/config_routes.py. Claims that the failure fallback remains mode-aware and that the selected endpoint is publicly usable are contradicted by the checked source."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 71,
+      "notes": "The review finds concrete defects in its own draft, especially the Helm env-index shift, reserved-name collision, loading flash, ambiguous raw-value label, and missing post-correction test. However, every persona accepts the mistaken FastAPI-only assessment of /api/config accessibility and therefore approves a design that fails on pre-auth pages behind the repository's nginx configuration. It also overlooks UptimeDisplay.tsx, export escaping, and the fact that Terraform length validation does not prevent control-character values from passing plan and failing application startup. The claimed resolution of all blockers is therefore not defensible."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 11,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 74,
+      "notes": "The plan provides broad backend, frontend, UX, compatibility, deployment, rollback, and end-to-end coverage with concrete expected values. Its primary curl tests use http://localhost through nginx without authentication, so /api/config receives the protected /api/ handling and returns an auth failure rather than the stated title values. The prebuilt-compose scenario cannot use the local frontend patch because docker-compose.prebuilt.yml pulls an image, and the Terraform plan commands omit the two required password variables in terraform/aws-ecs/variables.tf. Although the Login and end-to-end checks would expose the central implementation failure if executed, the plan does not recognize that failure or cover export escaping."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 62,
+      "notes": "The diff broadly implements settings validation, resolved API data, three main React views, documentation, tests, and Docker, Terraform, and Helm propagation against real baseline symbols and paths. The critical defect is that useUiTitle calls protected /api/config, so a first visit to Login cannot obtain UI_TITLE through the deployed nginx route and falls back to AI Gateway & Registry; frontend/src/components/UptimeDisplay.tsx also retains its hardcoded title. The implementation additionally permits quotes that the existing tfvars and YAML exporters do not escape, and its request-failure fallback always assumes with-gateway rather than the actual deployment mode. No standalone patch.diff exists in the working tree, so the summary's git apply --check claim was not independently reproducible, though the submitted contexts were checked against commit 0038b687d8c3b83395d13ea199134733ee707e7f."
+    }
+  },
+  "task_score": 69.8,
+  "verdict": "The submission is detailed and broadly repository-aware, but its choice of the nginx-protected /api/config endpoint breaks configured branding on the unauthenticated pages central to the feature.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T22:28:54.270384Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1376199,
+      "cached_input_tokens": 1256919,
+      "cache_write_input_tokens": 119248,
+      "output_tokens": 11080,
+      "reasoning_output_tokens": 5261
+    },
+    "duration_ms": 156636
+  }
+}

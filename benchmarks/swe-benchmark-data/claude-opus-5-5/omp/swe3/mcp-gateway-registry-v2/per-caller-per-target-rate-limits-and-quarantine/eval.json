@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 19,
+      "total": 86,
+      "notes": "The issue provides unusually testable acceptance criteria for counter independence, response semantics, admin behavior, reserved definitions, observability, UI, CLI, and documentation. Its repository claims match `RateLimiter.check`, `_enforce_rate_limit`, the floor validation, nginx's `@forbidden_error`, and the existing membership collections at tag `1.27.1`. The largest omission is upgrade handling for pre-existing definitions or memberships using the newly reserved names, which can convert an existing membership into quarantine or disable an existing rate gate despite the stated compatibility guarantee. No independent task statement was supplied, so the intended scope beyond the task identifier, including exclusions such as a members gauge or separate quarantine failure setting, cannot be verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 24,
+      "risk_awareness": 18,
+      "total": 82,
+      "notes": "The LLD is implementation-ready across models, repositories, limiter flow, API, CLI, UI, startup seeding, metrics, and failure behavior, with real symbols such as `DefinitionsRepository.list_caller_limits` and `MembershipsRepository._groups_for_id`. Its response-path and cache analysis agrees with `auth_server/server.py`, the nginx templates, and the baseline's 30-second caches. The main design defect is migration safety for existing arbitrary group names; additionally, `normalize_target_name` only strips slashes even though `parse_server_and_tool_from_url` classifies an MCP server by the first path component, leaving multi-segment input silently inert. The proposed unbounded `_last_known` map and the exact external requirement for retained quarantine during outages remain insufficiently justified without an independent task statement."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 86,
+      "notes": "The review finds concrete defects rather than merely endorsing the design, including clobbered memberships, unbounded read latency, target-name mismatch, broken quarantine IDs, unusable UI actions, and reserved-name gates. These findings are grounded in real baseline behavior in `memberships_repository.py`, `useRateLimits.ts`, `IAMRateLimits.tsx`, and the limiter test fakes. Its largest miss is the reserved-name upgrade collision, and its B3 resolution is incomplete because stripping slashes does not mirror the classifier's first-path-component behavior. Whether the review should also have required the additional features present in the repository's later `1.28.0` history cannot be determined from the supplied task statement."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 73,
+      "notes": "The plan spans model, limiter, route, CLI, UI, deployment, rollback, metrics, compatibility, failure, and end-to-end behavior with many concrete status and counter oracles. However, its shared setup runs `jq -r '.access_token'` on `.token-rl-test-user` and `.token-rl-test-m2m`, while `docs/e2e_testing.md` creates those files as bare JWTs, so most HTTP scenarios would start with invalid tokens. Its no-counter oracle queries every surviving `ctg:group:rl-test-user` document after the preceding section created such counters, and the fail-closed outage procedure is only a comment rather than an executable test. The plan was not executed, and the availability of its second example server and exact container state cannot be verified from the repository alone."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 75,
+      "notes": "The patch implements the submitted design across the real model, limiter, repositories, enforcement hook, admin API, CLI, frontend, documentation, metrics, and focused tests, and sampled hunk contexts match the `1.27.1` source. Standard caller-target independence and quarantine paths are coherent, including early denial, admin scope splitting, merge-based membership updates, and the nginx-compatible plain 403. The largest defect is upgrade compatibility: existing memberships may already contain the newly reserved arbitrary group names, while `_validate_not_reserved` also incorrectly rejects target definitions with those names and server normalization can produce inert multi-segment quarantines. Stale-value read failures do not increment the `qtn` error metric expected by the testing plan, the added design-doc commands omit the required `api/` path, and the claimed apply check could not be independently reproduced because no on-disk `patch.diff` was present."
+    }
+  },
+  "task_score": 80.4,
+  "verdict": "This is strong, repository-grounded work with a mostly complete implementation, but reserved-name migration safety and several executable-test defects materially weaken production readiness.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T23:05:11.671654Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1405462,
+      "cached_input_tokens": 1209193,
+      "cache_write_input_tokens": 196249,
+      "output_tokens": 15016,
+      "reasoning_output_tokens": 9507
+    },
+    "duration_ms": 169156
+  }
+}
