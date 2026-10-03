@@ -1,0 +1,154 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "medium",
+  "tags": [
+    "bug",
+    "security",
+    "nginx",
+    "routing",
+    "auth",
+    "python",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 43.8,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 140,
+    "output_tokens": 71173,
+    "cache_read_tokens": 11454551,
+    "cache_write_tokens": 190170,
+    "total_tokens": 11716034,
+    "total_cost_usd": 5.132358219999999,
+    "latency_seconds": 1624.3,
+    "num_turns": 69,
+    "generation_tokens_per_sec": 43.8,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 140,
+  "output_tokens": 71173,
+  "latency_seconds": 1624.3,
+  "num_turns": 69,
+  "total_cost_usd": 5.132358219999999,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 11454551,
+  "cache_creation_tokens": 190170,
+  "run_started_at": "2026-10-02T19:06:40.405986Z",
+  "run_ended_at": "2026-10-02T19:33:44.775074Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 140,
+    "output_tokens": 71173,
+    "cache_read_tokens": 11454551,
+    "cache_write_tokens": 190170,
+    "total_tokens": 11716034,
+    "total_cost_usd": 5.132358219999999,
+    "latency_seconds": 1624.3,
+    "num_turns": 69,
+    "generation_tokens_per_sec": 43.8,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "nginx-location-trailing-slash-route-hijack",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 21,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 85,
+        "notes": "The issue clearly defines the prefix-matching defect, compatibility requirements, migration behavior, and testable acceptance criteria. Its core claims match NginxConfigService._create_location_block, ServerConfigModal.tsx buildConnectUrl, and the template's catch-all and protected locations. Its largest gap is treating conflicts mainly as duplicate declarations without addressing generated locations that outrank an existing bare prefix such as ^~ {{ROOT_PATH}}/api/auth. No independent task statement was supplied, and references such as issue #1501 could not be verified locally."
+      },
+      "lld": {
+        "completeness": 19,
+        "correctness": 15,
+        "specificity": 23,
+        "risk_awareness": 17,
+        "total": 74,
+        "notes": "The LLD is unusually concrete about real files, data flow, rewrite semantics, compatibility, rollout, and failures, and the cited repository symbols largely exist at the stated baseline. Its load-bearing collision design is incomplete: _declared_location_keys resolves ROOT_PATH but not {{ANTHROPIC_API_VERSION}}, although the templates later turn that placeholder into /v0.1/. It also misses semantic conflicts where a server at /api/auth produces exact and slash locations that outrank the existing bare ^~ /api/auth location without being duplicate keys. The proposed set stores no owner, so it cannot satisfy the issue's requirement to log both conflicting servers, and runtime Nginx behavior was not independently exercised."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 19,
+        "total": 78,
+        "notes": "The review finds several real defects in its draft, including root-path rendering, unsafe rewrite interpolation, A2A collisions, and weak matching tests, with concrete resolutions. Those findings are grounded in validate_server_path, the agent location generator, and the actual render order. Its largest omission is approving a key-based collision guard that misses both the unresolved ANTHROPIC_API_VERSION location and protected bare-prefix conflicts such as /api/auth. The persona framing adds useful perspectives, but external issue history and the claimed final Nginx behavior could not be verified from the repository."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 76,
+        "notes": "The plan provides strong concrete oracles across generated text, matching behavior, bare POST preservation, authentication, ROOT_PATH, rollback, and real-nginx smoke testing. Its largest gap is the absence of a /v0.1 collision test, which would expose the unresolved {{ANTHROPIC_API_VERSION}} placeholder, and it also omits a protected bare-prefix case such as /api/auth. The operational commands contain factual errors: deletion is POST /api/servers/remove rather than DELETE /api/servers/a, and localhost:9465 belongs to metrics-service while the registry counter is exported on the registry's 9464 endpoint. The planned tests were not executed, so the manual HTTP and Nginx expectations remain unverified."
+      },
+      "implementation": {
+        "completeness": 17,
+        "correctness": 12,
+        "specificity": 20,
+        "risk_awareness": 13,
+        "total": 62,
+        "notes": "The patch targets the correct baseline files and implements the main exact-match rewrite plus trailing-slash prefix behavior consistently with the existing proxy block. Its largest defect is that claimed locations are collected before {{ANTHROPIC_API_VERSION}} is substituted, so registering /v0.1 emits a duplicate /v0.1/ location and still causes nginx -t to reject the candidate. The key-only guard also permits a server at /api/auth to outrank the existing ^~ /api/auth route, and its error state records only the key rather than the earlier server owner required by the issue. The surrounding symbols and diff contexts match commit 5f725c1d, but the embedded patch's claimed apply check and runtime behavior were not independently executable from the clean repository state."
+      }
+    },
+    "task_score": 75.0,
+    "verdict": "The submission is detailed and mostly repository-grounded, but its collision model misses real template and protected-route cases that can still reject configuration or enable route hijacking.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-02T23:00:41.998449Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1042203,
+        "cached_input_tokens": 930000,
+        "cache_write_input_tokens": 112177,
+        "output_tokens": 12551,
+        "reasoning_output_tokens": 7108
+      },
+      "duration_ms": 160766
+    }
+  }
+}

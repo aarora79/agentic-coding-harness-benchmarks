@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 88,
+      "notes": "The issue clearly defines credential-sensitive behavior, six concrete routes, testable responses, and explicit exclusions. Repository inspection confirms the listed handlers and dependencies, while post-baseline commit d3f5c3b4 independently confirms the agent/skill bearer failure and cookie-gated fix. Its largest gap is that the all-six 403 criterion does not state that each route's authentication must first be satisfied, which matters for validate_internal_auth. No independent task statement establishes whether extending the upstream fix to the server API and internal endpoints was required."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 91,
+      "notes": "The design is unusually well grounded in real symbols such as verify_csrf_token_flexible, nginx_proxied_auth, validate_request, and the four affected routers. Its cookie-membership decision, early return before form parsing, stale-cookie behavior, compatibility analysis, and rollback plan are implementation-ready and consistent with the source. The main omission is dependency ordering for /api/internal/toggle: validate_internal_auth precedes the proposed CSRF dependency, so a cookie-only request returns 401 rather than the promised CSRF 403; the observability claim also overlooks that this handler does not call set_audit_action. The broad CORS exposure is real configuration, but exploitability from an arbitrary EC2 origin also depends on browser SameSite and deployment-domain behavior that the LLD does not establish."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 88,
+      "notes": "The review finds concrete defects in its own draft, especially form parsing before cookie detection, truthiness-based empty-cookie handling, and an unsafe bearer-header exemption. Those findings are tied to verified code in registry/auth/csrf.py, auth_server/server.py, registry/main.py, and the nginx configurations, with actionable resolutions. It misses the internal-route authentication-order contradiction that later makes several testing-plan expectations false, and its SameSite=Strict OAuth objection conflates the main session cookie with the separate oauth2_temp_session used during login. The severity of the claimed arbitrary-EC2 CORS exploit cannot be verified for every deployment because cookie domain and same-site relationships vary."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 79,
+      "notes": "The plan supplies concrete requests, exact status and body oracles, negative token-binding cases, backward-compatibility checks, UX coverage, and focused pytest commands that match repository conventions. Its largest error is the E3 matrix: the generic command uses M2M_TOKEN rather than an internal JWT, and cookie-only or bearer-junk requests reach validate_internal_auth before the later CSRF dependency, producing 401 rather than the asserted 403. The proposed unit suite hides that behavior by overriding all authentication dependencies, while tests/integration/test_server_lifecycle.py is globally skipped despite being presented as meaningful regression coverage. The cross-origin form simulation also may omit the Lax cookie entirely, so observing an unchanged server would not by itself prove CSRF rejection."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The patch implements the central design correctly: it checks configured-cookie membership before parsing the body, preserves token validation for cookie requests, and adds dependencies to the three previously uncovered handlers. All target files, symbols, and diff contexts exist at v1.0.20, and the core csrf.py plus virtual-server changes closely match the repository's later fix commit d3f5c3b4 while improving empty-cookie handling. The main weakness is evidentiary: endpoint tests override authentication and therefore do not prove real bearer authentication or the literal all-six response contract, particularly for the internal route. The embedded patch was not present as a standalone file for an independent git apply check, and the submitted tests were explicitly not executed, though the inspected code and test targets are internally consistent."
+    }
+  },
+  "task_score": 87.2,
+  "verdict": "This is a strong, repository-grounded security change, with the largest limitation being an inaccurate internal-endpoint test contract masked by authentication overrides.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T22:32:11.583077Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1194627,
+      "cached_input_tokens": 1091231,
+      "cache_write_input_tokens": 103364,
+      "output_tokens": 12582,
+      "reasoning_output_tokens": 6328
+    },
+    "duration_ms": 197293
+  }
+}

@@ -1,0 +1,154 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "high",
+  "tags": [
+    "authentication",
+    "oauth",
+    "session",
+    "mongodb",
+    "encryption",
+    "auth-server",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 76.4,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 144,
+    "output_tokens": 84565,
+    "cache_read_tokens": 12247075,
+    "cache_write_tokens": 204943,
+    "total_tokens": 12536727,
+    "total_cost_usd": 5.682606599999999,
+    "latency_seconds": 1107.1,
+    "num_turns": 69,
+    "generation_tokens_per_sec": 76.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 144,
+  "output_tokens": 84565,
+  "latency_seconds": 1107.1,
+  "num_turns": 69,
+  "total_cost_usd": 5.682606599999999,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 12247075,
+  "cache_creation_tokens": 204943,
+  "run_started_at": "2026-10-02T19:54:25.575663Z",
+  "run_ended_at": "2026-10-02T20:12:52.762638Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 144,
+    "output_tokens": 84565,
+    "cache_read_tokens": 12247075,
+    "cache_write_tokens": 204943,
+    "total_tokens": 12536727,
+    "total_cost_usd": 5.682606599999999,
+    "latency_seconds": 1107.1,
+    "num_turns": 69,
+    "generation_tokens_per_sec": 76.4,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "server-side-oauth-token-storage",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 15,
+        "correctness": 13,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 66,
+        "notes": "The issue provides unusually concrete acceptance criteria for encryption, reference hashing, expiry, revocation, compatibility, and failure behavior. Its central diagnosis is incomplete: baseline auth_server/server.py already excludes access and refresh tokens while retaining groups and id_token, so the proposed change does not eliminate the Entra group-claim cookie-size failure it promises to fix. The later repository implementation identified in 1.24.1:release-notes/1.24.1.md instead moves the complete OAuth session payload to oauth_sessions_<namespace>. No independent task statement establishes the proposed token-retrieval endpoint or its claimed user demand, and the size estimates were not independently verifiable."
+      },
+      "lld": {
+        "completeness": 18,
+        "correctness": 16,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 77,
+        "notes": "The LLD is strongly grounded in real symbols including oauth2_callback, internal_router, get_documentdb_client, enhanced_auth, and logout_handler, and it commits to detailed schemas and failure semantics. Its largest deficiency is preserving groups and id_token in the cookie, leaving the repository's actual large-session failure class unresolved despite presenting the design as its solution. The claimed secondaryPreferred behavior is also inaccurate at this baseline because registry/utils/mongodb_connection.py does not pass settings.documentdb_read_preference into the Motor client. Timeout, expiry-query, tamper-binding, rotation, rollback, and compatibility discussions are substantive, but the complete resulting cookie size and newly asserted retrieval requirement remain unverified."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 22,
+        "total": 80,
+        "notes": "The review genuinely challenges revision 1 and identifies actionable defects involving ciphertext swapping, TTL lag, login latency, cache control, malformed references, and read-after-write behavior. It nevertheless misses the load-bearing flaw that retaining groups and id_token cannot reliably solve oversized Entra sessions, and it accepts an unsupported public credential-retrieval feature. R4's statement that the shared client is configured secondaryPreferred is contradicted by registry/utils/mongodb_connection.py, although forcing primary reads remains technically sound. Claims about the existing CloudWatch alarm path and UI discoverability could not be verified, but most security and availability findings are concrete and correctly resolved in the revised design."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 77,
+        "notes": "The plan supplies concrete commands, fixtures, actions, and oracles for encryption, ownership, expiry, revocation, rotation, outages, rollback, and no-store behavior. Its central cookie regression test uses six kilobytes of access and refresh tokens that baseline code already omits while keeping a tiny mock id_token and no large group set, so it would pass without fixing the actual oversized-session condition. The pytest paths and uv commands match repository conventions, and existing routes such as /api/tokens/generate and symbols such as validate_session_cookie were verified. The new files and endpoints exist only in the submitted diff, and none of the unit, deployment, DocumentDB, or end-to-end outcomes were executed or independently confirmed."
+      },
+      "implementation": {
+        "completeness": 14,
+        "correctness": 14,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 67,
+        "notes": "The embedded patch targets real baseline files and symbols and substantially implements its narrowed design, including encrypted storage, scoped lookup, explicit expiry filtering, timeout-based fail-open login, revocation, and focused tests. Its largest defect is that the cookie still contains username metadata, groups, and id_token, so it does not implement the full server-side OAuth session storage needed to eliminate the repository's cookie-size failure class. OAuthTokenStore._ensure_indexes also swallows TTL-index creation failures and continues storing credentials, allowing documents to persist indefinitely despite the acceptance criterion. No standalone patch.diff was present, so exact git apply --check and test execution could not be independently performed, although the inspected hunk contexts match the 1.23.0 source."
+      }
+    },
+    "task_score": 73.4,
+    "verdict": "The submission is detailed and technically thoughtful within its chosen token-reference design, but it solves the wrong portion of the cookie problem and leaves the actual large OAuth session payload client-side.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-02T23:17:07.003556Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1480002,
+        "cached_input_tokens": 1338632,
+        "cache_write_input_tokens": 141342,
+        "output_tokens": 12330,
+        "reasoning_output_tokens": 6027
+      },
+      "duration_ms": 263621
+    }
+  }
+}
