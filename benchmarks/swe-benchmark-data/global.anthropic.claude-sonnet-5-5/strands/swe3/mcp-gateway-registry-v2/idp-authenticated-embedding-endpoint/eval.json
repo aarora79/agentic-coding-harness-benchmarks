@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 21,
+      "total": 90,
+      "notes": "The issue provides unusually concrete behavior, deployment scope, exclusions, and testable acceptance criteria covering refresh, concurrency, 401 retry, compatibility, and secret handling. Repository evidence confirms the cited LiteLLM client, import-time Settings instance, federation-auth precedent, deployment surfaces, and dimension-named collection. Its main risk omission is a policy for preventing client-secret transmission over an insecure remote HTTP token endpoint. No independent task statement was supplied, so the exact requirement set beyond the task identifier and issue #1415 lineage cannot be verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 79,
+      "notes": "The LLD is implementation-ready across Python, Docker, Terraform, Helm, configuration UI, documentation, rollout, and token-state behavior. Its named integration points match real symbols such as LiteLLMClient, create_embeddings_client, DocumentDBSearchRepository._get_embedding_model, CONFIG_GROUPS, and FederationAuthManager. The largest flaw is its secret-safety design: repr=False does not stop an after model_validator failure from placing the complete input dictionary, including embeddings_idp_client_secret, in Pydantic's ValidationError text. It also permits remote HTTP token URLs by default and promises startup rejection of Bedrock while the patch performs that rejection only in the lazily invoked factory."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The review identifies concrete repository-specific concerns including the previously unwired ECS API base, reserved-name compatibility, short token lifetimes, monotonic expiry, and bearer exfiltration when api_base is absent. Those findings correspond to real code and deployment structures in registry/embeddings/client.py, charts/registry, and terraform/aws-ecs. Its largest miss is approving the assertion that validation errors cannot expose the secret, despite the selected Pydantic after-validator producing input_value with the original secret. The claim that every blocker is realized is therefore incorrect, and the review also accepts unrestricted HTTP token endpoints without a robust transport-security control."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 81,
+      "notes": "The plan covers unit, concurrency, compatibility, secret hygiene, Helm, Terraform, rollback, expiry, revocation, and end-to-end behavior with useful oracles. The submitted unit test asserting that the secret is absent from a missing-setting ValidationError would correctly expose a real implementation defect. However, its functional curl uses GET /api/search/semantic with a query parameter even though the repository defines POST /api/search/semantic with a JSON body, and configuration fields are served by /api/config/full rather than /api/config. The Terraform plan examples also omit the repository's required keycloak password variables, and none of the proposed checks were executed."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 73,
+      "notes": "The embedded diff targets real 1.28.0 paths and matching source contexts, and it implements token caching, lock-serialized refresh, per-call api_key injection, one 401 retry, configuration plumbing, deployment wiring, documentation, and focused tests. The core token provider is coherent and the Terraform secret is correctly added to the ecs_secrets_access policy and ECS valueFrom block. The critical defect is that Settings._validate_embeddings_idp_config raises from an after model_validator, causing Pydantic ValidationError text to include input_value and therefore the client secret, directly violating a central acceptance criterion and making several submitted tests fail. Bedrock is not rejected at startup, Terraform rejects the documented static mode, and the claimed AST and reverse-apply checks could not be verified because no standalone patch.diff exists in the repository."
+    }
+  },
+  "task_score": 80.0,
+  "verdict": "The artifacts are detailed and repository-grounded, but the implementation's startup validation can disclose the IdP client secret in Pydantic error output.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T17:41:19.600955Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1526835,
+      "cached_input_tokens": 1380118,
+      "cache_write_input_tokens": 146689,
+      "output_tokens": 14616,
+      "reasoning_output_tokens": 8573
+    },
+    "duration_ms": 196164
+  }
+}

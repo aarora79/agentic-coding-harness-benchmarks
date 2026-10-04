@@ -1,0 +1,152 @@
+{
+  "task": "macos-setup-python-version-precheck",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "bash",
+    "setup",
+    "skill",
+    "developer-experience",
+    "fixed-in-1.28.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "global.anthropic.claude-sonnet-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 145.0,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 22,
+    "output_tokens": 11482,
+    "cache_read_tokens": 250373,
+    "cache_write_tokens": 41362,
+    "total_tokens": 303239,
+    "total_cost_usd": 0.268344,
+    "latency_seconds": 79.2,
+    "num_turns": 10,
+    "generation_tokens_per_sec": 145.0,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 22,
+  "output_tokens": 11482,
+  "latency_seconds": 79.2,
+  "num_turns": 10,
+  "total_cost_usd": 0.268344,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 250373,
+  "cache_creation_tokens": 41362,
+  "run_started_at": "2026-10-04T17:06:39.765946Z",
+  "run_ended_at": "2026-10-04T17:07:59.003981Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 22,
+    "output_tokens": 11482,
+    "cache_read_tokens": 250373,
+    "cache_write_tokens": 41362,
+    "total_tokens": 303239,
+    "total_cost_usd": 0.268344,
+    "latency_seconds": 79.2,
+    "num_turns": 10,
+    "generation_tokens_per_sec": 145.0,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "macos-setup-python-version-precheck",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 18,
+        "correctness": 10,
+        "specificity": 21,
+        "risk_awareness": 9,
+        "total": 58,
+        "notes": "The issue gives concrete acceptance criteria, scope boundaries, and correctly identifies `.claude/skills/macos-setup/SKILL.md`, whose Phase 1 only checks `python3` presence while `pyproject.toml` requires >=3.14. Its central requirement is wrong because Phase 5 uses `uv sync`, which can select a uv-managed 3.14 interpreter even when PATH's `python3` is old or absent. Repository version 1.28.0 fixes #1568 with `uv python find '>=3.14'`, explicitly documenting that a PATH-based gate falsely blocks working installations. No independent task statement was supplied, and the issue's claim that an old PATH interpreter necessarily causes Phase 5 to fail is therefore unsupported and contradicted by repository history."
+      },
+      "lld": {
+        "completeness": 18,
+        "correctness": 10,
+        "specificity": 21,
+        "risk_awareness": 13,
+        "total": 62,
+        "notes": "The LLD is unusually concrete about the real skill phases, `${INSTALL_DIR}`, parsing rules, numeric comparison, and offline behavior. Its load-bearing decision nevertheless checks the wrong interpreter: the repository's Phase 5 invokes `uv sync`, and the eventual fix at `d49cae31` explains that uv ignores PATH and resolves managed interpreters. The proposed fail-open path can also emit `PYTHON_OK` for an unverified old interpreter, while fetching mutable `main` may not match an existing checkout. Network and malformed-metadata failures are discussed, but the principal false-rejection scenario and the corresponding uv-based remediation are missed."
+      },
+      "review": {
+        "completeness": 15,
+        "correctness": 10,
+        "specificity": 18,
+        "risk_awareness": 12,
+        "total": 55,
+        "notes": "The review finds real defects in the draft, including Phase 1 preceding the clone, sed returning garbage, and the need to validate interpolated version data. Its largest failure is approving comparison through PATH's `python3` without examining how `uv sync` selects the Phase 5 interpreter. Commit `d49cae31` records this exact false-failure defect and replaces that approach with `uv python find '>=3.14'`. The assertion that stale PATH ordering is the usual cause and that `brew link --overwrite` is the appropriate remedy is not established by the submitted repository evidence."
+      },
+      "testing": {
+        "completeness": 14,
+        "correctness": 8,
+        "specificity": 18,
+        "risk_awareness": 10,
+        "total": 50,
+        "notes": "The plan provides concrete fixtures and expected output for minimum, below-minimum, missing-interpreter, malformed-metadata, and token-preservation cases. It omits the critical case of an old or missing PATH `python3` with a valid uv-managed >=3.14 interpreter, so its tests enforce the incorrect behavior rather than Phase 5 compatibility. The proposed missing-Python command also removes `cat`, `curl`, `grep`, `head`, and `sed` from PATH, while the offline test never specifies how network access is disabled. Calling HTTP testing inapplicable contradicts the implementation's new raw-GitHub request, and the claimed full macOS run remains unverifiable."
+      },
+      "implementation": {
+        "completeness": 8,
+        "correctness": 3,
+        "specificity": 17,
+        "risk_awareness": 5,
+        "total": 33,
+        "notes": "The patch targets the correct file and baseline commit, and its code follows the candidate's LLD by parsing the minimum, comparing numeric tuples, and updating remediation text. However, strict `git apply --check` reports a corrupt patch because the second hunk declares 14 old/new lines but contains 13; only `--recount` makes it apply, so the documented `git apply` command fails. Even after recounting, it rejects working setups where uv can resolve a managed >=3.14 interpreter but PATH's `python3` is older, contrary to Phase 5 and the repository's actual 1.28.0 fix. It also silently passes when metadata cannot be fetched and trusts mutable `main`; the reported isolation smoke test cannot be independently verified."
+      }
+    },
+    "task_score": 51.6,
+    "verdict": "The artifacts are concrete and repository-aware, but they choose the wrong interpreter authority for `uv sync`, and the submitted patch is additionally malformed and cannot be applied as documented.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T17:52:52.751185Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 370505,
+        "cached_input_tokens": 319226,
+        "cache_write_input_tokens": 51259,
+        "output_tokens": 10151,
+        "reasoning_output_tokens": 4905
+      },
+      "duration_ms": 124750
+    }
+  }
+}

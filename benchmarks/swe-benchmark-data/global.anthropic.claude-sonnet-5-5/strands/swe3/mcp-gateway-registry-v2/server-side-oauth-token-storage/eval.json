@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The issue supplies concrete scope, exclusions, status behavior, configuration, and testable acceptance criteria. Repository inspection confirms the named OAuth callback, logout routes, MongoDB backends, and existing token-removal flag. Its central size claim is overstated: baseline auth_server/server.py already excludes access and refresh tokens, while oauth2_callback still stores groups and id_token, so the proposed change cannot guarantee a sub-4096-byte cookie regardless of IdP output. No independent task statement establishes the proposed endpoint, encryption scheme, or status contract, so those detailed requirements remain candidate assumptions."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 81,
+      "notes": "The design is strongly grounded: registry/auth/dependencies.py exposes get_user_session_data, registry/auth/routes.py is mounted at /api/auth, and the DocumentDB client and backend-session TTL pattern exist as described. It commits to document shape, key rotation, owner-scoped queries, explicit expiry checks, graceful login fallback, and rollout behavior. The design acknowledges but does not resolve that id_token and potentially large groups remain in the cookie, undermining its primary size objective. It also lacks a committed mapping for live repository failures during retrieval, despite promising a 503 unavailable response."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The review identifies concrete defects involving TTL lag, naive MongoDB datetimes, owner scoping, hashed references, key separation, rotation, and logout revocation. These concerns correspond to real repository behavior, including Motor's default datetime handling and the existing lazy-index repository pattern. Its largest omission is failure to challenge the load-bearing cookie-size assumption even though the baseline callback retains id_token and all groups. It also declares availability concerns resolved without noticing that runtime MongoDB retrieval failures and index-creation failures remain inadequately handled."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The plan spans crypto, repository, route, callback helper, compatibility, deployment, UI, key rotation, and rollback with generally concrete response and state oracles. The submitted tests specifically exercise malformed references, owner scoping, explicit expiry, revocation, encryption, and no-store headers. The cookie test is largely synthetic because it never runs oauth2_callback and omits the retained id_token and realistic large group data; the E2E assertion that access-token sub equals the session username is also invalid for common Entra and Keycloak mappings. The targeted pytest command inherits the repository's coverage threshold, and because nothing was executed, neither the command's success nor the claimed full coverage can be verified."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 69,
+      "notes": "Every modified-file index prefix in the embedded diff matches the corresponding baseline Git blob, and the referenced symbols and route prefix exist, although no standalone patch.diff was available to verify the claimed git apply --check result. The patch implements encryption, hashed references, owner-scoped MongoDB access, explicit expiry, revocation, configuration, UI retrieval, and focused tests coherently. It does not guarantee the promised cookie-size fix because oauth2_callback still serializes id_token and groups, while its test constructs a reduced session manually. get_oauth_tokens converts only domain exceptions to responses, so a live MongoDB failure returns 500 rather than 503, and index creation failures are swallowed before insertion, allowing encrypted records to persist without the required TTL index."
+    }
+  },
+  "task_score": 76.2,
+  "verdict": "This is a detailed, repository-grounded token-reference implementation, but it does not reliably solve the stated cookie-size problem and leaves important database failure and retention behavior incorrect.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T18:07:51.834721Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 898212,
+      "cached_input_tokens": 785089,
+      "cache_write_input_tokens": 113103,
+      "output_tokens": 11685,
+      "reasoning_output_tokens": 6972
+    },
+    "duration_ms": 124874
+  }
+}

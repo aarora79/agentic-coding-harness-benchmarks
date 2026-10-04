@@ -1,0 +1,154 @@
+{
+  "task": "configurable-mcp-proxy-upstream-timeout",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.25.0",
+  "complexity": "medium",
+  "tags": [
+    "enhancement",
+    "config",
+    "auth-server",
+    "httpx",
+    "proxy",
+    "timeouts",
+    "fixed-in-1.26.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "global.anthropic.claude-sonnet-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 158.5,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 44,
+    "output_tokens": 24374,
+    "cache_read_tokens": 992123,
+    "cache_write_tokens": 79281,
+    "total_tokens": 1095822,
+    "total_cost_usd": 0.640455,
+    "latency_seconds": 153.8,
+    "num_turns": 21,
+    "generation_tokens_per_sec": 158.5,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 44,
+  "output_tokens": 24374,
+  "latency_seconds": 153.8,
+  "num_turns": 21,
+  "total_cost_usd": 0.640455,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 992123,
+  "cache_creation_tokens": 79281,
+  "run_started_at": "2026-10-04T16:16:34.965764Z",
+  "run_ended_at": "2026-10-04T16:19:08.766206Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 44,
+    "output_tokens": 24374,
+    "cache_read_tokens": 992123,
+    "cache_write_tokens": 79281,
+    "total_tokens": 1095822,
+    "total_cost_usd": 0.640455,
+    "latency_seconds": 153.8,
+    "num_turns": 21,
+    "generation_tokens_per_sec": 158.5,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "configurable-mcp-proxy-upstream-timeout",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 83,
+        "notes": "The issue provides concrete defaults, validation, deployment surfaces, acceptance criteria, and explicit non-goals. The hardcoded `httpx.AsyncClient(timeout=30.0)`, 504 handling, configuration files, and admin field mechanism all exist at the named repository paths. Its largest defect is requiring invalid environment values to fall back or clamp even though the proposed `Settings` validation runs during global initialization and would reject them before the reader executes. No independent task statement establishes the proposed variable name or five-second floor, and the claimed production failure pattern is not independently verifiable."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 19,
+        "total": 77,
+        "notes": "The LLD is unusually well grounded: every named integration file exists, the reader pattern is present in `auth_server/server.py`, and generated MCP nginx locations indeed inherit nginx's default read timeout. Its principal correctness gap is the unresolved lifecycle contradiction: `registry/core/config.py` constructs `settings = Settings()` globally, so malformed, non-finite, or sub-floor environment values cannot reach the defensive reader behavior described. It also misses that deployment wiring supplies the value only to auth-server while `registry/api/config_routes.py` reads the registry process's settings, so the admin page can show the default rather than the configured value. The nginx ceiling, per-chunk timeout semantics, resource holding, backward-compatible default, and rollout caveat are otherwise treated specifically."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 18,
+        "specificity": 21,
+        "risk_awareness": 20,
+        "total": 78,
+        "notes": "The review identifies real repository-specific concerns around NaN/infinity, httpx phase semantics, Helm string conversion, nginx's inherited timeout, and long-held asynchronous requests. These findings lead to concrete changes such as `allow_inf_nan=False`, `math.isfinite`, and `toString`, rather than generic approvals. It nevertheless misses the global `Settings()` startup behavior and cross-service admin-value mismatch, then overstates that timeout semantics are resolved even though several proposed descriptions still say calls exceeding a total duration return 504. The ingress limitation remains deliberately unmitigated despite being the main end-to-end risk."
+      },
+      "testing": {
+        "completeness": 19,
+        "correctness": 14,
+        "specificity": 21,
+        "risk_awareness": 18,
+        "total": 72,
+        "notes": "The plan supplies strong unit-level oracles for defaults, overrides, floors, invalid values, and the exact `AsyncClient(timeout=...)` call, plus deployment and rollback checks. However, its asserted `MCP_PROXY_UPSTREAM_TIMEOUT_SECONDS=1` clamp cannot occur in a real process because `Settings()` rejects the value during import, while the tests force an artificial settings-missing path. The focused pytest command retains repository-wide coverage addopts including a 35% threshold, the curl scenario uses an undefined `$TOKEN` and omits JSON content type, and Terraform validation omits initialization. There is also no automated oracle for the warning log, configured admin value, timeout exception log, or generated nginx ceiling."
+      },
+      "implementation": {
+        "completeness": 18,
+        "correctness": 15,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 71,
+        "notes": "The embedded diff targets exact baseline blobs at commit `765f35c729f9d03af5f974874f59563ac7a9f682`, and all 18 target files, symbols, and surrounding contexts exist; the normal configured-value path reaches `httpx.AsyncClient` consistently across Compose, Helm, and Terraform. The largest defect is that invalid, non-finite, or below-floor environment values fail global `Settings()` construction, contradicting the promised reader fallback and clamp while the tests bypass that real path. Values above nginx's inherited 60-second timeout still do not work end to end without an unsupported companion edit, and the registry-hosted admin view is not supplied the auth-server-only environment value. The summary also incorrectly reports 17 modified files and claims no LLD deviation despite documentation that sometimes describes a total deadline rather than httpx's inactivity timeout."
+      }
+    },
+    "task_score": 76.2,
+    "verdict": "This is a detailed, repository-aware submission with a credible core implementation, but its promised invalid-value behavior is unreachable in production and raised timeouts remain capped by the generated nginx path.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T17:21:09.101994Z",
+      "repo_ref": "1.25.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 974362,
+        "cached_input_tokens": 872494,
+        "cache_write_input_tokens": 101838,
+        "output_tokens": 12719,
+        "reasoning_output_tokens": 6736
+      },
+      "duration_ms": 174607
+    }
+  }
+}
