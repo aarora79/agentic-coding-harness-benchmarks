@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 79,
+      "notes": "The issue clearly defines the expiring-token problem and gives testable criteria for caching, refresh, startup validation, compatibility, deployment wiring, and secret handling. Its strongest aspect is the explicit opt-in scope and non-goals. The largest weakness is excluding token-endpoint failure recovery and refresh rate limiting despite their direct operational impact. No independent task statement was supplied, so the asserted related issues and exact requirement provenance could not be verified."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 5,
+      "specificity": 10,
+      "risk_awareness": 8,
+      "total": 34,
+      "notes": "The LLD identifies real files such as `registry/embeddings/client.py`, `registry/core/config.py`, and `registry/services/semantic_search_service.py`, and inventories configuration and deployment surfaces. Its critical integration decision is wrong: the baseline `SemanticSearchService.search()` delegates to `SearchRepositoryBase.search()`, while the design tries to create and return an embedder from the service without connecting it to that repository path. The proposed expiry calculation adds the refresh buffer, a one-hour buffer can make a typical one-hour token immediately stale, and the client-credentials discussion incorrectly depends on refresh tokens and shelling out to curl. Startup entry points remain undecided, required infrastructure changes are deferred, and several API/CLI examples are unsupported by the repository evidence."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 15,
+      "risk_awareness": 16,
+      "total": 58,
+      "notes": "The review correctly identifies major defects including missing startup validation, absent OAuth token acquisition, incomplete refresh behavior, secret exposure, and weak test coverage. Its largest omission is the broken data flow: it never notices that the proposed embedder is not installed into the repository performing semantic search, nor does it catch the incorrect expiry-buffer logic. The security recommendation to validate token scope contradicts the issue's explicit non-goal, while encrypting a client secret before writing it to an access-token cache is not grounded in the proposed design. The repeated approval verdicts are too lenient for acknowledged blockers, and claims about a frontend mask toggle and refresh daemon are not verified against concrete repository integration points."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 4,
+      "specificity": 9,
+      "risk_awareness": 7,
+      "total": 30,
+      "notes": "The plan attempts functional, negative, compatibility, concurrency, deployment, and end-to-end coverage. However, it calls `SemanticSearchService._load_embedding_model()`, while the submitted patch adds `_create_embedder_client()`, and its search example invokes an async method without awaiting it and with an incompatible argument shape. The thread-safety test performs only concurrent reads with no oracle, the Terraform check merely greps a temporary file, and `docker compose ... up -- Abort` is not a valid verification command. No test actually proves token acquisition, pre-expiry refresh, per-call header replacement, startup failure, or secret masking, and the plan states that none were run."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 3,
+      "specificity": 8,
+      "risk_awareness": 4,
+      "total": 19,
+      "notes": "The patch targets relevant symbols including `Settings`, `LiteLLMClient`, `create_embeddings_client()`, and `SemanticSearchService`, and adds a concrete optional header parameter. It does not implement the feature: `_create_embedder_client()` always supplies `bearer_token=None`, `search()` discards the resulting client after a `pass`, and the repository search proceeds unchanged. `IdPTokenStore.refresh_token()` always returns `False`, its fetch annotation disagrees with the stored dictionary value, and a token already prefixed with `Bearer` would receive a duplicate prefix. The summary candidly lists most missing work, but consequently overstates that IdP support was added; it also omits required startup, deployment, documentation, UI-masking, and test changes, while its “How to Apply” commands generate a patch rather than apply one."
+    }
+  },
+  "task_score": 44.0,
+  "verdict": "The issue is well framed, but the LLD and tests target the wrong integration path and the submitted implementation is effectively a disconnected stub that never authenticates an embedding request.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T22:44:53.164877Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 184279,
+      "cached_input_tokens": 120362,
+      "cache_write_input_tokens": 32590,
+      "output_tokens": 9886,
+      "reasoning_output_tokens": 8131
+    },
+    "duration_ms": 101926
+  }
+}

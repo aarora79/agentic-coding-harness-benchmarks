@@ -10,7 +10,7 @@ Strands is a library, not a command-line agent, so the repo supplies the agent p
 | --- | --- |
 | Model | `BedrockModel` for `provider=bedrock`; `OpenAIModel` for `provider=endpoint` (vLLM or the LiteLLM proxy) |
 | Tools | The SDK's built-in `shell` and `file_editor`, and nothing else |
-| Skill | The SDK's `AgentSkills` plugin, pointed at `.claude/skills/swe3/`. The agent activates the skill through a `skills` tool call, the way pi loads it with `--skill` |
+| Skill | The full `.claude/skills/swe3/SKILL.md`, placed ahead of the task prompt with the same wording omp gets. The runner does not use the SDK's `AgentSkills` plugin (see below) |
 | Context | `SummarizingConversationManager`, which keeps the task prompt and summarizes older turns. With `--context-window` set it compresses at `auto_compact_fraction` of the window, before the model overflows |
 
 On Amazon Bedrock the runner turns on prompt caching with `CacheConfig(strategy="auto")`. Strands adds cache points only for models that support them, so the setting is safe for every Bedrock model.
@@ -58,6 +58,20 @@ The runner reports the SDK's accumulated usage. The two providers define `inputT
 - The OpenAI-compatible client copies the endpoint's `prompt_tokens`, which includes cached tokens, into `inputTokens`, and reports the cached part again as `cacheReadInputTokens`. The harness subtracts the cached part, so the cached prompt is not billed twice.
 
 Strands reports no dollar cost. The harness prices the tokens with [bedrock_pricing.py](../benchmarks/scripts/bedrock_pricing.py), as it does for codex. The table covers the Claude models from Haiku 4.5 to the Claude 5 family, read from the AWS Price List API: a `us.` or bare id pays the Regional rate, and a `global.` id pays the Global cross-region rate, which is 10% lower. A model missing from the table gets a null cost. `num_turns` is the SDK's event-loop cycle count: one model call and the tool calls it asked for.
+
+## Where the runner departs from Strands as it ships
+
+The runner changes Strands in five places. Without the first three, Strands could not finish long tasks on a vLLM endpoint. The last two make the Strands score comparable with omp's. All five came from the `minicpm5-2b` run on vLLM ([#196](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/196)).
+
+| Change | Why | Remove it when |
+|---|---|---|
+| The runner passes `--context-window` minus `--max-tokens` to `OpenAIModel` as `context_window_limit` ([#197](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/197)) | Without it, Strands assumes a 200K window and starts summarizing at 180K tokens, past the end of a 128K window. vLLM also counts the requested output tokens against the window, so the prompt only gets what is left | Never. The Bedrock branch already did this |
+| An `OpenAIModel` subclass drops `"tools": []` from requests ([#198](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/198)) | Strands sends an empty `tools` array on a summary request, and vLLM rejects it with HTTP 400, so summarization always fails | [strands-agents/harness-sdk#4854](https://github.com/strands-agents/harness-sdk/issues/4854) ships a fix |
+| An `AfterToolCallEvent` hook cuts any tool result over `MAX_TOOL_RESULT_CHARS` (100,000 characters, about 25K tokens) and tells the model to read a smaller part ([#199](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/199)) | `file_editor view` returns whole files up to 1 MB. Two views of 280 KB and 220 KB files overflowed a 128K window in one turn, and the summarizer cannot help while the conversation has 10 or fewer messages | Strands caps tool output itself, or [strands-agents/harness-sdk#3723](https://github.com/strands-agents/harness-sdk/pull/3723) ships and makes the overflow recoverable |
+| The runner puts the full `SKILL.md` ahead of the task prompt, worded as omp gets it, and does not load the `AgentSkills` plugin ([#201](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/201)) | With the plugin, the model sees only the skill's name and has to call the `skills` tool to read it. `minicpm5-2b` skipped that call on 5 of 12 attempts, and three of those wrote the wrong files or none. Text in the first message also survives summarization, and a tool result does not | Never, while the benchmark compares Strands with omp and kiro, which get the skill the same way |
+| The system prompt maps the tool names the skill uses (`Read`, `Edit`, `Write`, `Bash`, `Grep`, `Glob`, `Task`) to the two tools the agent has, `file_editor` and `shell` ([#202](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/202)) | `swe3/SKILL.md` was written for Claude Code and names its tools 29 times. vLLM drops a call to a tool that is not in the request, so the call reaches Strands as text and the attempt ends. With the skill in the first message, 4 of the first 6 attempts ended this way | Never, while the skill names Claude Code tools |
+
+The cap changes what a model can do in a turn. A model that reads a 280 KB file sees the first 100,000 characters and a note, where unmodified Strands would have ended the task. Claude Code's `Read` tool stops at about the same size, so the cap brings Strands closer to the other harnesses. Each `tool_call` event in `strands-stream.jsonl` records `truncated_from_chars`, so a reader can count how often the cap fired.
 
 ## Known limits
 

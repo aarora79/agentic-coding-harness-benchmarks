@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 61,
+      "notes": "The issue clearly identifies the WAF and token-exposure problems and supplies concrete scope and acceptance criteria. Its largest flaw is an internally conflicting contract: query-based hints are removed while compatibility is promised for deployments lacking the replacement endpoint. The submitted source context supports the named logout handlers and metrics, but does not establish that a provider can receive the hint through the proposed callback without later exposing it in a browser redirect. No independent task statement was supplied, and the referenced issue numbers could not be verified locally."
+    },
+    "lld": {
+      "completeness": 10,
+      "correctness": 3,
+      "specificity": 9,
+      "risk_awareness": 6,
+      "total": 28,
+      "notes": "The LLD names the relevant files, functions, provider branches, session handling, and metrics. Its proposed implementation is nonfunctional: FastAPI's Request is not an outbound HTTP client, the shown handler references undefined session state, and JSON redirect_uri data would not populate the query-bound parameter. The sequence explicitly puts id_token_hint back into the provider redirect URL, contradicting the central goal of keeping it out of browser-facing URLs. Provider POST support, route registration, response propagation, endpoint authentication, CSRF protection, and rollback behavior remain unresolved or contradictory."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 7,
+      "specificity": 11,
+      "risk_awareness": 13,
+      "total": 41,
+      "notes": "The review raises useful concrete concerns about route registration, logging sensitive bodies, GET compatibility, integration coverage, and endpoint failure. It misses the fatal Request.post API error, JSON parameter-binding mismatch, unusable returned response, and continued token exposure in the provider Location header. It also incorrectly says JWT validation remains active even though the proposed replacement removes the _validate_jwt_format call, while the claimed browser UI change is not established by the server-driven logout flow. Duplicate and conflicting APPROVED WITH CHANGES and NEEDS REVISION verdicts make its final disposition unreliable."
+    },
+    "testing": {
+      "completeness": 11,
+      "correctness": 3,
+      "specificity": 9,
+      "risk_awareness": 8,
+      "total": 31,
+      "notes": "The plan attempts functional, compatibility, UX, deployment, metric, unit, integration, and end-to-end coverage. The executable examples are largely invalid: Request is constructed incorrectly, the patch target logout_handler.request.post does not exist, the mock returns a dict despite status_code usage, and the implementation expects JSON while the auth-server test sends form data. The assertion using \"not in response.url.query or response.url.query != empty\" passes even when a nonempty query contains id_token_hint, and a callback using fake code and state cannot support the promised redirect oracle. Test paths conflict across sections, metric checks specify no setup or exact delta, and several cases target an endpoint the patch never adds."
+    },
+    "implementation": {
+      "completeness": 3,
+      "correctness": 1,
+      "specificity": 7,
+      "risk_awareness": 2,
+      "total": 13,
+      "notes": "The patch targets the two stated files and removes the original registry-side query construction, but it does not implement a working end-to-end replacement. FastAPI/Starlette Request has no post method, so every provider logout enters the exception fallback and never reaches the auth server; the patch also adds no POST route registration. Even if an outbound call existed, redirect_uri is placed in JSON while oauth2_logout still binds it as a query parameter, and inserting id_token_hint into logout_params still places the token in the browser-visible provider redirect. JWT validation and the promised metrics are removed, GET hint compatibility is broken, no tests are added, and the summary's claim of exact LLD implementation is false; local git apply verification was unavailable because repository shell execution failed before commands ran."
+    }
+  },
+  "task_score": 34.8,
+  "verdict": "The submission identifies the real exposure problem but builds its design, tests, and patch around a nonfunctional POST flow that still fails to keep the token out of the final browser URL.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T22:49:57.584939Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 127081,
+      "cached_input_tokens": 76329,
+      "cache_write_input_tokens": 25717,
+      "output_tokens": 7293,
+      "reasoning_output_tokens": 6115
+    },
+    "duration_ms": 85545
+  }
+}

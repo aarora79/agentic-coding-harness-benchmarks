@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 75,
+      "notes": "The issue’s strongest aspect is its testable distinction between View Skill and conditional View Repo behavior across both modal components. It also defines GitHub versus non-GitHub handling, form and JSON flows, backward compatibility, and useful non-goals. Its largest weakness is assuming that a new Parse button and backend endpoint are required without an independent task statement or verified existing API analysis. Malformed input, stale derived values, authentication, and API failure behavior are not specified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 8,
+      "total": 41,
+      "notes": "The LLD names the relevant React files and accurately identifies the existing View on GitHub blocks corroborated by the submitted hunk contexts. Its central architecture is unsound: it assigns a new server endpoint to api/registry_client.py, which the repository describes as a standalone client for existing API endpoints, and identifies no actual FastAPI route module. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/api/registry_client.py)) The proposed modal code also hides View Skill when repository_url is absent, directly violating its acceptance criteria, while SKILL_PARSE_URL, CLI work, and the travel-assistant file are unexplained scope additions. Generic GitHub Enterprise recognition remains unresolved, and the exact baseline claims could not be independently inspected because the local shell runner failed."
+    },
+    "review": {
+      "completeness": 9,
+      "correctness": 8,
+      "specificity": 11,
+      "risk_awareness": 12,
+      "total": 40,
+      "notes": "The review usefully requests malformed-URL validation, loading and error feedback, parsing tests, and redaction of URL paths in logs. Its largest deficiency is approving the design without detecting the client-versus-server endpoint error or the LLD snippet that suppresses View Skill when no repository URL exists. The security claim that user-provided skill_md_url is already trusted is incorrect, and button-click debouncing, endpoint health checks, and backup preservation are largely irrelevant recommendations. The verdicts therefore do not follow from the identified risks and miss the design’s critical implementation blockers."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 13,
+      "total": 53,
+      "notes": "The strongest section gives concrete inputs and exact expected repository URLs for GitHub blob, raw, enterprise, non-GitHub, and malformed cases. However, the unit tests instantiate SkillParseResponse without its required repository_url and never invoke parsing logic, while the integration test does not assert repository_url, so these tests cannot validate the feature. The exported access token is omitted from every curl request, and api/server-management.yaml disagrees with the documented docs/api-specs/server-management.yaml location; the general pytest convention itself is plausible. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/api/registry_client.py), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/testing/README.md)) Frontend checks remain manual bullets without concrete setup or state assertions, and stale-value and parse-failure behavior are not pinned down."
+    },
+    "implementation": {
+      "completeness": 3,
+      "correctness": 0,
+      "specificity": 6,
+      "risk_awareness": 1,
+      "total": 10,
+      "notes": "The patch partially adds repository_url to the UI type and implements the requested conditional modal links, but it does not add a Parse button, an HTTP call, submission wiring, or a real backend route; registry_client.py is a standalone API client. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/api/registry_client.py)) RegisterPage.tsx contains duplicate parseSkillUrl declarations, undefined setParseState, and the syntax error `repositoryUrl: ,`, while registry_management.py introduces invalid indentation and never registers a parser or command handler. The parsing code also ignores the raw regex through `githubPattern || rawPattern`, captures the scheme instead of the host, drops the organization, and constructs a required Pydantic model without repository_url. The summary’s claim of exact LLD implementation is false, and local `git apply --check` could not be completed because the read-only shell runner failed during sandbox setup."
+    }
+  },
+  "task_score": 43.8,
+  "verdict": "The issue is reasonably actionable, but the design and review miss the real server integration point and the submitted implementation is syntactically invalid and functionally incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T22:37:17.022416Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 206160,
+      "cached_input_tokens": 101299,
+      "cache_write_input_tokens": 30118,
+      "output_tokens": 11508,
+      "reasoning_output_tokens": 9530
+    },
+    "duration_ms": 113717
+  }
+}

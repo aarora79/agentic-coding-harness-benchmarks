@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 16,
+      "total": 61,
+      "notes": "The issue clearly states the cookie-size symptom, proposed server-side storage, scope exclusions, and several testable acceptance criteria. Its largest deficiency is framing access and refresh tokens as the whole oversized-session problem while also claiming those tokens are already omitted. Repository release evidence describes the implemented fix as moving username, groups, and encrypted ID token into an opaque server-side session, a materially broader lifecycle than this issue specifies. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971)) Without an independent task statement, the asserted token sizes, affected providers, and relationship to issue #399 could not be verified."
+    },
+    "lld": {
+      "completeness": 6,
+      "correctness": 4,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 29,
+      "notes": "The LLD names concrete files, configuration fields, an endpoint, and a MongoDB collection, giving it more grounding than a generic architecture. It never designs the essential OAuth-callback write path, cookie reference creation, TTL-index creation, or token refresh lifecycle, so the proposed system cannot store anything end to end. Its own snippets are inconsistent: an async repository getter is called synchronously, get_collection is invoked with an unsupported argument, lookup uses username rather than the cookie reference, and integer expires_at values do not define a usable MongoDB TTL index. Encryption remains an open question despite being a core requirement, while compatibility and failure-isolation claims are asserted without a coherent data flow or rollback procedure."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 9,
+      "specificity": 14,
+      "risk_awareness": 14,
+      "total": 49,
+      "notes": "The review identifies several genuine concerns, including encryption timing, logout cleanup, scheduling, endpoint authentication, signature verification, enumeration, and monitoring. Its largest failure is missing the design's absence of any token-write path, cookie-reference issuance, TTL-index creation, and consistent repository API. It incorrectly says the blocking signature issue was resolved in a TokenStoreAdapter even though the LLD defines no such implementation and leaves encryption as an open question. The recommendations are concrete but the approval verdict is not defensible for a design that cannot produce or retrieve stored tokens end to end."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 6,
+      "specificity": 11,
+      "risk_awareness": 9,
+      "total": 36,
+      "notes": "The plan covers success, authentication failure, missing records, compatibility, expiry, cleanup, and deployment surfaces with some concrete expected statuses and fields. Its endpoint tests use bearer authentication while the submitted implementation reads only the session cookie, and several expected 401 or 404 responses would instead be null responses or server errors. The no-database-read case has no instrumentation or oracle, cleanup tests use undefined helpers, and the unit test explicitly permits either 401 or 200 depending on implementation. The proposed integration test compares unrelated mock and real method objects rather than exercising persistence, encryption, TTL behavior, or the OAuth callback."
+    },
+    "implementation": {
+      "completeness": 2,
+      "correctness": 1,
+      "specificity": 5,
+      "risk_awareness": 2,
+      "total": 10,
+      "notes": "The patch adds configuration, an endpoint, and repository-shaped files, but it does not implement token storage during OAuth callback, cookie reference issuance, encryption, decryption, a TTL index, refresh handling, or logout cleanup. The new modules are not importable because Field and Any are undefined, and the retrieval path also calls the async session validator and repository getter without awaiting them, imports a factory symbol the patch never adds, and passes an argument to a no-argument get_collection method. The cleanup predicate uses time.time() plus 72 hours and would target unexpired records, while the endpoint would expose refresh tokens without validating the stored reference against the session reference if the other defects were repaired. The summary falsely claims exact LLD implementation despite listing major omissions, and exact git-apply compatibility could not be dry-run because command execution failed to initialize in the provided read-only environment."
+    }
+  },
+  "task_score": 37.0,
+  "verdict": "The submission has a reasonably structured issue and some useful risk identification, but the design omits the core storage lifecycle and the implementation is incomplete, internally inconsistent, and non-importable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T23:01:24.388524Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 169117,
+      "cached_input_tokens": 86304,
+      "cache_write_input_tokens": 30435,
+      "output_tokens": 7241,
+      "reasoning_output_tokens": 5864
+    },
+    "duration_ms": 82420
+  }
+}

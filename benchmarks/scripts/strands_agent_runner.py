@@ -6,9 +6,10 @@ part that ``pi -p`` or ``codex exec`` play for the other harnesses: the headless
 runner (``run-swe-headless.py``) starts it as a subprocess, it drives one task to
 completion, and it reports what happened as JSON lines on stdout.
 
-The agent gets the stock Strands coding tools (``shell`` and ``file_editor``)
-and loads the SWE skill through the Strands ``AgentSkills`` plugin, the Strands
-counterpart of pi's ``--skill`` flag. The working directory is the cloned task
+The agent gets the stock Strands coding tools (``shell`` and ``file_editor``).
+The SWE skill's ``SKILL.md`` goes ahead of the task prompt, worded as
+``_build_omp_cmd`` words it for omp, so the rules sit in the pinned first message
+and survive summarization (issue #201). The working directory is the cloned task
 repo; the harness sets it when it starts this process.
 
 stdout carries only JSON lines, one object per line:
@@ -16,7 +17,8 @@ stdout carries only JSON lines, one object per line:
 - ``{"type": "model_call", ...}`` after every model response, with the running
   token usage so far. Strands rolls usage up after this hook fires, so the
   figure trails by one call; it exists so a killed run still leaves a trail.
-- ``{"type": "tool_call", ...}`` after every tool call.
+- ``{"type": "tool_call", ...}`` after every tool call. ``truncated_from_chars``
+  is the original size of a result cut to ``MAX_TOOL_RESULT_CHARS``, else 0.
 - ``{"type": "result", ...}`` once, at the end, with the final usage totals.
 
 Logs go to stderr. The API key for an OpenAI-compatible endpoint is read from
@@ -56,6 +58,16 @@ DEFAULT_COMPACT_FRACTION = 0.9
 # to follow a run in the log without copying whole files into it.
 PREVIEW_CHARS = 300
 FINAL_MESSAGE_CHARS = 4000
+# Largest tool result the model sees, about 25K tokens. Strands' file_editor
+# returns whole files up to 1 MB and its shell tool does not truncate, so one
+# read of a large file can overflow the window before summarization can help
+# (issue #199). Claude Code's Read tool stops at about the same size.
+MAX_TOOL_RESULT_CHARS = 100_000
+TRUNCATION_NOTE = (
+    "\n\n[Output truncated: the tool returned {total:,} characters and only the "
+    "first {kept:,} are shown. Read a smaller part instead: file_editor view with "
+    "view_range, or grep, head or sed in the shell.]"
+)
 EXIT_OK = 0
 EXIT_AGENT_ERROR = 1
 
@@ -64,7 +76,19 @@ SYSTEM_PROMPT = (
     "will answer questions, so make reasonable decisions and keep going until "
     "the task is complete. Your working directory is the cloned repository for "
     "the task. The file_editor tool needs absolute paths. Each shell call starts "
-    "a fresh shell, so pass absolute paths or cd within the same command."
+    "a fresh shell, so pass absolute paths or cd within the same command.\n\n"
+    # The swe3 skill was written for Claude Code and names its tools; this agent
+    # has only shell and file_editor, and vLLM drops a call to any other name
+    # without an error, which ends the attempt (issue #202).
+    "You have exactly two tools: file_editor and shell. The skill instructions "
+    "name tools from another agent. Map them like this:\n"
+    "- Read: file_editor with command view (use view_range for part of a file)\n"
+    "- Edit: file_editor with command str_replace or insert\n"
+    "- Write: file_editor with command create for a new file; create refuses to "
+    "overwrite, so change an existing file with str_replace\n"
+    "- Bash, Grep, Glob: shell (for example grep -rn, find, ls, git)\n"
+    "- Task: does not exist here; do all the work yourself\n"
+    "Never call a tool by any other name."
 )
 
 
@@ -91,6 +115,70 @@ def _preview(value: Any, limit: int = PREVIEW_CHARS) -> str:
     text = value if isinstance(value, str) else json.dumps(value, default=str)
     text = text.replace("\n", " ")
     return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _prompt_with_skill(skill_dir: Path, prompt: str) -> str:
+    """Put the skill's SKILL.md ahead of the task prompt.
+
+    Uses the wording ``_build_omp_cmd`` in run-swe-headless.py uses for omp, so
+    both harnesses hand the model the same text. With the skill in the first
+    message, the model never has to fetch it, and ``pin_first=1`` keeps it out
+    of every summary (issue #201).
+    """
+    skill_md = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    return (
+        f"{skill_md}\n\n"
+        "---\n\n"
+        "Follow the skill instructions above to complete the following task.\n\n"
+        f"{prompt}"
+    )
+
+
+def _drop_empty_tools(request: dict[str, Any]) -> dict[str, Any]:
+    """Remove an empty ``tools`` list from an OpenAI chat-completions request.
+
+    Strands' ``OpenAIModel`` always sends ``tools``, even as ``[]`` on a call
+    with no tools such as a conversation summary. vLLM rejects an empty array
+    with HTTP 400, matching the OpenAI API, so the summary fails and the agent
+    cannot recover from a context overflow. Remove this once
+    strands-agents/harness-sdk#4854 is fixed (issue #198).
+    """
+    if not request.get("tools"):
+        request.pop("tools", None)
+    return request
+
+
+def _result_text(content: list[dict[str, Any]]) -> str:
+    """Join the text and JSON blocks of a tool result into one string."""
+    parts = []
+    for block in content:
+        if "text" in block:
+            parts.append(str(block["text"]))
+        elif "json" in block:
+            parts.append(json.dumps(block["json"], default=str))
+    return "\n".join(parts)
+
+
+def _cap_tool_result(
+    result: dict[str, Any],
+    limit: int = MAX_TOOL_RESULT_CHARS,
+) -> tuple[dict[str, Any], int]:
+    """Truncate a tool result whose text is longer than ``limit`` characters.
+
+    Args:
+        result: A Strands ``ToolResult`` (``content``, ``status``, ``toolUseId``).
+        limit: The most characters of output to keep.
+
+    Returns:
+        The result to give the model, and the original character count when the
+        result was truncated (0 when it was left unchanged).
+    """
+    text = _result_text(result.get("content") or [])
+    if len(text) <= limit:
+        return result, 0
+    note = TRUNCATION_NOTE.format(total=len(text), kept=limit)
+    capped = {**result, "content": [{"text": text[:limit] + note}]}
+    return capped, len(text)
 
 
 def _build_model(args: argparse.Namespace) -> Any:
@@ -121,15 +209,26 @@ def _build_model(args: argparse.Namespace) -> Any:
 
     from strands.models.openai import OpenAIModel
 
+    class _NoEmptyToolsOpenAIModel(OpenAIModel):  # type: ignore[misc, valid-type]
+        def format_request(self, *a: Any, **kw: Any) -> dict[str, Any]:
+            return _drop_empty_tools(super().format_request(*a, **kw))
+
     client_args = {
         "base_url": args.endpoint.rstrip("/") + "/v1",
         "api_key": os.environ.get(API_KEY_ENV, DEFAULT_API_KEY),
     }
-    return OpenAIModel(
-        client_args=client_args,
-        model_id=args.model,
-        params={"max_tokens": args.max_tokens},
-    )
+    openai_config: dict[str, Any] = {
+        "model_id": args.model,
+        "params": {"max_tokens": args.max_tokens},
+    }
+    # Without this Strands assumes a 200K window, so proactive compaction on a
+    # smaller served window (e.g. 128K) would trigger only after an overflow.
+    # vLLM counts the requested max_tokens against the window, so the prompt
+    # only has the rest; compacting at a fraction of the full window still
+    # overflowed 160 times in one run (issue #197).
+    if args.context_window > args.max_tokens:
+        openai_config["context_window_limit"] = args.context_window - args.max_tokens
+    return _NoEmptyToolsOpenAIModel(client_args=client_args, **openai_config)
 
 
 def _build_conversation_manager(args: argparse.Namespace) -> Any:
@@ -184,6 +283,11 @@ class _EventStreamHooks:
     def _on_tool_call(self, event: Any) -> None:
         tool_use = event.tool_use or {}
         result = event.result or {}
+        truncated_from = 0
+        if result:
+            result, truncated_from = _cap_tool_result(result)
+            if truncated_from:
+                event.result = result
         _emit(
             {
                 "type": "tool_call",
@@ -191,21 +295,20 @@ class _EventStreamHooks:
                 "input": _preview(tool_use.get("input", {})),
                 "status": result.get("status"),
                 "duration_s": event.duration,
+                "truncated_from_chars": truncated_from,
             }
         )
 
 
 def _build_agent(args: argparse.Namespace, hooks: _EventStreamHooks) -> Any:
-    """Assemble the Strands agent: model, tools, skill plugin and hooks."""
+    """Assemble the Strands agent: model, tools and hooks."""
     from strands import Agent
-    from strands.vended_plugins.skills import AgentSkills
     from strands.vended_tools import file_editor, shell
 
     return Agent(
         model=_build_model(args),
         system_prompt=SYSTEM_PROMPT,
         tools=[shell, file_editor],
-        plugins=[AgentSkills(skills=[str(args.skill_dir)])],
         conversation_manager=_build_conversation_manager(args),
         hooks=[hooks],
         # The default handler prints streamed text to stdout, which would
@@ -223,7 +326,7 @@ def _run(args: argparse.Namespace) -> int:
     Returns:
         The process exit code.
     """
-    prompt = args.prompt
+    prompt = _prompt_with_skill(args.skill_dir, args.prompt)
     hooks = _EventStreamHooks()
     agent = _build_agent(args, hooks)
     logger.info(

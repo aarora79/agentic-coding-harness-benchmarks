@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 18,
+      "specificity": 16,
+      "risk_awareness": 16,
+      "total": 68,
+      "notes": "The issue clearly describes the cookie-bound CSRF failure and separately states the intended behavior for bearer-token and browser clients. Repository release information for v1.0.21 confirms that OAuth M2M clients were unable to toggle agents and skills and that CSRF handling was changed. Its largest deficiency is the unexplained claim of six endpoints: it identifies only four route families and leaves acceptance criteria referring vaguely to related or discovery endpoints. No independent task statement establishes the complete endpoint inventory, and the issue does not define behavior for requests containing both bearer credentials and a session cookie."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 51,
+      "notes": "The strongest part is the concrete proposed change to verify_csrf_token_flexible in registry/auth/csrf.py, including preserving validation whenever the configured session cookie is present. The design is internally contradictory: it introduces CSRF_ALLOW_BEARER_TOKEN with a false default, then says registry/core/config.py needs no change, while the implementation logic never reads that setting. It alternates between six and four toggle endpoints, supplies inconsistent request shapes, and promises tests, environment documentation, request-state annotations, metrics, and tracing that are absent from its file-change plan. It notices the browser threat model but equates every cookie-less request with an OAuth bearer client without verifying Authorization or auditing every consumer of the shared dependency."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 11,
+      "risk_awareness": 11,
+      "total": 41,
+      "notes": "The review's most useful finding is the mixed-credential case where a bearer-token request also includes a session cookie. It fails to challenge the LLD's largest defects, including the contradictory feature flag, the unresolved four-versus-six endpoint inventory, and the unimplemented observability commitments. The security section discusses replaying CSRF tokens for bearer clients even though the proposed design gives those clients no CSRF token, making its main security recommendation inapplicable. Several conclusions are contradicted by the design itself, such as claiming no CSRF-skip log exists and calling the behavior additive despite removal of an existing 403 path."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 10,
+      "risk_awareness": 10,
+      "total": 38,
+      "notes": "The plan covers valid, missing, and invalid CSRF cases and attempts browser, bearer, compatibility, and lifecycle coverage across four route families. Its core curl cases omit required toggle inputs such as the agent enabled query parameter and the server enabled form value, so the expected 200 responses would not exercise the proposed change. Browser setup uses ungrounded sessionid and session_key cookies, does not explain how CSRF_TOKEN is bound to that session, and combines bearer authentication with the purported session flow. The uv run pytest command matches repository testing conventions, but the referenced test files are not supplied by the implementation and many response bodies and operational checks lack reliable oracles."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 20,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 71,
+      "notes": "The focused patch moves the session-cookie check ahead of missing-token rejection in verify_csrf_token_flexible and removes the former no-session 403 path, directly implementing the behavior described by the repository's v1.0.21 fix. The hunk is internally coherent and preserves missing-token and invalid-token rejection for requests carrying the configured session cookie. Its summary incorrectly claims no LLD deviations or follow-ups despite omitting the promised tests, feature flag, environment documentation, endpoint audit, request-state annotation, and observability work, and it recommends running test files the patch does not create. The code also labels every cookie-less request as a bearer client without checking its authentication mechanism, and a local git apply --check could not be completed because the provided command runner failed before executing repository commands."
+    }
+  },
+  "task_score": 53.8,
+  "verdict": "The submission contains a plausible and focused production fix, but the surrounding design, review, and testing artifacts are undermined by contradictory scope, invented configuration, and non-executable test requests.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T22:33:39.417045Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 226636,
+      "cached_input_tokens": 124778,
+      "cache_write_input_tokens": 28536,
+      "output_tokens": 11602,
+      "reasoning_output_tokens": 9701
+    },
+    "duration_ms": 135412
+  }
+}

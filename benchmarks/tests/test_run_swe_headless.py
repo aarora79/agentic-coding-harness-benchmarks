@@ -1884,6 +1884,58 @@ class CodexTokenTotalsTest(unittest.TestCase):
         self.assertEqual(claude["total_tokens"], 50_000 + 900)
 
 
+class VllmCacheFallbackForDisjointAgentTest(unittest.TestCase):
+    """A disjoint agent whose cache count comes from vLLM (issue #200)."""
+
+    def _summary(self, agent: str) -> dict:
+        # The agent saw a 100,000-token prompt in total; vLLM served 97,000 of
+        # those tokens from its prefix cache.
+        metrics = {"input_tokens": 100_000, "output_tokens": 900}
+        vllm = {
+            "counters": {
+                harness.PROMPT_TOKENS_METRIC: 100_000,
+                harness.PROMPT_TOKENS_CACHED_METRIC: 97_000,
+            },
+            "derived": {},
+        }
+        return harness._summary_metrics(metrics, vllm, 90.0, True, agent=agent)
+
+    def test_cache_read_comes_from_vllm(self) -> None:
+        self.assertEqual(self._summary("strands")["cache_read_tokens"], 97_000)
+
+    def test_input_becomes_the_fresh_prompt_tokens(self) -> None:
+        self.assertEqual(self._summary("strands")["input_tokens"], 3_000)
+
+    def test_total_counts_the_prompt_once(self) -> None:
+        self.assertEqual(self._summary("strands")["total_tokens"], 100_000 + 900)
+
+    def test_run_without_input_count_keeps_the_old_shape(self) -> None:
+        # A codex run that died before its first turn reports no usage at all.
+        vllm = {
+            "counters": {
+                harness.PROMPT_TOKENS_METRIC: 100_000,
+                harness.PROMPT_TOKENS_CACHED_METRIC: 97_000,
+            },
+            "derived": {},
+        }
+        summary = harness._summary_metrics({}, vllm, 0.0, True, agent="codex")
+        self.assertEqual(
+            (summary["cache_write_tokens"], summary["total_tokens"]), (3_000, 100_000)
+        )
+
+    def test_detected_agent_keeps_the_partition_shape(self) -> None:
+        # omp already relied on this fallback; its numbers must not move.
+        summary = self._summary("omp")
+        self.assertEqual(
+            (
+                summary["input_tokens"],
+                summary["cache_write_tokens"],
+                summary["total_tokens"],
+            ),
+            (100_000, 3_000, 100_000 + 900),
+        )
+
+
 class ServerPromptTokenGapTest(unittest.TestCase):
     """Retried requests are server prefill the agent never counted."""
 
@@ -2067,6 +2119,20 @@ class StrandsHarnessTest(unittest.TestCase):
             events, 0, 1.0, endpoint_usage=True
         )
         self.assertEqual(result["usage"]["input_tokens"], 0)
+
+    def test_strands_endpoint_without_cache_counts_omits_cache_keys(self) -> None:
+        # vLLM reports no cached_tokens by default; a recorded 0 would block the
+        # Prometheus fallback in _summary_metrics (issue #200).
+        result = harness._strands_result_from_events(
+            [_strands_result_event(5000, 50)], 0, 1.0, endpoint_usage=True
+        )
+        self.assertNotIn("cache_read_input_tokens", result["usage"])
+
+    def test_strands_bedrock_without_cache_keeps_zero_cache_keys(self) -> None:
+        result = harness._strands_result_from_events(
+            [_strands_result_event(5000, 50)], 0, 1.0
+        )
+        self.assertEqual(result["usage"]["cache_read_input_tokens"], 0)
 
     def test_strands_num_turns_is_the_cycle_count(self) -> None:
         result = harness._strands_result_from_events(
