@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The issue precisely inventories the six real toggle handlers and identifies the existing CSRF dependencies found in the four route modules. Its largest defect is acceptance criteria claiming bearer-only success and cookie-only 403 responses on all six endpoints, although toggle_service_route uses enhanced_auth and internal_toggle_service requires a Bearer JWT, making those outcomes impossible without qualification. The cookie-first behavior in auth_server/server.py and the SPA interceptor in frontend/src/contexts/AuthContext.tsx support the core threat analysis. No independent task statement was supplied, so the asserted six-endpoint scope can only be validated against the task identifier and repository."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 90,
+      "notes": "The LLD is implementation-ready, naming the exact handlers, imports, dependency overrides, cookie-presence rule, rollout impact, and stale-cookie behavior. Its strongest decision is checking settings.session_cookie_name by presence and delegating validation to verify_csrf_token_flexible, which fits registry/auth/csrf.py and avoids changing its other call sites. The claimed Authorization-header bypass via permissive /v0 CORS is weakly grounded because these routes are under /api and wildcard origins cannot be combined with credentialed browser requests; the audit claim also overstates action-level visibility because dependency failures occur before set_audit_action. The endpoint matrix correctly acknowledges that the UI toggle remains cookie-only, exposing the inconsistency with the issue's broader bearer-success criterion."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 88,
+      "notes": "The review finds concrete defects that matter: direct dependency calls bypass existing overrides, an empty cookie must fail closed, and route coverage must assert the complete expected set. These findings are verified by the cookie-bearing fixtures in test_server_routes.py and test_server_get_endpoint.py and by verify_csrf_token_flexible's direct callable shape. Its largest omission is failing to challenge the cross-artifact all-six acceptance contradiction, while the security review repeats the unsupported /v0 CORS bypass rationale. The stale-cookie operational impact, frontend token-fetch failure, and direct-port trust boundary are otherwise specific and proportionate."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The plan provides strong dependency-level oracles, negative cases, exact route-set coverage, regression suites, and real agent and skill handler tests. Several concrete expectations are wrong: /api/servers/toggle returns new_enabled_state rather than is_enabled, and the virtual-server UI emits a generic failure toast rather than the submitted CSRF detail. It also does not behaviorally automate four of the six handlers, and bearer-only or cookie-only outcomes cannot be uniform for the enhanced_auth and validate_internal_auth endpoints. The pytest paths, CLI agent-toggle and skill-toggle commands, token-file format, and six route paths otherwise match the repository."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 23,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 88,
+      "notes": "The patch implements the selected policy end to end: all target files and symbols exist at v1.0.20, and each of the six handlers is correctly wired to verify_csrf_for_session_auth. The cookie-presence check, direct delegation, fixture updates, dependency tests, and route invariant are internally consistent with FastAPI's existing patterns and preserve bearer-only agent and skill calls. The largest gap is operational coverage: four handlers receive only structural coverage, and the rollout promised a release note for newly rejected cookie-bearing clients but the patch adds only security-posture documentation. The summary accurately discloses that tests were not executed and identifies the ANS and direct-port exclusions."
+    }
+  },
+  "task_score": 86.4,
+  "verdict": "This is a strong, repository-grounded security change whose main limitation is inconsistent and occasionally incorrect all-six endpoint acceptance and test expectations.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T02:54:24.716629Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1032412,
+      "cached_input_tokens": 916564,
+      "cache_write_input_tokens": 115822,
+      "output_tokens": 12673,
+      "reasoning_output_tokens": 5910
+    },
+    "duration_ms": 122266
+  }
+}

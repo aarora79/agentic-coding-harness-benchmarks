@@ -1,0 +1,156 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.28.0",
+  "complexity": "high",
+  "tags": [
+    "semantic-search",
+    "embeddings",
+    "oauth",
+    "authentication",
+    "litellm",
+    "docker",
+    "terraform",
+    "helm",
+    "fixed-in-1.29.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 95.6,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 110,
+    "output_tokens": 73560,
+    "cache_read_tokens": 5232406,
+    "cache_write_tokens": 163754,
+    "total_tokens": 5469830,
+    "total_cost_usd": 3.67058,
+    "latency_seconds": 769.7,
+    "num_turns": 54,
+    "generation_tokens_per_sec": 95.6,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 110,
+  "output_tokens": 73560,
+  "latency_seconds": 769.7,
+  "num_turns": 54,
+  "total_cost_usd": 3.67058,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 5232406,
+  "cache_creation_tokens": 163754,
+  "run_started_at": "2026-10-02T02:01:14.170781Z",
+  "run_ended_at": "2026-10-02T02:14:03.900384Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 110,
+    "output_tokens": 73560,
+    "cache_read_tokens": 5232406,
+    "cache_write_tokens": 163754,
+    "total_tokens": 5469830,
+    "total_cost_usd": 3.67058,
+    "latency_seconds": 769.7,
+    "num_turns": 54,
+    "generation_tokens_per_sec": 95.6,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "idp-authenticated-embedding-endpoint",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 24,
+        "risk_awareness": 22,
+        "total": 91,
+        "notes": "The issue provides unusually concrete behavior, testable acceptance criteria, deployment scope, security constraints, and explicit non-goals. Its core claims match registry/embeddings/client.py, registry/repositories/documentdb/search_repository.py, and the existing FederationAuthManager pattern. Its largest omission is recovery after a transient refresh failure, because _embedding_unavailable can permanently suppress later query embeddings. No independent task statement was supplied, so broader requirement coverage beyond the task identifier and internally defined scope could not be verified."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 19,
+        "specificity": 24,
+        "risk_awareness": 21,
+        "total": 87,
+        "notes": "The LLD is implementation-ready and accurately identifies the factory, sole production caller, Settings initialization, deployment surfaces, and federation authentication pattern. Repository inspection confirms create_embeddings_client is called from DocumentDBSearchRepository and config validation occurs in Settings.__init__. The largest correctness gap is that config_routes.SENSITIVE_PATTERNS contains \"_token\", so the supposedly visible token endpoint would actually be masked; additionally, the public factory and exported provider do not independently enforce HTTPS. It also preserves the permanent _embedding_unavailable latch without designing recovery after a transient IdP outage."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 88,
+        "notes": "The review identifies concrete backend, deployment, and security defects, including api_base enforcement, bounded retry, hostile expires_in values, exception chaining, conditional IAM references, and Helm reserved names. These concerns are grounded in real patterns in federation_auth.py, secrets.tf, iam.tf, and the registry chart. Its largest miss is praising non-sensitive token-endpoint visibility despite the existing automatic \"_token\" masking rule, and it does not catch permanent semantic-search degradation after a transient refresh failure. The asserted LiteLLM exception status_code behavior was not demonstrated by submitted execution evidence."
+      },
+      "testing": {
+        "completeness": 22,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 81,
+        "notes": "The plan has strong unit oracles for request shape, caching, expiry, concurrency, exact LiteLLM kwargs, bounded 401 retry, malformed responses, and startup validation. Several operational checks are inaccurate: /api/config/full exposes the masked text as value rather than display, and the documented session cookie is mcp_gateway_session rather than session. The semantic curl command cannot itself assert HTTP 200 and assumes non-empty indexed data without establishing it, while the Helm and registration sections contain partially illustrative commands. Most importantly, no test verifies recovery after an IdP outage once DocumentDBSearchRepository has latched _embedding_unavailable."
+      },
+      "implementation": {
+        "completeness": 23,
+        "correctness": 17,
+        "specificity": 23,
+        "risk_awareness": 18,
+        "total": 81,
+        "notes": "The patch targets real baseline files and symbols and implements the normal IdP flow end to end across Settings, LiteLLMClient, DocumentDB wiring, Docker, Terraform, Helm, documentation, and focused unit tests. Token caching uses monotonic time, a bounded buffer, single-flight locking, defensive expiry parsing, secret-conscious errors, and exactly one 401 retry. The largest defect is that _create_idp_token_provider and IdPTokenProvider permit an insecure token URL when called outside Settings, despite both being public, while transient refresh failure still activates the repository's permanent embedding-unavailable latch; the token endpoint is also unintentionally masked by config_routes.SENSITIVE_PATTERNS. The summary explicitly states that tests, Ruff, Terraform validation, and Helm rendering were not executed, so deployment and CI validity remain unverified."
+      }
+    },
+    "task_score": 85.6,
+    "verdict": "Strong, repository-grounded work with broad end-to-end coverage, limited primarily by an HTTPS validation bypass for direct callers and failure recovery that can leave semantic embeddings permanently disabled.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-02T03:06:15.478645Z",
+      "repo_ref": "1.28.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1427343,
+        "cached_input_tokens": 1282050,
+        "cache_write_input_tokens": 145265,
+        "output_tokens": 13731,
+        "reasoning_output_tokens": 7543
+      },
+      "duration_ms": 154373
+    }
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "task": "honor-cloud-provider-override-in-ui",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.24.7",
+  "complexity": "low",
+  "tags": [
+    "bug",
+    "telemetry",
+    "api",
+    "ui",
+    "deployment",
+    "fixed-in-1.25.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 62.2,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 56,
+    "output_tokens": 29725,
+    "cache_read_tokens": 2772704,
+    "cache_write_tokens": 82901,
+    "total_tokens": 2885386,
+    "total_cost_usd": 1.72014678,
+    "latency_seconds": 477.7,
+    "num_turns": 27,
+    "generation_tokens_per_sec": 62.2,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 56,
+  "output_tokens": 29725,
+  "latency_seconds": 477.7,
+  "num_turns": 27,
+  "total_cost_usd": 1.72014678,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 2772704,
+  "cache_creation_tokens": 82901,
+  "run_started_at": "2026-10-02T17:33:01.892433Z",
+  "run_ended_at": "2026-10-02T17:40:59.560039Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 56,
+    "output_tokens": 29725,
+    "cache_read_tokens": 2772704,
+    "cache_write_tokens": 82901,
+    "total_tokens": 2885386,
+    "total_cost_usd": 1.72014678,
+    "latency_seconds": 477.7,
+    "num_turns": 27,
+    "generation_tokens_per_sec": 62.2,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "honor-cloud-provider-override-in-ui",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 88,
+        "notes": "The issue clearly defines the mismatch, explicit non-goals, and testable override, fallback, parity, shape, and authentication criteria. The root cause is verified in `registry/api/system_routes.py`, `registry/core/telemetry.py`, `.env.example`, and `UptimeDisplay.tsx`. Its largest factual flaw is naming the banner endpoint as `/api/registry/banner-state` rather than the actual `/api/registry/v0.1/banner-state`; it also omits the resolver's per-call logging, metric increment, and cached repository lookup. No independent task statement was supplied, so broader requirement fit and the linked issue narratives cannot be independently established beyond repository history and the task identifier."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 90,
+        "notes": "The LLD is unusually concrete about the one-call-site change, resolver precedence, cache isolation, response domains, tests, and rollout. Repository checks confirm `_resolve_cloud`, `_hint_cache`, the telemetry payload callers, configuration validation, deployment wiring, and the proposed test location all exist as described. The main deficiency is repeated omission of the registry router's `/v0.1` prefix, while the claim of no horizontal-scaling impact understates up to 60 seconds of per-replica hint-cache divergence. It otherwise identifies the realistic repository-read and counter/log side effects and explicitly defers the latter with a defensible scope boundary."
+      },
+      "review": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 23,
+        "total": 91,
+        "notes": "The review finds concrete design defects rather than merely approving it, especially the order-dependent hint cache, unintended repository access in tests, and failure to distinguish `_resolve_cloud` from a settings-only implementation. Those findings are supported by `_get_operator_cloud_hint`, `_hint_cache`, and the resolver precedence in `registry/core/telemetry.py`, and the proposed resolutions are actionable. Its largest miss is accepting the unversioned registry endpoint references even though `registry_routes.router` adds `/v0.1`; it also does not discuss transient cross-replica hint-cache inconsistency. Security, observability, compatibility, and test-isolation risks are otherwise assessed proportionately and against real symbols."
+      },
+      "testing": {
+        "completeness": 23,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 83,
+        "notes": "The plan covers exact override and fallback values, authentication, invalid configuration, operator hints, response shape, UX, deployment surfaces, rollback, and focused unit tests with meaningful oracles. The proposed unit-test path and pytest command match the repository, and the three patch tests directly exercise explicit, cascade, and operator-declared branches. The largest correctness defect is using `/api/registry/cloud-provider-hint` instead of `/api/registry/v0.1/cloud-provider-hint`, while the E2E parity check can read the log emitted by its own `detect` request and therefore does not prove telemetry-event parity; the direct uvicorn prerequisite also conflicts with the default `http://localhost` URL. Live deployment commands and tests were not executable in this read-only environment, but the negative, compatibility, and rollback coverage still demonstrates substantial risk awareness."
+      },
+      "implementation": {
+        "completeness": 24,
+        "correctness": 24,
+        "specificity": 24,
+        "risk_awareness": 23,
+        "total": 95,
+        "notes": "The patch applies cleanly to tag `1.24.7` and implements the required behavior end to end by replacing the raw cascade call with `await _resolve_cloud()` while preserving authentication and response keys. The real resolver prioritizes `settings.mcp_cloud_provider`, then the operator hint, then the cached cascade, and upstream repository history independently confirms this same route change as the eventual fix. The added tests use existing imports and conventions, isolate both caches and relevant environment signals, avoid storage access with `AsyncMock`, and assert exact results plus override precedence. No functional deviation from the revised LLD was found; the residual per-request log/counter increment is disclosed honestly, and test execution was not claimed or independently performed."
+      }
+    },
+    "task_score": 89.4,
+    "verdict": "This is a strong, repository-grounded submission with a correct and cleanly applicable implementation; its largest limitation is a testing plan containing invalid versionless registry API paths and a telemetry-parity check with a self-satisfying log oracle.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-02T22:45:05.425392Z",
+      "repo_ref": "1.24.7",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 559500,
+        "cached_input_tokens": 486325,
+        "cache_write_input_tokens": 73155,
+        "output_tokens": 10564,
+        "reasoning_output_tokens": 4873
+      },
+      "duration_ms": 113447
+    }
+  }
+}

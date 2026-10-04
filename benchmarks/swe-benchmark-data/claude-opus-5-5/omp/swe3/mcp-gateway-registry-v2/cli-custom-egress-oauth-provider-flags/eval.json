@@ -1,0 +1,64 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 87,
+      "notes": "The issue defines a narrow parity bug, five concrete flags, compatibility expectations, testable acceptance criteria, and explicit exclusions. Its largest factual defect is attributing the failure to resolve_provider's missing-URL message, although registry/api/egress_auth_routes.py validates empty custom URLs first and returns a custom_authorize_url rejection. The five request fields and four corresponding fields in registry/core/schemas.py were verified, but custom_resource is absent from EgressOAuthConfig and no list_providers symbol exists; the repository instead has list_provider_names. No independent task statement or accessible issue #1601 was supplied, limiting verification beyond the task identifier and repository history."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 90,
+      "notes": "The LLD is implementation-ready, accurately locating configure_egress_auth, cmd_egress_configure, the inline parser, JSON request branch, route validation, and replace-on-edit behavior. Its main factual error is claiming registry/core/schemas.py stores all five custom fields when EgressOAuthConfig omits custom_resource, although the raw DocumentDB update path can still persist it. The proposed parameter ordering, is-not-None body assembly, parser choices, and forwarding all fit the verified baseline code and preserve existing request bodies. It also handles SSRF ownership, UI resave loss, rollback, and edit semantics well, but the claimed enum drift test does not prove exact equality if the server enum removes a value."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 24,
+      "total": 91,
+      "notes": "The review finds two genuine defects: omitted custom fields are cleared by registry/api/egress_auth_routes.py, and an exit-code-only argparse test would pass for an unrecognized flag on the baseline. It gives concrete consequences and actionable resolutions, including operator help text and checking stderr for invalid choice. Its largest omission is failing to notice that EgressOAuthConfig lacks custom_resource, and Pixel's claim that UI || undefined and CLI is-not-None semantics are identical overlooks explicit empty strings. The modal resave loss and shell-history exposure are repository-supported risks, while the existence of a follow-up UI issue cannot be verified."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 82,
+      "notes": "The six proposed unit tests have concrete request-body, endpoint, forwarding, omission, enum, and pre-network rejection oracles that directly cover the regression. The largest correctness problem is expecting server detail text from CLI HTTP 400 failures, while RegistryClient._make_request only logs parsed response details for 422 and otherwise re-raises requests.HTTPError. Several manual commands also assume unlisted servers such as /github-mcp and /internal-mcp exist, and the consent test uses reserved idp.example.com URLs despite requiring a real test IdP. The negative SSRF, malformed-resource, compatibility, and replace-on-edit scenarios are valuable, but none were executed and the stated E2E setup is not runnable unchanged."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The embedded patch implements the design end to end by extending api/registry_client.py, forwarding values in api/registry_management.py, adding all five parser flags, tests, and documentation. Its contexts and symbols match the exact 1.28.0 baseline, and the body assembly, endpoint, argparse choices, and test import pattern follow verified repository conventions. The largest concrete defect is the documentation command's unquoted <atlassian-app-client-id> and <atlassian-app-secret> placeholders, which shell parsing treats as input redirections rather than arguments. The summary honestly states tests were not run; its git apply --check claim could not be independently reproduced because no standalone patch.diff file exists, though the submitted diff context matches."
+    }
+  },
+  "task_score": 88.0,
+  "verdict": "This is a strong, repository-grounded submission with a correct core implementation, limited mainly by several factual documentation claims and a manual testing plan whose HTTP-error and environment assumptions are not valid as written.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-02T22:24:12.980361Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 590988,
+      "cached_input_tokens": 486767,
+      "cache_write_input_tokens": 104205,
+      "output_tokens": 7910,
+      "reasoning_output_tokens": 3763
+    },
+    "duration_ms": 101953
+  }
+}
