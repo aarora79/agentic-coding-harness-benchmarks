@@ -13,7 +13,7 @@ This repo also holds earlier runs on other harnesses, skills and datasets -- Cla
 
 **claude-opus-5 tops quality at 82.83 for $11.95 a task.** `claude-opus-5-5` comes within 1.7 points at 81.16 for $4.44, and beats `glm-5.3` (80.11, $7.04) on score and on price. The cheapest way to reach the high 70s is `qwen3.8-27b`: 78.48 for **$1.47 a task**. At the other end, `qwen3.6-35b` scores 59.24 for **26 cents**. Every self-hosted figure is priced on one basis -- the p5en.48xlarge sweep -- so the fleet compares like for like even where a model was served on a smaller box; a figure is the cost of that model's work on p5en, not a quote for the box it ran on.
 
-Within the metered Bedrock rows alone the frontier is `claude-haiku-4-5` ($0.76, 56.18), `claude-opus-4-5` ($4.18, 66.32), `claude-opus-5-5` ($4.44, 81.16) and `claude-opus-5` ($11.95, 82.83). Opus 5.5 beats `claude-sonnet-5` (76.97, $4.67), `claude-opus-4-7` (75.60, $7.35), `claude-opus-4-8` (74.69, $5.32) and `claude-opus-4-6-v1` (70.64, $4.95) on score and on price.
+Within the metered Bedrock rows alone the frontier is `claude-haiku-4-5` ($0.76, 56.18), `kimi-k3-bedrock` ($3.87, 72.87), `claude-opus-5-5` ($4.44, 81.16) and `claude-opus-5` ($11.95, 82.83). Kimi K3 on Bedrock, reached through the LiteLLM proxy, beats `claude-opus-4-5` (66.32, $4.18). Opus 5.5 beats `claude-sonnet-5` (76.97, $4.67), `claude-opus-4-7` (75.60, $7.35), `claude-opus-4-8` (74.69, $5.32) and `claude-opus-4-6-v1` (70.64, $4.95) on score and on price.
 
 - **[omp harness, /swe3, v2 dataset](harness-omp-swe3.md)** -- the headline table above, 21 models, with the quality radar and the cost-accuracy view.
 - **[Which model for which task?](model-selection-by-complexity.md)** -- what a model upgrade buys you at each difficulty tier.
@@ -26,7 +26,7 @@ Background runs, on other datasets and harnesses:
 - **[Results -- /swe2 (multi-agent)](results-swe2.md)** -- the multi-agent skill, Claude Code harness, 14 models.
 - **[Cross-harness comparison (/swe3)](agentic-coding-swe-comparison-swe3.md)** -- Claude Code against pi on the same models.
 
-Path 1 (Anthropic on Bedrock) and Path 3 (self-hosted on vLLM) have published runs. Path 2 (open-weight on Bedrock via LiteLLM) [works](../benchmarks/docs/path-open-weight-on-bedrock-litellm.md) but nobody has run it yet. Both datasets ship in [benchmarks/dataset/](../benchmarks/dataset/) so you can reproduce a run; generated artifacts are not committed.
+All three paths have published runs. Path 2 (open-weight on Bedrock via [LiteLLM](../benchmarks/docs/path-open-weight-on-bedrock-litellm.md)) has one so far, `kimi-k3-bedrock` in the omp table, priced on the metered Bedrock basis. Both datasets ship in [benchmarks/dataset/](../benchmarks/dataset/) so you can reproduce a run; generated artifacts are not committed.
 
 > **The example repo is the example, not the contract.** `/swe3` works against any GitHub URL -- clone the target you care about, write the task description, and run.
 
