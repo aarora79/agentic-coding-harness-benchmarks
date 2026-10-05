@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 46,
+      "notes": "The issue provides explicit non-goals and testable criteria such as cookie size, TTL cleanup, and missing-token behavior. Its central premise is contradicted by auth_server/server.py: access_token and refresh_token are never placed in the session, while groups and id_token are the large signed-cookie payload. The existing Get JWT Token flow uses POST /api/tokens/generate and mints a registry JWT, so the proposed retrieval endpoint does not restore the repository's actual feature. No independent task statement was supplied, leaving the token-size estimates and requirement to expose refresh tokens unverifiable."
+    },
+    "lld": {
+      "completeness": 8,
+      "correctness": 2,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 29,
+      "notes": "The design makes concrete encryption, indexing, TTL, configuration, and error-semantic choices. Most named integration files do not exist: the callback is in auth_server/server.py, configuration is not in auth_server/config.py, and registry/api/routes.py is absent. SessionData.parse_raw neither validates the itsdangerous signature nor accepts the real mcp_gateway_session cookie, and the design ignores the numerous readers in registry/auth/dependencies.py, logout, CSRF, audit, and health paths. The claimed singleton database pattern is contradicted by its per-request synchronous MongoClient construction, while throughput and sharding claims are unsupported."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 4,
+      "specificity": 14,
+      "risk_awareness": 15,
+      "total": 46,
+      "notes": "The review identifies useful concrete concerns including no-store headers, key validation and distribution, database outages, decryption logging, and index initialization. It nevertheless approves a design that parses an unsigned JSON cookie and is built around nonexistent repository files, missing the decisive authentication and integration failures. It also says logins overwrite prior records although TokenStoreDB inserts records and the testing plan explicitly expects multiple records per user; several declared resolutions never reach the LLD. The proposed QPS, infrastructure choices, and assertion that session cookies are client-context-bound are not supported by repository evidence."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 13,
+      "total": 43,
+      "notes": "The plan spans crypto, persistence, expiry, negative API cases, compatibility, cache headers, and the large-cookie regression with concrete expected values. It imports absent modules such as auth_server.main and auth_server.token_store, patches the nonexistent exchange_code_for_tokens symbol, and exercises routes that do not exist. Its requests use raw SessionData JSON rather than signed mcp_gateway_session cookies, secrets.token_urlsafe(32) is not a valid padded standard-base64 fixture for the proposed decoder, and the expected 404 for a missing referenced record contradicts the patch's 410. It omits the real cookie consumers and logout invalidation, while commands such as pytest tests/test_oauth.py reference absent files."
+    },
+    "implementation": {
+      "completeness": 1,
+      "correctness": 0,
+      "specificity": 2,
+      "risk_awareness": 3,
+      "total": 6,
+      "notes": "The patch cannot apply to the 1.23.0 tree because auth_server/config.py, models.py, auth_service.py, requirements.txt, and registry/api/routes.py do not exist, and even the .env.example context is unrelated. Its isolated AES-GCM and TTL-index concepts are reasonable, but they are not integrated with the repository's Motor singleton, namespaced collections, or auth_server/server.py callback. The endpoint does not validate the signed cookie, constructs blocking Mongo clients inside async request paths, assumes every provider returns a refresh token, and omits cache headers and tests. The summary incorrectly claims exact LLD conformance and full backward compatibility while acknowledging a review blocker remains and overlooking the actual session-reader migration."
+    }
+  },
+  "task_score": 34.0,
+  "verdict": "The artifacts are detailed but largely detached from the repository, with an unappliable implementation and a design that misunderstands both the oversized session payload and the existing token-vending flow.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T21:48:20.277157Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 790941,
+      "cached_input_tokens": 659007,
+      "cache_write_input_tokens": 131914,
+      "output_tokens": 9308,
+      "reasoning_output_tokens": 5142
+    },
+    "duration_ms": 142323
+  }
+}

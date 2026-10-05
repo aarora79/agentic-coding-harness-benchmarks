@@ -1,0 +1,154 @@
+{
+  "task": "build-docker-images-from-uv-lock",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "medium",
+  "tags": [
+    "docker",
+    "build",
+    "uv",
+    "dependencies",
+    "reproducibility",
+    "ci",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 110.6,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2151,
+    "output_tokens": 21459,
+    "cache_read_tokens": 1788413,
+    "cache_write_tokens": 64221,
+    "total_tokens": 1876244,
+    "total_cost_usd": 0.40542,
+    "latency_seconds": 194.1,
+    "num_turns": 41,
+    "generation_tokens_per_sec": 110.6,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2151,
+  "output_tokens": 21459,
+  "latency_seconds": 194.1,
+  "num_turns": 41,
+  "total_cost_usd": 0.40542,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1788413,
+  "cache_creation_tokens": 64221,
+  "run_started_at": "2026-10-04T18:51:23.088116Z",
+  "run_ended_at": "2026-10-04T18:54:37.232704Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2151,
+    "output_tokens": 21459,
+    "cache_read_tokens": 1788413,
+    "cache_write_tokens": 64221,
+    "total_tokens": 1876244,
+    "total_cost_usd": 0.40542,
+    "latency_seconds": 194.1,
+    "num_turns": 41,
+    "generation_tokens_per_sec": 110.6,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "build-docker-images-from-uv-lock",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 11,
+        "correctness": 9,
+        "specificity": 18,
+        "risk_awareness": 11,
+        "total": 49,
+        "notes": "The issue gives concrete acceptance criteria and correctly identifies four project directories lacking uv.lock files at tag 1.23.0. Its largest gap is limiting Docker changes to Dockerfile.auth and Dockerfile.registry even though Dockerfile.mcp-server, Dockerfile.mcp-server-light, Dockerfile.mcp-server-cpu, Dockerfile.registry-cpu, and metrics-service/Dockerfile also install Python dependencies and are referenced by compose, publishing, and Terraform files. It also incorrectly claims uv sync --frozen rejects a stale lock; uv documents --frozen as suppressing lock updates, while --locked asserts the lock remains unchanged. No independent task statement was supplied, and the claimed relationship to issue #1022 cannot be verified from the checkout."
+      },
+      "lld": {
+        "completeness": 9,
+        "correctness": 6,
+        "specificity": 17,
+        "risk_awareness": 8,
+        "total": 40,
+        "notes": "The LLD names real files and provides concrete COPY, sync, CI, and rollout changes that fit the two Dockerfiles it examined. It omits the repository's generic MCP, CPU registry, metrics, and A2A image paths, so most image dependency installation remains outside the design and the four new server locks are not consumed by the proposed Docker changes. Its central flag analysis is reversed: --locked checks freshness, while --frozen does not, and the existing registry-test.yml actually runs uv sync --extra dev rather than the claimed uv sync --locked. It also misses that the baseline root uv.lock contains CUDA/NVIDIA torch packages, making replacement of the explicit CPU-only torch installation a material image-size and runtime risk."
+      },
+      "review": {
+        "completeness": 7,
+        "correctness": 4,
+        "specificity": 10,
+        "risk_awareness": 6,
+        "total": 27,
+        "notes": "The review identifies some concrete secondary concerns, including lockfile merge conflicts, CI latency, branch protection, and image-layer caching. Its largest defect is approving the design without detecting the reversed --frozen/--locked semantics, omitted Dockerfiles, or root lock's CUDA packages, all of which affect the critical path. The statement that Dockerfile.registry's later uv pip install -e . is safely constrained by the lock is unsupported because that command is not given --no-deps, and the repository's eventual implementation uses --no-deps explicitly. Claimed timings such as five seconds for nine lock checks and no build-time regression are not supported by repository evidence or executed measurements."
+      },
+      "testing": {
+        "completeness": 16,
+        "correctness": 9,
+        "specificity": 18,
+        "risk_awareness": 13,
+        "total": 56,
+        "notes": "The plan is concrete and includes image builds, runtime health checks, lock presence, CI behavior, caching, compose validation, and existing pytest suites using real repository paths. Its most important negative test, stale-lock rejection, is only simulated and incorrectly expects uv sync --frozen to reject mismatch; the proposed sync loop also creates project .venv directories rather than reliably using its temporary active environment. Several checks have weak oracles: grepping workflow text does not validate execution, Terraform and build-script checks only establish file references, and docker stop --force is not a valid cleanup command. The auth health test would meaningfully catch the submitted wrong dependency graph, but the plan omits the generic MCP, metrics, CPU registry, and A2A image builds implicated by the repository."
+      },
+      "implementation": {
+        "completeness": 5,
+        "correctness": 2,
+        "specificity": 10,
+        "risk_awareness": 3,
+        "total": 20,
+        "notes": "The visible Dockerfile contexts match tag 1.23.0, but the patch changes only two of the repository's Python image Dockerfiles and does not make the generic server images consume the four added locks. The submitted auth_server and example-server locks share the same blob identity and visibly declare the current-time-mcp virtual project and its dependencies, contradicting their respective pyproject.toml files; uv sync --frozen can install that wrong graph, while the new uv lock --check workflow will fail it. Dockerfile.registry also syncs the baseline lock containing NVIDIA CUDA packages after explicitly installing CPU torch, and the workflow ignores lock-only changes because its path filters contain only pyproject.toml. The summary admits the locks were copied and should be regenerated but still calls the patch valid and complete, omits its own release-note criterion, and the truncated diff prevents a full git apply --check or inspection of every lock body."
+      }
+    },
+    "task_score": 38.4,
+    "verdict": "The artifacts are concrete but the implementation is not mergeable because copied mismatched locks, incorrect uv flag semantics, and omitted Docker image paths defeat the requested reproducibility.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T21:06:33.630946Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1191330,
+        "cached_input_tokens": 1012366,
+        "cache_write_input_tokens": 178948,
+        "output_tokens": 9026,
+        "reasoning_output_tokens": 4319
+      },
+      "duration_ms": 116080
+    }
+  }
+}
