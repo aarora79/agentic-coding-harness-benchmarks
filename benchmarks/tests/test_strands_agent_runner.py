@@ -120,6 +120,30 @@ class BuildEndpointModelTest(unittest.TestCase):
         self.assertNotIn("tools", model.format_request([]))
 
 
+class RaiseRecursionLimitTest(unittest.TestCase):
+    """Strands recurses per tool turn, so the runner raises the limit (#208)."""
+
+    def setUp(self) -> None:
+        self._original = sys.getrecursionlimit()
+
+    def tearDown(self) -> None:
+        sys.setrecursionlimit(self._original)
+
+    def test_low_limit_is_raised(self) -> None:
+        sys.setrecursionlimit(1000)
+        runner._raise_recursion_limit(5000)
+        self.assertEqual(sys.getrecursionlimit(), 5000)
+
+    def test_default_limit_covers_the_turn_budget(self) -> None:
+        needed = runner.MAX_TOOL_TURNS * runner.FRAMES_PER_TOOL_TURN
+        self.assertGreater(runner.RECURSION_LIMIT, needed)
+
+    def test_higher_limit_is_never_lowered(self) -> None:
+        sys.setrecursionlimit(20000)
+        runner._raise_recursion_limit(5000)
+        self.assertEqual(sys.getrecursionlimit(), 20000)
+
+
 class SystemPromptToolMapTest(unittest.TestCase):
     def test_every_tool_the_skill_names_is_mapped(self) -> None:
         # swe3/SKILL.md names these Claude Code tools (issue #202).
