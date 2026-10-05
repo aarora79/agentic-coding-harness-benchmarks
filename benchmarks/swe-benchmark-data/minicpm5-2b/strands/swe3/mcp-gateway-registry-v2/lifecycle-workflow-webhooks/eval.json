@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 59,
+      "notes": "The issue clearly identifies five desired behaviors and supplies concrete endpoints, headers, configuration names, acceptance criteria, and non-goals. Its largest defect is conceptual inconsistency: an outbound sender cannot return 401 for an invalid signature, a status filter does not identify scans still pending, and the proposed mandatory initial status is actually an unspecified status. The repository evidence supports an existing registration-webhook flow and lifecycle-bearing models, but the issue also requests a status-change event while declaring lifecycle-transition webhooks out of scope. No independent task statement establishes the intended default status, lifecycle vocabulary, or exact agent and skill coverage, so those claims remain unverifiable."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 43,
+      "notes": "The LLD names real integration symbols such as send_registration_webhook, register_service, edit_server_submit, get_servers_json, list_agents, and list_skills, and discusses configuration, authorization, rollout, and observability. Its critical design gap is the absence of a coherent scan-completion handoff and signing contract: different sections propose callbacks versus sending after task creation, never define canonical body serialization, and place consumer-side 401 behavior inside the registry design. Concrete errors include the nonexistent registry/auth_server/scopes.yml path instead of auth_server/scopes.yml, the unusable shell-style X-REGISTRY-SIGNING-SECRET environment name, an invented module CLI invocation, and syntactically invalid Field(default=\"scan_complete\", ...) sample code. Pagination totals, secret rotation, replay handling, and complete agent and skill flows are left unresolved, while several listed files and APIs could not be verified from the available evidence."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 11,
+      "specificity": 15,
+      "risk_awareness": 15,
+      "total": 54,
+      "notes": "The review provides actionable concerns about consumer-side signature verification, permission integration, secret rotation, replay protection, delivery metrics, and scan correlation. Its strongest finding is that the registry should sign outbound bodies while the consumer verifies them, which exposes a central contradiction in the issue and LLD. It nevertheless misses the ambiguous registration-default semantics, scan-task ordering, pagination effects, malformed scope shape, and incomplete server/agent/skill coverage, while its claim that sender-side verification makes the registry a trusted intermediary is technically confused. Proposed scan_id fields, Prometheus namespaces, ingress controls, and UI behavior are not established by repository evidence, and the resolution log does not produce a corrected implementable design."
+    },
+    "testing": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 8,
+      "risk_awareness": 5,
+      "total": 24,
+      "notes": "The plan at least enumerates all five feature areas and states several expected payload fields and HTTP outcomes. Most executable examples are invalid or non-testing: the registration request uses JSON against a form-oriented route, python -m registry.api.server_routes is not an established CLI, X-REGISTRY-SIGNING-SECRET cannot be exported as a shell variable, and the Python HMAC command references sys without importing it or piping the body. The list checks merely print .data[] despite the patched handlers returning named collections, and the manual POST to a consumer does not prove the registry emitted or signed anything. It lacks concrete permission allow/deny oracles, scan-order assertions, failure-delivery coverage, pagination checks, and negative filter cases, and it contradicts itself between expected 400 and 422 responses."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 1,
+      "specificity": 6,
+      "risk_awareness": 1,
+      "total": 12,
+      "notes": "The patch does not implement the design end to end, despite touching plausible repository symbols including register_service, edit_server_submit, get_servers_json, list_agents, list_skills, and send_registration_webhook. It starts the scan task and immediately awaits send_scan_complete with every outcome set to None, adds no signing-secret setting or X-Registry-Signature header, and emits an out-of-scope blank status_change event on every registration. Additional blocking defects include syntactically invalid Field(default=\"registration\", ...) declarations, use of an undefined status variable in list_skills, post-pagination filtering with stale totals, and incorrectly nested lifecycle permissions in auth_server/scopes.yml that will not satisfy the permission lookup. The summary falsely claims exact LLD conformance and calls placeholder scan results acceptable; no tests were added, and patch applicability against the local tree could not be independently dry-run in the available execution environment."
+    }
+  },
+  "task_score": 38.4,
+  "verdict": "The issue offers a useful problem outline, but the design remains internally inconsistent and the submitted patch is nonfunctional because it sends premature empty events, never signs webhooks, and introduces syntax, authorization, and filtering defects.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T22:48:32.027207Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 273108,
+      "cached_input_tokens": 212007,
+      "cache_write_input_tokens": 32106,
+      "output_tokens": 12178,
+      "reasoning_output_tokens": 10437
+    },
+    "duration_ms": 122858
+  }
+}

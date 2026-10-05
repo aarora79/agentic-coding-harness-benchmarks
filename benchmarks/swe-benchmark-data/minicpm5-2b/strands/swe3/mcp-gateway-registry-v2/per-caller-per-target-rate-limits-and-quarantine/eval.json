@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 64,
+      "notes": "The issue clearly identifies both missing behaviors, names the primary enforcement files, and supplies mostly testable acceptance criteria and non-goals. Its largest gap is quarantine lifecycle and authorization: it does not define reserved membership names, mutation paths, cache consistency, read-failure policy, or protection against quarantining administrators. The shipped repository documentation describes membership-based reserved groups named quarantine-callers and quarantine-targets, admin-only management, and server-side protection for admin-group users, which is materially more specific than this issue. ([github.com](https://github.com/agentic-community/mcp-gateway-registry)) With no independent task statement, the claim that existing admin APIs require no changes remains unsupported."
+    },
+    "lld": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 15,
+      "risk_awareness": 10,
+      "total": 44,
+      "notes": "The LLD names real-looking integration points and provides concrete proposed methods for definition lookup and composite gate construction. Its load-bearing quarantine design is nevertheless an ellipsis, while storage, defaults, ordering, API support, and fallback remain open questions. Repository observability conventions use axis abbreviation ctg and membership gauges for quarantine-callers and quarantine-targets, whereas the design proposes ctd and definition-based quarantine without reconciling those conventions. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/OBSERVABILITY.md)) Claims that existing admin APIs, metrics, tracing, and caches automatically support the feature are not established and are partly contradicted by the candidate's own review."
+    },
+    "review": {
+      "completeness": 11,
+      "correctness": 8,
+      "specificity": 13,
+      "risk_awareness": 11,
+      "total": 43,
+      "notes": "The review does identify concrete concerns around admin API body types, composite-key documentation, audit logging, and applying quarantine regardless of ordinary admin bypass. It misses the central design defect that quarantine storage, seeding, membership mutation, undeletability, and failure semantics were never actually designed, yet still approves the LLD. The repository documents quarantine as reserved-group membership with dedicated caller/target metrics and a qtn backend-error axis, contradicting the review's confidence in the definition-based approach. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/OBSERVABILITY.md)) Its assertion that URL-derived target values are not user input is unsafe, and referenced scripts and API compatibility were not verified."
+    },
+    "testing": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 10,
+      "risk_awareness": 6,
+      "total": 27,
+      "notes": "The plan attempts functional, compatibility, admin, deployment, and end-to-end coverage with concrete expected statuses. Most invocations are not credible: they call /api/validate rather than the documented /validate hook, attempt to find response headers in files containing only bodies, and contradict themselves about reset headers. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/OBSERVABILITY.md)) The proposed admin endpoint and script commands are unsupported, while inspecting RateLimiter.__init__ cannot prove that _build_caller_target_gates exists or works. It omits decisive pair-isolation tests, unclassified-target behavior, counter-not-consumed verification, seed and undeletability checks, cache propagation, and backend failure cases."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 9,
+      "risk_awareness": 3,
+      "total": 21,
+      "notes": "The patch concretely adds a caller_target definition query and a composite gate, so part of the rate-limit axis is represented. Quarantine is nonfunctional: the async seed_quarantine_groups coroutine is called without await, and its seeded definitions cannot match runtime queries made with the classified target entity type and name. The patch never implements caller or target membership changes, reserved-group deletion protection, admin mutation support, or the documented membership-based quarantine model; its summary also omits two touched files and gives an invalid clone-then-cd command. ([github.com](https://github.com/agentic-community/mcp-gateway-registry), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/OBSERVABILITY.md)) A local git apply --check could not be executed because the managed command sandbox failed before process startup, limiting independent applicability verification but not changing the visible semantic failures."
+    }
+  },
+  "task_score": 39.8,
+  "verdict": "The submission is polished and partly repository-aware, but its quarantine design and implementation are fundamentally nonfunctional and its testing plan does not exercise the real validation surface.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T22:56:18.671736Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 151395,
+      "cached_input_tokens": 84419,
+      "cache_write_input_tokens": 31183,
+      "output_tokens": 11811,
+      "reasoning_output_tokens": 9211
+    },
+    "duration_ms": 118542
+  }
+}

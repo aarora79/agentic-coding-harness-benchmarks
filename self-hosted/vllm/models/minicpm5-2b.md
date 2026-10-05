@@ -108,6 +108,23 @@ For scale, the published frontier on this dataset runs 76 to 83. A 2.5B model re
 
 Two thirds of tasks needed a second attempt, and the run reached its final tally only by leaning on `max_retries: 1` plus the top-up pass. **Budget roughly two agent sessions per completed task**, and one attempt in six spending a full 1800s producing nothing. A per-call price for a model this size looks trivially cheap; the effective cost is several times that, and no token price reveals the gap.
 
+## Measured results (strands, /swe3, mcp-gateway-registry-v2)
+
+Run of 2026-10-04 on this node, same serve command and window as the omp run. **Mean 45.28** over all 21 tasks, median 44.0, standard deviation 9.76, range 20.0 to 63.6. Every task produced all six artifacts, including the two the omp run lost (`derive-repo-url-from-skill-md` scored 43.8, `registration-admission-control-gate` 20.0). Full table in the run's [run-summary.json](../../../benchmarks/swe-benchmark-data/minicpm5-2b/strands/swe3/mcp-gateway-registry-v2/run-summary.json).
+
+| Tier | n | strands mean | strands median | omp mean |
+|---|---|---|---|---|
+| trivial | 5 | 48.0 | 41.0 | 43.8 |
+| low | 5 | 50.1 | 52.0 | 51.0 |
+| medium | 6 | 46.8 | 46.2 | 40.4 (n=5) |
+| high | 5 | 35.8 | 38.4 | 33.5 (n=4) |
+
+The tier spread matches omp's: low and trivial on top, high at the bottom. Each tier holds five or six tasks against a 10-point standard deviation, so the 2.7-point gap between the two harness means does not separate them. Strands used 160.6M tokens across the run against omp's 222.3M, 28% fewer, with 156.7M of them served from vLLM's prefix cache.
+
+Three tasks needed a second attempt (`consistent-csrf-across-toggle-endpoints`, `configurable-mcp-proxy-upstream-timeout`, `hide-register-button-on-virtual-and-skills-tabs`), against two thirds of tasks in the omp run. One first attempt looped on the same five `git diff` commands for 316 turns. Another ended on a call to a tool named `edit`, which the Strands agent does not have.
+
+This score holds only with the harness changes in [docs/strands-setup.md](../../../docs/strands-setup.md#where-the-runner-departs-from-strands-as-it-ships). Strands as it ships could not finish long tasks on this endpoint. Four earlier attempts at this run failed on those problems: an empty `tools` array, one large tool result, and the skill's Claude Code tool names (#196 to #202).
+
 ## Throughput and cost (1x L40S, g6e.4xlarge)
 
 Seven-level agentic concurrency sweep, 600s per level, priced at the repo's 3-year commitment basis of $1.298/hr:

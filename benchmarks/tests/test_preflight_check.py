@@ -122,6 +122,40 @@ class ExistingTest(unittest.TestCase):
             found = pf._existing([has, empty, missing])
             self.assertEqual(found, [has])
 
+    def test_failed_attempt_without_artifacts_counts(self) -> None:
+        # A failed attempt can leave only metrics.json and the agent's stream
+        # file; the next run would append to that stream (issue #196).
+        with tempfile.TemporaryDirectory() as tmp:
+            leftover = Path(tmp) / "failed-task"
+            leftover.mkdir()
+            (leftover / "metrics.json").write_text("{}", encoding="utf-8")
+            (leftover / "strands-stream.jsonl").write_text("{}\n", encoding="utf-8")
+            self.assertEqual(pf._existing([leftover]), [leftover])
+
+    def test_folder_outside_the_root_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "swe-benchmark-data"
+            escape = (
+                root / "model" / "omp" / "swe3" / "scope" / ".." / ".." / ".." / ".."
+            )
+            with self.assertRaises(pf.DatasetError):
+                pf._assert_inside_root(root, [escape / ".." / "scripts"])
+
+    def test_folder_inside_the_root_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "swe-benchmark-data"
+            pf._assert_inside_root(
+                root, [root / "model" / "omp" / "swe3" / "s" / "task"]
+            )
+
+    def test_clear_removes_a_failed_attempt_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            leftover = Path(tmp) / "failed-task"
+            leftover.mkdir()
+            (leftover / "metrics.json").write_text("{}", encoding="utf-8")
+            pf._run_clear([leftover])
+            self.assertFalse(leftover.exists())
+
 
 class RefIsShaTest(unittest.TestCase):
     def test_hex_refs_are_shas(self) -> None:

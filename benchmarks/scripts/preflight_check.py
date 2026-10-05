@@ -70,10 +70,6 @@ from runner_config import (  # noqa: E402
     model_to_slug,
 )
 
-# The four design artifacts the /swe2 skill writes; their presence is what makes the
-# skill stop and ask before overwriting.
-_ARTIFACT_FILENAMES = ("github-issue.md", "lld.md", "review.md", "testing.md")
-
 # The output root, relative to benchmarks/, matching the harness default.
 _OUTPUT_DIR = "swe-benchmark-data"
 
@@ -302,7 +298,7 @@ def _target_dirs(
     # dataset (output_scope, else the repo name), matching _artifact_dir.
     harness = HARNESS_SLUGS[agent]
     root = benchmarks_dir / _OUTPUT_DIR
-    return [
+    dirs = [
         root
         / slug
         / harness
@@ -311,15 +307,40 @@ def _target_dirs(
         / task.id
         for task in tasks
     ]
+    _assert_inside_root(root, dirs)
+    return dirs
+
+
+def _assert_inside_root(root: Path, dirs: list[Path]) -> None:
+    """Fail closed if a target folder resolves outside the results root.
+
+    ``--clear`` deletes every non-empty target folder, and the path parts come
+    from a dataset task id and the --model argument. A value such as
+    ``../../scripts`` would otherwise point the delete at source code.
+
+    Raises:
+        DatasetError: If any folder is the root itself or lies outside it.
+    """
+    resolved_root = root.resolve()
+    for d in dirs:
+        resolved = d.resolve()
+        if resolved == resolved_root or not resolved.is_relative_to(resolved_root):
+            raise DatasetError(
+                f"Refusing to use target folder {d}: it resolves to {resolved}, "
+                f"outside {resolved_root}. Check the task id and --model for '..' "
+                "or absolute paths."
+            )
 
 
 def _existing(dirs: list[Path]) -> list[Path]:
-    """Return the subset of dirs that exist and contain at least one artifact."""
-    found: list[Path] = []
-    for d in dirs:
-        if d.is_dir() and any((d / name).exists() for name in _ARTIFACT_FILENAMES):
-            found.append(d)
-    return found
+    """Return the subset of dirs that exist and hold any file from an earlier run.
+
+    The design artifacts make the skill stop at its overwrite prompt, but a
+    failed attempt can leave only metrics.json and an agent stream file. Those
+    leak into the next run too: the harness appends to an existing stream file
+    (issue #196), so any file counts. An empty folder does not.
+    """
+    return [d for d in dirs if d.is_dir() and any(d.iterdir())]
 
 
 def _run_check(dirs: list[Path]) -> int:
@@ -332,8 +353,8 @@ def _run_check(dirs: list[Path]) -> int:
             logger.info("  %s", d)
         return 0
     logger.warning(
-        "%d of %d target folder(s) already contain artifacts and would make the "
-        "headless /swe2 run stall on its overwrite prompt:",
+        "%d of %d target folder(s) already hold output from an earlier run, which "
+        "would stall the skill's overwrite prompt or mix into this run's files:",
         len(existing),
         len(dirs),
     )

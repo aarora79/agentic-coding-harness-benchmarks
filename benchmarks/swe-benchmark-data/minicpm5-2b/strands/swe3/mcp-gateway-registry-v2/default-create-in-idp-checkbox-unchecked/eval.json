@@ -1,0 +1,64 @@
+{
+  "task": "default-create-in-idp-checkbox-unchecked",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 20,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The issue clearly identifies the unsafe UI default and gives testable acceptance criteria for unchecked and explicitly checked submissions. Its largest defect is contradictory scope: backend default changes are declared out of scope while the dependencies require management_create_group and _create_group_impl to default to false. The submitted diff contains the named IAMGroups.tsx state and backend symbols, but no independent task statement establishes that all backend entry points should change. It identifies accidental IdP writes and permission failures, but does not address compatibility risk for non-UI clients relying on old defaults."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 53,
+      "notes": "The LLD names concrete files, functions, state transitions, and payload fields, giving a useful account of the intended frontend flow. It nevertheless designs broad backend default changes despite listing those changes as a non-goal, and leaves the breaking API behavior as an open question rather than resolving it. Its proposed frontend test has a likely incorrect relative import and uses toBeChecked(false), while the file inventory simultaneously says no new files despite specifying a new test file. The claimed response schema and several storage and endpoint assertions could not be independently verified because the repository command runner failed before reading files."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 14,
+      "risk_awareness": 10,
+      "total": 46,
+      "notes": "The review concretely identifies the initial state, reset state, backend defaults, and stale default-behavior test as relevant change points. Its largest weakness is approving the design while acknowledging that an existing test will fail and without resolving the issue's backend-scope contradiction. It claims the frontend test was added, whereas implementation.md explicitly says it was not, and it does not catch the proposed test's invalid matcher and path problems. The SRE section notices a breaking default change but dismisses rollback and compatibility concerns without evidence about affected callers."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 4,
+      "specificity": 12,
+      "risk_awareness": 8,
+      "total": 37,
+      "notes": "The plan covers unchecked, checked, and local-only behavior and includes meaningful mock-call oracles for IdP interaction. The proposed frontend assertion is unusable because an input element is truthy and is not a boolean for toBeFalse(), while the test command points to tests/components although the proposed file is under src/components/__tests__. The backend commands change into registry/api and then reference ../tests, which does not match the submitted root tests/unit path; the JSON-upload scenario also uses a backend test to claim frontend state coverage. The internal curl sends JSON to parameters declared with FastAPI Form(), omits required authentication, and the supposedly end-to-end cases are mocked unit tests."
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 10,
+      "specificity": 15,
+      "risk_awareness": 7,
+      "total": 44,
+      "notes": "The patch directly changes IAMGroups.tsx initialization and reset behavior to false and consistently changes several submitted backend defaults. It omits the acceptance-required frontend test and knowingly leaves test_create_group_default_creates_in_idp failing, so the implementation is not merge-ready. It also changes edit behavior plus internal_create_group, _create_group_impl, and create_group_api defaults despite the stated non-goal, creating an unmitigated compatibility change for non-UI callers. The summary incorrectly claims no LLD deviations and a docstring update that is absent from the supplied diff; patch applicability against the working tree could not be independently checked because the read-only command runner failed during sandbox initialization."
+    }
+  },
+  "task_score": 49.8,
+  "verdict": "The submission understands and implements the core checkbox default change, but contradictory backend scope, invalid testing guidance, omitted tests, and knowingly broken existing coverage make it unsafe to merge as delivered.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T22:35:17.126583Z",
+    "repo_ref": "v1.0.21",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 145633,
+      "cached_input_tokens": 91877,
+      "cache_write_input_tokens": 25172,
+      "output_tokens": 9269,
+      "reasoning_output_tokens": 7509
+    },
+    "duration_ms": 91571
+  }
+}

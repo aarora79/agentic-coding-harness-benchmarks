@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 11,
+      "correctness": 9,
+      "specificity": 10,
+      "risk_awareness": 9,
+      "total": 39,
+      "notes": "The issue clearly states the core admission-control goal, fail-closed behavior, internal server registration, and broad deployment/testing expectations. It omits established requirements including credential and header sanitization, retries, three authentication modes, startup checks, frontend configuration exposure, error truncation, and federation exclusion. Its off-by-default criterion incorrectly associates the feature with registry_mode rather than REGISTRATION_GATE_ENABLED=false and an explicit gate URL. No independent task statement was supplied, so coverage was judged against repository issue #809, which specifies these details. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809))"
+    },
+    "lld": {
+      "completeness": 6,
+      "correctness": 2,
+      "specificity": 5,
+      "risk_awareness": 5,
+      "total": 18,
+      "notes": "The LLD does make concrete choices around fail-closed errors, timeout configuration, logging, and deployment surfaces. Its central architecture is wrong: enforcement is placed in the CLI-facing RegistryClient, while the required route-level integration must protect every server API caller, including the internal registration route. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/service-management.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809)) The proposed entity_type/payload contract contradicts the required asset_type, operation, source_api, registration_payload, and filtered request_headers contract, and it omits sanitization, retries, startup behavior, and supported auth modes. The sample method lacks self, references undefined settings, cannot parse a denial after raise_for_status(), and the skill example mistakenly passes the gate response into registration; claims about CLI_GROUPS wiring and registry/audit.routes.py were not substantiated."
+    },
+    "review": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 6,
+      "risk_awareness": 5,
+      "total": 20,
+      "notes": "The review usefully calls out a dedicated timeout and the need to verify chart and Compose configuration. It nevertheless approves the design without catching that client-side CLI enforcement bypasses direct API, UI, and internal callers, which is the design's critical defect. Its security discussion raises CORS and redundant TLS-verification concerns while missing mandatory credential stripping, sensitive-header filtering, error truncation, and gate authentication modes. It explicitly rejects retries even though retries with backoff are required, and its claim that the registry is single-instance is unsupported. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809))"
+    },
+    "testing": {
+      "completeness": 7,
+      "correctness": 4,
+      "specificity": 6,
+      "risk_awareness": 6,
+      "total": 23,
+      "notes": "The plan at least includes allow, deny, timeout, unreachable, disabled-feature, persistence, rollback, and deployment checks. Its primary curl cases call the external gate directly, so they cannot prove that registry routes invoke it before persistence; the server-update case also accepts either 200 or 403 and therefore has no meaningful oracle. It uses the wrong request contract and omits the internal registration route, sanitization and header-filtering assertions, retries, auth modes, startup checks, frontend exposure, and 500-character error truncation. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809)) The pytest command is broadly consistent with repository documentation, but the unsupported server-update scenario and uncontrolled mock outcomes leave major behavior unverifiable. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/testing/README.md))"
+    },
+    "implementation": {
+      "completeness": 0,
+      "correctness": 0,
+      "specificity": 0,
+      "risk_awareness": 0,
+      "total": 0,
+      "notes": "The submitted implementation artifact contains only implementation.md and no unified patch.diff content, so no source change can be applied or reviewed. Its claims about numerous new gate-specific CLI commands, configuration fields, and main.py wiring therefore cannot be verified against actual diff context or symbols. The summary also says there are no follow-ups while stating that full implementation remains pending Step 8.5 and that tests were not added. Under the rubric's optional-implementation rule, all implementation criteria receive zero."
+    }
+  },
+  "task_score": 20.0,
+  "verdict": "The submission recognizes the core policy-gate problem, but its design enforces policy in the CLI client instead of registry routes and provides no reviewable implementation patch.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T23:00:01.955293Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 213083,
+      "cached_input_tokens": 117764,
+      "cache_write_input_tokens": 26589,
+      "output_tokens": 11489,
+      "reasoning_output_tokens": 9595
+    },
+    "duration_ms": 123116
+  }
+}

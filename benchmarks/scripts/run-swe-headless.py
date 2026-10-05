@@ -325,9 +325,9 @@ def _build_prompt(
     )
     if agent in ("pi", "kiro", "omp", "strands"):
         # None of pi, kiro, omp or strands has slash commands; name the skill in
-        # prose and hand it the payload. (pi loads SKILL.md via --skill and strands
-        # via its AgentSkills plugin; kiro and omp have no --skill flag, so their
-        # _build_*_cmd inlines the SKILL.md content ahead of this prompt.)
+        # prose and hand it the payload. (pi loads SKILL.md via --skill; kiro and
+        # omp have no --skill flag, so their _build_*_cmd inlines the SKILL.md
+        # content ahead of this prompt, and the strands runner does the same.)
         invocation = f"Use the {skill} skill to complete this task. {payload}"
     else:
         invocation = f"/{skill} {payload}"
@@ -2455,9 +2455,9 @@ def _build_strands_env(config: RunnerConfig) -> dict[str, str]:
 def _build_strands_cmd(config: RunnerConfig, prompt: str) -> list[str]:
     """Assemble the argument vector that starts the Strands runner.
 
-    The runner loads the SKILL.md through the Strands AgentSkills plugin, so the
-    prompt names the skill in prose (see ``_build_prompt``) and the skill's
-    directory travels as ``--skill-dir``. The executable is this interpreter and
+    The runner reads SKILL.md from ``--skill-dir`` and puts it ahead of the
+    prompt, worded as ``_build_omp_cmd`` does for omp (issue #201); the prompt
+    names the skill in prose (see ``_build_prompt``). The executable is this interpreter and
     the script path is fixed; config values are separate list elements, never
     interpolated into a shell string.
 
@@ -2538,9 +2538,14 @@ def _strands_result_from_events(
     usage = {
         "input_tokens": input_tokens,
         "output_tokens": int(raw.get("outputTokens", 0) or 0),
-        "cache_read_input_tokens": cache_read,
-        "cache_creation_input_tokens": cache_write,
     }
+    # vLLM reports no cached_tokens unless started with
+    # --enable-prompt-tokens-details. Leave the keys out rather than record a 0
+    # nobody measured, so _summary_metrics falls back to vLLM's Prometheus
+    # counter, as it does for omp (issue #200).
+    if not endpoint_usage or cache_read or cache_write:
+        usage["cache_read_input_tokens"] = cache_read
+        usage["cache_creation_input_tokens"] = cache_write
     cost = (
         _bedrock_cost_usd(
             model,
@@ -2987,6 +2992,23 @@ def _summary_metrics(
         cache_write = None
         cache_write_src = "unavailable (backend reports no cache-write signal)"
 
+    # An agent declared disjoint (codex, strands) has its totals summed as
+    # input + output + cache_read + cache_write everywhere downstream. When its
+    # cache count came from vLLM rather than its own API, its input_tokens is
+    # still the whole prompt, so move the cached part out of input and count no
+    # separate cache write: the uncached prefill IS the remaining input. Without
+    # this the totals would count the cached prompt twice (issue #200). A run
+    # with no input count of its own (a codex run that died before its first
+    # turn) keeps the old shape, since there is no whole prompt to split.
+    input_tokens = metrics.get("input_tokens")
+    input_from_vllm = False
+    vllm_cache = cache_read_src.startswith("vllm_prometheus")
+    if vllm_cache and input_tokens and cache_partition_for_agent(agent) is False:
+        input_tokens = max((input_tokens or 0) - (cache_read or 0), 0)
+        input_from_vllm = True
+        cache_write = 0
+        cache_write_src = "0: the uncached prompt tokens are already input_tokens"
+
     note = (
         "Headline metrics resolved to the best available source for each; see "
         "'sources'. Values drawn from vllm_prometheus carry its single-tenant, "
@@ -3009,7 +3031,7 @@ def _summary_metrics(
     # rate its fresh input equals its cache sum and the detector would drop the
     # whole cache read. total_cost_usd is the agent's own metered bill (null for
     # a self-hosted model, which has no per-token price).
-    inp = metrics.get("input_tokens") or 0
+    inp = input_tokens or 0
     out = metrics.get("output_tokens") or 0
     total_tokens = compute_total_tokens_processed(
         inp,
@@ -3026,7 +3048,7 @@ def _summary_metrics(
     )
     summary = {
         "note": note,
-        "input_tokens": metrics.get("input_tokens"),
+        "input_tokens": input_tokens,
         "output_tokens": metrics.get("output_tokens"),
         "cache_read_tokens": cache_read,
         "cache_write_tokens": cache_write,
@@ -3037,7 +3059,11 @@ def _summary_metrics(
         "generation_tokens_per_sec": generation_tokens_per_sec,
     }
     sources = {
-        "input_tokens": f"{token_src}.input",
+        "input_tokens": (
+            f"{token_src}.input minus {cache_read_src} (fresh prompt tokens)"
+            if input_from_vllm
+            else f"{token_src}.input"
+        ),
         "output_tokens": f"{token_src}.output",
         "cache_read_tokens": cache_read_src,
         "cache_write_tokens": cache_write_src,
