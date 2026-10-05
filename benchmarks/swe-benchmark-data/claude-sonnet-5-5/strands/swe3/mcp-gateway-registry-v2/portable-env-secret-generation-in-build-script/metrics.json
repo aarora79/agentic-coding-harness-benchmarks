@@ -1,0 +1,153 @@
+{
+  "task": "portable-env-secret-generation-in-build-script",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "bash",
+    "portability",
+    "macos",
+    "secrets",
+    "setup",
+    "fixed-in-1.28.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 147.9,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 20,
+    "output_tokens": 15176,
+    "cache_read_tokens": 260318,
+    "cache_write_tokens": 49127,
+    "total_tokens": 324641,
+    "total_cost_usd": 0.326681,
+    "latency_seconds": 102.6,
+    "num_turns": 9,
+    "generation_tokens_per_sec": 147.9,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 20,
+  "output_tokens": 15176,
+  "latency_seconds": 102.6,
+  "num_turns": 9,
+  "total_cost_usd": 0.326681,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 260318,
+  "cache_creation_tokens": 49127,
+  "run_started_at": "2026-10-04T17:08:01.404078Z",
+  "run_ended_at": "2026-10-04T17:09:43.990408Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 20,
+    "output_tokens": 15176,
+    "cache_read_tokens": 260318,
+    "cache_write_tokens": 49127,
+    "total_tokens": 324641,
+    "total_cost_usd": 0.326681,
+    "latency_seconds": 102.6,
+    "num_turns": 9,
+    "generation_tokens_per_sec": 147.9,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "portable-env-secret-generation-in-build-script",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 87,
+        "notes": "The issue clearly defines the portability failure, affected variables, observable consequence, testable acceptance criteria, and explicit non-goals. The baseline build_and_run.sh confirms five pairs of suppressed sed -i calls at lines 347-434 plus another dynamic metrics edit near line 654, while registry/core/config.py confirms the marker secret is required. Its strongest unsupported expansion is requiring exactly one assignment while preserving operator values without specifying the mixed real-plus-empty duplicate case. No independent task statement was supplied, and the external issue's labels and full contents could not be verified locally."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 78,
+        "notes": "The design is unusually well grounded in build_and_run.sh, handle_error, set -e, .env.example, Bash 3.2 constraints, and the existing tests/unit layout. It makes concrete decisions for grep exit status 1, newline handling, permission-preserving writes, dynamic metrics variables, and failure propagation. Its largest gap is that removing only empty lines before appending can leave two populated assignments when a real value and empty placeholder coexist, contrary to its exact-one requirement; cat tmp > .env also risks leaving a truncated file on write failure. It miscounts eleven executable sed -i calls as ten, and the asserted GNU/BSD behavior was not validated on a BSD host."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 17,
+        "specificity": 21,
+        "risk_awareness": 18,
+        "total": 75,
+        "notes": "The review finds concrete design defects involving grep's empty-output status, metrics-loop coverage, permissions, cleanup, and newline-less files, then records actionable resolutions. Its security claim that secrets never enter child-process argv is contradicted by the proposed grep -F -x -e \"VAR=VALUE\" verification, which exposes the complete value in grep's argv. It also misses the mixed duplicate-assignment case, non-atomic truncating writeback, and signal cleanup for temporary files. The reviewer resolutions describe design intent only; no implementation or BSD execution evidence accompanies them."
+      },
+      "testing": {
+        "completeness": 19,
+        "correctness": 16,
+        "specificity": 21,
+        "risk_awareness": 18,
+        "total": 74,
+        "notes": "The plan provides strong oracles for empty and quoted placeholders, prefix preservation, no trailing newline, file mode, failures, and repeated runs. The submitted helper tests would directly catch the implementation's broken placeholder regex, particularly test_replaces_empty_placeholder, test_replaces_quoted_empty_placeholder, and test_empty_mode_keeps_real_values. However, the documented uv run pytest command inherits pyproject.toml's --cov=registry and --cov-fail-under=35 settings, so this shell-only test file can fail coverage even after functional success unless addopts are overridden. Dynamic metrics call-site behavior, the required ERROR message, and mixed real-plus-empty assignments lack automated coverage, while actual BSD execution is explicitly unverified."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 4,
+        "specificity": 21,
+        "risk_awareness": 14,
+        "total": 59,
+        "notes": "The patch targets the exact baseline symbols and all eleven executable sed -i sites, adds guarded helpers, and supplies focused tests in the repository's established tests/unit tree. The central implementation is broken because pattern=\"^${var_name}=(\\\\\\\"\\\\\\\")?\\\\$\" evaluates to an ERE ending in \\$, which matches a literal dollar sign rather than end-of-line; empty placeholders therefore remain, and the identically broken verification reports success. Consequently several submitted tests would fail, while the full secret is also passed in grep argv and cat-based writeback can truncate .env before reporting failure. The summary candidly says tests were not run, but its claims of no LLD deviation and completed verified replacement materially overstate the result."
+      }
+    },
+    "task_score": 74.6,
+    "verdict": "The design package is concrete and mostly repository-grounded, but the implementation's escaped end anchor defeats the core placeholder-removal behavior and leaves the original bug intact.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T18:02:12.966319Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 523889,
+        "cached_input_tokens": 450292,
+        "cache_write_input_tokens": 73575,
+        "output_tokens": 10492,
+        "reasoning_output_tokens": 5495
+      },
+      "duration_ms": 127539
+    }
+  }
+}

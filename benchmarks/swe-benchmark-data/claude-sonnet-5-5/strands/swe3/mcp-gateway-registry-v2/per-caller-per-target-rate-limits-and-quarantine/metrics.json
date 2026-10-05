@@ -1,0 +1,153 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "high",
+  "tags": [
+    "rate-limiting",
+    "security",
+    "auth-server",
+    "api",
+    "operations",
+    "fixed-in-1.28.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 157.4,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 112,
+    "output_tokens": 94693,
+    "cache_read_tokens": 7682551,
+    "cache_write_tokens": 216123,
+    "total_tokens": 7993479,
+    "total_cost_usd": 3.023972,
+    "latency_seconds": 601.6,
+    "num_turns": 55,
+    "generation_tokens_per_sec": 157.4,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 112,
+  "output_tokens": 94693,
+  "latency_seconds": 601.6,
+  "num_turns": 55,
+  "total_cost_usd": 3.023972,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 7682551,
+  "cache_creation_tokens": 216123,
+  "run_started_at": "2026-10-04T16:46:58.067954Z",
+  "run_ended_at": "2026-10-04T16:56:59.642518Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 112,
+    "output_tokens": 94693,
+    "cache_read_tokens": 7682551,
+    "cache_write_tokens": 216123,
+    "total_tokens": 7993479,
+    "total_cost_usd": 3.023972,
+    "latency_seconds": 601.6,
+    "num_turns": 55,
+    "generation_tokens_per_sec": 157.4,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "per-caller-per-target-rate-limits-and-quarantine",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 87,
+        "notes": "The issue provides unusually testable acceptance criteria for counter isolation, quarantine ordering, HTTP semantics, APIs, UI, and outage behavior. Its named integration points are real: RateLimiter.check, _enforce_rate_limit, rate_limit_routes.py, and the nginx throttle marker all exist at tag 1.27.1. The main omission is that auth_server/server.py bypasses all enforcement when RATE_LIMITING_ENABLED is false, yet the purported absolute kill switch never states that prerequisite or its operator-facing consequences. No independent task statement was supplied, so intended semantics such as the admin-quarantine policy cannot be verified beyond the internally consistent artifact."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 87,
+        "notes": "The LLD is grounded in verified repository structure and commits to concrete models, counter keys, cache behavior, API contracts, rollout, and failure handling. Its analysis of the existing 403 marker contract, membership cache, DocumentDB keying, and registry lifespan matches the baseline source. The largest design gap is observability of stale-cache refresh failures: snapshot() returns a normal snapshot in that case, but the design never specifies how that failure reaches the limiter's error metric, which the implementation consequently omits. It also fails to surface RATE_LIMITING_ENABLED as a prerequisite for quarantine despite presenting the feature as an absolute operational control."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 23,
+        "specificity": 23,
+        "risk_awareness": 23,
+        "total": 91,
+        "notes": "The review finds concrete defects rather than merely approving the design, including the verified pre-check identity return in auth_server/server.py, refresh stampedes, caller-type collisions, slash normalization, and seed races. Recommendations are prioritized, actionable, and explicitly carried into the revised LLD with regression-test expectations. Its largest miss is the stale-refresh metric propagation problem and the operational hazard that quarantine remains inert when the existing master rate-limit switch is disabled. Because no independent task statement exists, the review cannot validate whether its chosen admin policy matches the original request."
+      },
+      "testing": {
+        "completeness": 21,
+        "correctness": 20,
+        "specificity": 22,
+        "risk_awareness": 21,
+        "total": 84,
+        "notes": "The plan has strong behavioral oracles: E1-E11 distinguish callers and targets, verify admin behavior, require plain 403 versus 429, and check that quarantine does not consume counters. The API paths, pytest locations, floor behavior, and CLI command names align with the baseline and proposed patch. Its outage test expects mcpgw_rate_limit_errors_total to increment while a stale snapshot is served, but the implementation only increments that metric when no snapshot exists; it also refers to rate_limit_counters without the repository's namespace suffix. CLI/client and frontend behavior are largely manual rather than automated, and the plan omits a disabled-RATE_LIMITING_ENABLED quarantine check."
+      },
+      "implementation": {
+        "completeness": 21,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 79,
+        "notes": "The embedded diff implements the main design across models, limiter, repository, auth hook, admin API, CLI/client, UI, documentation, and focused backend tests. I verified its target files, symbols, and line context against the clean 1.27.1 commit; the existing RateLimiter, nginx marker handling, repository helpers, frontend hooks, and lifespan integration all support the proposed changes. The largest defect is that QuarantineRepository.snapshot logs but hides failed refreshes when serving stale state, so rate_limit_errors_total is never incremented despite the documentation, alert guidance, and E2E oracle promising that signal. The UI/docs also call quarantine absolute without warning that RATE_LIMITING_ENABLED=false bypasses it entirely, while client URL construction remains unescaped for allowed subjects containing query or fragment characters; the summary accurately discloses that no tests or builds were executed."
+      }
+    },
+    "task_score": 85.6,
+    "verdict": "This is a strong, repository-grounded submission with a credible end-to-end implementation, limited chiefly by misleading quarantine operability and stale-cache observability gaps.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T18:00:05.407100Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 3015670,
+        "cached_input_tokens": 2812262,
+        "cache_write_input_tokens": 203364,
+        "output_tokens": 15550,
+        "reasoning_output_tokens": 9485
+      },
+      "duration_ms": 215986
+    }
+  }
+}
