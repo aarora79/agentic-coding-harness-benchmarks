@@ -74,7 +74,8 @@ EXIT_AGENT_ERROR = 1
 # frames per turn, so Python's default limit of 1,000 frames ends a task after
 # about 320 turns (issue #208). Size the limit for MAX_TOOL_TURNS, plus headroom
 # for the frames below the loop; a task that runs past it still stops with a
-# RecursionError. Our longest tasks so far needed about 220 turns.
+# RecursionError. Our longest finished task took 222 turns; one looping
+# attempt reached 316, just under the old ceiling.
 MAX_TOOL_TURNS = 1000
 FRAMES_PER_TOOL_TURN = 3
 RECURSION_HEADROOM = 500
