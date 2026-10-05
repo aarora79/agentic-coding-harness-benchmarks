@@ -1,0 +1,154 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "medium",
+  "tags": [
+    "bug",
+    "security",
+    "nginx",
+    "routing",
+    "auth",
+    "python",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 109.3,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2294,
+    "output_tokens": 29630,
+    "cache_read_tokens": 4073903,
+    "cache_write_tokens": 111878,
+    "total_tokens": 4217705,
+    "total_cost_usd": 0.76745,
+    "latency_seconds": 271.1,
+    "num_turns": 50,
+    "generation_tokens_per_sec": 109.3,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2294,
+  "output_tokens": 29630,
+  "latency_seconds": 271.1,
+  "num_turns": 50,
+  "total_cost_usd": 0.76745,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 4073903,
+  "cache_creation_tokens": 111878,
+  "run_started_at": "2026-10-04T20:02:38.882376Z",
+  "run_ended_at": "2026-10-04T20:07:09.933398Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2294,
+    "output_tokens": 29630,
+    "cache_read_tokens": 4073903,
+    "cache_write_tokens": 111878,
+    "total_tokens": 4217705,
+    "total_cost_usd": 0.76745,
+    "latency_seconds": 271.1,
+    "num_turns": 50,
+    "generation_tokens_per_sec": 109.3,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "nginx-location-trailing-slash-route-hijack",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 20,
+        "risk_awareness": 16,
+        "total": 74,
+        "notes": "The issue correctly identifies `_create_location_block()` in `registry/core/nginx_service.py`, where `location_path = path` renders unsafe nginx prefix locations, and its client-compatibility and startup-regeneration claims are supported by the repository. It provides concrete collision examples, exclusions, and mostly testable acceptance criteria. Its largest omission is the accepted root or slashes-only path case: `validate_server_path()` permits `/`, while the proposed normalization preserves it as a gateway-wide `location /`. No independent task statement was supplied, and the claim that the defect manifests only for unauthenticated callers is stronger than the available evidence."
+      },
+      "lld": {
+        "completeness": 15,
+        "correctness": 7,
+        "specificity": 18,
+        "risk_awareness": 8,
+        "total": 48,
+        "notes": "The LLD is unusually concrete about real methods, data flow, virtual-server generation, startup regeneration, and config validation, all of which exist in the repository. Its agent design is critically wrong: it passes a normalized value such as `/flight-booking-agent/` into `_create_agent_location_block()`, but `_NGINX_AGENT_PATH_SAFE` only accepts paths without surrounding slashes, so every enabled A2A agent would be skipped. The helper also deliberately maps empty and slashes-only paths to `/` without adding registration or render-boundary rejection, preserving a gateway-wide route-hijack case that the baseline validator permits. The design's claim that the fix is localized to one method conflicts with its four call-site plan, and its nginx syntax example `location / ^/a` is invalid."
+      },
+      "review": {
+        "completeness": 14,
+        "correctness": 7,
+        "specificity": 17,
+        "risk_awareness": 8,
+        "total": 46,
+        "notes": "The review raises specific, actionable concerns about collision tests, release notes, bare-path behavior, and operational regeneration rather than offering only generic approval. It nevertheless approves the agent-path flow as correct and misses that the proposed leading and trailing slashes violate `_NGINX_AGENT_PATH_SAFE`, causing a complete A2A routing regression. It also declares root and empty paths handled despite `validate_server_path()` allowing `/`, and incorrectly claims normalized `/api/` can still prefix-match `/api-admin`. The stated resolution of the release-note blocker is not present in the LLD file-change list or implementation patch."
+      },
+      "testing": {
+        "completeness": 9,
+        "correctness": 10,
+        "specificity": 15,
+        "risk_awareness": 6,
+        "total": 40,
+        "notes": "The helper and `_create_location_block()` examples use real APIs and concrete expected strings, and the collision test would detect failure to append the slash. The plan omits tests for virtual servers and agents even though the LLD changes both, so it would not catch the patch's A2A regression; it also labels backward compatibility inapplicable despite that being an explicit acceptance criterion. Bare-path behavior and post-logout routing are listed as goals but receive no request-level action or status-code oracle, while `nginx -t` only establishes syntax validity. The Docker command targets a nonexistent `mcp-gateway-registry` container name; the repository defines the Compose service as `registry` without that `container_name`."
+      },
+      "implementation": {
+        "completeness": 10,
+        "correctness": 7,
+        "specificity": 15,
+        "risk_awareness": 5,
+        "total": 37,
+        "notes": "The submitted diff passes `git apply --check` against tag `1.27.1`, and its MCP-server and virtual-server changes correctly produce trailing-slash locations. The largest defect is the agent change: `_generate_agent_location_blocks()` now passes `/name/` to `_create_agent_location_block()`, whose anchored `_NGINX_AGENT_PATH_SAFE` rejects that representation, so existing agent-generation tests and all enabled A2A routes would fail. No tests or release notes are included despite the LLD and review requiring them, making the summary's claim that nothing remains unimplemented inaccurate. The helper also converts empty or slashes-only input to a gateway-wide `/`, and the summary's example claiming `//test/` becomes `/test/` is false because `rstrip('/')` does not remove leading slashes."
+      }
+    },
+    "task_score": 49.0,
+    "verdict": "The submission identifies the core nginx prefix problem, but the implementation is not mergeable because it disables all generated A2A routes and lacks tests that would expose the regression.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T21:36:38.675959Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1008703,
+        "cached_input_tokens": 903424,
+        "cache_write_input_tokens": 105249,
+        "output_tokens": 11823,
+        "reasoning_output_tokens": 5757
+      },
+      "duration_ms": 194472
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 61,
+      "notes": "The issue clearly identifies the real baseline behavior: registry/auth/routes.py builds the public auth-server redirect and appends id_token_hint. Its acceptance criteria, non-goals, and exposure concerns are unusually concrete. The proposed browser POST is incompatible with the repository's server-side token ownership: session_store.py decrypts the token, while frontend/src/contexts/AuthContext.tsx only navigates to /api/auth/logout. Claims about an existing Redis layer and universal provider POST support are unsupported, and no independent task statement was supplied."
+    },
+    "lld": {
+      "completeness": 10,
+      "correctness": 4,
+      "specificity": 14,
+      "risk_awareness": 11,
+      "total": 39,
+      "notes": "The LLD names real integration points including routes.py, session_crypto.py, internal_replay_store.py, and the DocumentDB client. Its central data flow is incomplete because no registry server-to-server POST is specified in executable detail, while the unchanged logout code still places the retrieved token in the public auth-server URL. It also clears the session cookie before redirecting to a retrieval path that requires that session, making the proposed flow unusable. Repository history for the 1.28.0 fix instead modifies the existing handler to call settings.auth_server_url directly; provider compatibility and automatic endpoint detection asserted by the LLD remain unverified."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 7,
+      "specificity": 14,
+      "risk_awareness": 14,
+      "total": 45,
+      "notes": "The review finds legitimate concerns around encryption, session binding, CSRF, TTL behavior, logging, and database growth, and session_crypto.py confirms the cited encryption helpers exist. Its largest deficiency is approving the architecture without noticing that cookie deletion prevents hint retrieval or that the existing frontend never posts an ID token. It also incorrectly attributes single-use semantics to a unique hint_id index and contradicts its own no-blocker summary with two MUST-fix findings. Runtime OPTIONS detection, graceful auth-server fallback, and broad provider support are praised without corresponding LLD logic or repository evidence."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 3,
+      "specificity": 12,
+      "risk_awareness": 9,
+      "total": 37,
+      "notes": "The plan attempts functional, replay, expiry, compatibility, deployment, and end-to-end coverage. Most primary curl tests use -o without -i or -D and then search the body file for HTTP status and Location headers, so their stated oracles cannot work. It also invents POST /login, uses auth-server port 8080 instead of the repository's 8888, ignores the /api/auth router prefix, and substitutes placeholders or unconditional echo statements for database and token-exposure assertions. No runnable WAF or proxy-log oracle is provided, and live provider behavior cannot be assessed from the supplied environment."
+    },
+    "implementation": {
+      "completeness": 5,
+      "correctness": 2,
+      "specificity": 13,
+      "risk_awareness": 8,
+      "total": 28,
+      "notes": "The patch targets real baseline files and symbols, and its encryption calls match registry/auth/session_crypto.py. It does not implement the task end to end: auth_server/server.py and the client are untouched, so the existing /api/auth/logout path still sends id_token_hint through the public auth-server URL. The new POST handler also deletes the cookie before redirecting, preventing logout_handler from resolving the session_id needed to consume the hint. Retrieval does not reject expires_at before the asynchronous TTL sweep, the new metric is never imported or incremented, no tests are added, and the summary's claim that the MVP works end to end overstates an explicitly partial patch."
+    }
+  },
+  "task_score": 42.0,
+  "verdict": "The submission is concrete but builds and partially implements the wrong flow, leaving the original browser-facing logout behavior intact and making its new hint path unusable.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T21:31:37.190410Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 1046125,
+      "cached_input_tokens": 887288,
+      "cache_write_input_tokens": 158815,
+      "output_tokens": 9604,
+      "reasoning_output_tokens": 4999
+    },
+    "duration_ms": 142942
+  }
+}
