@@ -37,7 +37,7 @@ Five files land in the skill directory:
 |---|---|
 | `SKILL.md` | the skill itself |
 | `route.py` | the selection, as code. Standard library only — no install step |
-| `models.json` | the measurements — 18 models, scores and cost per tier |
+| `models.json` | the measurements — 21 models, scores and cost per tier |
 | `model-aliases.json` | model names as different assistants spell them |
 | `allowed-models.txt` | which models your organisation permits. **Edit this one.** |
 
@@ -61,7 +61,7 @@ If it is firing when you do not want it, narrow the `Run it BEFORE…` sentence 
 
 ## What the numbers mean
 
-`models.json` holds 18 models measured on **21 software-engineering tasks** drawn from real closed issues in one open-source repository. Each task asks the model to take a problem from description to a working patch, producing six artifacts: a GitHub issue spec, a low-level design, an expert review, a testing plan, the patch, and an implementation summary. An LLM judge with access to the repository scores each artifact.
+`models.json` holds 21 models measured on **21 software-engineering tasks** drawn from real closed issues in one open-source repository. Each task asks the model to take a problem from description to a working patch, producing six artifacts: a GitHub issue spec, a low-level design, an expert review, a testing plan, the patch, and an implementation summary. An LLM judge with access to the repository scores each artifact.
 
 | Field | Meaning |
 |---|---|
@@ -69,7 +69,7 @@ If it is firing when you do not want it, narrow the `Run it BEFORE…` sentence 
 | `cost_per_task_usd` | Mean cost of one task |
 | `hosting` | `Bedrock` or `self-hosted`. Reported, never used to rank |
 | `tasks_completed` / `tasks_total` | Three models did not finish all 21 |
-| `on_combined_frontier` | Nothing beats it on both axes across all 18 models. Context, not a selection key — it comes from overall means and can disagree with the per-tier ranking |
+| `on_combined_frontier` | Nothing beats it on both axes across all 21 models. Context, not a selection key — it comes from overall means and can disagree with the per-tier ranking |
 | `on_hosting_frontier` | The same, computed within one hosting basis, which is the apples-to-apples version |
 | `score_by_complexity` | Mean score per tier — the number the floor is compared against |
 | `completion_by_complexity` | How many tasks it finished per tier, where failure shows |

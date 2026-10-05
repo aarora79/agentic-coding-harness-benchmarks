@@ -212,6 +212,14 @@ class RowCostTest(unittest.TestCase):
         self.assertEqual(cost, "--")
         self.assertEqual(basis, "hardware-derived")
 
+    def test_endpoint_with_a_bill_and_no_sweep_is_metered(self) -> None:
+        # A Bedrock model reached through the LiteLLM proxy (Path 2) reports a
+        # bill and has no throughput sweep, so it is metered, not hardware.
+        row = {"provider": "endpoint", "model": "kimi-k3-bedrock", "metered_cost": 81.3}
+        with mock.patch.object(gen, "_blended_rate", return_value=None):
+            cost, basis = gen._row_cost(row)
+        self.assertEqual((cost, basis), ("$81.30", "metered (Bedrock)"))
+
     def test_endpoint_without_tokens_is_dash(self) -> None:
         row = {"provider": "endpoint", "model": "some-model", "total_tokens": 0}
         with mock.patch.object(gen, "_blended_rate", return_value=(2e-6, "g6e")):

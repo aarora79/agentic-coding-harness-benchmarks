@@ -270,6 +270,11 @@ def _row_cost(row: dict[str, Any]) -> tuple[str, str]:
     # Self-hosted: price the tokens processed at the throughput-derived blended rate.
     rate = _blended_rate(row.get("model", ""))
     total_tokens = row.get("total_tokens") or 0
+    metered_cost = row.get("metered_cost")
+    if rate is None and metered_cost:
+        # An endpoint run with no throughput sweep that still reports a bill
+        # is a Bedrock model reached through the LiteLLM proxy (Path 2).
+        return (f"${metered_cost:.2f}", "metered (Bedrock)")
     if rate is None or not total_tokens:
         return ("--", "hardware-derived")
     cost_per_token, instance = rate

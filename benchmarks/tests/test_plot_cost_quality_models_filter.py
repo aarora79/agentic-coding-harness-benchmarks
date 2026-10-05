@@ -332,6 +332,30 @@ class TestLabelOffsets(unittest.TestCase):
         self.assertEqual(len(self.ax.texts), before)
 
 
+class IsMeteredTest(unittest.TestCase):
+    """Which runs count as a metered Bedrock bill on the charts."""
+
+    def test_bedrock_provider_is_metered(self) -> None:
+        summary = {"provider": "bedrock", "mean_cost_usd_excl_failed": 4.44}
+        self.assertTrue(cq._is_metered(summary, blended_cost=None))
+
+    def test_endpoint_with_a_bill_and_no_sweep_is_metered(self) -> None:
+        summary = {"provider": "endpoint", "mean_cost_usd_excl_failed": 3.87}
+        self.assertTrue(cq._is_metered(summary, blended_cost=None))
+
+    def test_endpoint_priced_by_a_sweep_is_self_hosted(self) -> None:
+        summary = {"provider": "endpoint", "mean_cost_usd_excl_failed": 3.87}
+        self.assertFalse(cq._is_metered(summary, blended_cost=0.26))
+
+    def test_endpoint_without_a_bill_is_self_hosted(self) -> None:
+        summary = {"provider": "endpoint", "mean_cost_usd_excl_failed": 0}
+        self.assertFalse(cq._is_metered(summary, blended_cost=None))
+
+    def test_kiro_credits_are_not_metered_bedrock(self) -> None:
+        summary = {"provider": "kiro", "mean_cost_usd_excl_failed": 1.05}
+        self.assertFalse(cq._is_metered(summary, blended_cost=None))
+
+
 if __name__ == "__main__":
     unittest.main()
 
