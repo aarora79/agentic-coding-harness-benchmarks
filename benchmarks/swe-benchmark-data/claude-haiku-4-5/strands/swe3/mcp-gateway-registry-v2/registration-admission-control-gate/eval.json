@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 19,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The issue provides testable allow, deny, timeout, default-off, deployment, and observability criteria with useful non-goals. Repository inspection confirms agent, server, skill, and internal registration routes exist, but the endpoint inventory omits the modern `POST /api/servers/register` path and the `edit_server_submit` update path while claiming all paths are covered. Its largest risk gap is sending registration payloads externally without requiring credential or sensitive-field sanitization. No independent task statement was supplied, so the proposed authentication and deployment requirements cannot be verified beyond repository fit and cross-artifact consistency."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 55,
+      "notes": "The design is concrete about configuration, request shape, failure responses, rollout, and real files such as `registry/core/config.py` and the three route modules. Its critical repository error is the nonexistent `update_server_from_routes` near line 2436: the real symbol is `register_service_api`, while `edit_server_submit` is another server update path, so the proposed seven-call-site inventory is incomplete. The design also labels all 5xx responses permanent, exposes arbitrary gate messages, lacks payload sanitization, and calls an HTTPS warning validation even though HTTP is still accepted. Deployment paths were verified, but the broader contract remains unconfirmed because there is no independent task statement."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 10,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 49,
+      "notes": "The review does identify actionable concerns around URL transport security, token logging, invalid JSON, and failure categorization. However, it says the LLD has one generic gate error even though the submitted revised LLD already defines three classes, calls 403 a conflict, and incorrectly claims Pydantic validates a URL field declared as plain `str`. It misses the more consequential incomplete route inventory, arbitrary denial-message exposure, and enabled-without-URL bypass. Its security and operational assertions cannot be tied to an independent task specification."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 13,
+      "risk_awareness": 10,
+      "total": 43,
+      "notes": "The plan names concrete allow, deny, timeout, unreachable, compatibility, authentication, and deployment oracles, and its listed pytest regression paths exist. Most curl commands omit the `/api` prefix added in `registry/main.py`, so `/agents/register`, `/register`, `/internal/register`, and `/skills` would return 404 in the stated running application. The agent bodies omit required `supportedProtocol`, while skill bodies omit required `description` and `skill_md_url`; additionally, changing environment variables after startup will not update the singleton settings object. The mock gate also lacks an `asyncio` import and emits denial JSON nested under `detail`, so the advertised denial-message checks are not executable as written."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 12,
+      "specificity": 17,
+      "risk_awareness": 8,
+      "total": 47,
+      "notes": "The patch targets exact v1.0.19 blobs and matching symbols, and its async client correctly blocks the five modified agent, legacy-server, and skill create/update paths on denial or transport failure. It omits `internal_register_service`, modern `register_service_api`, and `edit_server_submit`, plus every promised deployment file and all tests, despite initially claiming all endpoints are implemented. The new service inconsistently documents 5xx as transient while routing every 5xx to a permanent 500, leaves invalid 200 JSON uncontrolled, surfaces unbounded gate text, and logs the gate URL despite the summary claiming URLs are not logged. The follow-up section acknowledges several omissions, but the resulting bypasses mean the admission policy is not enforced end to end."
+    }
+  },
+  "task_score": 54.0,
+  "verdict": "The submission has a useful, repository-aware foundation, but incorrect tests and incomplete server-route enforcement leave material admission-control bypasses.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T21:45:57.932441Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 802206,
+      "cached_input_tokens": 684059,
+      "cache_write_input_tokens": 118127,
+      "output_tokens": 9430,
+      "reasoning_output_tokens": 4310
+    },
+    "duration_ms": 157501
+  }
+}

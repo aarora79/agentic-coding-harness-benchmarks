@@ -1,0 +1,64 @@
+{
+  "task": "configurable-ui-title",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 71,
+      "notes": "The issue provides concrete defaults, runtime behavior, deployment surfaces, exclusions, and mostly testable acceptance criteria. The hardcoded strings and `/api/config` endpoint are verified in `Layout.tsx`, `UptimeDisplay.tsx`, and `registry/api/config_routes.py`. Its largest defect is the contradiction between changing registry-only deployments to \"AI Registry\" and claiming deployments without `UI_TITLE` remain identical; it also overlooks existing Login and Logout branding and names a nonexistent `docker-compose.local.yml`. No independent task statement was supplied, so broader intended coverage beyond the identifier and repository cannot be verified."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 52,
+      "notes": "The backend field, derived default, API response, and React display flow are concrete and grounded in real core files. The deployment design is materially wrong: ECS environment variables belong in `terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf` with root-to-module wiring, while Helm uses `.Values.app.*`, not `.Values.env.UI_TITLE.value`. It also ignores the existing `useRegistryConfig` hook and places raw `ui_title` in `CONFIG_GROUPS`, which causes unset values to render as `None` rather than the effective title. Compatibility is asserted despite the registry-only behavior change, and whitespace, layout overflow, and partial-deployment failure modes are not resolved."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 61,
+      "notes": "The review usefully identifies duplicate frontend requests, the raw-versus-derived admin value, long-input concerns, and cross-surface configuration risks. Its critical empty-string finding is false because the proposed property already uses `if self.ui_title`, so an empty string falls through to the default. The claimed 60-second `/api/config` cache is also false: only `/api/config/full` uses `_get_cached_config_response`, and the global Settings instance does not reread `.env` after cache expiry. The final approval is unsupported because the supplied LLD remains unrevised, the CONFIG_GROUPS resolution is incorrect, and the frontend and deployment choices remain alternatives rather than committed fixes."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 7,
+      "specificity": 16,
+      "risk_awareness": 14,
+      "total": 55,
+      "notes": "The plan covers custom and mode-derived values, API and UI behavior, deployment surfaces, XSS, long titles, compatibility, and end-to-end checks with explicit expected values. Several commands and interfaces disagree with the repository: the registry runs on port 7860 or Compose ports 80/443 rather than 8000, and the standalone Helm chart uses `app.uiTitle`, not `registry.uiTitle`. The frontend examples are not runnable as written, the long-title `offsetWidth` assertion is ineffective under jsdom, and the old-frontend case contains no executable oracle. Most seriously, Test 5.3 expects `.env` changes to appear after a nonexistent `/api/config` cache expiry even though Settings is instantiated once."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 15,
+      "specificity": 17,
+      "risk_awareness": 11,
+      "total": 53,
+      "notes": "The four diff targets and surrounding symbols match the baseline, and the patch correctly implements custom and mode-derived titles through Settings, `/api/config`, Layout, and UptimeDisplay. It omits every promised Docker, Terraform, Helm, documentation, and test change, so operators cannot configure the feature through the declared deployment surfaces. It also exposes raw `ui_title` in `CONFIG_GROUPS`, causing unset admin views to show `None`, and adds more direct requests despite the existing cached `useRegistryConfig` integration. The summary admits the omissions but incorrectly calls them non-blocking, claims full backward compatibility despite the registry-only title change, and repeats the unsupported 60-second `/api/config` cache claim."
+    }
+  },
+  "task_score": 58.4,
+  "verdict": "The submission has a solid issue and a working core patch, but incorrect repository assumptions and omitted deployment plumbing leave the feature materially incomplete.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T21:12:32.477366Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 568118,
+      "cached_input_tokens": 456964,
+      "cache_write_input_tokens": 111138,
+      "output_tokens": 10657,
+      "reasoning_output_tokens": 6472
+    },
+    "duration_ms": 127952
+  }
+}

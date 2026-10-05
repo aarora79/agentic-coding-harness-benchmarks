@@ -1,0 +1,152 @@
+{
+  "task": "pass-ssrf-allowlist-env-to-registry-container",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "docker",
+    "compose",
+    "configuration",
+    "ssrf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 96.8,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2126,
+    "output_tokens": 18239,
+    "cache_read_tokens": 4250596,
+    "cache_write_tokens": 112373,
+    "total_tokens": 4383334,
+    "total_cost_usd": 0.724732,
+    "latency_seconds": 188.4,
+    "num_turns": 50,
+    "generation_tokens_per_sec": 96.8,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2126,
+  "output_tokens": 18239,
+  "latency_seconds": 188.4,
+  "num_turns": 50,
+  "total_cost_usd": 0.724732,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 4250596,
+  "cache_creation_tokens": 112373,
+  "run_started_at": "2026-10-04T20:45:27.520365Z",
+  "run_ended_at": "2026-10-04T20:48:35.896001Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2126,
+    "output_tokens": 18239,
+    "cache_read_tokens": 4250596,
+    "cache_write_tokens": 112373,
+    "total_tokens": 4383334,
+    "total_cost_usd": 0.724732,
+    "latency_seconds": 188.4,
+    "num_turns": 50,
+    "generation_tokens_per_sec": 96.8,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "pass-ssrf-allowlist-env-to-registry-container",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 75,
+        "notes": "The issue clearly identifies the failed configuration flow, names both variables, and provides testable acceptance criteria; `.env.example:1188-1189` and the compose environment blocks confirm the core problem. Its largest defect is requiring `docker-compose.dhi.yml` to be updated even though that file is an override with no registry service and explicitly composes with `docker-compose.yml`. The claim that values take effect immediately is also imprecise because `Settings()` is instantiated at `registry/core/config.py:2099` and the proxy allowlist is cached, so the registry container must be recreated. No independent task statement was supplied, although repository history for commit `c2c6a7e1` corroborates issue `#1513` and the two affected standalone variants."
+      },
+      "lld": {
+        "completeness": 18,
+        "correctness": 16,
+        "specificity": 18,
+        "risk_awareness": 16,
+        "total": 68,
+        "notes": "The LLD is substantially grounded in real files, correctly locating the baseline variables at `docker-compose.yml:206-207` and the documented settings at `.env.example:1188-1189`. Its central error is directing an unnecessary edit to `docker-compose.dhi.yml`, whose documented usage is solely as an override and which defines no registry service. It also inaccurately describes direct runtime `os.environ` reads: the repository uses Pydantic settings created at process import and an `lru_cache` in `registry/utils/url_guard.py`, while actual health checking occurs in `registry/health/service.py`. Empty defaults and fail-closed compatibility are addressed, but the design omits the required container recreation and preserves an unresolved deployment-surface decision."
+      },
+      "review": {
+        "completeness": 14,
+        "correctness": 15,
+        "specificity": 14,
+        "risk_awareness": 14,
+        "total": 57,
+        "notes": "The review correctly highlights variant drift, exact variable naming, and the security value of empty fail-closed defaults. Its largest deficiency is approving the design while merely asking whether the DHI override has a registry service; repository inspection answers no, making this a concrete design correction rather than a nonblocking question. Recommendations reference the nonexistent `docs/deployment-modes.md` and a hypothetical `ci/docker-compose-lint`, weakening repository grounding. The repeated approvals also fail to catch the LLD's inaccurate runtime-loading claim or require a reliable compose-merge validation."
+      },
+      "testing": {
+        "completeness": 16,
+        "correctness": 8,
+        "specificity": 14,
+        "risk_awareness": 10,
+        "total": 48,
+        "notes": "The plan attempts static, runtime, backward-compatibility, and functional coverage with explicit expected environment values. Several core commands are invalid: the registry has no `container_name: mcp-registry`, and `docker-compose.dhi.yml` must be combined with the base file rather than started alone. It also overwrites or appends to `.env`, uses a hard-coded nonexistent checkout path, and creates minimal environment files that omit values required by `${VAR:?}` expressions in the compose files. The functional SSRF test is only an unexecuted outline, while the grep checks are not scoped to the registry service, so the plan could miss a misplaced variable and cannot reliably validate the acceptance criteria."
+      },
+      "implementation": {
+        "completeness": 24,
+        "correctness": 24,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 93,
+        "notes": "The patch applies cleanly to the `1.27.1` tree and adds both variables to the registry environment in the two genuinely affected files. The target contexts at `docker-compose.podman.yml:83` and `docker-compose.prebuilt.yml:94` exist, and the `${VAR:-}` syntax preserves the existing fail-closed default without changing other services. Repository commit `c2c6a7e1` independently confirms that these same two files, and not the DHI override, constitute the complete fix. The summary's claim of no LLD deviation is false because the LLD demanded a DHI edit, and verification was not executed, but these documentation defects do not undermine the correct minimal code change."
+      }
+    },
+    "task_score": 68.2,
+    "verdict": "The implementation is correct and complete, but the design review and testing artifacts are materially weakened by misunderstanding the DHI override and proposing several unusable verification commands.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T21:38:15.919993Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 346340,
+        "cached_input_tokens": 271506,
+        "cache_write_input_tokens": 74820,
+        "output_tokens": 7103,
+        "reasoning_output_tokens": 3090
+      },
+      "duration_ms": 97223
+    }
+  }
+}
