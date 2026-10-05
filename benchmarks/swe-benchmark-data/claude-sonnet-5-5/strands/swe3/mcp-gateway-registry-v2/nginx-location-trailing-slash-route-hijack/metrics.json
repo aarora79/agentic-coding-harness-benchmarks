@@ -1,0 +1,154 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "medium",
+  "tags": [
+    "bug",
+    "security",
+    "nginx",
+    "routing",
+    "auth",
+    "python",
+    "fixed-in-1.28.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 141.5,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 54,
+    "output_tokens": 31466,
+    "cache_read_tokens": 1474814,
+    "cache_write_tokens": 96018,
+    "total_tokens": 1602352,
+    "total_cost_usd": 0.849776,
+    "latency_seconds": 222.3,
+    "num_turns": 26,
+    "generation_tokens_per_sec": 141.5,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 54,
+  "output_tokens": 31466,
+  "latency_seconds": 222.3,
+  "num_turns": 26,
+  "total_cost_usd": 0.849776,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1474814,
+  "cache_creation_tokens": 96018,
+  "run_started_at": "2026-10-04T16:19:10.843293Z",
+  "run_ended_at": "2026-10-04T16:22:53.188913Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 54,
+    "output_tokens": 31466,
+    "cache_read_tokens": 1474814,
+    "cache_write_tokens": 96018,
+    "total_tokens": 1602352,
+    "total_cost_usd": 0.849776,
+    "latency_seconds": 222.3,
+    "num_turns": 26,
+    "generation_tokens_per_sec": 141.5,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "nginx-location-trailing-slash-route-hijack",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 19,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 77,
+        "notes": "The issue clearly identifies the prefix-match failure in `NginxConfigService._create_location_block` and supplies testable routing and compatibility criteria. The baseline at tag `1.27.1` does emit `location {{ROOT_PATH}}{path}`, carries `auth_request /validate`, and regenerates configuration from `registry/main.py`. Its reserved-route solution is incomplete: `/api/health` is allowed by `validate_server_path`, and an exact generated location would override the template's built-in route. No independent task statement was supplied, so the intended scope beyond the task identifier and repository history cannot be fully verified."
+      },
+      "lld": {
+        "completeness": 18,
+        "correctness": 14,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 71,
+        "notes": "The LLD is unusually concrete about real symbols, proxy URI behavior, startup regeneration, scheduler hashing, and `nginx -t` validation. Those integration points exist in `registry/core/nginx_service.py`, `registry/main.py`, and `auth_server/server.py`. Its reserved set is not complete or ROOT_PATH-aware: it omits the static `{{ROOT_PATH}}/v0.1/agents/` location and unnecessarily rejects `/static` when a nonempty ROOT_PATH makes the generated path distinct. It also knowingly leaves the same virtual-server prefix flaw and registration-layer rejection to follow-ups, limiting end-to-end completeness."
+      },
+      "review": {
+        "completeness": 17,
+        "correctness": 15,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 69,
+        "notes": "The review surfaces concrete duplicate-location, degenerate-path, deduplication, rollout, and path-injection concerns rather than merely approving the design. Its observations about registration validation, the scheduler, and last-good configuration handling are supported by the repository. However, it approves a reserved-path design that misses `/v0.1/agents` and an exact rewrite that can take precedence over unlisted built-ins such as `/api/health`. It also does not challenge ROOT_PATH-dependent overblocking or the deferred virtual-server vulnerability despite those being material consequences of the proposed design."
+      },
+      "testing": {
+        "completeness": 19,
+        "correctness": 16,
+        "specificity": 21,
+        "risk_awareness": 17,
+        "total": 73,
+        "notes": "The plan provides concrete unit, compatibility, deployment, rollback, and HTTP checks with meaningful status and generated-config oracles. The pytest path and core fixtures match the repository, and the submitted tests exercise anchoring, exact rewrite, normalization, empty paths, and render-level deduplication. The reserved-set drift test is one-directional, so it passes while `/v0.1/agents` remains an unreserved duplicate, and no test checks exact-location precedence against `/api/health` or ROOT_PATH-aware reservations. Several operational steps are unexecuted and the registration/wait setup is not specified as a reproducible command, which leaves the live nginx behavior unverified."
+      },
+      "implementation": {
+        "completeness": 17,
+        "correctness": 13,
+        "specificity": 21,
+        "risk_awareness": 14,
+        "total": 65,
+        "notes": "The patch targets real baseline files and matching symbols, and it implements the central `/a/` anchoring plus a useful internal rewrite that preserves bare-path POST compatibility. The surrounding source confirms `append_mcp_path=False` can expose MCP at the server path itself, making that compatibility handling valuable. The implementation nevertheless permits `/v0.1/agents`, producing a duplicate of the HTTP-only template location, while its exact companion can override unreserved built-ins such as `/api/health`; the submitted drift test cannot detect either defect. It also silently disables valid ROOT_PATH-prefixed names such as `/static`, leaves virtual locations and registration validation unchanged, and reports no executed test suite, so the claim of no LLD deviations does not establish operational correctness."
+      }
+    },
+    "task_score": 71.0,
+    "verdict": "The submission is repository-aware and fixes the primary short-prefix hijack, but its incomplete, ROOT_PATH-insensitive collision handling introduces material routing and configuration regressions.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T17:54:37.940381Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 393680,
+        "cached_input_tokens": 291846,
+        "cache_write_input_tokens": 101822,
+        "output_tokens": 9750,
+        "reasoning_output_tokens": 5667
+      },
+      "duration_ms": 105158
+    }
+  }
+}

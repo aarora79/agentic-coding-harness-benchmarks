@@ -319,6 +319,21 @@ class ModelSlugTest(unittest.TestCase):
     def test_other_region_and_vendor_prefix_stripped(self) -> None:
         self.assertEqual(model_to_slug("eu.meta.llama3-70b"), "llama3-70b")
 
+    def test_long_cross_region_prefixes_stripped(self) -> None:
+        # Bedrock's longer cross-region prefixes (issue #205).
+        for model in (
+            "global.anthropic.claude-sonnet-5-5",
+            "apac.anthropic.claude-sonnet-5-5",
+            "us-gov.anthropic.claude-sonnet-5-5",
+        ):
+            with self.subTest(model=model):
+                self.assertEqual(model_to_slug(model), "claude-sonnet-5-5")
+
+    def test_global_prefix_with_suffix_stripped(self) -> None:
+        self.assertEqual(
+            model_to_slug("global.anthropic.claude-opus-5[1m]"), "claude-opus-5"
+        )
+
     def test_dated_haiku_folds_onto_short_slug(self) -> None:
         # A dated Bedrock id must slug to the same short folder as its short name,
         # so a re-run lands in the existing claude-haiku-4-5/ tree.

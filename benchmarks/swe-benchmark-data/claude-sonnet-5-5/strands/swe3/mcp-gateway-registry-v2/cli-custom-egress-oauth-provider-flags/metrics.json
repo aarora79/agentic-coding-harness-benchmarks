@@ -1,0 +1,154 @@
+{
+  "task": "cli-custom-egress-oauth-provider-flags",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.28.0",
+  "complexity": "low",
+  "tags": [
+    "bug",
+    "cli",
+    "python",
+    "egress-auth",
+    "oauth",
+    "api-parity",
+    "fixed-in-1.29.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 148.3,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 32,
+    "output_tokens": 14396,
+    "cache_read_tokens": 556087,
+    "cache_write_tokens": 57300,
+    "total_tokens": 627815,
+    "total_cost_usd": 0.398491,
+    "latency_seconds": 97.1,
+    "num_turns": 15,
+    "generation_tokens_per_sec": 148.3,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 32,
+  "output_tokens": 14396,
+  "latency_seconds": 97.1,
+  "num_turns": 15,
+  "total_cost_usd": 0.398491,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 556087,
+  "cache_creation_tokens": 57300,
+  "run_started_at": "2026-10-04T14:04:50.400183Z",
+  "run_ended_at": "2026-10-04T14:06:27.531349Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 32,
+    "output_tokens": 14396,
+    "cache_read_tokens": 556087,
+    "cache_write_tokens": 57300,
+    "total_tokens": 627815,
+    "total_cost_usd": 0.398491,
+    "latency_seconds": 97.1,
+    "num_turns": 15,
+    "generation_tokens_per_sec": 148.3,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "cli-custom-egress-oauth-provider-flags",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 21,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 19,
+        "total": 80,
+        "notes": "The issue crisply defines the unusable custom-provider CLI path, five required pass-through fields, testable acceptance criteria, documentation, and explicit server-side non-goals. The core diagnosis is verified in api/registry_management.py, api/registry_client.py, EgressConfigRequest, and resolve_provider. Its largest error is promising that omitted flags preserve stored custom values: configure_egress_auth rebuilds egress_oauth from Pydantic defaults, so a custom edit without URLs is rejected rather than merged. It also names a nonexistent list_providers() symbol instead of list_provider_names(), and no independent task statement was supplied to verify requirements beyond the task identifier and repository history."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 18,
+        "total": 81,
+        "notes": "The LLD is unusually well grounded, naming the correct client, CLI, route, resolver, enum, documentation, and test-pattern files with a concrete argument-to-request data flow. Its proposed signatures, argparse choices, conditional body construction, endpoint, and server-side URL-validation boundary all match the repository. The major flaw is its claim that omitting custom fields prevents nulling persisted values and makes edits backward compatible; registry/api/egress_auth_routes.py constructs a fresh eo dictionary containing body.custom_* defaults rather than applying a patch. It considers enum drift, empty separators, SSRF ownership, secrets, rollout, and alternatives, but does not resolve the resulting replace-versus-merge edit behavior."
+      },
+      "review": {
+        "completeness": 16,
+        "correctness": 17,
+        "specificity": 17,
+        "risk_awareness": 16,
+        "total": 66,
+        "notes": "The backend and security sections identify concrete concerns around duplicated enum choices, empty scope separators, server-side SSRF validation, and pre-existing command-line secret exposure. However, most reviewer sections are cursory approvals, and the review misses the LLD's incorrect stored-value preservation claim even though the route visibly rebuilds egress_oauth. Pixel's assertion that the React modal sends the same fields is inaccurate: Dashboard.tsx and ServerEditModal.tsx expose only custom_authorize_url and custom_token_url, not all five fields. The verdict is reasonable for the narrow CLI fix, but its risk analysis does not meaningfully test the most important cross-artifact contradiction."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 17,
+        "specificity": 20,
+        "risk_awareness": 19,
+        "total": 76,
+        "notes": "The plan covers request-body shaping, all five CLI arguments, accepted and rejected auth styles, omitted fields, help output, server rejection cases, backward compatibility, and an end-to-end persistence check using valid repository commands. The submitted unit tests have meaningful exact oracles for method, endpoint, keys, values, and argparse exit behavior and match existing mocking/import patterns under tests/unit/api. The functional success oracle incorrectly says the response contains provider: custom when _egress_config_view returns egress_provider, and the E2E prerequisites omit the required pre-existing /sf server. The edit test recognizes that the endpoint rebuilds egress_oauth but does not state the concrete expected rejection, while the claimed PAT compatibility case is not present in the submitted test file."
+      },
+      "implementation": {
+        "completeness": 23,
+        "correctness": 23,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 90,
+        "notes": "The patch implements the narrow task end to end: five optional client kwargs, conditional request keys, five argparse flags with enum choices, CLI wiring, focused tests, and a documentation example. The target blobs and contexts exactly match ref 1.28.0, and the corresponding api/registry_client.py and api/registry_management.py change applies cleanly and matches the functional fix shipped in 1.29.0. The main defect is the test-file claim that omitted fields cannot clobber stored values; the server treats this POST as replacement, although implementation.md later discloses that limitation and tells editors to resend the fields. The claimed isolated eight-test execution was not independently verified, but the summary honestly states that no broader project suite was run."
+      }
+    },
+    "task_score": 78.6,
+    "verdict": "This is a strong, repository-accurate implementation of the CLI parity fix, limited mainly by repeatedly mischaracterizing the server's replace-on-edit semantics and by a comparatively shallow expert review.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T17:18:14.478538Z",
+      "repo_ref": "1.28.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 849101,
+        "cached_input_tokens": 752996,
+        "cache_write_input_tokens": 96079,
+        "output_tokens": 9014,
+        "reasoning_output_tokens": 4348
+      },
+      "duration_ms": 146187
+    }
+  }
+}
