@@ -36,7 +36,7 @@ One model can be driven by different coding agents (harnesses), and each harness
 
 | Skill | Results write-up | Cross-harness comparison | Per-harness generated docs |
 |---|---|---|---|
-| `/swe3` (single-agent) | [results-swe3.md](results-swe3.md) | [comparison](agentic-coding-swe-comparison-swe3.md) | [Claude Code](harness-claude-code-swe3.md) · [pi](harness-pi-swe3.md) · [omp](harness-omp-swe3.md) · [kiro-cli](harness-kiro-cli-swe3.md) |
+| `/swe3` (single-agent) | [results-swe3.md](results-swe3.md) | [comparison](agentic-coding-swe-comparison-swe3.md) | [Claude Code](harness-claude-code-swe3.md) · [pi](harness-pi-swe3.md) · [omp](harness-omp-swe3.md) · [kiro-cli](harness-kiro-cli-swe3.md) · [Strands](harness-strands-swe3.md) |
 | `/swe2` (multi-agent) | [results-swe2.md](results-swe2.md) | [comparison](agentic-coding-swe-comparison-swe2.md) | [Claude Code](harness-claude-code-swe2.md) · [pi](harness-pi-swe2.md) |
 
 **kiro-cli** ([#73](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/73)) has landed as a third harness (`/swe3`, 5 models -- see [its results](harness-kiro-cli-swe3.md) and [setup/cost notes](kiro-cli-setup.md)); it drives Kiro's managed Bedrock-backed models and is priced on a distinct **Kiro-credit** basis (see the [cost methodology](cost-per-task-methodology.md)). [opencode](https://opencode.ai) ([#72](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/72)) is coming.
