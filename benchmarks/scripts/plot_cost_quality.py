@@ -250,6 +250,22 @@ def _task_score(eval_data: dict | None) -> float | None:
     return float(score) if isinstance(score, (int, float)) else None
 
 
+def _is_metered(summary: dict, *, blended_cost: float | None) -> bool:
+    """Return True when a run's cost is a metered Amazon Bedrock bill.
+
+    A ``bedrock`` provider always is. An ``endpoint`` run is too when no
+    throughput sweep prices it and it still reports a positive cost: that cost
+    can only come from a per-token bill, as for a Bedrock model reached through
+    the LiteLLM proxy (Path 2). A self-hosted endpoint run reports no bill.
+    """
+    provider = summary.get("provider")
+    if provider == "bedrock":
+        return True
+    est = summary.get("mean_cost_usd_excl_failed")
+    reports_bill = isinstance(est, (int, float)) and est > 0
+    return provider == "endpoint" and blended_cost is None and reports_bill
+
+
 def _point_from_summary(
     model_repo_dir: Path, model: str, arms: dict[str, str] | None = None
 ) -> ModelPoint | None:
@@ -280,12 +296,13 @@ def _point_from_summary(
     # throughput sweep x this run's actual per-task tokens, averaged over the
     # non-failed tasks). Fall back to run-summary's token-priced estimate only
     # when no performance summary exists for the model.
-    cost = _blended_mean_cost(summary, model, arms)
+    blended = _blended_mean_cost(summary, model, arms)
+    cost = blended
     if cost is None:
         est = summary.get("mean_cost_usd_excl_failed")
         cost = float(est) if isinstance(est, (int, float)) else 0.0
 
-    hosting = "Bedrock" if summary.get("provider") == "bedrock" else "self-hosted"
+    hosting = "Bedrock" if _is_metered(summary, blended_cost=blended) else "self-hosted"
     return ModelPoint(
         model=model,
         mean_cost=cost,
