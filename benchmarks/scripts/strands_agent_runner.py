@@ -70,6 +70,16 @@ TRUNCATION_NOTE = (
 )
 EXIT_OK = 0
 EXIT_AGENT_ERROR = 1
+# Strands' event loop calls itself after every round of tool calls, adding 3
+# frames per turn, so Python's default limit of 1,000 frames ends a task after
+# about 320 turns (issue #208). Size the limit for MAX_TOOL_TURNS, plus headroom
+# for the frames below the loop; a task that runs past it still stops with a
+# RecursionError. Our longest finished task took 222 turns; one looping
+# attempt reached 316, just under the old ceiling.
+MAX_TOOL_TURNS = 1000
+FRAMES_PER_TOOL_TURN = 3
+RECURSION_HEADROOM = 500
+RECURSION_LIMIT = MAX_TOOL_TURNS * FRAMES_PER_TOOL_TURN + RECURSION_HEADROOM
 
 SYSTEM_PROMPT = (
     "You are a software engineering agent running non-interactively: no human "
@@ -435,9 +445,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def _raise_recursion_limit(limit: int = RECURSION_LIMIT) -> None:
+    """Raise Python's recursion limit to ``limit``, never lowering it."""
+    if sys.getrecursionlimit() < limit:
+        sys.setrecursionlimit(limit)
+
+
 def main() -> None:
     """Parse arguments and run the task."""
-    sys.exit(_run(_parse_args()))
+    args = _parse_args()
+    _raise_recursion_limit()
+    sys.exit(_run(args))
 
 
 if __name__ == "__main__":
