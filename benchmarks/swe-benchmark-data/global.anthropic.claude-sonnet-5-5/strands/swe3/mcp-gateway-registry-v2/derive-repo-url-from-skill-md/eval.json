@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 85,
+      "notes": "The issue's strongest aspect is its testable behavior: it defines accepted URL shapes, null handling, non-clobbering form behavior, and conditional links in both modals. Its main limitation is integration and risk coverage, since it does not flag stale search indexes, hostname trust, or the listing pipeline needed to carry repository_url into SkillCard. I verified that Dashboard.tsx calls the stated parse endpoint, both modal components currently say \"View on GitHub,\" and SkillCard already stores repository_url. No independent task statement was supplied, so the asserted scope is supported only by the task identifier, repository history for issue #846, and internal consistency."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "The LLD is highly specific about real files and symbols, including _parse_skill_md_content, SkillSearchResult, and the three DocumentDB skill-result builders. Its largest defect is the claim that no schema change is needed: baseline SkillInfo lacks repository_url, the list route never supplies it, and frontend/src/hooks/useSkills.ts drops it, so the main modal and edit prefill cannot work. The proposed parse and DocumentDB search flows otherwise match the repository, and the deferred search-index backfill is clearly documented. It does not address the in-flight Parse editing race or fully reconcile the broad substring-based GitHub host check with the stated GitHub Enterprise-only scope."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 20,
+      "total": 76,
+      "notes": "The review's strongest contribution is identifying concrete stale-value, edit-prefill, semantic-search plumbing, malformed-shape, and hostname-trust risks with actionable resolutions. Its largest deficiency is failing to inspect the ordinary skill-list data path, leading it to endorse the incorrect assertion that the existing SkillCard field eliminates schema and transformation work. I verified that SkillInfo and useSkills omit repository_url at v1.0.19, while later repository follow-up commits explicitly add both missing links. The recommended ref approach also permits a user value typed while an initially empty Parse request is in flight to be overwritten, so the approval overstates frontend correctness."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 18,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 71,
+      "notes": "The plan's strongest aspect is its concrete helper matrix and manual UX oracles for derivation, stale clearing, edit prefill, and conditional links. Its largest gap is the absence of automated parse-route, list-route, search-plumbing, and frontend state tests, particularly a test proving repository_url survives SkillInfo and useSkills. The pytest paths, token location, localhost URL, and TypeScript command agree with the repository, but the curl loop uses placeholder ORG/REPO URLs that are not executable as written against reachable content. Execution is explicitly unperformed, and the plan does not cover the in-flight user-edit race or ensure the main modal is populated after a list refresh."
+    },
+    "implementation": {
+      "completeness": 13,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 61,
+      "notes": "The patch targets matching v1.0.19 contexts and correctly implements the helper, additive parse response, DocumentDB metadata propagation, TypeScript fields, and conditional link rendering. Its largest defect is that it omits repository_url from registry/schemas/skill_models.py::SkillInfo, both list construction paths, and frontend/src/hooks/useSkills.ts, so stored values never reach the ordinary SkillCard modal or edit form after refresh. The Dashboard logic can also overwrite text entered while a Parse request that began with an empty field is in flight, and derive_repository_url accepts any matching blob path rather than requiring SKILL.md. The summary therefore overstates end-to-end modal and edit support, and only helper unit tests are supplied while verification was not executed."
+    }
+  },
+  "task_score": 72.2,
+  "verdict": "The submission is concrete and largely repository-grounded, but the implementation misses the core list-to-UI repository_url pipeline, with no independent task statement available beyond issue #846 evidence.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-04T17:31:03.403929Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 516715,
+      "cached_input_tokens": 417025,
+      "cache_write_input_tokens": 99674,
+      "output_tokens": 9315,
+      "reasoning_output_tokens": 5282
+    },
+    "duration_ms": 124430
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "low",
+  "tags": [
+    "auth",
+    "oidc",
+    "logout",
+    "security",
+    "waf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "global.anthropic.claude-sonnet-5-5",
+  "agent": "strands",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 154.5,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 44,
+    "output_tokens": 26103,
+    "cache_read_tokens": 1014037,
+    "cache_write_tokens": 81481,
+    "total_tokens": 1121665,
+    "total_cost_usd": 0.667628,
+    "latency_seconds": 168.9,
+    "num_turns": 21,
+    "generation_tokens_per_sec": 154.5,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 44,
+  "output_tokens": 26103,
+  "latency_seconds": 168.9,
+  "num_turns": 21,
+  "total_cost_usd": 0.667628,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1014037,
+  "cache_creation_tokens": 81481,
+  "run_started_at": "2026-10-04T17:09:46.118473Z",
+  "run_ended_at": "2026-10-04T17:12:34.993979Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 44,
+    "output_tokens": 26103,
+    "cache_read_tokens": 1014037,
+    "cache_write_tokens": 81481,
+    "total_tokens": 1121665,
+    "total_cost_usd": 0.667628,
+    "latency_seconds": 168.9,
+    "num_turns": 21,
+    "generation_tokens_per_sec": 154.5,
+    "sources": {
+      "input_tokens": "strands_api.usage.input",
+      "output_tokens": "strands_api.usage.output",
+      "cache_read_tokens": "strands_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands_api.duration_ms)",
+      "num_turns": "strands_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "logout-id-token-hint-out-of-browser-url",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 20,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 76,
+        "notes": "The issue provides concrete user impact, testable acceptance criteria, compatibility expectations, dependencies, and explicit exclusions. The named `logout_handler`, internal JWT mechanism, Mongo session store, and AES-GCM helpers all exist at ref `1.27.1`. Its largest defect is requiring fallback to the original `id_token_hint` URL while also asserting logout still succeeds, although the stated WAF failure would block that fallback; the final IdP redirect also leaves the browser-history concern unresolved. No independent task statement was supplied, and claims about typical JWT sizes and specific provider behavior could not be verified solely from the repository."
+      },
+      "lld": {
+        "completeness": 21,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 19,
+        "total": 81,
+        "notes": "The design is unusually well grounded: the cited routes, `generate_internal_token`, `get_collection_name`, encryption helpers, metric adapters, and internal service URL patterns all exist. It commits to an implementable API, atomic `find_one_and_delete`, provider binding, expiry checks, encrypted storage, rollout order, and concrete failure behavior. Its largest architectural gap is omitting the simpler existing integration point: `/oauth2/logout/{provider}` is already callable through `settings.auth_server_url`, and the repository's eventual 1.28.0 fix uses that direct server-to-server call while closing the public nginx route. The legacy fallback still reintroduces the WAF exposure, and the claim that tickets are never logged ignores nginx's combined access log recording the ticket-bearing request URI."
+      },
+      "review": {
+        "completeness": 18,
+        "correctness": 16,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 71,
+        "notes": "The review identifies concrete issues around consume-first redemption, bounded timeout, provider validation, observability, hashed ticket storage, and residual exposure, with actionable resolutions. Its frontend check is supported by `frontend/src/contexts/AuthContext.tsx`, which navigates to the registry logout endpoint. The largest miss is failure to challenge the ticket-store architecture or the insecure fallback despite the existing internal logout endpoint and the task's WAF premise. The security assessment also understates ticket theft: redeeming the ticket returns an HTTP Location containing the full `id_token_hint`, while the public proxy can log the ticket itself."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 16,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 70,
+        "notes": "The plan covers ticket creation, single use, provider mismatch, expiry, fallback, WAF behavior, rollback, storage representation, and exact redirect oracles. The listed pytest paths and `generate_internal_token(subject=..., purpose=...)` API agree with the repository and proposed patch. Its largest deficiency is that no automated test exercises the new FastAPI endpoint or verifies ticket redemption through `oauth2_logout` into the IdP Location, which is the central cross-service behavior. The curl flow also leaves `TICKET` and `COOKIE` undefined, relies on comments rather than executable assertions, and the claim that Cognito emits no hint is ambiguous because the fallback registry URL still carries one."
+      },
+      "implementation": {
+        "completeness": 19,
+        "correctness": 18,
+        "specificity": 21,
+        "risk_awareness": 16,
+        "total": 74,
+        "notes": "The shown hunks target real files and matching symbols at commit `5f725c1d1d1a3515840b17e29a2b7f22a0c1fd09`, and the success path implements the LLD end to end with authenticated creation, encrypted hashed storage, atomic redemption, metrics, documentation, and focused tests. The code is consistent with repository conventions such as lazy Mongo collections, `WriteConcern(w=\"majority\")`, internal JWT generation, and metric adapters. Its largest defect is deliberately falling back to the original WAF-exposed token URL and retaining the public nginx logout route, whereas the repository's 1.28.0 fix fails locally and closes that route; ticket values also remain visible in combined proxy access logs. Automated coverage omits endpoint authentication/validation and the auth-server redemption-to-IdP bridge, so runtime behavior against real MongoDB and IdPs remains unverified."
+      }
+    },
+    "task_score": 74.4,
+    "verdict": "The submission is detailed and largely implementable, but it over-engineers the repository's available server-to-server solution and preserves the original WAF and exposure failure mode as its fallback.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-04T17:50:47.989126Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 544820,
+        "cached_input_tokens": 435483,
+        "cache_write_input_tokens": 109319,
+        "output_tokens": 12702,
+        "reasoning_output_tokens": 8188
+      },
+      "duration_ms": 154067
+    }
+  }
+}
