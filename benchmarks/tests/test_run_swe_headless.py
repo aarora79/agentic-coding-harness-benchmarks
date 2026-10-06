@@ -2026,6 +2026,24 @@ class StrandsHarnessTest(unittest.TestCase):
             (bedrock.harness_slug, endpoint.harness_slug), ("strands", "strands")
         )
 
+    def test_strands_harness_has_its_own_results_folder(self) -> None:
+        config = _config(agent="strands-harness")
+        self.assertEqual(
+            (config.harness_slug, config.is_strands, config.is_strands_harness),
+            ("strands-harness", True, True),
+        )
+
+    def test_strands_harness_cmd_passes_the_harness_flag(self) -> None:
+        cmd = harness._build_strands_cmd(_config(agent="strands-harness"), "P")
+        self.assertIn("--harness", cmd)
+
+    def test_strands_cmd_does_not_pass_the_harness_flag(self) -> None:
+        cmd = harness._build_strands_cmd(_config(agent="strands"), "P")
+        self.assertNotIn("--harness", cmd)
+
+    def test_strands_harness_token_counts_are_disjoint(self) -> None:
+        self.assertEqual(harness.cache_partition_for_agent("strands-harness"), False)
+
     def test_strands_cmd_runs_the_runner_with_this_interpreter(self) -> None:
         cmd = harness._build_strands_cmd(
             _config(agent="strands", provider="bedrock", aws_region="us-east-1"),

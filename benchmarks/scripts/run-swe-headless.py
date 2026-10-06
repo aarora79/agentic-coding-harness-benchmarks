@@ -323,7 +323,7 @@ def _build_prompt(
         f"repo: {clone_path} problem: {task.id} model: {model} "
         f'tag: {ref} artifacts_dir: {artifacts_dir} answers: "{answers.strip()}"'
     )
-    if agent in ("pi", "kiro", "omp", "strands"):
+    if agent in ("pi", "kiro", "omp", "strands", "strands-harness"):
         # None of pi, kiro, omp or strands has slash commands; name the skill in
         # prose and hand it the payload. (pi loads SKILL.md via --skill; kiro and
         # omp have no --skill flag, so their _build_*_cmd inlines the SKILL.md
@@ -2405,20 +2405,28 @@ def _run_codex(
 # must be installed in this venv (`uv sync --group strands`).
 STRANDS_RUNNER = Path(__file__).resolve().parent / "strands_agent_runner.py"
 STRANDS_SDK_MODULE = "strands"
+# agent=strands-harness also needs the Strands team's harness package.
+STRANDS_HARNESS_MODULE = "strands_harness"
 STRANDS_API_KEY_ENV = "STRANDS_API_KEY"
 
 
-def _require_strands_sdk() -> None:
-    """Fail fast when agent=strands is chosen but the SDK is not installed.
+def _require_strands_sdk(harness: bool = False) -> None:
+    """Fail fast when a Strands agent is chosen but its packages are missing.
+
+    Args:
+        harness: True for agent=strands-harness, which also needs the
+            ``strands_harness`` package.
 
     Raises:
-        RuntimeError: If the ``strands`` package cannot be imported.
+        RuntimeError: If ``strands`` (or ``strands_harness``) cannot be imported.
     """
     import importlib.util
 
-    if importlib.util.find_spec(STRANDS_SDK_MODULE) is None:
+    modules = [STRANDS_SDK_MODULE] + ([STRANDS_HARNESS_MODULE] if harness else [])
+    if any(importlib.util.find_spec(m) is None for m in modules):
         raise RuntimeError(
-            "agent=strands needs the Strands Agents SDK in the harness venv. "
+            f"agent={'strands-harness' if harness else 'strands'} needs "
+            f"{' and '.join(modules)} in the harness venv. "
             "From benchmarks/, run `uv sync --group strands`, then start the "
             "harness with `uv run --group strands scripts/run-swe-headless.py`."
         )
@@ -2488,6 +2496,8 @@ def _build_strands_cmd(config: RunnerConfig, prompt: str) -> list[str]:
         cmd += ["--endpoint", config.endpoint or ""]
     if config.context_window > 0:
         cmd += ["--context-window", str(config.context_window)]
+    if config.is_strands_harness:
+        cmd.append("--harness")
     cmd += ["--prompt", prompt]
     return cmd
 
@@ -3322,9 +3332,10 @@ def _run_task(
             cmd = _build_strands_cmd(config, prompt)
             env = _build_strands_env(config)
             logger.info(
-                "  %s Running strands runner %s (agent=strands, no turn cap)...",
+                "  %s Running strands runner %s (agent=%s, no turn cap)...",
                 label,
                 run_kind,
+                config.agent,
             )
         else:
             cmd = _build_claude_cmd(
@@ -4102,7 +4113,8 @@ def _parse_args() -> argparse.Namespace:
         help="Override: coding agent that runs the task ('claude' for Claude "
         "Code, 'pi' for the pi coding agent, 'omp' for oh-my-pi, 'kiro' for "
         "kiro-cli, 'codex' for OpenAI Codex, 'strands' for a Strands Agents "
-        "SDK agent). All support provider=bedrock; "
+        "SDK agent, 'strands-harness' for the Strands create_harness agent). "
+        "All support provider=bedrock; "
         "all except kiro also support provider=endpoint.",
     )
     parser.add_argument(
@@ -4270,7 +4282,7 @@ def main() -> None:
         return
     if config.is_strands:
         try:
-            _require_strands_sdk()
+            _require_strands_sdk(harness=config.is_strands_harness)
         except RuntimeError as exc:
             logger.error("%s", exc)
             sys.exit(1)

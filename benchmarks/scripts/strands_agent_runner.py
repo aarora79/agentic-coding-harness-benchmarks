@@ -6,8 +6,10 @@ part that ``pi -p`` or ``codex exec`` play for the other harnesses: the headless
 runner (``run-swe-headless.py``) starts it as a subprocess, it drives one task to
 completion, and it reports what happened as JSON lines on stdout.
 
-The agent gets the stock Strands coding tools (``shell`` and ``file_editor``).
-The SWE skill's ``SKILL.md`` goes ahead of the task prompt, worded as
+By default the agent is a hand-built ``Agent`` with the stock Strands coding
+tools (``shell`` and ``file_editor``). With ``--harness`` (agent=strands-harness)
+it comes from the Strands team's ``create_harness()`` instead, with its own
+``shell``/``read``/``write``/``edit`` tools and context manager. The SWE skill's ``SKILL.md`` goes ahead of the task prompt, worded as
 ``_build_omp_cmd`` words it for omp, so the rules sit in the pinned first message
 and survive summarization (issue #201). The working directory is the cloned task
 repo; the harness sets it when it starts this process.
@@ -99,6 +101,43 @@ SYSTEM_PROMPT = (
     "- Bash, Grep, Glob: shell (for example grep -rn, find, ls, git)\n"
     "- Task: does not exist here; do all the work yourself\n"
     "Never call a tool by any other name."
+)
+
+# --harness builds the agent with the Strands team's create_harness() in place
+# of the hand-built Agent above. Benchmark-safe settings: only the coding tools
+# (no web_fetch or web_search, so the agent cannot look up the upstream fix; no
+# subagent, since swe3 is single-agent; no programmatic_tool_caller), and no
+# memory or session, so nothing carries between runs or tasks. Its context
+# manager (which offloads large tool results), prompt caching, skills and the
+# todos and environment plugins stay as shipped.
+HARNESS_BUILTIN_TOOLS = ["shell", "read", "write", "edit"]
+HARNESS_BUILTIN_PLUGINS = ["todos", "environment"]
+# The tool map covers the Claude Code names the swe3 skill uses (issue #202);
+# the harness tools share them in lower case, and vLLM drops a call whose name
+# does not match exactly. In the system prompt alone it sits after the
+# harness's own long prompt, and a small model still called `bash` on every
+# attempt, so --harness also puts it at the top of the first message. Even
+# there it slipped once in 44 turns, so `bash` is also a real tool: an alias of
+# the harness shell (HARNESS_BASH_ALIAS), so the slip runs instead of ending
+# the attempt.
+HARNESS_TOOL_MAP = (
+    "TOOLS: your tools are shell, read, write, edit and todo_write, all lower "
+    "case. The skill below names tools from another agent. Map them like this:\n"
+    "- Read: read\n"
+    "- Edit: edit\n"
+    "- Write: write\n"
+    "- Bash, Grep, Glob: shell (for example grep -rn, find, ls, git); bash "
+    "is an alias of shell\n"
+    "- Task: does not exist here; do all the work yourself\n"
+    "Never call a tool by any other name."
+)
+HARNESS_BASH_ALIAS = "bash"
+# Appended after the harness's own system prompt.
+HARNESS_INSTRUCTIONS = (
+    "You are running non-interactively: no human will answer questions or "
+    "approve steps, so make reasonable decisions and keep going until the task "
+    "is complete. Your working directory is the cloned repository for the task.\n\n"
+    + HARNESS_TOOL_MAP
 )
 
 
@@ -267,8 +306,11 @@ def _build_conversation_manager(args: argparse.Namespace) -> Any:
 class _EventStreamHooks:
     """Strands hook provider that mirrors model and tool activity to stdout."""
 
-    def __init__(self) -> None:
+    def __init__(self, cap_results: bool = True) -> None:
         self.model_calls = 0
+        # The hand-built agent needs our cap on tool output (issue #199); the
+        # harness offloads large results itself, so --harness turns the cap off.
+        self.cap_results = cap_results
 
     def register_hooks(self, registry: Any, **_: Any) -> None:
         """Register the model and tool callbacks with the agent's hook registry."""
@@ -294,7 +336,7 @@ class _EventStreamHooks:
         tool_use = event.tool_use or {}
         result = event.result or {}
         truncated_from = 0
-        if result:
+        if result and self.cap_results:
             result, truncated_from = _cap_tool_result(result)
             if truncated_from:
                 event.result = result
@@ -310,8 +352,38 @@ class _EventStreamHooks:
         )
 
 
+def _build_harness_agent(args: argparse.Namespace, hooks: _EventStreamHooks) -> Any:
+    """Build the agent with create_harness() and the benchmark-safe settings.
+
+    The model instance is ours (``_build_model``), so the empty-``tools`` fix
+    and the context-window limit still apply; the harness uses a pre-built
+    model as given.
+    """
+    from strands.vended_tools import make_shell
+    from strands_harness import create_harness
+
+    # The same shell the harness builds, under the name small models reach for.
+    bash_alias = make_shell(
+        name=HARNESS_BASH_ALIAS,
+        description="Alias of the shell tool: runs a shell command.",
+    )
+    return create_harness(
+        model=_build_model(args),
+        instructions=HARNESS_INSTRUCTIONS,
+        tools=[bash_alias],
+        builtin_tools=HARNESS_BUILTIN_TOOLS,
+        builtin_plugins=HARNESS_BUILTIN_PLUGINS,
+        session=False,
+        memory=False,
+        hooks=[hooks],
+        callback_handler=None,
+    )
+
+
 def _build_agent(args: argparse.Namespace, hooks: _EventStreamHooks) -> Any:
     """Assemble the Strands agent: model, tools and hooks."""
+    if args.harness:
+        return _build_harness_agent(args, hooks)
     from strands import Agent
     from strands.vended_tools import file_editor, shell
 
@@ -337,10 +409,13 @@ def _run(args: argparse.Namespace) -> int:
         The process exit code.
     """
     prompt = _prompt_with_skill(args.skill_dir, args.prompt)
-    hooks = _EventStreamHooks()
+    if args.harness:
+        prompt = f"{HARNESS_TOOL_MAP}\n\n---\n\n{prompt}"
+    hooks = _EventStreamHooks(cap_results=not args.harness)
     agent = _build_agent(args, hooks)
     logger.info(
-        "Strands agent starting: provider=%s model=%s cwd=%s skill=%s",
+        "Strands agent starting: build=%s provider=%s model=%s cwd=%s skill=%s",
+        "create_harness" if args.harness else "Agent",
         args.provider,
         args.model,
         os.getcwd(),
@@ -434,6 +509,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=DEFAULT_MAX_TOKENS,
         help=f"Output token cap per model call (default: {DEFAULT_MAX_TOKENS}).",
+    )
+    parser.add_argument(
+        "--harness",
+        action="store_true",
+        help="Build the agent with create_harness() from the strands-harness "
+        "package (agent=strands-harness) instead of a hand-built Agent.",
     )
     args = parser.parse_args(argv)
     if args.provider == PROVIDER_BEDROCK and not args.aws_region:

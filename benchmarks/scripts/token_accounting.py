@@ -61,7 +61,9 @@ PARTITION_TOLERANCE: float = 0.05
 # strands is disjoint for the same reason: ``_strands_result_from_events``
 # subtracts the cached tokens that OpenAI-compatible endpoints fold into
 # ``inputTokens``; Amazon Bedrock already reports them separately.
-DISJOINT_CACHE_AGENTS: frozenset[str] = frozenset({"codex", "strands"})
+DISJOINT_CACHE_AGENTS: frozenset[str] = frozenset(
+    {"codex", "strands", "strands-harness"}
+)
 
 
 def cache_partition_for_agent(agent: str | None) -> bool | None:
