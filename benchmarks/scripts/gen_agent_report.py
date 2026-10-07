@@ -65,6 +65,7 @@ HARNESS_LABELS = {
     # generated page names the project a reader can go and find.
     "omp": "oh-my-pi (omp)",
     "strands": "Strands Agents",
+    "strands-harness": "Strands harness (create_harness)",
 }
 
 # Harnesses with an install/configuration page in docs/. Linked from the report
@@ -73,6 +74,7 @@ HARNESS_SETUP_DOCS = {
     "omp": ("omp setup", "omp-setup.md"),
     "kiro-cli": ("kiro-cli setup", "kiro-cli-setup.md"),
     "strands": ("Strands setup", "strands-setup.md"),
+    "strands-harness": ("Strands setup", "strands-setup.md"),
 }
 
 # Short per-harness code that (with the skill) suffixes chart filenames

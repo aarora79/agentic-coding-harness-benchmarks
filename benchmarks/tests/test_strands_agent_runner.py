@@ -144,6 +144,102 @@ class RaiseRecursionLimitTest(unittest.TestCase):
         self.assertEqual(sys.getrecursionlimit(), 20000)
 
 
+class HarnessModeTest(unittest.TestCase):
+    """--harness builds the agent with create_harness() (agent=strands-harness)."""
+
+    def _args(self) -> argparse.Namespace:
+        return argparse.Namespace(
+            provider="endpoint",
+            endpoint="http://127.0.0.1:8000",
+            model="m",
+            max_tokens=100,
+            context_window=0,
+            harness=True,
+        )
+
+    def _build(self) -> dict:
+        harness_module = mock.MagicMock()
+        tools_module = mock.MagicMock()
+        tools_module.make_shell = lambda **kw: ("SHELL", kw["name"])
+        with (
+            mock.patch.dict(
+                sys.modules,
+                {
+                    "strands_harness": harness_module,
+                    "strands.vended_tools": tools_module,
+                },
+            ),
+            mock.patch.object(runner, "_build_model", return_value="MODEL"),
+        ):
+            runner._build_agent(self._args(), runner._EventStreamHooks())
+        return harness_module.create_harness.call_args.kwargs
+
+    def test_uses_our_model_instance(self) -> None:
+        self.assertEqual(self._build()["model"], "MODEL")
+
+    def test_only_the_coding_tools_are_enabled(self) -> None:
+        self.assertEqual(
+            self._build()["builtin_tools"], ["shell", "read", "write", "edit"]
+        )
+
+    def test_bash_is_added_as_a_shell_alias(self) -> None:
+        self.assertEqual(self._build()["tools"], [("SHELL", "bash")])
+
+    def test_memory_and_session_are_off(self) -> None:
+        kwargs = self._build()
+        self.assertEqual((kwargs["memory"], kwargs["session"]), (False, False))
+
+    def test_streamed_text_stays_off_stdout(self) -> None:
+        self.assertIsNone(self._build()["callback_handler"])
+
+    def test_harness_instructions_map_the_skill_tool_names(self) -> None:
+        for name in ("Read", "Edit", "Write", "Bash", "Grep", "Glob", "Task"):
+            with self.subTest(tool=name):
+                self.assertIn(name, runner.HARNESS_INSTRUCTIONS)
+
+    def test_tool_map_is_in_the_instructions(self) -> None:
+        self.assertIn(runner.HARNESS_TOOL_MAP, runner.HARNESS_INSTRUCTIONS)
+
+    def test_tool_map_names_bash_as_an_alias(self) -> None:
+        self.assertIn("bash is an alias of shell", runner.HARNESS_TOOL_MAP)
+
+    def test_harness_flag_parses(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "SKILL.md").write_text("x", encoding="utf-8")
+            args = runner._parse_args(
+                [
+                    "--provider",
+                    "endpoint",
+                    "--endpoint",
+                    "http://x",
+                    "--model",
+                    "m",
+                    "--skill-dir",
+                    tmp,
+                    "--prompt",
+                    "p",
+                    "--harness",
+                ]
+            )
+        self.assertTrue(args.harness)
+
+
+class CapToolResultSwitchTest(unittest.TestCase):
+    def test_hooks_leave_results_alone_when_the_cap_is_off(self) -> None:
+        event = mock.MagicMock()
+        event.tool_use = {"name": "read", "input": {}}
+        event.result = {
+            "status": "success",
+            "toolUseId": "t",
+            "content": [{"text": "x" * 200_000}],
+        }
+        event.duration = 0.1
+        original = event.result
+        with mock.patch.object(runner, "_emit"):
+            runner._EventStreamHooks(cap_results=False)._on_tool_call(event)
+        self.assertIs(event.result, original)
+
+
 class SystemPromptToolMapTest(unittest.TestCase):
     def test_every_tool_the_skill_names_is_mapped(self) -> None:
         # swe3/SKILL.md names these Claude Code tools (issue #202).

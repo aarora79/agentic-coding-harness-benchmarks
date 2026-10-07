@@ -41,7 +41,8 @@ set -euo pipefail
 # Optional flags:
 #   --agent NAME           coding agent that runs the task: claude (Claude Code,
 #                          default), pi, omp (oh-my-pi), codex (OpenAI Codex),
-#                          strands (Strands Agents SDK) or kiro. Same task
+#                          strands (Strands Agents SDK), strands-harness
+#                          (the Strands create_harness agent) or kiro. Same task
 #                          either way. claude, pi, omp, codex and strands
 #                          support every --provider: an OpenAI-compatible
 #                          endpoint (vllm/litellm) or native Amazon Bedrock.
@@ -166,8 +167,8 @@ case "$PROVIDER" in
 esac
 
 case "$AGENT" in
-    claude|pi|omp|kiro|codex|strands) ;;
-    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, omp, kiro, codex, strands." ;;
+    claude|pi|omp|kiro|codex|strands|strands-harness) ;;
+    *) die "invalid agent '$AGENT'. Must be one of: claude, pi, omp, kiro, codex, strands, strands-harness." ;;
 esac
 case "$SKILL" in
     swe2|swe3) ;;
@@ -231,10 +232,11 @@ elif [[ "$AGENT" == "kiro" ]]; then
 elif [[ "$AGENT" == "codex" ]]; then
     command -v codex >/dev/null 2>&1 || die "codex CLI not found on PATH (--agent codex runs 'codex exec'). Install codex."
     ok "codex CLI found: $(command -v codex) ($(codex --version 2>/dev/null || echo 'version unknown'))"
-elif [[ "$AGENT" == "strands" ]]; then
+elif [[ "$AGENT" == "strands" || "$AGENT" == "strands-harness" ]]; then
     # Strands has no CLI: the harness runs scripts/strands_agent_runner.py with
-    # its own interpreter, so the SDK must be in this venv (optional group).
-    if ! uv run --group strands python -c "import strands" >/dev/null 2>&1; then
+    # its own interpreter, so the SDK (and, for strands-harness, the
+    # strands-harness package) must be in this venv (optional group).
+    if ! uv run --group strands python -c "import strands, strands_harness" >/dev/null 2>&1; then
         info "Strands Agents SDK not installed; running: uv sync --group strands"
         uv sync --group strands || die "could not install the strands dependency group. Run 'uv sync --group strands' in $BENCHMARKS_DIR and retry."
     fi
@@ -422,7 +424,7 @@ SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_
 # agent=strands runs the SDK inside the harness venv; pass its dependency group
 # explicitly so a `uv sync` elsewhere cannot have dropped it.
 UV_GROUP_ARGS=()
-[[ "$AGENT" == "strands" ]] && UV_GROUP_ARGS=(--group strands)
+[[ "$AGENT" == "strands" || "$AGENT" == "strands-harness" ]] && UV_GROUP_ARGS=(--group strands)
 HARNESS_SLUG="$(uv run python -c "import sys; sys.path.insert(0,'scripts'); from runner_config import HARNESS_SLUGS; print(HARNESS_SLUGS['$AGENT'])")"
 info "Command:"
 info "  uv run ${UV_GROUP_ARGS[*]} scripts/run-swe-headless.py ${BENCH_ARGS[*]}"

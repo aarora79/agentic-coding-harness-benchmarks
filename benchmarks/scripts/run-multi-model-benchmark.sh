@@ -28,7 +28,8 @@ set -uo pipefail
 #   --dollars-per-hour N  instance $/hr, recorded in the summary (0 = unset)
 #   --agent NAME          coding agent that runs each task: claude (default), pi,
 #                         omp (oh-my-pi), codex (OpenAI Codex), strands
-#                         (Strands Agents SDK), or kiro. codex
+#                         (Strands Agents SDK), strands-harness (the Strands
+#                         create_harness agent), or kiro. codex
 #                         needs a Responses-safe tool parser on the vllm path
 #                         (qwen3_coder, hermes -- see issue #183)
 #   --skill NAME          SWE skill: swe3 (default, single-agent) or swe2 (multi-agent)
@@ -199,8 +200,8 @@ done
 
 # --- Validate the agent + skill ---------------------------------------------
 case "$AGENT" in
-  claude|pi|omp|kiro|codex|strands) ;;
-  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi, omp, kiro, codex, strands." ;;
+  claude|pi|omp|kiro|codex|strands|strands-harness) ;;
+  *) die "invalid --agent '$AGENT'. Must be one of: claude, pi, omp, kiro, codex, strands, strands-harness." ;;
 esac
 case "$SKILL" in
   swe2|swe3) ;;

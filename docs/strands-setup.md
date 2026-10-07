@@ -74,6 +74,31 @@ The runner changes Strands in six places. Without the first three, Strands could
 
 The cap changes what a model can do in a turn. A model that reads a 280 KB file sees the first 100,000 characters and a note, where unmodified Strands would have ended the task. Claude Code's `Read` tool stops at about the same size, so the cap brings Strands closer to the other harnesses. Each `tool_call` event in `strands-stream.jsonl` records `truncated_from_chars`, so a reader can count how often the cap fired.
 
+## The Strands harness: `--agent strands-harness`
+
+`--agent strands-harness` runs the same runner script with `--harness`, which builds the agent with the Strands team's [`create_harness()`](https://strandsagents.com/docs/user-guide/harness/) from the `strands-harness` package in place of the hand-built `Agent` above. The package is part of the `strands` dependency group, so `uv sync --group strands` installs both. Results land in their own `<model>/strands-harness/` folder, so they never mix with `--agent strands` runs.
+
+`create_harness()` returns a plain `strands.Agent` with the Strands team's defaults. The runner keeps some of them and turns others off, so a run stays single-agent and isolated like the other harnesses:
+
+| Harness default | In a benchmark run | Why |
+| --- | --- | --- |
+| `shell`, `read`, `write`, `edit` tools | kept | The coding tools |
+| Context manager (`"auto"`), which offloads large tool results to disk and gives the model `retrieve_offloaded_content` | kept | It replaces our 100,000-character cap (#199), which the runner turns off in this mode |
+| Prompt caching, skills, the `todos` and `environment` plugins | kept | As shipped. `environment` adds the platform, the date, the working directory and the repository's `AGENTS.md` before each turn |
+| `web_fetch`, `web_search` | off | The agent could look up the upstream fix |
+| `subagent`, `programmatic_tool_caller` | off | `/swe3` is single-agent |
+| `memory`, `session` | off | Nothing may carry over between runs or tasks |
+
+The runner adds three things on top:
+
+- Its own model instance, so the empty-`tools` fix (#198) and the context-window limit (#197) still apply. The harness uses a pre-built model as given.
+- The tool map (#202), in the harness `instructions` and again at the top of the first message. In the instructions alone it sits after the harness's own system prompt, and a small model called `bash` on every attempt.
+- A `bash` tool: `make_shell(name="bash")`, the same shell the harness builds, under the name small models reach for. With the map in the first message, `minicpm5-2b` still called `bash` once in 44 turns, and an unknown name ends the attempt.
+
+The recursion limit (#208) applies too, since the harness runs the same SDK event loop.
+
+The Strands team also ships the harness as a CLI (`npm install -g @strands-agents/cli`, then `strands -p "<task>"`). The benchmark does not use it: print mode reports no token counts, the CLI loads MCP servers from `~/.claude.json` and other agents' config files on its own, and it is the TypeScript implementation.
+
 ## Known limits
 
 - **No turn cap.** Like pi, omp and codex, the Strands agent runs until it stops or the harness's `timeout_seconds` deadline kills it. `max_turns` does not apply.
