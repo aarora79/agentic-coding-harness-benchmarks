@@ -61,7 +61,7 @@ Strands reports no dollar cost. The harness prices the tokens with [bedrock_pric
 
 ## Where the runner departs from Strands as it ships
 
-The runner changes Strands in six places. Without the first three, Strands could not finish long tasks on a vLLM endpoint. The next two make the Strands score comparable with omp's. The first five came from the `minicpm5-2b` run on vLLM ([#196](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/196)); the sixth came from a Claude Haiku 4.5 task that crashed with `RecursionError`.
+The runner changes Strands in seven places. Without the first three, Strands could not finish long tasks on a vLLM endpoint. The next two make the Strands score comparable with omp's. The first five came from the `minicpm5-2b` run on vLLM ([#196](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/196)); the sixth came from a Claude Haiku 4.5 task that crashed with `RecursionError`; the seventh came from the `minicpm5-2b` run under `--agent strands-harness`.
 
 | Change | Why | Remove it when |
 |---|---|---|
@@ -71,6 +71,7 @@ The runner changes Strands in six places. Without the first three, Strands could
 | The runner puts the full `SKILL.md` ahead of the task prompt, worded as omp gets it, and does not load the `AgentSkills` plugin ([#201](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/201)) | With the plugin, the model sees only the skill's name and has to call the `skills` tool to read it. `minicpm5-2b` skipped that call on 5 of 12 attempts, and three of those wrote the wrong files or none. Text in the first message also survives summarization, and a tool result does not | Never, while the benchmark compares Strands with omp and kiro, which get the skill the same way |
 | The system prompt maps the tool names the skill uses (`Read`, `Edit`, `Write`, `Bash`, `Grep`, `Glob`, `Task`) to the two tools the agent has, `file_editor` and `shell` ([#202](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/202)) | `swe3/SKILL.md` was written for Claude Code and names its tools 29 times. vLLM drops a call to a tool that is not in the request, so the call reaches Strands as text and the attempt ends. With the skill in the first message, 4 of the first 6 attempts ended this way | Never, while the skill names Claude Code tools |
 | `main()` raises Python's recursion limit to `RECURSION_LIMIT`, 3,500 frames, sized for `MAX_TOOL_TURNS` = 1,000 tool turns ([#208](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/208)) | Strands' event loop calls itself after every round of tool calls and adds 3 frames per turn, so the default limit of 1,000 frames ends a task after about 320 turns. A task that runs past 1,000 turns still stops with `RecursionError` | Strands replaces the recursion with a loop |
+| A loop guard (`_LoopGuard`) counts every tool call by tool name and exact input. Past `LOOP_WARN_REPEATS` (20) it cancels the repeated call and tells the model to move on; at `LOOP_STOP_REPEATS` (40) it ends the attempt cleanly, so the harness scores the artifacts already written. Each action is a `loop_guard` event in `strands-stream.jsonl` | Under `--agent strands-harness`, `minicpm5-2b` repeated `git diff HEAD --stat` 674 times in one task and a `grep` 542 times in another; the second ran into the recursion limit with no artifacts. Across 42 task attempts, no healthy task repeated an identical call more than 16 times | Never; it only fires on a loop |
 
 The cap changes what a model can do in a turn. A model that reads a 280 KB file sees the first 100,000 characters and a note, where unmodified Strands would have ended the task. Claude Code's `Read` tool stops at about the same size, so the cap brings Strands closer to the other harnesses. Each `tool_call` event in `strands-stream.jsonl` records `truncated_from_chars`, so a reader can count how often the cap fired.
 
@@ -95,7 +96,7 @@ The runner adds three things on top:
 - The tool map (#202), in the harness `instructions` and again at the top of the first message. In the instructions alone it sits after the harness's own system prompt, and a small model called `bash` on every attempt.
 - A `bash` tool: `make_shell(name="bash")`, the same shell the harness builds, under the name small models reach for. With the map in the first message, `minicpm5-2b` still called `bash` once in 44 turns, and an unknown name ends the attempt.
 
-The recursion limit (#208) applies too, since the harness runs the same SDK event loop.
+The recursion limit (#208) and the loop guard apply too, since the harness runs the same SDK event loop.
 
 The Strands team also ships the harness as a CLI (`npm install -g @strands-agents/cli`, then `strands -p "<task>"`). The benchmark does not use it: print mode reports no token counts, the CLI loads MCP servers from `~/.claude.json` and other agents' config files on its own, and it is the TypeScript implementation.
 

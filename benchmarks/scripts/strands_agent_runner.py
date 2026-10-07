@@ -21,6 +21,8 @@ stdout carries only JSON lines, one object per line:
   figure trails by one call; it exists so a killed run still leaves a trail.
 - ``{"type": "tool_call", ...}`` after every tool call. ``truncated_from_chars``
   is the original size of a result cut to ``MAX_TOOL_RESULT_CHARS``, else 0.
+- ``{"type": "loop_guard", ...}`` when the loop guard cancels a repeated call
+  (``action`` ``warn``) or ends the attempt (``action`` ``stop``).
 - ``{"type": "result", ...}`` once, at the end, with the final usage totals.
 
 Logs go to stderr. The API key for an OpenAI-compatible endpoint is read from
@@ -82,6 +84,22 @@ MAX_TOOL_TURNS = 1000
 FRAMES_PER_TOOL_TURN = 3
 RECURSION_HEADROOM = 500
 RECURSION_LIMIT = MAX_TOOL_TURNS * FRAMES_PER_TOOL_TURN + RECURSION_HEADROOM
+# Loop guard: a small model can repeat one tool call hundreds of times (674
+# identical `git diff --stat` calls in one task). Across 42 task attempts on
+# minicpm5-2b, no healthy task repeated an identical call more than 16 times;
+# the three loops reached 29, 542 and 674. From the warning count on, the
+# repeated call is cancelled and the model is told to move on; at the stop count
+# the attempt ends cleanly, so the harness scores the artifacts already written.
+LOOP_WARN_REPEATS = 20
+LOOP_STOP_REPEATS = 40
+LOOP_WARN_MESSAGE = (
+    "Loop guard: you have run this exact tool call {n} times, and the result "
+    "will not change. Do not run it again. Use what you already have: finish "
+    "the remaining artifacts, or try a different approach."
+)
+LOOP_STOP_MESSAGE = (
+    "Stopped by the loop guard: the same tool call was repeated {n} times."
+)
 
 SYSTEM_PROMPT = (
     "You are a software engineering agent running non-interactively: no human "
@@ -303,6 +321,64 @@ def _build_conversation_manager(args: argparse.Namespace) -> Any:
     return SummarizingConversationManager(pin_first=1, proactive_compression=proactive)
 
 
+def _call_fingerprint(tool_use: dict[str, Any]) -> str:
+    """Identify a tool call by its tool name and exact input."""
+    return json.dumps(
+        [tool_use.get("name"), tool_use.get("input")], sort_keys=True, default=str
+    )
+
+
+class _LoopGuard:
+    """Strands hook provider that stops an agent repeating one tool call.
+
+    Counts every call by tool name and exact input, over the whole attempt,
+    since a loop can cycle through a few commands rather than repeat one back to
+    back. Past ``warn`` repeats the call is cancelled with a message to the
+    model; at ``stop`` repeats the attempt ends after the current tool batch.
+    """
+
+    def __init__(
+        self, warn: int = LOOP_WARN_REPEATS, stop: int = LOOP_STOP_REPEATS
+    ) -> None:
+        self.warn = warn
+        self.stop = stop
+        self.counts: dict[str, int] = {}
+        self.stopped = False
+
+    def register_hooks(self, registry: Any, **_: Any) -> None:
+        """Register the before-tool and after-tools callbacks."""
+        from strands.hooks import AfterToolsEvent, BeforeToolCallEvent
+
+        registry.add_callback(BeforeToolCallEvent, self._before_tool_call)
+        registry.add_callback(AfterToolsEvent, self._after_tools)
+
+    def _before_tool_call(self, event: Any) -> None:
+        tool_use = event.tool_use or {}
+        key = _call_fingerprint(tool_use)
+        n = self.counts.get(key, 0) + 1
+        self.counts[key] = n
+        if n <= self.warn:
+            return
+        event.cancel_tool = LOOP_WARN_MESSAGE.format(n=n)
+        action = "warn"
+        if n >= self.stop:
+            self.stopped = True
+            action = "stop"
+        _emit(
+            {
+                "type": "loop_guard",
+                "action": action,
+                "repeats": n,
+                "name": tool_use.get("name"),
+                "input": _preview(tool_use.get("input", {})),
+            }
+        )
+
+    def _after_tools(self, event: Any) -> None:
+        if self.stopped:
+            event.end_turn = LOOP_STOP_MESSAGE.format(n=self.stop)
+
+
 class _EventStreamHooks:
     """Strands hook provider that mirrors model and tool activity to stdout."""
 
@@ -352,7 +428,7 @@ class _EventStreamHooks:
         )
 
 
-def _build_harness_agent(args: argparse.Namespace, hooks: _EventStreamHooks) -> Any:
+def _build_harness_agent(args: argparse.Namespace, hooks: list[Any]) -> Any:
     """Build the agent with create_harness() and the benchmark-safe settings.
 
     The model instance is ours (``_build_model``), so the empty-``tools`` fix
@@ -375,12 +451,12 @@ def _build_harness_agent(args: argparse.Namespace, hooks: _EventStreamHooks) -> 
         builtin_plugins=HARNESS_BUILTIN_PLUGINS,
         session=False,
         memory=False,
-        hooks=[hooks],
+        hooks=hooks,
         callback_handler=None,
     )
 
 
-def _build_agent(args: argparse.Namespace, hooks: _EventStreamHooks) -> Any:
+def _build_agent(args: argparse.Namespace, hooks: list[Any]) -> Any:
     """Assemble the Strands agent: model, tools and hooks."""
     if args.harness:
         return _build_harness_agent(args, hooks)
@@ -392,7 +468,7 @@ def _build_agent(args: argparse.Namespace, hooks: _EventStreamHooks) -> Any:
         system_prompt=SYSTEM_PROMPT,
         tools=[shell, file_editor],
         conversation_manager=_build_conversation_manager(args),
-        hooks=[hooks],
+        hooks=hooks,
         # The default handler prints streamed text to stdout, which would
         # corrupt the JSON-lines stream the harness parses.
         callback_handler=None,
@@ -411,8 +487,9 @@ def _run(args: argparse.Namespace) -> int:
     prompt = _prompt_with_skill(args.skill_dir, args.prompt)
     if args.harness:
         prompt = f"{HARNESS_TOOL_MAP}\n\n---\n\n{prompt}"
-    hooks = _EventStreamHooks(cap_results=not args.harness)
-    agent = _build_agent(args, hooks)
+    stream = _EventStreamHooks(cap_results=not args.harness)
+    guard = _LoopGuard()
+    agent = _build_agent(args, [stream, guard])
     logger.info(
         "Strands agent starting: build=%s provider=%s model=%s cwd=%s skill=%s",
         "create_harness" if args.harness else "Agent",
@@ -432,7 +509,8 @@ def _run(args: argparse.Namespace) -> int:
                 "error": f"{type(exc).__name__}: {exc}",
                 "usage": _usage_dict(agent.event_loop_metrics.accumulated_usage),
                 "cycle_count": agent.event_loop_metrics.cycle_count,
-                "model_calls": hooks.model_calls,
+                "model_calls": stream.model_calls,
+                "loop_guard_stopped": guard.stopped,
             }
         )
         return EXIT_AGENT_ERROR
@@ -444,7 +522,8 @@ def _run(args: argparse.Namespace) -> int:
             "final_message": str(result)[:FINAL_MESSAGE_CHARS],
             "usage": _usage_dict(result.metrics.accumulated_usage),
             "cycle_count": result.metrics.cycle_count,
-            "model_calls": hooks.model_calls,
+            "model_calls": stream.model_calls,
+            "loop_guard_stopped": guard.stopped,
         }
     )
     return EXIT_OK
