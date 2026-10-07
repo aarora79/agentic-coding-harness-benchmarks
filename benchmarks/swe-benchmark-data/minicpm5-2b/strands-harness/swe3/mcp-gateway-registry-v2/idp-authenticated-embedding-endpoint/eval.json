@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 19,
+      "risk_awareness": 16,
+      "total": 72,
+      "notes": "The issue clearly defines the expiring-token failure, opt-in behavior, compatibility requirement, security constraint, and deployment surfaces. Repository documentation corroborates that the existing LiteLLM configuration exposes a static EMBEDDINGS_API_KEY and no IdP token settings. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md)) The largest defect is the one-hour refresh buffer for tokens described as lasting roughly one hour, which could force refresh on every request; token failure semantics and the meaning of “fresh” also remain ambiguous. With no independent task statement, the UI requirement, issue #1415, and exact required configuration names could not be verified."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 7,
+      "specificity": 11,
+      "risk_awareness": 8,
+      "total": 38,
+      "notes": "The LLD identifies relevant existing components such as LiteLLMClient, create_embeddings_client, Settings, and the DocumentDB client creation path. Its central integration is inconsistent: it passes settings.embeddings_idp_config without defining that property or updating the factory signature, and the token manager methods containing the actual OAuth and expiry behavior remain placeholders. It also models client credentials using exchange_code_for_tokens and disk-backed .oauth-tokens, leaves the LiteLLM authentication argument undecided, and proposes insecure fallback to the static API key. Repository documentation places Terraform configuration under terraform/aws-ecs and documents concrete Helm chart paths, rather than the proposed terraform/modules/embeddings.tf layout. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/unified-parameter-reference.md))"
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 9,
+      "specificity": 14,
+      "risk_awareness": 13,
+      "total": 50,
+      "notes": "The review usefully identifies the unresolved LiteLLM bearer mechanism, missing factory change, startup validation, network-failure handling, infrastructure wiring, and secret redaction. Its largest weakness is approving the design without resolving those critical-path decisions while positively endorsing fallback to api_key, which can fail open into unintended credentials. Recommendations such as removing the secret from os.environ, adding browser CORS headers to server-side embedding calls, or inventing an x-embedding-bearer header are technically unsound or unsupported. Claims about an MCP configuration UI and several deployment paths were not verified against the supplied baseline."
+    },
+    "testing": {
+      "completeness": 9,
+      "correctness": 5,
+      "specificity": 9,
+      "risk_awareness": 6,
+      "total": 29,
+      "notes": "The plan spans functional, compatibility, deployment, rollback, and end-to-end categories and provides concrete command-shaped examples. Most examples have ineffective or contradictory oracles: the static test never calls encode, the IdP test accepts any RuntimeError, multiple cases only print output, and the missing-settings case expects the enabled environment value to become false instead of producing the required startup failure. The proposed reindex endpoint is unsupported by repository documentation, which describes automatic rebuilding after configuration changes, and the documented factory API has no submitted idp_config parameter. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md)) It lacks deterministic mocked token exchanges, request-payload and Authorization-header assertions, expiry-boundary tests, refresh single-flight/concurrency coverage, secret-log checks, and executable repository test files."
+    },
+    "implementation": {
+      "completeness": 4,
+      "correctness": 1,
+      "specificity": 5,
+      "risk_awareness": 2,
+      "total": 12,
+      "notes": "The patch targets recognizable configuration, LiteLLM client, and DocumentDB integration areas, but it does not implement the promised OAuth token lifecycle. It imports a nonexistent registry.embeddings.idp_token_manager module, references an undefined settings.embeddings_idp_config property, and passes idp_config to a factory whose signature is not changed, so both existing and enabled paths can fail before an embedding request. Even if those failures were repaired, creating a manager per call defeats caching, x-embedding-bearer is unsupported by the design or repository API, and the patch omits startup validation, deployment wiring, documentation, tests, and secret handling. The diff also recursively adds nested patch copies and a backup file, while the summary simultaneously claims no deviations and admits one; exact git application could not be independently checked because the local command sandbox failed before execution."
+    }
+  },
+  "task_score": 40.2,
+  "verdict": "The issue provides a useful problem definition, but the design remains internally unresolved and the submitted patch is incomplete, malformed, and nonfunctional on its principal integration path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:18:45.536164Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 230708,
+      "cached_input_tokens": 158562,
+      "cache_write_input_tokens": 34528,
+      "output_tokens": 10455,
+      "reasoning_output_tokens": 8021
+    },
+    "duration_ms": 124680
+  }
+}

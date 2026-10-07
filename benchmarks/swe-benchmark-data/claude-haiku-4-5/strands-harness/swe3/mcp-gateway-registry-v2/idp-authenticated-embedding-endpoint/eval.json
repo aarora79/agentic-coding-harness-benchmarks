@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The issue clearly defines opt-in authentication, configuration, deployment surfaces, compatibility, tests, and non-goals. Its largest flaw is an internal contradiction: acceptance requires background refresh, while the migration flow fetches synchronously on embedding calls. Repository documentation confirms LiteLLM semantic search and Docker, Terraform, and Helm are relevant surfaces. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry)) No independent task statement establishes whether the proposed variable names or full scope are authoritative."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 8,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 55,
+      "notes": "The LLD provides concrete token state, locking, configuration fields, and intended client integration. Major decisions remain wrong or unresolved: OAuth token requests use JSON instead of form encoding, proactive refresh is absent, and LiteLLM header support is left as an open question with an unsafe environment-variable fallback. It targets registry/main.py and registry/embeddings/README.md, while the submitted patch uses DocumentDBSearchRepository and repository documentation resides at docs/embeddings.md. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md)) Exact task-required compatibility behavior cannot be verified because no independent specification was supplied."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 18,
+      "risk_awareness": 19,
+      "total": 67,
+      "notes": "The review identifies concrete concerns around HTTPS, secrets, expiry validation, latency, retries, observability, and concurrency. It misses the more fundamental JSON-versus-form OAuth error, the background-refresh contradiction, and scope validation that rejects common api://.../.default scopes. Its JWT-validation recommendation is technically misguided for an OAuth client consuming potentially opaque access tokens, and it incorrectly criticizes a deferred requests import although the LLD already shows a top-level import. The repository's shipped feature emphasizes fail-closed egress protection and Entra scope handling, risks this review does not surface. ([github.com](https://github.com/agentic-community/mcp-gateway-registry))"
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 7,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The plan supplies unusually concrete call assertions, header oracles, concurrency checks, negative cases, and regression commands. Its expiry-buffer test is mathematically incorrect: a 300-second buffer on a token lasting 100 seconds makes it immediately refresh, contrary to the asserted reuse. Deployment checks do not actually supply the Docker variables, expose rather than mask environment secrets, and use brittle Terraform and Helm grep assertions; the manual test also uses HTTP despite mandatory HTTPS validation. No repository evidence supports the proposed /api/embed endpoint or mock-server scripts, while documented embedding usage is through create_embeddings_client and encode(). ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md))"
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 14,
+      "risk_awareness": 8,
+      "total": 33,
+      "notes": "The core code is concrete, adding a locked token cache and passing it through the LiteLLM factory from DocumentDBSearchRepository. The submitted patch is malformed because it repeats the new-file hunk after search_repository.py without a diff header; even ignoring that, it omits Docker, Terraform, Helm, documentation, UI masking, tests, and background refresh while claiming no LLD deviations. It also posts OAuth credentials as JSON, permits a missing token URL when enabled, rejects common dotted or slash-containing scopes, and can refresh on every call when the buffer exceeds token lifetime. The repository's shipped 1.29 feature describes an auth mode, fail-closed egress guard, raw-array adapter, and Entra scope pass-through absent here; direct git-apply verification was unavailable because the local sandbox could not initialize. ([github.com](https://github.com/agentic-community/mcp-gateway-registry))"
+    }
+  },
+  "task_score": 57.4,
+  "verdict": "The submission presents a detailed foundation, but the malformed and materially incomplete patch plus several OAuth correctness errors prevent it from being implementation-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T05:23:40.924141Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 193570,
+      "cached_input_tokens": 120191,
+      "cache_write_input_tokens": 41030,
+      "output_tokens": 10473,
+      "reasoning_output_tokens": 8260
+    },
+    "duration_ms": 131785
+  }
+}

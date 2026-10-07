@@ -171,7 +171,7 @@ class HarnessModeTest(unittest.TestCase):
             ),
             mock.patch.object(runner, "_build_model", return_value="MODEL"),
         ):
-            runner._build_agent(self._args(), runner._EventStreamHooks())
+            runner._build_agent(self._args(), [runner._EventStreamHooks()])
         return harness_module.create_harness.call_args.kwargs
 
     def test_uses_our_model_instance(self) -> None:
@@ -238,6 +238,57 @@ class CapToolResultSwitchTest(unittest.TestCase):
         with mock.patch.object(runner, "_emit"):
             runner._EventStreamHooks(cap_results=False)._on_tool_call(event)
         self.assertIs(event.result, original)
+
+
+class LoopGuardTest(unittest.TestCase):
+    """The loop guard cancels, then stops, a repeated tool call."""
+
+    def _call(
+        self, guard: runner._LoopGuard, command: str = "git diff"
+    ) -> mock.MagicMock:
+        event = mock.MagicMock()
+        event.tool_use = {"name": "bash", "input": {"command": command}}
+        event.cancel_tool = False
+        with mock.patch.object(runner, "_emit"):
+            guard._before_tool_call(event)
+        return event
+
+    def test_calls_up_to_the_warning_count_run(self) -> None:
+        guard = runner._LoopGuard(warn=3, stop=5)
+        events = [self._call(guard) for _ in range(3)]
+        self.assertEqual([e.cancel_tool for e in events], [False, False, False])
+
+    def test_a_call_past_the_warning_count_is_cancelled(self) -> None:
+        guard = runner._LoopGuard(warn=3, stop=5)
+        for _ in range(3):
+            self._call(guard)
+        self.assertIn("Loop guard", self._call(guard).cancel_tool)
+
+    def test_different_inputs_are_counted_separately(self) -> None:
+        guard = runner._LoopGuard(warn=1, stop=5)
+        self._call(guard, "git diff")
+        self.assertFalse(self._call(guard, "git status").cancel_tool)
+
+    def test_the_stop_count_ends_the_turn(self) -> None:
+        guard = runner._LoopGuard(warn=3, stop=5)
+        for _ in range(5):
+            self._call(guard)
+        after = mock.MagicMock()
+        after.end_turn = False
+        guard._after_tools(after)
+        self.assertIn("Stopped by the loop guard", after.end_turn)
+
+    def test_no_stop_leaves_the_turn_open(self) -> None:
+        guard = runner._LoopGuard(warn=3, stop=5)
+        self._call(guard)
+        after = mock.MagicMock()
+        after.end_turn = False
+        guard._after_tools(after)
+        self.assertFalse(after.end_turn)
+
+    def test_thresholds_clear_every_healthy_task_measured(self) -> None:
+        # No healthy minicpm5-2b task repeated an identical call over 16 times.
+        self.assertGreater(runner.LOOP_WARN_REPEATS, 16)
 
 
 class SystemPromptToolMapTest(unittest.TestCase):

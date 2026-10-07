@@ -1,0 +1,64 @@
+{
+  "task": "macos-setup-python-version-precheck",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 21,
+      "risk_awareness": 8,
+      "total": 54,
+      "notes": "The issue provides concrete acceptance criteria, motivation, scope, and non-goals. Its largest flaw is requiring Phase 1 to read pyproject.toml and gate the PATH python3 even though cloning occurs in Phase 2 and Phase 5 uses uv-managed interpreters. The repository's corrected workflow consequently checks uv python find rather than python3 --version, because an older system interpreter can still be valid. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) The claimed downstream error and linked issue #1568 could not be independently verified from the supplied task statement."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 3,
+      "specificity": 20,
+      "risk_awareness": 9,
+      "total": 48,
+      "notes": "The LLD is concrete about the target file, lifecycle ordering, variables, alternatives, and error output, and it correctly notices that Phase 1 precedes cloning. Its chosen design nevertheless contradicts the non-hardcoding criterion on fresh setups and validates the wrong interpreter for the uv sync workflow. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) The proposed reverse-sort condition marks an equal version such as 3.14 as failure, while grep -P and sort -V assume GNU options not supplied by stock macOS tools. ([ss64.com](https://ss64.com/mac/sort.html), [gnu.org](https://www.gnu.org/software/coreutils/manual/html_node/Version-sort-is-not-the-same-as-numeric-sort.html)) The exact baseline SHA and stated line numbers could not be independently confirmed because the read-only shell sandbox failed before execution."
+    },
+    "review": {
+      "completeness": 13,
+      "correctness": 4,
+      "specificity": 17,
+      "risk_awareness": 9,
+      "total": 43,
+      "notes": "The review's strongest contribution is raising concrete parsing, version-format, INSTALL_DIR, and grep -P portability concerns. It then incorrectly declares those blockers resolved through comments and testing notes without changing the defective design. It misses the equal-version failure and the repository's decisive uv-managed-interpreter behavior, while describing sort -V as portable. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md), [gnu.org](https://www.gnu.org/software/coreutils/manual/html_node/Version-sort-is-not-the-same-as-numeric-sort.html)) The security and caching personas add little material scrutiny relative to the unresolved correctness risks."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 3,
+      "specificity": 21,
+      "risk_awareness": 10,
+      "total": 49,
+      "notes": "The plan supplies unusually concrete commands, case identifiers, inputs, and output oracles for extraction, comparison, fallback, compatibility, and messaging. However, FUNC-003 and FUNC-007 expect equality to pass even though the copied implementation condition necessarily reports failure when both sorted values are 3.14. Its nominal macOS tests depend on GNU version-sort behavior, and it never executes the integrated Phase 1 block or tests uv-managed interpreters. ([ss64.com](https://ss64.com/mac/sort.html), [gnu.org](https://www.gnu.org/software/coreutils/manual/html_node/Version-sort-is-not-the-same-as-numeric-sort.html), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) BC-001 explicitly excludes the changed Python logic, UX-002 expects version output the patch does not print, and the hard-coded temporary checkout path was not verifiable."
+    },
+    "implementation": {
+      "completeness": 10,
+      "correctness": 2,
+      "specificity": 16,
+      "risk_awareness": 3,
+      "total": 31,
+      "notes": "The patch targets the real macos-setup skill and replaces the existing Phase 1 Python presence check at the expected integration point. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) It is fundamentally incorrect: exact-minimum Python is rejected, GNU-only grep -P and sort -V are assumed on macOS, parse failures can produce false success, and checking PATH python3 can reject setups for which uv sync has a suitable managed interpreter. ([ss64.com](https://ss64.com/mac/sort.html), [gnu.org](https://www.gnu.org/software/coreutils/manual/html_node/Version-sort-is-not-the-same-as-numeric-sort.html), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) Fresh installs still use a hard-coded fallback before cloning, contrary to the stated metadata requirement, while implementation.md falsely claims no deviations and gives an invalid command that attempts to source a Markdown skill as shell code. The shell sandbox prevented git apply --check and independent confirmation of the claimed baseline commit, although the submitted hunk context is consistent with the repository's Phase 1 structure."
+    }
+  },
+  "task_score": 45.0,
+  "verdict": "The artifacts are detailed and concrete, but the core design and patch validate the wrong interpreter and contain platform and comparison defects that make the implementation unusable on its target workflow.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T05:32:42.502874Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 154494,
+      "cached_input_tokens": 81378,
+      "cache_write_input_tokens": 27882,
+      "output_tokens": 8085,
+      "reasoning_output_tokens": 6135
+    },
+    "duration_ms": 110809
+  }
+}

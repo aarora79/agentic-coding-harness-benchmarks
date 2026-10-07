@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 14,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 47,
+      "notes": "The issue provides concrete user stories, exclusions, dependencies, and mostly testable acceptance criteria. Its central premise is wrong for this repository: the documented oversized-cookie failure comes from the full session payload, especially groups and id_token, while access and refresh tokens were already excluded; the shipped fix moved the entire session server-side. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) The proposed retrieval endpoint also confuses the UI's \"Get JWT Token\" feature, which mints a gateway-signed programmatic token rather than returning IdP access and refresh credentials. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/auth.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/faq/generate-token-longer-than-8-hours.md)) The asserted token-size estimates and relationship to issue #490 could not be verified from the available evidence."
+    },
+    "lld": {
+      "completeness": 15,
+      "correctness": 5,
+      "specificity": 15,
+      "risk_awareness": 13,
+      "total": 48,
+      "notes": "The LLD is detailed about storage, encryption, configuration, failure handling, and rollout, and it names several real integration points. It nevertheless preserves large groups and id_token in the cookie, so it does not address the repository's demonstrated failure mode or the security treatment used by the shipped namespaced server-side session store. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) It is internally inconsistent: the schema alternates between user_id and user_sub, the endpoint example retrieves by username after storage by user_sub, the claimed cookie fallback never restores access or refresh tokens, and TTL deletion is treated as immediate although retrieval never checks expiresAt. The audit integration, configuration-class location, legacy endpoint, and percentage rollout mechanism are asserted without a verified repository implementation."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 8,
+      "specificity": 16,
+      "risk_awareness": 17,
+      "total": 56,
+      "notes": "The review's strongest contribution is identifying concrete concerns around immutable identity, key compromise, database failure, auditability, migration, and cookie-size measurement. It never challenges the mistaken premise that exposing IdP access and refresh tokens is how the existing JWT-generation feature works, and it incorrectly treats leaving groups and id_token in the cookie as a complete size fix. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/auth.md)) Several findings are marked fixed when they are not: the submitted LLD and patch contain no audit-system calls, and the claimed fallback cannot store tokens in the cookie. The persona format creates repetition, but the final NEEDS REVISION verdict and prioritization are defensible."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 3,
+      "specificity": 10,
+      "risk_awareness": 8,
+      "total": 34,
+      "notes": "The plan spans callback, retrieval, encryption, compatibility, cookie size, TTL, and database failure, with explicit expected outcomes. Much of it is not executable: mongodb_exec and assertion helpers are undefined, Mongo shell operations use Python-style count_documents/find_one names, session decoding hard-codes SECRET_KEY, and measure_cookie_size decodes the serializer value instead of measuring the transmitted cookie. Its two-second expiry test contradicts the implementation's expireAfterSeconds=60 index and lack of an expiresAt check, while the E2E pre-expiry oracle incorrectly expects an access token to begin with \"Bearer\". Most importantly, it never tests the repository's actual generated-token endpoint or the large-groups session behavior that caused the regression. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/faq/generate-token-longer-than-8-hours.md))"
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 2,
+      "specificity": 10,
+      "risk_awareness": 4,
+      "total": 23,
+      "notes": "The patch concretely adds a store, callback integration, and retrieval endpoint, but omits tests, configuration documentation, audit integration, UI integration, logout cleanup, and the broader server-side session change required by the repository. OAuthTokenStoreEntry declares _id as a Pydantic v2 Field while the same module uses the v2 model_dump_json API; leading-underscore model fields raise a class-construction NameError, so importing the module can prevent startup. ([github.com](https://github.com/pydantic/pydantic/issues/6876)) Even beyond that fatal defect, signer.loads supplies no max_age, get_tokens can return records after expiresAt until TTL deletion, and the endpoint discloses refresh tokens contrary to the repository's documented security behavior. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/anthropic_registry_api.md)) The summary falsely claims no deviations and verified behavior despite unexecuted tests and acknowledged omissions; direct local git-apply verification was unavailable because the read-only shell sandbox failed before executing commands."
+    }
+  },
+  "task_score": 41.6,
+  "verdict": "The submission is concrete but fundamentally mis-scopes the repository problem, and its implementation is incomplete, security-regressive, and likely fails at import time.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T05:45:34.199477Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 294182,
+      "cached_input_tokens": 177078,
+      "cache_write_input_tokens": 46903,
+      "output_tokens": 12949,
+      "reasoning_output_tokens": 10835
+    },
+    "duration_ms": 174444
+  }
+}
