@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "scores": {
+    "github_issue": {
+      "completeness": 18,
+      "correctness": 15,
+      "specificity": 17,
+      "risk_awareness": 16,
+      "total": 66,
+      "notes": "The issue clearly describes the browser-session versus bearer-token behavior and supplies testable 200/403 acceptance criteria, authentication constraints, and non-goals. Its largest defect is an inconsistent endpoint inventory: it repeatedly claims six endpoints while naming only five, and it conflates two distinct service-toggle routes. Repository release notes confirm that bearer-token CSRF failures on toggle endpoints were a real v1.0.21 security fix, particularly for agents and skills. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) No independent task statement was supplied, so the exact required endpoint count and the claim that registrations are disabled by default could not be verified."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 13,
+      "total": 53,
+      "notes": "The LLD is concrete about files, functions, data flow, and session-bound token validation, giving an implementer useful starting material. Its instructions conflict materially: Step 2 selects inline validation, later ACTION text prescribes Depends(verify_csrf_token_safe), and Step 3 again prescribes a dependency; it also claims auth_method drives the decision although the proposed function ignores user_context and checks only cookie absence. The submitted source diff shows toggle_service_route uses enhanced_auth and leaves the second service API toggle unchanged, contradicting the LLD's claims that both service toggles already use flexible CSRF and will be updated. It discusses the core CSRF threat model but does not resolve mixed bearer-plus-cookie requests, duplicated validation logic, frontend rollout for newly protected virtual-server calls, or rollback."
+    },
+    "review": {
+      "completeness": 14,
+      "correctness": 10,
+      "specificity": 16,
+      "risk_awareness": 16,
+      "total": 56,
+      "notes": "The review's strongest contribution is identifying the virtual-server browser compatibility risk and forcing a concrete choice between inline validation and dependency injection. It nevertheless misses the load-bearing defect that the design and patch do not update the second service API toggle, while repeatedly approving uniform coverage of six endpoints. Its claim that set_audit_action runs before CSRF validation is contradicted by the patch, which inserts validation before the audit call, and its concern that FastAPI necessarily performs the shared auth dependency twice overlooks normal per-request dependency caching. The nginx trust-boundary, permission, monitoring, and rollout observations are useful, but several asserted header and scope behaviors were not demonstrated from the supplied baseline."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 12,
+      "total": 44,
+      "notes": "The plan includes meaningful negative cases for missing and invalid CSRF tokens, unauthenticated access, insufficient permissions, and an end-to-end state check for agents. Much of it is not executable against the described interfaces: the patch signatures make agent enabled a query parameter and skill/virtual-server toggles JSON request models, yet the commands send form bodies; the supposed second service-route test repeats the first URL rather than exercising /api/servers/toggle with path and new_state. Repository API documentation also defines /login as GET OAuth UI and the service API toggle as /api/servers/toggle, contradicting the proposed POST /login and duplicated /services/.../toggle commands. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/registry_api.md)) Coverage is uneven across resources, many response assertions say only 'success response' or 'or similar,' and no repository-native automated tests are proposed."
+    },
+    "implementation": {
+      "completeness": 9,
+      "correctness": 12,
+      "specificity": 17,
+      "risk_awareness": 10,
+      "total": 48,
+      "notes": "The patch concretely implements session-cookie CSRF validation and no-cookie early return for agent, skill, one service UI route, and virtual-server toggle, with narrowly scoped changes. It does not modify toggle_service_api at all, so it cannot deliver the claimed uniform coverage; the summary compounds this by claiming all six endpoints and no deviations while admitting that server API remains unchanged. The helper ignores user_context, equates every authenticated cookie-less request with bearer authentication, duplicates verify_csrf_token_flexible logic, and will still reject a valid bearer request carrying a stale session cookie. No automated tests accompany the security change, the audit-order claim is false, and the environment prevented an independent git apply --check, so exact local applicability could not be confirmed."
+    }
+  },
+  "task_score": 53.4,
+  "verdict": "The submission identifies the real CSRF/authentication conflict and offers concrete work, but contradictory endpoint accounting, largely invalid tests, and an implementation that omits a service toggle prevent it from achieving consistent protection.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T05:10:31.577467Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 251916,
+      "cached_input_tokens": 167055,
+      "cache_write_input_tokens": 36402,
+      "output_tokens": 12574,
+      "reasoning_output_tokens": 10769
+    },
+    "duration_ms": 165749
+  }
+}

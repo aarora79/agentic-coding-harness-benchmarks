@@ -1,0 +1,153 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "high",
+  "tags": [
+    "rate-limiting",
+    "security",
+    "auth-server",
+    "api",
+    "operations",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "model_slug": "claude-haiku-4-5",
+  "agent": "strands-harness",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 113.8,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 14604,
+    "output_tokens": 55331,
+    "cache_read_tokens": 4536685,
+    "cache_write_tokens": 100394,
+    "total_tokens": 4707014,
+    "total_cost_usd": 0.957462,
+    "latency_seconds": 486.3,
+    "num_turns": 77,
+    "generation_tokens_per_sec": 113.8,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 14604,
+  "output_tokens": 55331,
+  "latency_seconds": 486.3,
+  "num_turns": 77,
+  "total_cost_usd": 0.957462,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 4536685,
+  "cache_creation_tokens": 100394,
+  "run_started_at": "2026-10-07T04:17:09.722451Z",
+  "run_ended_at": "2026-10-07T04:25:16.014133Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 14604,
+    "output_tokens": 55331,
+    "cache_read_tokens": 4536685,
+    "cache_write_tokens": 100394,
+    "total_tokens": 4707014,
+    "total_cost_usd": 0.957462,
+    "latency_seconds": 486.3,
+    "num_turns": 77,
+    "generation_tokens_per_sec": 113.8,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "per-caller-per-target-rate-limits-and-quarantine",
+    "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "scores": {
+      "github_issue": {
+        "completeness": 19,
+        "correctness": 13,
+        "specificity": 18,
+        "risk_awareness": 15,
+        "total": 65,
+        "notes": "The strongest aspect is the concrete separation of composite throttling from counter-free quarantine, with explicit compatibility and admin-bypass criteria. The largest deficiency is that the promised immediate kill switch conflicts with the acknowledged roughly 30-second membership cache, while the quarantine persistence note also conflicts with storing memberships in MongoDB. The artifact inconsistently names POST versus PUT for membership creation and leaves the quarantine status code as TBD, weakening testability. No independent task statement was supplied, and baseline repository symbols could not be fully verified because local repository commands were unavailable."
+      },
+      "lld": {
+        "completeness": 17,
+        "correctness": 8,
+        "specificity": 18,
+        "risk_awareness": 13,
+        "total": 56,
+        "notes": "The strongest aspect is its concrete file-level plan covering models, repositories, enforcement, metrics, API protection, and startup seeding. The largest deficiency is an internally inconsistent membership design: it describes list_groups(subject) as a subject-to-groups lookup but proposes list_groups(\"@quarantine_callers\") to find members, and it never commits to the actual startup hook or HTTP 403 integration. It also claims immediate quarantine and no cache-coherency issue despite documenting a 30-second per-instance cache, and it alternately includes UI and audit changes that its stated scope excludes. Exact API routes, repository methods, cache behavior, and several named symbols could not be independently verified against the local source."
+      },
+      "review": {
+        "completeness": 18,
+        "correctness": 10,
+        "specificity": 18,
+        "risk_awareness": 18,
+        "total": 64,
+        "notes": "The review's strongest contribution is identifying real operational risks around cache propagation, unbounded composite-key caching, absent-target handling, audit visibility, and fail-open quarantine. Its central critical finding is technically wrong: with stop-on-denial sequential gates, a passing caller gate does not prevent a later caller-target gate from running, so ordering changes counter consumption and attribution rather than whether all passing predecessors permit the later denial. The proposed gate-order test likewise cannot distinguish caller-target-first from caller-target-last because either order denies after the broader caller gate passes. The resolution section is also inconsistent with the implementation summary, which later says audit enrichment was both implemented and deferred."
+      },
+      "testing": {
+        "completeness": 15,
+        "correctness": 8,
+        "specificity": 14,
+        "risk_awareness": 11,
+        "total": 48,
+        "notes": "The strongest aspect is coverage of caller and target quarantine, pair isolation, admin bypass, compatibility, seeding, metrics, and response semantics with concrete limits. The largest deficiency is that many curl bodies have broken shell quoting, the Retry-After check prints the HTTP status instead of the header, and the no-counter assertion is only a placeholder without a query or oracle. The critical ordering test proves only that the composite gate is enforced, not its position, while promised backend-failure coverage has no executable scenario. Repository endpoint paths, test directories, response shapes, and expected 201/204 statuses remain unverified, and the plan lacks cleanup, window-reset, concurrency, cache-propagation, and missing-target cases."
+      },
+      "implementation": {
+        "completeness": 4,
+        "correctness": 1,
+        "specificity": 7,
+        "risk_awareness": 4,
+        "total": 16,
+        "notes": "The patch contains concrete partial model, limiter, repository, and metric changes, but it does not implement the feature end to end. The caller-target path loads ordinary caller groups with get_groups_for(username, client_id) instead of groups for the composite subject, so memberships created as caller_id:target_name will not activate the intended definitions. DefinitionsRepository.init() is added but never wired into startup, and the submitted diff contains neither the claimed rate_limit_routes.py protections nor auth-server changes needed to return HTTP 403 instead of the existing denial response. The summary falsely claims no deviations while separately deferring audit logging, and the diff has placeholder non-hex index hashes and appears truncated, so applicability and compatibility could not be established."
+      }
+    },
+    "task_score": 49.8,
+    "verdict": "The submission offers a detailed conceptual foundation, but repository grounding is weak and the incomplete, internally broken patch does not deliver either composite enforcement or quarantine end to end.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-07T05:39:17.794488Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 196344,
+        "cached_input_tokens": 114629,
+        "cache_write_input_tokens": 40625,
+        "output_tokens": 9793,
+        "reasoning_output_tokens": 8094
+      },
+      "duration_ms": 143229
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 13,
+      "correctness": 5,
+      "specificity": 14,
+      "risk_awareness": 7,
+      "total": 39,
+      "notes": "The issue clearly identifies affected resource types, the M2M failure, and the internal endpoint exclusion. Its central solution is unsound: CSRF is normally skipped for explicit Bearer authentication, which the v1.0.21 release identifies as the actual #894 fix. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) It also calls four enumerated route patterns \"six external endpoints\" and contradictorily requires browser tokens in both header and body. No independent task statement was supplied, and the claim that every registration pipeline is broken could not be verified."
+    },
+    "lld": {
+      "completeness": 14,
+      "correctness": 2,
+      "specificity": 17,
+      "risk_awareness": 6,
+      "total": 39,
+      "notes": "The LLD names concrete route files, authentication dependencies, and endpoint functions, giving it useful repository-specific structure. Its proposed flow cannot satisfy its stated goal: the pseudocode validates against session_id and then unconditionally rejects requests without a session, while csrf_bearer_auth receives csrf_token but never forwards it. The header branch runs only when no session exists and strips characters from the header value, so it does not preserve the browser flow described. Proposed metrics, audit logging, and compatibility claims are unsupported, while the official fix instead skips CSRF for Bearer clients. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md))"
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 4,
+      "specificity": 11,
+      "risk_awareness": 7,
+      "total": 32,
+      "notes": "The review surfaces some concrete concerns, including virtual-server coverage, empty-token handling, and the unresolved Bearer/session distinction. Its largest deficiency is approving the design without detecting that its CSRF algorithm still rejects every sessionless Bearer request. The security section claims the browser threat model is preserved despite the LLD checking the header only under if not session_id, and the backend section raises bypassing CSRF as a question without making it a required correction. Claims about an existing AuthContext interceptor, Prometheus wiring, and a needed CSRF health endpoint are not substantiated by the available evidence."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 3,
+      "specificity": 12,
+      "risk_awareness": 6,
+      "total": 31,
+      "notes": "The plan includes positive, negative, internal-endpoint, and end-to-end scenarios, and uv run pytest is consistent with the repository's documented test workflow. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/testing/README.md)) Several tests cannot validate the promised behavior: the agent positive request omits csrf_token, while skill and virtual-server examples send multipart form data to handlers whose submitted signatures retain Pydantic request bodies. The browser service URL and multiple setup request shapes are not grounded in the patch, and the backward-compatibility section simultaneously says missing CSRF remains supported and should return 403. It provides no executable unit tests or precise state/authentication oracles and introduces an unestablished SPA CSRF-settings flow."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 0,
+      "specificity": 14,
+      "risk_awareness": 1,
+      "total": 23,
+      "notes": "The patch targets the route functions and authentication modules named by the design, but it does not implement a runnable CSRF flow. In registry/auth/csrf.py it removes the assignments to csrf_token and session_id and then immediately reads both variables, causing request-time failure before a toggle can execute. csrf_bearer_auth also accepts a form token without forwarding it, slices the header value as though it included the field name, and introduces Form parameters beside existing JSON models for skill and virtual-server toggles. The summary's claim of no deviations or follow-ups is false, the official #894 fix skips CSRF for Bearer clients, and patch applicability could not be dry-run because the local read-only shell sandbox failed before command execution. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md))"
+    }
+  },
+  "task_score": 32.8,
+  "verdict": "The submission is repository-shaped and detailed but fundamentally implements the wrong Bearer-token CSRF model, with a patch that would fail before successfully toggling any resource.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:07:23.158943Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 158524,
+      "cached_input_tokens": 106487,
+      "cache_write_input_tokens": 29054,
+      "output_tokens": 8730,
+      "reasoning_output_tokens": 6775
+    },
+    "duration_ms": 110387
+  }
+}
