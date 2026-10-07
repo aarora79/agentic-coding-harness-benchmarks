@@ -34,10 +34,11 @@ The same flag works with `--provider vllm`, which the MiniCPM5-2B run used, and 
 
 | Model | omp | `--agent strands` | `--agent strands-harness` |
 |---|---|---|---|
+| claude-sonnet-5-5 | not run | 76.73, 21/21, $0.96 | 77.81, 21/21, $1.12 |
 | claude-haiku-4-5 | 56.18, 21/21, $0.76 | 51.20, 20/21, $0.70 | 56.05, 21/21, $0.70 |
 | minicpm5-2b | 42.59, 19/21 | 45.28, 21/21 | 41.91, 20/21 |
 
-Each cell is the mean score, the tasks scored and, for Bedrock, the cost per task, from each harness's `run-summary.json` under `benchmarks/swe-benchmark-data/<model>/`. Per-task tables and charts: [harness-strands-harness-swe3.md](harness-strands-harness-swe3.md). The MiniCPM5-2B harness run predates the loop guard, and two of its tasks looped; one of them used most of its tokens and ended at the recursion limit with no artifacts.
+Each cell is the mean score, the tasks scored and, for Bedrock, the cost per task, from each harness's `run-summary.json` under `benchmarks/swe-benchmark-data/<model>/`. Per-task tables and charts: [harness-strands-harness-swe3.md](harness-strands-harness-swe3.md). On Sonnet 5.5 the harness scored 1.08 points above the hand-built agent and cost $0.16 more a task; there is no omp run of Sonnet 5.5 on this dataset. The MiniCPM5-2B harness run predates the loop guard, and two of its tasks looped; one of them used most of its tokens and ended at the recursion limit with no artifacts.
 
 ## Which one to use
 
