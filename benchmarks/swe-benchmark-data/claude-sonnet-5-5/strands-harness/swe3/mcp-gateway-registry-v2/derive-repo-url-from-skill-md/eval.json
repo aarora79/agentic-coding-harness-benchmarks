@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 84,
+      "notes": "The issue gives concrete URL transformations, API behavior, editable-form behavior, modal behavior, and explicit non-goals. Repository evidence supports the problem: SkillCard already stores repository_url, while SkillInfo and the frontend Skill type omit it and both modals display only \"View on GitHub\". Its main weakness is limited treatment of stale semantic-search indexes and the ambiguity of recognizing arbitrary GitHub Enterprise hosts. No independent task statement was supplied, so the exact scope beyond the task identifier and repository issue history cannot be externally verified."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The design is unusually well grounded, naming real integration points including _parse_skill_md_content, both SkillInfo construction paths, the three DocumentDB search hit builders, and the relevant frontend mappings. It also makes concrete compatibility, rollout, stale-index, edit-prefill, and re-parse decisions. The largest correctness defect is reusing _is_github_hostname, whose substring check treats notgithub.evil.com as GitHub despite the stated non-GitHub acceptance criterion; the claim that the helper never raises is also false for malformed IPv6 input that makes urlparse raise. The listed files and baseline data flow were verified, while the necessity of the expanded semantic-search scope cannot be confirmed from an independent task statement."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 82,
+      "notes": "The review identifies concrete defects that existed in the baseline, including Dashboard's hard-coded edit value, SkillInfo's missing field, useSkills dropping the value, and DocumentDB search metadata not carrying it. Its resolutions are prioritized and map directly to real files and symbols rather than relying on generic reviewer personas. The largest weakness is that the security section explicitly notices the permissive hostname false positive but dismisses a direct violation of the issue's non-GitHub criterion, and it does not require automated API or UI coverage. The no-dependency and stale-index claims are supported by the repository, while the final assertion that implementation fully realizes the LLD is only mostly true because of that hostname behavior."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 13,
+      "specificity": 15,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The plan covers helper positives and negatives, additive API compatibility, editable auto-fill, edit prefill, both modals, and the stale-index case with meaningful expected values. Its largest deficiency is that only the helper receives an automated test; API propagation, search indexing, form behavior, and conditional links remain manual. Several commands are not directly executable as written: semantic search contains a literal ellipsis, npm run build must run under frontend because the root package has no build script, and the focused pytest command inherits the repository's 35 percent global coverage threshold. It also omits adversarial hostname and malformed-URL cases that would expose the implementation's principal correctness risks."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 84,
+      "notes": "The patch implements the proposed flow end to end: derivation, parse response, both list paths, DocumentDB indexing and three hit builders, search response modeling, frontend mappings, edit prefill, auto-fill, and both modal links. The repository is exactly baseline commit 9d031852 at v1.0.19, and the submitted blob hashes, target symbols, and surrounding contexts match the real source. The largest defect is that derive_repository_url accepts any hostname containing \"github\", so a URL such as https://notgithub.evil.com/org/repo/blob/main/SKILL.md produces a repository link contrary to the stated negative behavior; malformed IPv6 can also escape urlparse despite the summary's never-raises claim. The patch otherwise follows repository conventions and is internally consistent, but integrated API and frontend tests are absent and the claimed smoke execution cannot be independently verified."
+    }
+  },
+  "task_score": 78.4,
+  "verdict": "This is a strong, repository-grounded submission with a nearly complete implementation, limited chiefly by permissive GitHub-host detection and insufficient executable integration and frontend testing.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:17:48.628612Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 547643,
+      "cached_input_tokens": 432931,
+      "cache_write_input_tokens": 114698,
+      "output_tokens": 9637,
+      "reasoning_output_tokens": 4289
+    },
+    "duration_ms": 101502
+  }
+}

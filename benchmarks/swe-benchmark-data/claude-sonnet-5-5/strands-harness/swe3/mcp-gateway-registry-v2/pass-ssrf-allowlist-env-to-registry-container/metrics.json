@@ -1,0 +1,152 @@
+{
+  "task": "pass-ssrf-allowlist-env-to-registry-container",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "docker",
+    "compose",
+    "configuration",
+    "ssrf",
+    "fixed-in-1.28.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands-harness",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 150.5,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 392,
+    "output_tokens": 12776,
+    "cache_read_tokens": 363405,
+    "cache_write_tokens": 45468,
+    "total_tokens": 422041,
+    "total_cost_usd": 0.314895,
+    "latency_seconds": 84.9,
+    "num_turns": 11,
+    "generation_tokens_per_sec": 150.5,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 392,
+  "output_tokens": 12776,
+  "latency_seconds": 84.9,
+  "num_turns": 11,
+  "total_cost_usd": 0.314895,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 363405,
+  "cache_creation_tokens": 45468,
+  "run_started_at": "2026-10-06T23:50:38.003080Z",
+  "run_ended_at": "2026-10-06T23:52:02.906118Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 392,
+    "output_tokens": 12776,
+    "cache_read_tokens": 363405,
+    "cache_write_tokens": 45468,
+    "total_tokens": 422041,
+    "total_cost_usd": 0.314895,
+    "latency_seconds": 84.9,
+    "num_turns": 11,
+    "generation_tokens_per_sec": 150.5,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "pass-ssrf-allowlist-env-to-registry-container",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 24,
+        "specificity": 24,
+        "risk_awareness": 22,
+        "total": 93,
+        "notes": "The issue precisely identifies the two affected compose variants, desired interpolation syntax, unchanged base file, and testable default behavior. Repository inspection confirmed the variables at docker-compose.yml:206-207, their absence from the prebuilt and podman registry environments, and their consumers in registry/core/config.py and registry/utils/url_guard.py. Its main deficiency is the absolute claim that only explicitly listed variables can reach services, since all variants also define an optional registry env_file, although reserved-name validation makes that an unsuitable canonical workaround. No independent task statement was supplied, so intended scope was inferred from the task identifier and repository evidence."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 23,
+        "specificity": 24,
+        "risk_awareness": 23,
+        "total": 93,
+        "notes": "The LLD is implementation-ready for this change, naming the correct files, service blocks, syntax, data flow, empty-default behavior, recreation requirement, and rollback path. The cited Settings fields, guard integration, Helm deployment entries, ECS environment entries, DHI override behavior, and A2A-only compose files all exist at the stated baseline. Its largest overstatement is that the settings are always empty in those deployments, because an optional extra_env/registry.env path exists, though the documented .env path remains genuinely broken. Security and compatibility risks are handled proportionately through least-privilege guidance, the immutable metadata-address block, and preservation of strict empty defaults."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 22,
+        "specificity": 21,
+        "risk_awareness": 22,
+        "total": 86,
+        "notes": "The review raises concrete concerns relevant to this small change: container recreation rather than restart, compose-variant drift, broad CIDR exposure, strict defaults, and avoiding the auth-server SECRET_KEY block. These points agree with repository behavior, including the documented up -d requirement and the guard's unconditional metadata-IP rejection in registry/utils/url_guard.py. Its largest deficiency is that every reviewer approves without catching the LLD's omission of the existing registry env_file escape hatch or challenging the weak proposed E2E setup. The operational outcome was not executed here, but the source and existing tests substantiate the security and health-status claims."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 16,
+        "specificity": 17,
+        "risk_awareness": 19,
+        "total": 70,
+        "notes": "The strongest coverage is the rendered-compose check with explicit expected host and CIDR values, plus unset-value, metadata-address, backward-compatibility, recreation, and rollback cases. However, the grep pipeline succeeds when only one variable is present and the git diff hunk command does not actually prove edits are confined to the registry service. The E2E procedure is also not directly executable as written: it omits registration and health-check commands, authentication and payload setup, and currenttime-server does not exist in docker-compose.prebuilt.yml. The commands and pytest path otherwise match repository conventions, but docker compose execution and the claimed runtime behavior were not demonstrated."
+      },
+      "implementation": {
+        "completeness": 24,
+        "correctness": 24,
+        "specificity": 23,
+        "risk_awareness": 23,
+        "total": 94,
+        "notes": "The patch fully implements the requested wiring in exactly the two missing registry environments, with empty defaults and no auth-server or guard changes. git apply --check succeeded against the exact 1.27.1 baseline, and an in-memory application parsed as YAML with both variables under registry and absent from auth-server; repository commit c2c6a7e1 in 1.28.0 independently confirms the same functional fix. The main minor weakness is placement after the prebuilt BUILD_VERSION comment, which is less cohesive than grouping the variables with related network allowlists as the eventual repository fix did. The summary is largely accurate, though its verification heading is awkwardly inconsistent about checks being unexecuted versus YAML and apply checks having been performed."
+      }
+    },
+    "task_score": 87.2,
+    "verdict": "This is a strong, repository-grounded submission with an essentially correct implementation; its largest limitation is an underspecified E2E plan whose prebuilt scenario cannot run as written.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-07T00:41:16.577354Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 479785,
+        "cached_input_tokens": 395114,
+        "cache_write_input_tokens": 84653,
+        "output_tokens": 8390,
+        "reasoning_output_tokens": 2982
+      },
+      "duration_ms": 80249
+    }
+  }
+}

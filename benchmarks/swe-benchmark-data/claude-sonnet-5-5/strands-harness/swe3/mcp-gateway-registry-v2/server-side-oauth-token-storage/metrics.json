@@ -1,0 +1,154 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "high",
+  "tags": [
+    "authentication",
+    "oauth",
+    "session",
+    "mongodb",
+    "encryption",
+    "auth-server",
+    "fixed-in-1.24.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands-harness",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 156.3,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 3717,
+    "output_tokens": 60264,
+    "cache_read_tokens": 3837350,
+    "cache_write_tokens": 127557,
+    "total_tokens": 4028888,
+    "total_cost_usd": 1.696436,
+    "latency_seconds": 385.5,
+    "num_turns": 46,
+    "generation_tokens_per_sec": 156.3,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 3717,
+  "output_tokens": 60264,
+  "latency_seconds": 385.5,
+  "num_turns": 46,
+  "total_cost_usd": 1.696436,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 3837350,
+  "cache_creation_tokens": 127557,
+  "run_started_at": "2026-10-06T23:08:45.364784Z",
+  "run_ended_at": "2026-10-06T23:15:10.829383Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 3717,
+    "output_tokens": 60264,
+    "cache_read_tokens": 3837350,
+    "cache_write_tokens": 127557,
+    "total_tokens": 4028888,
+    "total_cost_usd": 1.696436,
+    "latency_seconds": 385.5,
+    "num_turns": 46,
+    "generation_tokens_per_sec": 156.3,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "server-side-oauth-token-storage",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 12,
+        "correctness": 8,
+        "specificity": 21,
+        "risk_awareness": 18,
+        "total": 59,
+        "notes": "The issue provides unusually concrete acceptance criteria for encryption, ownership, expiry, revocation, compatibility, and failure statuses. Its central diagnosis is contradicted by auth_server/server.py:3052-3074, where the baseline cookie already excludes access_token and refresh_token while retaining potentially large groups and id_token fields. The claimed Get JWT Token dependency is also unsupported: frontend/src/components/Sidebar.tsx calls POST /api/tokens/generate, whose auth_server implementation mints a new internal JWT rather than returning login tokens. No independent task statement establishes the proposed retrieval endpoint, although the security and lifecycle risks for that proposed feature are well specified."
+      },
+      "lld": {
+        "completeness": 11,
+        "correctness": 10,
+        "specificity": 22,
+        "risk_awareness": 17,
+        "total": 60,
+        "notes": "The design is highly specific and correctly identifies real integration points such as oauth2_callback, get_user_session_data, logout_handler, the repository factory, and namespaced MongoDB collections. Its load-bearing flaw is leaving the full groups and id_token session payload in the cookie, so it cannot guarantee a small cookie for large Entra claims; repository history for the 1.24.0 fix instead moves the complete OAuth session behind an opaque session ID. The proposed repository also swallows TTL-index creation failures and continues storing credentials, while the advertised rollback flag disables writes but get_oauth_tokens does not consult that flag and can still serve existing records. Because no independent task statement was supplied, the necessity and contract of GET /api/auth/oauth-tokens cannot be verified."
+      },
+      "review": {
+        "completeness": 14,
+        "correctness": 13,
+        "specificity": 20,
+        "risk_awareness": 19,
+        "total": 66,
+        "notes": "The review finds concrete defects with consequences, including ciphertext swapping, logout replay, ownership filtering, naive MongoDB datetimes, lazy TTL deletion, and key rotation. Its largest omission is failure to challenge the design's premise that access and refresh tokens currently inflate the cookie, despite auth_server/server.py showing they are already omitted by default. Pixel notices that Sidebar.tsx still uses POST /api/tokens/generate but accepts deferral without recognizing that this endpoint already produces an unrelated internal JWT, while Circuit misses unbounded MongoDB outage latency and the ineffective retrieval rollback. The review is therefore strong on the invented design's security details but does not validate that the design solves the repository's actual cookie-size failure."
+      },
+      "testing": {
+        "completeness": 16,
+        "correctness": 15,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 68,
+        "notes": "The plan supplies meaningful status, header, ownership, encryption, expiry, revocation, rotation, and compatibility oracles, and its uv pytest command matches the repository toolchain. The automated cookie test only varies access and refresh tokens that the baseline already omits, without exercising large groups or id_token values that remain in session_data, although the proposed large-claim E2E test would expose that failure. The manual logout recipe uses an undefined OLD_COOKIE and the shared-variable section omits MONGO_URI, while file-backend behavior is left as the non-specific alternative 404/503. The implementation summary explicitly says tests were not executed, so their runtime behavior remains unverified."
+      },
+      "implementation": {
+        "completeness": 9,
+        "correctness": 10,
+        "specificity": 20,
+        "risk_awareness": 13,
+        "total": 52,
+        "notes": "The patch targets real 1.23.0 symbols and follows existing interface, factory, namespaced collection, FastAPI dependency, and configuration patterns; its AES-GCM AAD binding and username-scoped queries are concrete defenses. It does not solve the stated cookie-size problem because oauth2_callback continues signing groups and id_token while moving access and refresh tokens that the baseline already does not place in the cookie. DocumentDBOAuthTokenRepository suppresses index-creation errors and still inserts credentials without guaranteed TTL cleanup, and OAUTH_TOKEN_STORAGE_ENABLED=false does not disable retrieval of existing records despite the rollback claim. The summary consequently oversells cookie-size independence and inert rollback behavior, while test execution and full patch application were not independently demonstrated."
+      }
+    },
+    "task_score": 61.0,
+    "verdict": "The submission is detailed and security-conscious, but it largely implements an unnecessary login-token retrieval system while leaving the repository's actual oversized self-contained session payload intact.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-07T00:51:00.489732Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 828645,
+        "cached_input_tokens": 719340,
+        "cache_write_input_tokens": 109283,
+        "output_tokens": 12409,
+        "reasoning_output_tokens": 7049
+      },
+      "duration_ms": 131288
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "registration-admission-control-gate",
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 91,
+      "notes": "The issue provides unusually testable acceptance criteria for status handling, ordering, configuration, route coverage, redaction, and deployment wiring. The named routes and deployment surfaces exist at v1.0.19, including the three server registration endpoints and agent, skill, and server update handlers. Its repeated claim that the gate covers ANY registration conflicts with the explicit exclusion of several system-driven write paths, although the exclusions themselves are clear. No independent task statement was supplied, so the proposed wire contract and decision to exclude retries cannot be verified as original requirements."
+    },
+    "lld": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 76,
+      "notes": "The design is grounded in real integration points such as `agent_service.register_agent`, `server_service.update_server`, `Settings`, and the router prefixes in `registry/main.py`, with concrete failure and rollout behavior. Its redaction design does not protect credentials stored in the existing server `headers` field: a nested `Authorization` value matches none of the proposed sensitive-key fragments and would be sent externally. The skill-create call also precedes `SkillService.register_skill`, where `_validate_skill_md_url` and repository creation occur, contradicting the design's claim that the gate receives final data after validation. The design addresses many other realistic risks, but the exact contract remains unverifiable without an independent task statement."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The review raises concrete, consequential issues including overall timeout semantics, exact-200 admission, redirect handling, UI-compatible errors, misconfiguration, and route bypass drift. It misses the credential exposure through `server_entry[\"headers\"]` and declares log injection resolved even though paths and usernames remain interpolated without escaping. It also claims all eight routes have default-off coverage, while the submitted route tests omit that case for agent update, server edit, and skill create. The deferred retry and circuit-breaker decisions cannot be compared to an authoritative requirement because no independent task statement was provided."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 74,
+      "notes": "The plan supplies strong persistence oracles, exact response headers, negative status cases, deployment checks, and route-level assertions for all eight named paths. However, `uv run python -m registry_cli` is not a valid repository command because no `registry_cli` module exists, and the `/api/register` manual test uses a bearer token even though its `enhanced_auth` dependency requires a session cookie. The automated inventory overstates per-route default-off coverage and never tests credentials embedded in the supported custom `headers` registration field. The submitted tests were not executed, so their runtime behavior and the Terraform and Helm command expectations remain unverified."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 69,
+      "notes": "The diff's route, configuration, Terraform, Helm, and test contexts match the checked-out v1.0.19 source, and it wires the central allow, deny, and fail-closed behavior across the requested handlers. The largest defect is a direct violation of the credential-safety requirement: recursive key-name redaction leaves values under custom headers such as `{\"headers\":{\"Authorization\":\"Bearer secret\"}}` intact. Skill creation invokes the gate before `SkillService.register_skill` performs URL validation, and server conflict validation can likewise occur only after the gate, violating the promised validation ordering. The summary incorrectly claims no design deviation and reports 1,856 additions although its own per-file counts sum to 1,893; tests were explicitly not run."
+    }
+  },
+  "task_score": 77.4,
+  "verdict": "This is a detailed, mostly end-to-end submission, but its admission payload can disclose custom-header credentials and some routes call the gate before the validation ordering promised by the design.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:48:49.187800Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 2200444,
+      "cached_input_tokens": 2021793,
+      "cache_write_input_tokens": 178617,
+      "output_tokens": 16812,
+      "reasoning_output_tokens": 9168
+    },
+    "duration_ms": 163727
+  }
+}
