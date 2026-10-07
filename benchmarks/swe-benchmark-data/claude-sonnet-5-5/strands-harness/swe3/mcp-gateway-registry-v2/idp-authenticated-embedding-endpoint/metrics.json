@@ -1,0 +1,156 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.28.0",
+  "complexity": "high",
+  "tags": [
+    "semantic-search",
+    "embeddings",
+    "oauth",
+    "authentication",
+    "litellm",
+    "docker",
+    "terraform",
+    "helm",
+    "fixed-in-1.29.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands-harness",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 157.6,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 4805,
+    "output_tokens": 56059,
+    "cache_read_tokens": 4238488,
+    "cache_write_tokens": 127078,
+    "total_tokens": 4426430,
+    "total_cost_usd": 1.735593,
+    "latency_seconds": 355.6,
+    "num_turns": 51,
+    "generation_tokens_per_sec": 157.6,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 4805,
+  "output_tokens": 56059,
+  "latency_seconds": 355.6,
+  "num_turns": 51,
+  "total_cost_usd": 1.735593,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 4238488,
+  "cache_creation_tokens": 127078,
+  "run_started_at": "2026-10-06T23:42:32.740506Z",
+  "run_ended_at": "2026-10-06T23:48:28.341069Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 4805,
+    "output_tokens": 56059,
+    "cache_read_tokens": 4238488,
+    "cache_write_tokens": 127078,
+    "total_tokens": 4426430,
+    "total_cost_usd": 1.735593,
+    "latency_seconds": 355.6,
+    "num_turns": 51,
+    "generation_tokens_per_sec": 157.6,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "idp-authenticated-embedding-endpoint",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 87,
+        "notes": "The issue clearly defines the opt-in behavior, compatibility boundary, deployment surfaces, and testable token caching, concurrency, retry, and secret-handling outcomes. Its core repository claims are accurate: registry/embeddings/client.py sets provider environment variables during LiteLLMClient construction, while search_repository.py permanently latches embedding failures. The largest weakness is the untestably broad “byte-for-byte identical” criterion, which conflicts with intentionally adding fields to the configuration response, and the issue does not itself require the later HTTPS and redirect protections. No independent task statement was supplied, although the task identifier and repository history corroborate the central IdP-authenticated embeddings requirement."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 87,
+        "notes": "The design is unusually well grounded, naming the real LiteLLMClient.encode, Settings.__init__, CONFIG_GROUPS, FederationAuthManager, and DocumentDBSearchRepository integration points and specifying concrete data flow and failure behavior. Repository inspection confirms the cited lock-based federation cache, 60-second buffer, form POST, sole create_embeddings_client caller, and permanent _embedding_unavailable latch. Its main gaps are failure to integrate IdPTokenProvider.close into lifecycle management, omission of scope from the proposed UI fields, and placing HTTPS validation only in Settings rather than also defending the exported provider constructor. Exact requirement coverage remains partly unverifiable because there is no independent task statement."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 23,
+        "total": 90,
+        "notes": "The review identifies concrete, consequential issues rather than merely assigning personas: stale-token 401 handling, short expires_in behavior, the repository latch, missing ECS API-base wiring, secret handling, transport security, and credential precedence. These findings correspond to real baseline code in registry/embeddings/client.py, search_repository.py, registry/core/config.py, and the Terraform module. Its largest omission is not requiring constructor-level endpoint validation or examining Helm release-history exposure for a client secret supplied directly through values. The claimed design resolutions are specific, though whether they were implemented correctly can only be judged from the separate patch."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 19,
+        "specificity": 21,
+        "risk_awareness": 20,
+        "total": 80,
+        "notes": "The plan provides strong behavioral oracles for caching, concurrent refresh, malformed responses, 401 retry, static-path compatibility, masking, and deployment defaults, and its referenced Python test paths and configuration endpoint exist. It also covers negative and end-to-end cases rather than only checking that calls complete. The deployment checks rely heavily on grep, the Terraform example contains a literal ellipsis rather than an executable command, and it omits direct-constructor HTTP rejection and precise validation of secret sourcing. The submission explicitly says none of these tests were run, so their runtime behavior and the proposed mock-server workflow remain unverified."
+      },
+      "implementation": {
+        "completeness": 19,
+        "correctness": 17,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 73,
+        "notes": "The patch targets the correct baseline: every submitted old blob identifier matches tag 1.28.0, and it implements the main flow from Settings through search_repository.py, LiteLLMClient, token caching, 401 retry, deployment configuration, documentation, and focused unit tests. The largest operational defect is Terraform creating the secret version whenever auth mode is idp even when the secret value is empty, which can fail during provisioning before the promised application startup diagnostic; the provider constructor also accepts plain HTTP when called outside the Settings builder. The documentation adds the correct re-index warning but leaves existing docs/embeddings.md claims that the registry automatically rebuilds and regenerates embeddings, producing contradictory operator guidance, and the scope setting is absent from CONFIG_GROUPS. The submitted formatting around the new Settings methods is inconsistent with the repository's enforced ruff format check, and no tests, linters, Terraform validation, Helm rendering, or full git apply check were actually executed from a standalone patch file."
+      }
+    },
+    "task_score": 83.4,
+    "verdict": "The submission is technically strong and repository-aware overall, but the implementation retains provisioning, constructor-hardening, documentation, and unverified-CI defects that prevent it from being merge-ready.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-07T00:30:12.683119Z",
+      "repo_ref": "1.28.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1705173,
+        "cached_input_tokens": 1582828,
+        "cache_write_input_tokens": 122307,
+        "output_tokens": 16713,
+        "reasoning_output_tokens": 9244
+      },
+      "duration_ms": 174694
+    }
+  }
+}

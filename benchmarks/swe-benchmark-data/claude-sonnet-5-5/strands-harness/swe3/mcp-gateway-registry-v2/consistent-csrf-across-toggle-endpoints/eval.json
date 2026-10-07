@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 91,
+      "notes": "The issue's strongest aspect is its testable credential matrix and explicit six-route inventory. At v1.0.20, the named routes, auth dependencies, missing protection on `/servers/toggle` and virtual-server toggle, strict agent/skill protection, global Axios interceptor, and disabled-by-default agent registration all match the repository. Its largest gap is rollout impact for cookie-only scripts, and its proposed 403 behavior for malformed authorization is not reliable behind nginx, where `/validate` returns 401 before FastAPI. No independent task statement or issue #891 body was supplied, so broader requirement coverage can only be judged from the identifier, repository history, and internally defined scope."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The LLD is unusually well grounded: `registry/auth/csrf.py`, all four route modules, `settings.session_cookie_name`, nginx forwarding, auth-server cookie discrimination, frontend interception, and affected test overrides are real. Its cookie-first rule correctly preserves browser CSRF enforcement while leaving authentication to each route, and the implementation steps are decision-ready. The largest design deficiency is that the proposed future-drift guard enumerates only four known routers, so a toggle in a new module would escape it. It also calls direct `X-User` trust wholly pre-existing without emphasizing that the new exemption removes defense in depth from agent and skill toggles, and it promises release-note documentation without listing that file as a change."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 90,
+      "notes": "The review's strongest contribution is identifying concrete integration failures: existing tests really do override `verify_csrf_token_flexible`, and those overrides must be retargeted after introducing a distinct dependency. It also correctly checks cookie-plus-bearer precedence, malformed schemes, frontend interceptor usage, form parsing, and cookie-only script compatibility. Its largest miss is accepting the four-module route guard as protection against every future toggle endpoint, although a new router would not be inspected. The direct-header trust concern is acknowledged but its newly expanded impact on previously strict agent and skill toggles is understated."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 83,
+      "notes": "The dependency matrix has meaningful oracles for valid, missing, invalid, cross-session, bearer-only, cookie-plus-bearer, Basic, empty, and case-insensitive credentials, and `uv run pytest` is a repository-supported command. The plan also combines dependency tests, route introspection, real-router tests, compatibility suites, and manual SPA checks. Its largest coverage gap is that `/api/internal/toggle` receives no route-level functional test, while several other endpoints are described only as repetitions rather than with complete requests and state assertions. Behind the required nginx prerequisite, Basic authentication is rejected by `/validate` with 401 rather than the stated 403, and the M2M prerequisite does not specify the scopes needed to make 200 a valid oracle."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 85,
+      "notes": "The patch implements the central design end to end: its target files, symbols, line context, six routes, auth dependencies, and test fixtures all exist at baseline commit `2099caa8a3184765fa83975008d7fc8329d15dad`. The cookie-first helper, non-empty case-insensitive bearer check, delegation to existing validation, and route dependency declarations are internally consistent and preserve the strict helper for non-toggle callers. The largest defect is that `TestToggleRouteCoverage` scans only four imported routers, so it does not satisfy the stated guarantee that any new toggle route lacking the dependency will fail testing. The patch also omits the release note required by the LLD and review, although the summary claims no deviation; its disclosure that tests were not executed is accurate and was not itself penalized."
+    }
+  },
+  "task_score": 87.8,
+  "verdict": "This is a strong, repository-grounded submission with a likely correct implementation, limited mainly by a non-global future-route guard and an omitted promised release note.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:09:18.581519Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 857433,
+      "cached_input_tokens": 719447,
+      "cache_write_input_tokens": 137966,
+      "output_tokens": 13698,
+      "reasoning_output_tokens": 8114
+    },
+    "duration_ms": 143417
+  }
+}

@@ -1,0 +1,154 @@
+{
+  "task": "build-docker-images-from-uv-lock",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "medium",
+  "tags": [
+    "docker",
+    "build",
+    "uv",
+    "dependencies",
+    "reproducibility",
+    "ci",
+    "fixed-in-1.24.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands-harness",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 143.8,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2656,
+    "output_tokens": 28307,
+    "cache_read_tokens": 1450436,
+    "cache_write_tokens": 78126,
+    "total_tokens": 1559525,
+    "total_cost_usd": 0.773784,
+    "latency_seconds": 196.9,
+    "num_turns": 26,
+    "generation_tokens_per_sec": 143.8,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 2656,
+  "output_tokens": 28307,
+  "latency_seconds": 196.9,
+  "num_turns": 26,
+  "total_cost_usd": 0.773784,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1450436,
+  "cache_creation_tokens": 78126,
+  "run_started_at": "2026-10-06T22:32:38.931763Z",
+  "run_ended_at": "2026-10-06T22:35:55.808795Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 2656,
+    "output_tokens": 28307,
+    "cache_read_tokens": 1450436,
+    "cache_write_tokens": 78126,
+    "total_tokens": 1559525,
+    "total_cost_usd": 0.773784,
+    "latency_seconds": 196.9,
+    "num_turns": 26,
+    "generation_tokens_per_sec": 143.8,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "build-docker-images-from-uv-lock",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 23,
+        "specificity": 24,
+        "risk_awareness": 20,
+        "total": 90,
+        "notes": "The issue gives testable acceptance criteria, explicit exclusions, and a clear reproducibility motivation. Repository inspection confirms the nine project roots, four missing lockfiles, and pyproject-based installs in the named Dockerfiles. Its main omission is the image-build workflow integration needed when only the root uv.lock changes, and the minimum uv version remains unspecified. No independent task statement was supplied, so broader intended scope cannot be verified."
+      },
+      "lld": {
+        "completeness": 20,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 77,
+        "notes": "The design is unusually concrete about real files, uv flags, CPU torch resolution, and the different system-interpreter requirement in metrics-service. The largest defect is that root Dockerfile.registry uses uv sync without --no-dev even though the baseline pyproject.toml has a default dependency-groups.dev, so test dependencies enter the runtime image. It also omits .github/workflows/build-registry.yml, whose baseline path filter does not include uv.lock, and the no-hash metrics export weakens the claimed lock integrity. The claimed regenerated torch version and final lock contents cannot be verified because those patch hunks were truncated."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 18,
+        "specificity": 21,
+        "risk_awareness": 21,
+        "total": 79,
+        "notes": "The review catches substantive repository-specific risks, especially exact sync removing preinstalled torch, editable installation re-resolution, and the baseline uv.lock's 15 nvidia packages plus triton. Its largest miss is the default dev-group installation caused by omitting --no-dev in the registry sync. The security claim that lock hashes are verified is not true for the metrics path, which explicitly exports with --no-hashes before uv pip install. It also does not identify the missing uv.lock trigger in build-registry.yml, and removal claims about the unseen regenerated lock remain unverifiable."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 20,
+        "specificity": 20,
+        "risk_awareness": 19,
+        "total": 77,
+        "notes": "The plan provides concrete build commands, a stale-lock negative test, CPU-only assertions, health checks, and CI coverage-guard scenarios using repository-valid paths and ports. Its largest coverage gap is that it never builds Dockerfile.mcp-server-cpu and does not build example-server, despite acceptance criteria covering every generic Dockerfile and lock. The lockfile loop prints FAIL but still exits successfully, while several smoke and end-to-end checks lack precise commands or response oracles. The exact expected torch 2.14.1+cpu value cannot be checked against the truncated root-lock hunk, and Docker Compose is not listed separately as a prerequisite."
+      },
+      "implementation": {
+        "completeness": 18,
+        "correctness": 14,
+        "specificity": 19,
+        "risk_awareness": 15,
+        "total": 66,
+        "notes": "The visible implementation adds a valid nine-root matrix and a coverage guard whose expected and actual dirname lists match the 1.23.0 tree. The stated registry command omits --no-dev, so the baseline root dependency-groups.dev is installed into the image. The touched-file list omits build-registry.yml, meaning a root uv.lock-only change still does not trigger that image workflow. The submitted diff is truncated inside auth_server/uv.lock before the Docker and root-lock hunks, and no patch.diff exists in the workspace, so it cannot be apply-checked and most implementation claims remain unverifiable."
+      }
+    },
+    "task_score": 77.8,
+    "verdict": "The design work is strong and repository-specific, but the truncated implementation cannot be fully validated and its registry sync would install development dependencies while lock-only changes would not trigger an image build.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-07T00:01:03.641915Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 1829051,
+        "cached_input_tokens": 1628180,
+        "cache_write_input_tokens": 200849,
+        "output_tokens": 11473,
+        "reasoning_output_tokens": 6004
+      },
+      "duration_ms": 119470
+    }
+  }
+}

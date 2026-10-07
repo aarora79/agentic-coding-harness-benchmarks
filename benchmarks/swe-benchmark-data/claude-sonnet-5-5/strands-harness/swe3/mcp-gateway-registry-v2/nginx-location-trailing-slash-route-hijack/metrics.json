@@ -1,0 +1,154 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "medium",
+  "tags": [
+    "bug",
+    "security",
+    "nginx",
+    "routing",
+    "auth",
+    "python",
+    "fixed-in-1.28.0"
+  ],
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "strands-harness",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "t3.medium",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 139.0,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 427,
+    "output_tokens": 36213,
+    "cache_read_tokens": 1812801,
+    "cache_write_tokens": 98501,
+    "total_tokens": 1947942,
+    "total_cost_usd": 0.971797,
+    "latency_seconds": 260.6,
+    "num_turns": 30,
+    "generation_tokens_per_sec": 139.0,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 427,
+  "output_tokens": 36213,
+  "latency_seconds": 260.6,
+  "num_turns": 30,
+  "total_cost_usd": 0.971797,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1812801,
+  "cache_creation_tokens": 98501,
+  "run_started_at": "2026-10-06T22:55:08.954083Z",
+  "run_ended_at": "2026-10-06T22:59:29.581281Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 427,
+    "output_tokens": 36213,
+    "cache_read_tokens": 1812801,
+    "cache_write_tokens": 98501,
+    "total_tokens": 1947942,
+    "total_cost_usd": 0.971797,
+    "latency_seconds": 260.6,
+    "num_turns": 30,
+    "generation_tokens_per_sec": 139.0,
+    "sources": {
+      "input_tokens": "strands-harness_api.usage.input",
+      "output_tokens": "strands-harness_api.usage.output",
+      "cache_read_tokens": "strands-harness_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "strands-harness_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "strands-harness_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or strands-harness_api.duration_ms)",
+      "num_turns": "strands-harness_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "nginx-location-trailing-slash-route-hijack",
+    "model": "global.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 22,
+        "risk_awareness": 21,
+        "total": 83,
+        "notes": "The issue precisely identifies registry/core/nginx_service.py::_create_location_block and gives testable behavior for bare, trailing-slash, normalized, and colliding paths. Its principal factual error is claiming that /a intercepts /api/...: both nginx templates contain the longer location {{ROOT_PATH}}/api/, which wins ordinary prefix selection regardless of the cited ^~ guards. The /about and /auth shadowing scenario is supported by the generated bare prefix, the template's location / catch-all, and the shared @auth_error response. No independent task statement was supplied, so requirements beyond the task identifier and the candidate's internally declared scope could not be verified."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 19,
+        "total": 80,
+        "notes": "The LLD is unusually well grounded in real integration points, including _create_location_block, _generate_version_map, startup generation in registry/main.py, and auth_server/server.py's sub-path handling. The exact-match rewrite plus slash-terminated prefix is a committed, feasible design that preserves method, body, query arguments, authentication, and upstream mapping under nginx semantics. Its largest defect is an incomplete reserved-route model: it inventories trailing-slash and exact template locations but omits prefix locations such as ^~ {{ROOT_PATH}}/api/auth and the no-slash OAuth callback locations, allowing the new exact/prefix pair to shadow those routes. Startup regeneration and scheduler hash seeding were verified, while the claimed negligible behavior at thousands of locations was not supported by repository evidence."
+      },
+      "review": {
+        "completeness": 20,
+        "correctness": 18,
+        "specificity": 21,
+        "risk_awareness": 20,
+        "total": 79,
+        "notes": "The review finds a genuine upgrade hazard: changing /static to /static/ would duplicate the template's /static/ location and fail nginx validation, whose last-good restoration path exists in the repository. It also checks concrete auth-server parsing, query preservation, rewrite looping, startup convergence, path validation, and the hand-maintained-list drift risk. However, it declares the collision concern resolved without noticing static prefixes lacking a trailing slash, such as /api/auth, which the proposed generated pair can shadow even though it no longer duplicates the old prefix directive. It also repeats the inaccurate /api hijack claim despite the template's longer /api/ location and offers no nginx-backed validation of the revised inventory."
+      },
+      "testing": {
+        "completeness": 21,
+        "correctness": 17,
+        "specificity": 21,
+        "risk_awareness": 18,
+        "total": 77,
+        "notes": "The plan covers unit, rendered-config, compatibility, overlap, normalization, deployment, rollback, UX, and nginx syntax checks with concrete expected states. The proposed unit tests target real fixtures and symbols in tests/unit/core/test_nginx_service.py and would meaningfully catch the /about-style bare-prefix regression. The main oracle is weakened because its location emulator omits the template's /api/ location and therefore falsely demonstrates that old location /a captured /api/servers; the curl loop prints only status codes even though its expectation depends on response identity. The grep after docker compose exec runs on the host rather than in the registry container, and the claim that disabling /a leaves commented blocks contradicts the scheduler's removal of disabled servers; no tests were executed."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 18,
+        "total": 77,
+        "notes": "The diff's target files, hunk contexts, imports, fixtures, settings, and symbols all match the 1.27.1 baseline, and the main exact-rewrite plus trailing-slash implementation correctly addresses sibling route capture. It preserves the existing mcp_proxy_target construction, and auth_server/server.py confirms that the resulting single-slash sub-path remains compatible. The largest defect is the reserved inventory: /api/auth and other static no-slash prefix locations are not rejected, so the new exact location and longer path/ prefix can activate a generated MCP route over an intended gateway route instead of safely skipping it. The added tests are concrete but were not executed, do not assert the error log, and model /api precedence without the real template; the implementation summary is otherwise candid about non-execution and deferred work."
+      }
+    },
+    "task_score": 79.2,
+    "verdict": "The submission delivers a strong and mostly correct core routing fix, but its incomplete reserved-route analysis can turn previously invalid conflicting registrations into active shadows of authentication or OAuth routes.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-07T00:39:56.314353Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 675751,
+        "cached_input_tokens": 573298,
+        "cache_write_input_tokens": 102435,
+        "output_tokens": 11276,
+        "reasoning_output_tokens": 6172
+      },
+      "duration_ms": 113030
+    }
+  }
+}

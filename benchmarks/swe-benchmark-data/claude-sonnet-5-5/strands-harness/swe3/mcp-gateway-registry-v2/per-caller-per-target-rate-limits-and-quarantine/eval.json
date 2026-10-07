@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "global.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The issue clearly defines both behaviors, denial semantics, administrative surfaces, acceptance criteria, and explicit non-goals. Baseline source confirms the named RateLimiter.check hook, RateLimitDefinition model, nginx throttle-marker rewrite, memberships collection, CLI, and IAM rate-limit UI. Its largest gap is that an \"absolute\" quarantine is still disabled by RATE_LIMITING_ENABLED, which is not stated until the LLD and could mislead operators. No independent task statement was supplied, so the exact API shape and cache policy cannot be verified as externally required rather than candidate-selected."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 82,
+      "notes": "The LLD is unusually concrete about real files, data flow, counter subjects, response mapping, rollout, observability, and backward compatibility. The referenced baseline symbols and paths exist, including DefinitionsRepository, MembershipsRepository.list_all/delete, auth_server._enforce_rate_limit, and nginx @forbidden_error. Its main technical deficiency is concurrency: the proposed cache has no single-flight lock despite claiming at most one read per TTL, and the member-cap check is a non-atomic read followed by $addToSet. It also misses M2M self-quarantine and canonicalizes MCP paths only by stripping outer slashes even though allowed nested server paths classify by their first segment."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The review finds concrete repository-specific problems, notably malformed reserved documents in MembershipsRepository.list_all, deletion through delete, delimiter collisions, target aliases, outage policy, and cross-process propagation. Those findings are grounded in the baseline implementations and lead to actionable design changes rather than generic persona approvals. It nevertheless declares all important findings resolved while missing the non-atomic member cap, cache-refresh stampede, nested MCP-path mismatch, and the fact that the self-quarantine guard covers only user identity. The absence of an independent task statement leaves its chosen admin-bypass policy externally unverifiable."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 20,
+      "risk_awareness": 20,
+      "total": 76,
+      "notes": "The plan spans unit, HTTP, CLI, UI, compatibility, deployment, rollback, and outage testing with meaningful response and state oracles. Several executable details are wrong: the end-to-end section calls 5/min floor-compliant despite the verified default user floor of 20, and it names mcp_rate_limit_counters although the repository uses the namespaced rate_limit_counters collection. The CLI examples export ACCESS_TOKEN but do not pass --token-file, while registry_management.py does not consume that variable and may invoke its separate token flow. It also lacks tests for concurrent cap enforcement and concurrent cache refreshes; execution status is honestly disclosed but the proposed environment itself cannot be independently verified."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 68,
+      "notes": "The patch implements the principal axis and quarantine flow across models, repositories, limiter wiring, startup, API, CLI, UI, documentation, metrics, and focused unit tests, and its target contexts match baseline commit 5f725c1d. The largest correctness defect is target canonicalization: ServerInfo permits nested slash paths and request classification uses the first path segment, but normalize_quarantine_member retains internal slashes, so quarantining a suggested path such as /foo/bar can silently fail to block runtime target foo. The 1000-member cap is race-prone, expired-cache refreshes are not coalesced, M2M callers can quarantine their own client identity, and QuarantinePanel suppresses loading/API errors while rendering no groups. No standalone patch.diff was present to rerun git apply --check, and the summary's reported git apply --check -R does not establish forward applicability to a clean baseline."
+    }
+  },
+  "task_score": 79.8,
+  "verdict": "The submission provides strong, repository-grounded design work and broad implementation coverage, but the quarantine implementation has a real target-path bypass plus unresolved concurrency and verification gaps.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:44:22.248777Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 3059519,
+      "cached_input_tokens": 2858473,
+      "cache_write_input_tokens": 201004,
+      "output_tokens": 16909,
+      "reasoning_output_tokens": 10953
+    },
+    "duration_ms": 185647
+  }
+}
