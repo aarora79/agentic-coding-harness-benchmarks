@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 18,
+      "risk_awareness": 13,
+      "total": 57,
+      "notes": "The issue clearly states the fairness and kill-switch problems, names the intended enforcement point, and supplies explicit scope and acceptance criteria. Its largest defect is conflating rate-limit definitions, membership groups, and quarantine: auto-seeding max_requests=0 definitions for all target types is not reconciled with allegedly empty groups or target membership storage. The criteria also simultaneously require a composite caller-target axis, regex classification against caller_target groups, and inclusion in UNENFORCED_ENTITY_TYPES without defining coherent semantics. No independent task statement was supplied, and repository command execution failed during sandbox initialization, so API and symbol claims could not all be independently verified."
+    },
+    "lld": {
+      "completeness": 10,
+      "correctness": 5,
+      "specificity": 12,
+      "risk_awareness": 8,
+      "total": 35,
+      "notes": "The LLD names relevant files and recognizes gate construction, target classification, backend failure behavior, and counter-cardinality growth. It never resolves the core schema: caller_target entity_type is variously caller_target, a real target type, and not applicable, while quarantine alternates between definitions, memberships, and a new module. Its server pseudocode recursively calls _classify_rate_limit_target and invokes list_caller_target_limits with three arguments despite defining it with two, making the proposed path non-implementable as written. CLI flags, UI hooks, existing metrics, startup seeding behavior, and several repository APIs remained unverifiable because local read-only shell access was unavailable."
+    },
+    "review": {
+      "completeness": 10,
+      "correctness": 8,
+      "specificity": 12,
+      "risk_awareness": 11,
+      "total": 41,
+      "notes": "The review identifies useful issues around absent caller identities, startup seeding triggers, undeletable records, response status, and N*M cardinality. It nevertheless approves a design whose data model and quarantine mechanism remain unresolved and fails to catch the recursive classifier pseudocode, method-arity mismatch, and contradictory entity-type rules. The SMTS section calls the file-change plan accurate even though the LLD itself contains incompatible implementation alternatives and unresolved open questions. Claims about useRateLimits.ts, existing fail-open behavior, and deployment surfaces could not be independently verified from the repository."
+    },
+    "testing": {
+      "completeness": 6,
+      "correctness": 3,
+      "specificity": 8,
+      "risk_awareness": 4,
+      "total": 21,
+      "notes": "The plan at least attempts compatibility checks for the disabled switch, existing caller and target gates, headers, and administrative behavior. Its main functional test never creates a two-request definition or membership, yet expects the third request to fail, so its oracle is unsupported by its setup. It sends invented caller_id and target_name JSON directly to REGISTRY_URL/validate and invokes proposed auth_server CLI flags without establishing that these request shapes, commands, or flags exist. It omits decisive quarantine tests such as caller versus target isolation, auto-seeding, deletion rejection, regex behavior, administrative handling, and proving early denial leaves counters unchanged."
+    },
+    "implementation": {
+      "completeness": 2,
+      "correctness": 2,
+      "specificity": 5,
+      "risk_awareness": 1,
+      "total": 10,
+      "notes": "The patch does not implement caller-target enforcement or quarantine; it only flips the feature default, adds caller_target to CALLER_ENTITY_TYPES, and adds an axis abbreviation. Changing RATE_LIMITING_ENABLED from false to true contradicts the adjacent backward-compatibility comment and silently changes behavior for every deployment lacking the variable. The summary claims a QUARANTINE_GROUPS constant that is absent from the diff, claims no LLD deviations, and then admits that the gate builder, repository query, server integration, API protection, and startup seeding are all missing. Independent git apply verification was impossible because every read-only shell command failed during sandbox initialization, although the submitted diff context is internally plausible."
+    }
+  },
+  "task_score": 32.8,
+  "verdict": "The submission frames the problem reasonably well but leaves the core model incoherent, proposes largely non-executable tests, and supplies a harmful scaffolding patch that implements neither requested capability.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:30:22.274752Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 171303,
+      "cached_input_tokens": 125039,
+      "cache_write_input_tokens": 28076,
+      "output_tokens": 8417,
+      "reasoning_output_tokens": 6902
+    },
+    "duration_ms": 109612
+  }
+}

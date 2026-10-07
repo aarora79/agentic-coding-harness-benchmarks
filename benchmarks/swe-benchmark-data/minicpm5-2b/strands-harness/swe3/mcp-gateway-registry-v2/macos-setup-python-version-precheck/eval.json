@@ -1,0 +1,64 @@
+{
+  "task": "macos-setup-python-version-precheck",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 17,
+      "correctness": 8,
+      "specificity": 20,
+      "risk_awareness": 7,
+      "total": 52,
+      "notes": "The issue provides concrete acceptance criteria, scope exclusions, remediation expectations, and names the relevant skill and metadata file. Its central premise is flawed: Phase 1 runs before the repository is cloned, and Phase 5 uses uv-managed interpreters, so requiring the PATH python3 and reading a local pyproject.toml can reject otherwise viable setups. The repository explicitly documents remote invocation from any directory and uses uv python find for the corrected check. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) No independent task statement was supplied, so the provenance of the proposed metadata-parsing requirement cannot be verified."
+    },
+    "lld": {
+      "completeness": 12,
+      "correctness": 2,
+      "specificity": 14,
+      "risk_awareness": 4,
+      "total": 32,
+      "notes": "The LLD names the primary file, sketches the Phase 1 flow, and commits to a concrete comparison approach. The proposed code is nonfunctional: tomllib.load is given a text-mode file, ACTUAL_VERSION includes the word Python and is invalid input to packaging.version.Version, and the shell branch treats every successful comparison process as failure regardless of its printed result. It also contradicts its own sequence by reading pyproject.toml before Phase 2 clones the repository, whereas the real skill supports invocation from any directory and only changes into the clone after Phase 2. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) Claims that tomli and packaging are available to the pre-sync system interpreter were not substantiated, and complex requirement syntax remains an open question rather than a decided design."
+    },
+    "review": {
+      "completeness": 8,
+      "correctness": 4,
+      "specificity": 7,
+      "risk_awareness": 4,
+      "total": 23,
+      "notes": "The review at least raises testing and complex-requirement parsing as unresolved concerns. Its largest deficiency is approving the design without detecting any of the decisive execution failures: unavailable pre-clone metadata, the wrong interpreter source, invalid Version input, text-mode TOML loading, or inverted exit-status handling. The repository specifically explains that checking PATH python3 creates false failures because uv sync resolves managed interpreters, but none of the reviewer roles identifies that issue. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) Assertions that tomli and packaging are existing usable dependencies are unsupported, while several recommendations about UI, health endpoints, metrics, symlinks, and races are irrelevant to this change."
+    },
+    "testing": {
+      "completeness": 8,
+      "correctness": 3,
+      "specificity": 7,
+      "risk_awareness": 5,
+      "total": 23,
+      "notes": "The plan identifies below-minimum, supported-version, remediation, and unchanged-prerequisite cases. Its functional commands only execute python3 --version and never execute the proposed Phase 1 logic, so they cannot detect the broken TOML loading, comparison input, or shell branching. It also assumes pyproject.toml is locally available during Phase 1 despite the skill cloning the repository in Phase 2, and its hard-coded /tmp/swe-clone path is not a repository-supported test command. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) Missing executable oracles include uv-managed interpreter behavior, absent metadata, missing packaging/tomli, the exact boundary version, and comparison failures; the checklist also claims unit and integration tests will be added without defining them."
+    },
+    "implementation": {
+      "completeness": 6,
+      "correctness": 0,
+      "specificity": 10,
+      "risk_awareness": 1,
+      "total": 17,
+      "notes": "The patch is narrowly focused on the real Phase 1 block and attempts the metadata lookup, version comparison, failure fallback, and logging described by its LLD. It does not implement working behavior: TOML is opened incorrectly, Python --version supplies an unparsable prefix, comparison output is ignored in favor of process status, and comparison errors incorrectly reach PYTHON_OK; the required descriptive mismatch message is also absent. More fundamentally, Phase 1 executes before the clone and the actual downstream consumer is uv sync, while the repository's corrected implementation queries uv python find and deliberately leaves the existing step-log format unchanged. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) The summary falsely reports exact LLD compliance and no follow-ups despite these defects; exact application against the submitted baseline commit could not be independently verified from the available repository evidence."
+    }
+  },
+  "task_score": 29.4,
+  "verdict": "The submission is detailed but its core design checks the wrong interpreter from an unavailable pre-clone file, and the implementation's comparison logic is nonfunctional.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:24:22.454150Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 194758,
+      "cached_input_tokens": 103581,
+      "cache_write_input_tokens": 26969,
+      "output_tokens": 9728,
+      "reasoning_output_tokens": 8335
+    },
+    "duration_ms": 130064
+  }
+}

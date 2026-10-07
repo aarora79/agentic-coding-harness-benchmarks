@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "minicpm5-2b",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 84,
+      "notes": "The issue clearly defines derivation, form auto-fill, both modal contexts, manual editing, non-GitHub behavior, and explicit non-goals. The submitted baseline diff corroborates its claims that the frontend types lack repository_url and both modals currently label the file link \"View on GitHub.\" Its largest gap is the absence of acceptance criteria for malformed URLs and reparsing a non-GitHub URL after a repository value is already populated. No independent task statement was supplied, and the intended scope of related issue #846 could not be verified."
+    },
+    "lld": {
+      "completeness": 13,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 9,
+      "total": 47,
+      "notes": "The LLD names relevant frontend files and real symbols such as handleParseSkillMd, SkillContentModal, Skill, and SemanticSkillHit, matching the submitted source contexts. Its central deficiency is that it never designs or identifies the backend change that derives repository_url, even though its own problem statement says the endpoint does not return it; the implementation steps merely consume an assumed response field. It also incorrectly says the semantic-search modal renders no links, while the diff context at SemanticSearchResults.tsx:343 shows an existing \"View on GitHub\" link. Endpoint ownership, derivation rules, validation, trailing-slash behavior, and stale form-value handling remain open questions rather than committed decisions."
+    },
+    "review": {
+      "completeness": 12,
+      "correctness": 9,
+      "specificity": 13,
+      "risk_awareness": 10,
+      "total": 44,
+      "notes": "The review usefully identifies the missing frontend type propagation, parse-state update, and two modal-link changes. Its largest failure is approving the design without confronting the absent backend derivation: the backend reviewer approves and the SRE calls this frontend-only despite the issue requiring the parse endpoint to derive and return repository_url. The security section raises direct-link validation but neither makes it blocking nor resolves it, while the resolution log references a nonexistent \"Step 8.5.\" Claims that the endpoint has proper error handling and already returns an empty value for non-GitHub URLs are unsupported by the patch and conflict with the LLD's own open questions."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 7,
+      "specificity": 12,
+      "risk_awareness": 11,
+      "total": 44,
+      "notes": "The plan covers blob and raw URLs, non-GitHub behavior, both modal states, form population, saving, and preservation of prior response fields. Its executable API examples are incorrect relative to the design and frontend integration: they send a JSON body, while the LLD specifies and handleParseSkillMd uses a url query parameter. Most UI cases provide no fixture, test component, or automated oracle, and the final uv/pytest command does not exercise the changed React components. It also omits the important stale-value transition, malformed GitHub inputs, and verification that semantic-search responses actually carry repository_url; the asserted successful empty GitLab response is unsupported."
+    },
+    "implementation": {
+      "completeness": 8,
+      "correctness": 9,
+      "specificity": 15,
+      "risk_awareness": 5,
+      "total": 37,
+      "notes": "The patch provides focused frontend wiring for the types, form state, and both link-rendering locations, consistent with the submitted baseline contexts. It does not implement the defining behavior: no backend parse-route or derivation logic is changed, so data.repository_url cannot be produced under the artifacts' stated baseline. Using data.repository_url || prev.repository_url also preserves a stale repository after parsing a non-GitHub URL, and adding a SemanticSkillHit field alone does not ensure the search API returns it. The summary's claims of no deviations and no follow-ups are therefore inaccurate, no regression tests are included, and git apply --check could not be executed because the read-only shell sandbox failed before command startup."
+    }
+  },
+  "task_score": 51.2,
+  "verdict": "The submission has a strong issue and useful frontend detail, but it omits the core backend URL-derivation implementation and contains contradictory design, review, and test assumptions around that endpoint.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-07T00:11:04.668180Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 137371,
+      "cached_input_tokens": 64506,
+      "cache_write_input_tokens": 24117,
+      "output_tokens": 8302,
+      "reasoning_output_tokens": 6545
+    },
+    "duration_ms": 106452
+  }
+}
