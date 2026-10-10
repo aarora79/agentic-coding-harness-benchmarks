@@ -33,6 +33,7 @@ import re
 import shutil
 import subprocess  # nosec B404 - used with list args, no shell, hardcoded command
 import sys
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -125,6 +126,16 @@ PI_PROVIDER_BEDROCK = "amazon-bedrock"
 # diverge without a silent coupling.
 OMP_PROVIDER_VLLM = "vllm"
 OMP_PROVIDER_BEDROCK = "amazon-bedrock"
+# omp's --model is a FUZZY match: a Bedrock id missing from the catalog omp has
+# loaded silently resolves to the nearest one it knows (omp 18.1.15 sent every
+# us.anthropic.claude-haiku-5-5 request to Haiku 4.5). In a fresh agent dir
+# `omp -p` sees only the snapshot bundled in the binary; `omp models` fetches the
+# full catalog and caches it in that dir. So each Bedrock task first lists the
+# catalog in its own agent dir (which both warms it and proves the exact id is
+# there), and every task checks the model each assistant message names. A
+# mismatch is a distinct, non-retryable subtype.
+OMP_CATALOG_TIMEOUT_SECONDS = 60
+OMP_MODEL_MISMATCH_SUBTYPE = "error_model_mismatch"
 
 # kiro-cli binary and the parsers for the one-line summary it prints on stderr at
 # the end of a non-interactive run, e.g. "▸ Credits: 0.21 • Time: 17s". kiro-cli
@@ -756,11 +767,128 @@ def _build_omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
     return [*cmd, "--", full_prompt]
 
 
+def _omp_bedrock_catalog(env: dict[str, str]) -> set[str]:
+    """List omp's Amazon Bedrock model ids, caching the catalog in the agent dir.
+
+    Runs ``omp models amazon-bedrock --json`` with ``env`` (which pins
+    ``PI_CODING_AGENT_DIR``). Besides returning the ids, this writes the fetched
+    catalog into that dir's ``models.db``, so a following ``omp -p`` there resolves
+    ids the bundled snapshot lacks (see ``OMP_CATALOG_TIMEOUT_SECONDS``).
+
+    Args:
+        env: Environment for the subprocess, as built by ``_build_omp_env``.
+
+    Returns:
+        The set of model ids omp lists under its ``amazon-bedrock`` provider.
+
+    Raises:
+        RuntimeError: If omp is missing, fails, times out, or prints bad JSON.
+    """
+    cmd = ["omp", "models", OMP_PROVIDER_BEDROCK, "--json"]
+    try:
+        proc = subprocess.run(  # nosec B603 B607 - hardcoded command, list args
+            cmd,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=OMP_CATALOG_TIMEOUT_SECONDS,
+            stdin=subprocess.DEVNULL,
+        )
+        catalog = json.loads(proc.stdout)
+    except FileNotFoundError as exc:
+        raise RuntimeError("omp CLI not found on PATH; see docs/omp-setup.md") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"'{' '.join(cmd)}' timed out after {OMP_CATALOG_TIMEOUT_SECONDS}s"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"'{' '.join(cmd)}' failed (exit {exc.returncode}): {exc.stderr[:500]}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"'{' '.join(cmd)}' printed invalid JSON: {exc}") from exc
+    models = catalog.get("models") if isinstance(catalog, dict) else None
+    if not isinstance(models, list):
+        raise RuntimeError(f"'{' '.join(cmd)}' printed no 'models' list")
+    return {m["id"] for m in models if isinstance(m, dict) and m.get("id")}
+
+
+def _require_omp_bedrock_model(config: RunnerConfig, env: dict[str, str]) -> None:
+    """Fail unless omp, in ``env``'s agent dir, lists the exact Bedrock model id.
+
+    Call this before every omp Bedrock task: listing the catalog also warms it,
+    without which a fresh agent dir fuzzy-matches ids the bundled snapshot lacks.
+
+    Args:
+        config: The runner config (model).
+        env: The omp subprocess environment for this task's agent dir.
+
+    Raises:
+        RuntimeError: If the catalog cannot be read or lacks the model id.
+    """
+    wire_id = model_to_wire_id(config.model or "")
+    if wire_id in _omp_bedrock_catalog(env):
+        return
+    raise RuntimeError(
+        f"omp's Amazon Bedrock catalog does not list '{wire_id}', so "
+        f"'--model {OMP_PROVIDER_BEDROCK}/{wire_id}' would fuzzy-match a different "
+        "model. Upgrade omp ('omp update'), confirm with "
+        f"'omp models find {wire_id}', and check the id against "
+        "'aws bedrock list-inference-profiles'."
+    )
+
+
+def _omp_models_used(events: list[dict[str, Any]]) -> list[str]:
+    """Return the sorted model ids named by the assistant messages in an omp stream.
+
+    Args:
+        events: The parsed JSON-lines events omp emitted.
+
+    Returns:
+        Every distinct ``message.model`` on an assistant ``message_end`` event.
+    """
+    models: set[str] = set()
+    for event in events:
+        if event.get("type") != "message_end":
+            continue
+        message = event.get("message") or {}
+        if message.get("role") == "assistant" and message.get("model"):
+            models.add(message["model"])
+    return sorted(models)
+
+
+def _flag_omp_model_mismatch(
+    result: dict[str, Any],
+    expected_model: str,
+    models_used: list[str],
+) -> None:
+    """Mark ``result`` failed when omp answered with a model other than requested.
+
+    Args:
+        result: The normalized result dict, updated in place.
+        expected_model: The model id the harness asked omp for.
+        models_used: The model ids the stream's assistant messages named.
+    """
+    unexpected = [m for m in models_used if m != expected_model]
+    if not unexpected:
+        return
+    message = (
+        f"omp answered with {unexpected} instead of the requested "
+        f"'{expected_model}': its --model fuzzy-matched a different model"
+    )
+    logger.error(message)
+    result["is_error"] = True
+    result["subtype"] = OMP_MODEL_MISMATCH_SUBTYPE
+    result["result"] = message
+
+
 def _run_omp(
     cmd: list[str],
     env: dict[str, str],
     timeout: int,
     stream_log: Path | None = None,
+    expected_model: str | None = None,
 ) -> dict[str, Any]:
     """Run ``omp -p --mode json`` and normalize its events to a result dict.
 
@@ -782,9 +910,13 @@ def _run_omp(
             ``capture_output`` only yields once the process exits -- so this is
             the only way to watch a run in flight (``tail -f`` it). omp's own
             ``~/.omp/logs`` carries lifecycle debug lines, not the event stream.
+        expected_model: The model id omp was asked for. When set, a stream whose
+            assistant messages name any other model marks the result failed with
+            ``OMP_MODEL_MISMATCH_SUBTYPE``.
 
     Returns:
-        The claude-shaped result dict (see ``_pi_result_from_events``).
+        The claude-shaped result dict (see ``_pi_result_from_events``), plus
+        ``models_used``: the model ids the assistant messages named.
 
     Raises:
         RuntimeError: If omp times out, emits no output, or emits no agent_end.
@@ -844,6 +976,9 @@ def _run_omp(
         )
     result = _pi_result_from_events(events, elapsed)
     result["_elapsed_seconds"] = round(elapsed, 1)
+    result["models_used"] = _omp_models_used(events)
+    if expected_model:
+        _flag_omp_model_mismatch(result, expected_model, result["models_used"])
     return result
 
 
@@ -1283,6 +1418,10 @@ def _metrics_from_result(
     # cost is auditable back to what the CLI actually charged.
     if result.get("kiro_credits") is not None:
         metrics["kiro_credits"] = result["kiro_credits"]
+    # agent=omp only: the model ids omp actually answered with, so a fuzzy-matched
+    # substitute is visible in the committed metrics (see _flag_omp_model_mismatch).
+    if result.get("models_used"):
+        metrics["models_used"] = result["models_used"]
     # Capture the error message so failures are diagnosable from metrics.json
     # without re-running the task by hand.
     if is_error:
@@ -3292,6 +3431,10 @@ def _run_task(
                 _write_omp_config(config, omp_agent_dir)
             cmd = _build_omp_cmd(config, prompt)
             env = _build_omp_env(config, omp_agent_dir)
+            if config.is_bedrock:
+                # Warm this task's catalog and prove the exact id is in it; a
+                # fresh agent dir otherwise fuzzy-matches (see _omp_bedrock_catalog).
+                _require_omp_bedrock_model(config, env)
             omp_cap = (
                 f"max-time {config.agent_max_time_seconds}s"
                 if config.agent_max_time_seconds
@@ -3384,6 +3527,11 @@ def _run_task(
                     config.timeout_seconds,
                     stream_log=_artifact_dir(config, dataset, task)
                     / "omp-stream.jsonl",
+                    expected_model=(
+                        model_to_wire_id(config.model or "")
+                        if config.is_bedrock
+                        else config.model
+                    ),
                 )
             elif config.is_kiro:
                 # kiro-cli streams ANSI text and prints a Credits/Time summary on
@@ -3589,7 +3737,8 @@ def _summary_is_retryable(summary: dict[str, Any]) -> bool:
     A task is retried only when it failed for a TRANSIENT reason. It is NOT
     retried when it simply exhausted its turn budget: another attempt at the
     same ``max_turns`` will hit the same wall, so the fix is a larger budget,
-    not a retry.
+    not a retry. Nor is it retried when every artifact is already on disk:
+    the retry clears them first, so it could only lose finished work.
 
     Turn exhaustion is identified by claude -p's result subtype
     ``error_max_turns``, or, defensively, by a run that used up (near) all of its
@@ -3606,8 +3755,16 @@ def _summary_is_retryable(summary: dict[str, Any]) -> bool:
     """
     if summary.get("ok"):
         return False
+    # Every artifact is on disk, so the work is done even though the agent
+    # reported an error on the way out (omp can end on stopReason "toolUse" right
+    # after its final summary). A retry would delete that finished work first.
+    if summary.get("design_done") and summary.get("patch_done"):
+        return False
     metrics = summary.get("metrics") or {}
     if metrics.get("result_subtype") == "error_max_turns":
+        return False
+    # omp answered with the wrong model: a retry resolves the same id the same way.
+    if metrics.get("result_subtype") == OMP_MODEL_MISMATCH_SUBTYPE:
         return False
     # Defensive fallback: no subtype recorded but the run clearly ran the turn
     # budget dry (e.g. an older claude that omits the subtype). Treat a run that
@@ -4283,6 +4440,16 @@ def main() -> None:
     if config.is_strands:
         try:
             _require_strands_sdk(harness=config.is_strands_harness)
+        except RuntimeError as exc:
+            logger.error("%s", exc)
+            sys.exit(1)
+    if config.is_omp and config.is_bedrock:
+        # Fail before the first task rather than once per task (with retries).
+        try:
+            with tempfile.TemporaryDirectory() as agent_dir:
+                _require_omp_bedrock_model(
+                    config, _build_omp_env(config, Path(agent_dir))
+                )
         except RuntimeError as exc:
             logger.error("%s", exc)
             sys.exit(1)
