@@ -271,7 +271,7 @@ def _omp_cmd(config: RunnerConfig, prompt: str) -> list[str]:
         The command argument vector.
     """
     if config.is_bedrock:
-        model = f"{HARNESS.OMP_PROVIDER_BEDROCK}/{config.model}"
+        model = f"{HARNESS.OMP_PROVIDER_BEDROCK}/{HARNESS.model_to_wire_id(config.model or '')}"
     else:
         model = f"{HARNESS.OMP_PROVIDER_VLLM}/{config.model}"
     cmd = ["omp", "-p", "--mode", "json", "--no-session", "--model", model]
@@ -336,6 +336,10 @@ def _run_omp_judgment(
     else:
         agent_dir.mkdir(parents=True, exist_ok=True)
     env = HARNESS._build_omp_env(config, agent_dir)
+    if config.is_bedrock:
+        # omp fuzzy-matches --model; warm this dir's catalog and prove the exact
+        # id is in it (see HARNESS._omp_bedrock_catalog).
+        HARNESS._require_omp_bedrock_model(config, env)
     start = time.time()
     events: list[dict[str, Any]] = []
     # stdin=DEVNULL is required, not cosmetic: omp treats an inherited stdin as a
@@ -371,6 +375,17 @@ def _run_omp_judgment(
     elapsed = time.time() - start
     result = HARNESS._pi_result_from_events(events, elapsed)
     result["_elapsed_seconds"] = round(elapsed, 1)
+    expected = (
+        HARNESS.model_to_wire_id(config.model or "")
+        if config.is_bedrock
+        else config.model
+    )
+    models_used = HARNESS._omp_models_used(events)
+    if expected and any(m != expected for m in models_used):
+        raise RuntimeError(
+            f"omp answered with {models_used} instead of the requested "
+            f"'{expected}': its --model fuzzy-matched a different model"
+        )
     return _omp_final_text(events), result
 
 

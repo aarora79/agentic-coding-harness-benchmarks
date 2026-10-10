@@ -120,7 +120,7 @@ The rates above are Qwen3-Coder-30B's Standard tier, the same ones in [bedrock_p
 
 ## Model on Bedrock directly
 
-Bedrock is built in, so no `models.yml` is needed. Name the inference profile after `amazon-bedrock/`:
+Bedrock is built in, so no `models.yml` is needed. Name the inference profile after `amazon-bedrock/`, but first check that omp knows the exact id with `omp models find <id>`. omp fuzzy-matches `--model`, so an id missing from its catalog runs on a different model with no error; [Model resolution](../omp-setup.md#model-resolution) explains why and how the harness guards against it.
 
 ```bash
 omp -p --mode json --no-session --auto-approve \
