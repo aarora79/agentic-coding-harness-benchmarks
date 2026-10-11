@@ -49,3 +49,29 @@ The omp run cost **$0.556 per task** on its own g6e basis, against **$0.493** fo
 The serving guide is [qwen3.6-35b-a3b-fp8.md](../../../self-hosted/vllm/models/qwen3.6-35b-a3b-fp8.md); the throughput measurement stays at `self-hosted/vllm/benchmark-output/throughput/qwen3.6-35b-fp8/`, where it is a valid record of what one L40S sustains and is unreachable from the charts while these runs are nested here.
 
 **What they are good for.** They show the model runs at full 256K context on a $1.298/hr single-GPU box at the same quality as its BF16 parent, and they measure what the harness costs on top: same model, same box, same tasks, 2.1x the cost per task under omp. That is a useful answer for anyone sizing a single-developer or small-team deployment, where the hourly rate matters more than throughput-normalised cost per task.
+
+### claude-haiku-5-5-resolved-as-haiku-4-5
+
+A 21-task omp `/swe3` run over `mcp-gateway-registry-v2` on 2026-10-08, requested as `us.anthropic.claude-haiku-5-5` and **answered by Haiku 4.5 on every turn**. omp 18.1.15 had no Claude 5.5 entries in its catalog, and its `--model` is a fuzzy match, so it sent each request to the nearest model it knew, `us.anthropic.claude-haiku-4-5-20251001-v1:0`, and reported no error. Each task's `metrics.json` still records the model the harness asked for, because this run predates the `models_used` field. The `omp-stream.jsonl` files, kept locally and never committed, name Haiku 4.5 on all 21 tasks.
+
+It is excluded on **identity**: the folder name says Haiku 5.5 and the model was Haiku 4.5. The real Haiku 5.5 run is at [claude-haiku-5-5](../claude-haiku-5-5/omp/swe3/mcp-gateway-registry-v2/run-summary.json).
+
+| | Value |
+|---|---|
+| Tasks generated | 21 / 21 |
+| Tasks judged | 13 / 21; judging stopped and was never resumed |
+| Mean over the 13 judged | 55.58, one of them a 0 |
+| Cost | $18.35, $0.87 a task, at omp 18.1.15's Haiku 4.5 rates ($1 / $5 / $0.10 / $1.25 per million tokens) |
+| No run summary | it was never summarized |
+
+The 0 is `consistent-csrf-across-toggle-endpoints`. omp wrote all six artifacts, then ended the session on `stopReason: toolUse`; the harness counted that as an error, retried, and the retry deleted the finished work before producing nothing.
+
+Both faults are fixed in [#218](https://github.com/aarora79/agentic-coding-harness-benchmarks/pull/218): the harness now refuses a Bedrock id missing from omp's catalog, warms that catalog in each task's agent directory, fails any task whose replies name a different model (`error_model_mismatch`), and never retries a task with all six artifacts on disk. [omp-setup.md](../../../docs/omp-setup.md#model-resolution) explains the resolution behaviour.
+
+**What it is good for.** It is the evidence for #218, and a second partial Haiku 4.5 sample: 55.58 over 13 tasks against the published 56.18 over 21.
+
+### claude-haiku-5-5-misplaced-artifacts
+
+The six artifacts Haiku 5.5 produced for `registration-admission-control-gate` in its published run on 2026-10-10. The prompt named the output directory `.../omp/swe3/mcp-gateway-registry-v2/registration-admission-control-gate/` 56 times; the model wrote everything to `.../omp/swe3/mcp-gateway-registry/registration-admission-control-gate/` instead, dropping the `-v2`. The harness found nothing in the right place and retried, and the retry stopped after 12 turns without writing anything.
+
+The task counts as a **failure** in the published run (20 / 21 scored, mean 72.69). These files were never judged and must not be: scoring them would grant Haiku 5.5 a pass no other model could have earned by writing to the wrong folder. They are kept, outside the harness's scan, so the failure can be read. Unlike the other runs here they include the markdown artifacts and `patch.diff`, which the repo's `.gitignore` excludes by default; they were added explicitly. One hunk header in `patch.diff` quoted an example token from upstream's `terraform.tfvars.example`; it reads `<redacted upstream example value>` here. Git ignores hunk-header text, so the patch still applies at `v1.0.19`.
