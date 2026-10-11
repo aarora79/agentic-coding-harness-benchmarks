@@ -82,12 +82,13 @@ class SelectionTest(unittest.TestCase):
                     )
 
     def test_reads_the_tier_not_the_overall_mean(self) -> None:
-        # qwen3.8-27b averages 78.48 overall and 71.45 on high. A floor of 75
-        # must reject it for hard work.
+        # claude-haiku-5-5 averages 72.69 overall but 79.16 on low and 60.00
+        # on high. A floor of 75 must take it for low work and reject it for
+        # hard work, as it must qwen3.8-27b (78.48 overall, 71.45 on high).
         r = _route(tier="high", floor=75)
-        self.assertNotEqual(r["recommended"]["model"], "qwen3.8-27b")
+        self.assertNotIn(r["recommended"]["model"], {"claude-haiku-5-5", "qwen3.8-27b"})
         r = _route(tier="low", floor=75)
-        self.assertEqual(r["recommended"]["model"], "qwen3.8-27b")
+        self.assertEqual(r["recommended"]["model"], "claude-haiku-5-5")
 
     def test_flags_a_margin_inside_the_noise(self) -> None:
         # 71.45 against a floor of 70 is not a reliable pass.
@@ -189,21 +190,21 @@ class AllowListTest(unittest.TestCase):
             _route(tier="low", floor=50, allowed_file=p, no_allow_list=False)
 
     def test_the_shipped_lists_commented_suggestions_are_not_policy(self) -> None:
-        # The file suggests adding claude-sonnet-5 and claude-haiku-4-5 as
-        # commented lines. A comment is a comment.
+        # The file suggests the self-hosted kimi-k3, gemma-4-31b and
+        # qwen3.6-35b as commented lines. A comment is a comment.
         path = _VEND / "allowed-models.txt"
         names = route.parse_allow_list(path)
-        self.assertNotIn("claude-sonnet-5", names)
-        self.assertNotIn("claude-haiku-4-5", names)
+        self.assertNotIn("kimi-k3", names)
+        self.assertNotIn("qwen3.6-35b", names)
         self.assertIn(
-            "claude-sonnet-5",
+            "#   kimi-k3",
             path.read_text(encoding="utf-8"),
-            "the file should still suggest sonnet as an addition",
+            "the file should still suggest kimi-k3 as an addition",
         )
 
     def test_the_shipped_allow_list_parses(self) -> None:
         names = route.parse_allow_list(_VEND / "allowed-models.txt")
-        self.assertEqual(len(names), 6)
+        self.assertEqual(len(names), 5)
         self.assertIn("claude-opus-5", names)
 
     def test_the_shipped_allow_list_is_the_frontier(self) -> None:
@@ -215,16 +216,15 @@ class AllowListTest(unittest.TestCase):
         self.assertEqual(names, frontier)
 
     def test_the_shipped_allow_list_says_what_it_excludes(self) -> None:
-        # Four of the five are self-hosted, so the list as written leaves a
-        # hosted-API developer with one option. Shipping that silently would be
-        # a trap.
+        # qwen3.8-27b is self-hosted, so a hosted-API developer who keeps it
+        # would be sent to a model they cannot select. The file must say so.
         text = (_VEND / "allowed-models.txt").read_text(encoding="utf-8")
-        self.assertIn("claude-sonnet-5", text)
-        self.assertIn("self-hosted", text)
+        self.assertIn("qwen3.8-27b, is self-hosted", text)
 
     def test_the_shipped_allow_list_forces_opus_for_bedrock_users(self) -> None:
         # Recorded because it is the argument for editing the shipped list:
-        # four of its five models are self-hosted.
+        # an available model that is not on it (claude-sonnet-5,
+        # claude-haiku-4-5) is never recommended, however well it scores.
         r = _route(
             tier="high",
             floor=70,
