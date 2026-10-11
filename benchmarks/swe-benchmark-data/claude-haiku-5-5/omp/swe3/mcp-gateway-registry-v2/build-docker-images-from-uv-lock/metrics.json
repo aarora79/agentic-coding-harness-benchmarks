@@ -1,0 +1,157 @@
+{
+  "task": "build-docker-images-from-uv-lock",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.23.0",
+  "complexity": "medium",
+  "tags": [
+    "docker",
+    "build",
+    "uv",
+    "dependencies",
+    "reproducibility",
+    "ci",
+    "fixed-in-1.24.0"
+  ],
+  "model": "us.anthropic.claude-haiku-5-5",
+  "model_slug": "claude-haiku-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 184.3,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 54,
+    "output_tokens": 57717,
+    "cache_read_tokens": 1600516,
+    "cache_write_tokens": 174213,
+    "total_tokens": 1832500,
+    "total_cost_usd": 0.0733102535,
+    "latency_seconds": 313.1,
+    "num_turns": 26,
+    "generation_tokens_per_sec": 184.3,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 54,
+  "output_tokens": 57717,
+  "latency_seconds": 313.1,
+  "num_turns": 26,
+  "total_cost_usd": 0.0733102535,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1600516,
+  "cache_creation_tokens": 174213,
+  "models_used": [
+    "us.anthropic.claude-haiku-5-5"
+  ],
+  "run_started_at": "2026-10-10T17:33:50.519886Z",
+  "run_ended_at": "2026-10-10T17:39:03.670969Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 54,
+    "output_tokens": 57717,
+    "cache_read_tokens": 1600516,
+    "cache_write_tokens": 174213,
+    "total_tokens": 1832500,
+    "total_cost_usd": 0.0733102535,
+    "latency_seconds": 313.1,
+    "num_turns": 26,
+    "generation_tokens_per_sec": 184.3,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "build-docker-images-from-uv-lock",
+    "model": "us.anthropic.claude-haiku-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 21,
+        "correctness": 20,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 83,
+        "notes": "The issue clearly identifies the reproducibility problem, affected images, intended commands, compatibility constraints, and testable failure behavior. The submitted patch context corroborates the cited existing install commands in Dockerfile.auth and Dockerfile.mcp-server. Its largest deficiency is ambiguity around Dockerfile.registry: the problem and broad scope include it, while the non-goals defer only its torch routing without clearly excluding its lock-based conversion. No independent task statement exists, and the environment prevented independent verification of the claimed baseline hash and every listed project root."
+      },
+      "lld": {
+        "completeness": 16,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 21,
+        "total": 76,
+        "notes": "The strongest decision is preserving the separately installed CPU torch packages with uv sync --inexact, alongside a concrete explanation of exact-sync removal behavior. The design is nevertheless not implementation-ready because it deliberately leaves four required locks absent, the new CI red, auth unbuildable, and the registry conversion unresolved. It gives precise Dockerfile and workflow changes, but does not decide whether uv's default dependency groups belong in production, which can differ from the previous uv pip install behavior. Claims about root-lock torch metadata, all nine manifests, and universal Python 3.14 requirements could not be independently verified because repository commands could not launch."
+      },
+      "review": {
+        "completeness": 18,
+        "correctness": 16,
+        "specificity": 22,
+        "risk_awareness": 21,
+        "total": 77,
+        "notes": "The review finds substantive project-specific hazards, especially exact sync deleting CPU torch and the registry lock pulling CUDA-related dependencies. Its largest weakness is the verdict: it labels absent locks and a broken CI/build state as must-fix findings, then accepts them as follow-ups instead of rejecting the patch until resolved. The implementation diff confirms that none of the four missing uv.lock files or the registry fix was supplied, making S1 and M1 release blockers rather than merely recorded risks. The underlying lock contents and Docker ignore claims could not be independently checked in the unavailable local command environment."
+      },
+      "testing": {
+        "completeness": 17,
+        "correctness": 14,
+        "specificity": 21,
+        "risk_awareness": 19,
+        "total": 71,
+        "notes": "The plan provides useful behavioral oracles for missing locks, CPU-only torch, NVIDIA package absence, image metadata, and workflow behavior. Its stale-lock test appends `dependencies += [...]`, which is invalid TOML rather than a valid dependency edit, so the expected successful frozen build would not test the stated contract. The lock-check loop masks failures with an overall successful shell status, only one MCP server image is built, and the allegedly copy-pasteable no-pyproject test supplies no command. Entrypoint and BUILD_VERSION expectations could not be independently verified against the repository."
+      },
+      "implementation": {
+        "completeness": 7,
+        "correctness": 8,
+        "specificity": 17,
+        "risk_awareness": 14,
+        "total": 46,
+        "notes": "The patch implements the narrow Dockerfile substitutions and correctly uses --inexact on the MCP path to preserve the preinstalled CPU torch layer. It omits all four required lockfiles and the registry conversion, so Dockerfile.auth fails immediately while copying the nonexistent auth_server/uv.lock and the proposed CI workflow is guaranteed to fail. The summary inaccurately says auth fails at uv sync and reports +56/-5, whereas the embedded diff contains 64 additions and 9 deletions. Exact git applicability could not be independently executed because the local command runner failed before launch, although the supplied hunk contexts are internally consistent."
+      }
+    },
+    "task_score": 70.6,
+    "verdict": "The design work is concrete and risk-aware, but the implementation is knowingly non-shippable because required lockfiles and the registry path are omitted.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-10T20:59:55.270507Z",
+      "repo_ref": "1.23.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 114966,
+        "cached_input_tokens": 62006,
+        "cache_write_input_tokens": 23304,
+        "output_tokens": 8704,
+        "reasoning_output_tokens": 6784
+      },
+      "duration_ms": 84677
+    }
+  }
+}

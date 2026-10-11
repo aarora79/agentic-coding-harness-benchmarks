@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 87,
+      "notes": "The issue clearly inventories six routes, distinguishes cookie and bearer behavior, and supplies testable negative, positive, and empty-cookie criteria. The repository release notes independently confirm that v1.0.21 addressed bearer-token CSRF failures on toggle endpoints. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) Its largest defect is wording that says a no-cookie bearer request succeeds on all six routes, although `/api/toggle/{service_path}` uses cookie-only `enhanced_auth` and should pass CSRF but still receive 401. No independent task statement was supplied, so the claimed six-route scope remains partly inferred from repository context and the artifacts."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 92,
+      "notes": "The LLD is unusually concrete: it names the real route functions, imports, dependency overrides, authentication precedence, rollout behavior, and exact cookie-presence predicate. Its planned edits correspond directly to the submitted diff in `registry/auth/csrf.py` and the four route modules, and it correctly distinguishes the UI route's eventual 401 from CSRF success. The main weakness is that several repository-runtime assertions—form caching, malformed-cookie parser behavior, and precise test-fixture effects—are presented as settled without executable verification. It nevertheless addresses compatibility, stale cookie-plus-bearer behavior, observability, rollback, and deferred adjacent routes proportionately."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 24,
+      "total": 91,
+      "notes": "The review finds consequential defects rather than merely approving the design, especially the empty-valued-cookie bypass in the earlier truthiness guard and the stale-cookie-plus-bearer behavior. It also identifies concrete fixture migrations in `test_agent_routes.py` and `test_server_routes.py` and records resolutions reflected in the final LLD and patch. Its largest omission is failing to challenge the issue's ambiguous all-routes bearer-success criterion or demand an integration check of actual authentication precedence. Claims about malformed cookie parsing and upstream header trust could not be independently exercised in the available environment."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 85,
+      "notes": "The plan provides concrete payloads and strong oracles for missing, invalid, mismatched, valid, empty-cookie, and cookie-plus-bearer cases, with all six routes covered by parametrized unit tests. The curl shapes agree with the submitted handler signatures: query input for agents, JSON for skills and virtual servers, and form data for server toggles. The weakest portion is the vague `api/registry_client.py --help` exercise, while manual coverage is uneven for the internal route and some checks depend on exact 200 or 404 outcomes rather than isolating CSRF behavior. It honestly states that tests were not executed and includes backward-compatibility, deployment, rollback, and state-verification checks."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The patch implements the design end to end: `verify_csrf_for_session_requests` uses cookie-key presence, delegates to the established validator, and is wired into all six named toggle handlers. It preserves strict behavior elsewhere, migrates affected overrides, documents the edge case, and adds dependency-level plus per-route tests for both credential paths; this aligns with the fix recorded for PR #894. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) The largest residual risk is that the new route tests rely on mocked handlers producing exactly 404 after CSRF passes, while real bearer authentication and successful state changes are not exercised by the patch itself. The summary is candid about unexecuted tests and its LLD deviation, but the environment prevented an independent local `git apply --check` or source execution, leaving applicability and formatting as evidence gaps."
+    }
+  },
+  "task_score": 89.0,
+  "verdict": "Strong, implementation-ready security work whose largest limitation is ambiguous acceptance language and partially unverified integration-test assumptions.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-11T00:18:19.016210Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 215012,
+      "cached_input_tokens": 125232,
+      "cache_write_input_tokens": 33984,
+      "output_tokens": 14659,
+      "reasoning_output_tokens": 12865
+    },
+    "duration_ms": 173788
+  }
+}

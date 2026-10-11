@@ -1,0 +1,156 @@
+{
+  "task": "portable-env-secret-generation-in-build-script",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "trivial",
+  "tags": [
+    "bash",
+    "portability",
+    "macos",
+    "secrets",
+    "setup",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 57.5,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 42,
+    "output_tokens": 29266,
+    "cache_read_tokens": 1367216,
+    "cache_write_tokens": 68797,
+    "total_tokens": 1465321,
+    "total_cost_usd": 0.81199767,
+    "latency_seconds": 508.7,
+    "num_turns": 20,
+    "generation_tokens_per_sec": 57.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 42,
+  "output_tokens": 29266,
+  "latency_seconds": 508.7,
+  "num_turns": 20,
+  "total_cost_usd": 0.81199767,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1367216,
+  "cache_creation_tokens": 68797,
+  "models_used": [
+    "us.anthropic.claude-sonnet-5-5"
+  ],
+  "run_started_at": "2026-10-10T23:51:17.574437Z",
+  "run_ended_at": "2026-10-10T23:59:46.271520Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 42,
+    "output_tokens": 29266,
+    "cache_read_tokens": 1367216,
+    "cache_write_tokens": 68797,
+    "total_tokens": 1465321,
+    "total_cost_usd": 0.81199767,
+    "latency_seconds": 508.7,
+    "num_turns": 20,
+    "generation_tokens_per_sec": 57.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "portable-env-secret-generation-in-build-script",
+    "model": "us.anthropic.claude-sonnet-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 86,
+        "notes": "The issue provides unusually concrete scope, six affected generation paths, explicit non-goals, and testable criteria covering metadata, newline handling, failures, and compatibility. Its description accurately identifies the non-portable `sed -i` forms shown in the submitted `build_and_run.sh` context. The largest weakness is that the claimed discarded secrets and auth-server crash loop are not tied to a verified first-assignment reader; the LLD instead names `source .env`, where a later assignment supersedes an earlier one. No independent task statement exists, so the asserted production impact and issue reference could not be independently established."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 18,
+        "specificity": 23,
+        "risk_awareness": 18,
+        "total": 81,
+        "notes": "The LLD commits to concrete helpers, validated variable names, exact call-site changes, metadata-preserving writes, read-back behavior, and realistic alternatives in `build_and_run.sh`. The proposed Bash is generally feasible and matches the submitted symbols such as `handle_error`, the five fixed-secret blocks, and the metrics service loop. Its main design defect is that `cat \"$tmp_file\" > \"$file\"` truncates the live file before completing, so a disk or write failure can corrupt `.env` despite the promised fail-safe handling; concurrent invocations are likewise unaddressed. It also incorrectly says secrets are never logged while retaining `${NEW_TOKEN:0:20}`, and baseline line numbers and external file claims could not be independently verified."
+      },
+      "review": {
+        "completeness": 21,
+        "correctness": 19,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 82,
+        "notes": "The review finds concrete defects rather than merely approving the design, notably unanchored greps, missing-final-newline handling, temp cleanup, and regex injection through service-derived names. Each finding has a consequence and a specific resolution reflected in the LLD and patch. It misses the non-atomic copy-back risk and accepts the claim that generation occurs only when the effective value is empty, although the grep logic triggers when any duplicate assignment is empty. The frontend section adds little, and the asserted crash-loop impact remains unverified."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 16,
+        "specificity": 20,
+        "risk_awareness": 17,
+        "total": 71,
+        "notes": "The plan supplies concrete shell setups and expected values for placeholder replacement, similar names, invalid names, mode preservation, repeated runs, and GNU-versus-BSD behavior. However, most cases are manual observations rather than executable assertions, ownership is not checked, and no concrete test exercises all converted fixed and per-service call sites. The no-trailing-newline case removes the unterminated target line before append and therefore does not reliably prove the explicit newline branch, while `chmod 555` may not induce failure for privileged runners. Cat-write failure, read-back failure, interruption, and concurrent edits are not covered, and the stated health endpoint could not be verified."
+      },
+      "implementation": {
+        "completeness": 20,
+        "correctness": 17,
+        "specificity": 22,
+        "risk_awareness": 16,
+        "total": 75,
+        "notes": "The diff implements the described helper, anchors the two broad checks, and routes all five shown fixed secrets plus `METRICS_API_KEY_*` through `set_env_var`, so it is internally consistent with the LLD. Name validation, format-safe `printf`, exact read-back, and reuse of `handle_error` are sound, focused changes. The largest defect is destructive, non-atomic copy-back: a partial `cat` failure can leave `.env` truncated, while cleanup failure can exit under `set -e` without the required `ERROR:` message; no permanent regression test accompanies the new shared primitive. The submitted hunk contexts are coherent, but the local command sandbox failed before execution, so `git apply --check`, the claimed baseline commit, and actual verification results could not be independently confirmed."
+      }
+    },
+    "task_score": 79.0,
+    "verdict": "This is a strong, repository-specific submission whose largest limitation is a non-atomic `.env` rewrite and insufficient executable coverage of its failure behavior.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-11T00:52:40.773095Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 115828,
+        "cached_input_tokens": 67891,
+        "cache_write_input_tokens": 25262,
+        "output_tokens": 9983,
+        "reasoning_output_tokens": 8328
+      },
+      "duration_ms": 106741
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 91,
+      "notes": "The issue defines an opt-in mode, backward-compatible default, concrete security expectations, deployment scope, and unusually testable acceptance criteria. Its named integration points, including LiteLLMClient, EMBEDDINGS_API_KEY, federation_auth.py, Compose, Terraform, and Helm, agree with the submitted repository contexts. The largest gap is that it requires deployment wiring without explicitly requiring a successful ECS startup with the now-mandatory EMBEDDINGS_API_BASE, which allowed a critical infrastructure omission later. No independent task statement was supplied, so alignment beyond the task identifier and internally defined scope cannot be verified."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The LLD is highly repository-specific and commits to concrete interfaces, validation rules, token lifecycle behavior, file changes, rollout, and rollback. Its analysis correctly identifies the static-key environment mutation in LiteLLMClient and the always-present ECS EMBEDDINGS_API_KEY placeholder, then designs api_key=None for OAuth2. Its largest defect is requiring EMBEDDINGS_API_BASE in OAuth2 mode while omitting that variable from every Terraform change, making the promised ECS path unusable; it also promises secrecy in every repr without specifying protection for the Settings field. Claims such as the exhaustive caller inventory and exact line audit could not be independently reproduced through the unavailable shell, although the submitted diff contexts support the principal symbols and paths."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 80,
+      "notes": "The review finds several real, consequential defects, especially the ECS placeholder conflict, process-global API-key mutation, missing raise_for_status call, token-endpoint transport security, and stale Helm documentation. Its findings cite concrete symbols and lead to actionable design changes rather than generic persona approval. The largest miss is failing to notice that the revised design requires EMBEDDINGS_API_BASE but never wires it through ECS, and it also misses the unmasked Settings repr and permanent embedding-unavailable latch after a transient token failure. The claimed five-persona review process itself is not independently verifiable, but the technical findings are largely corroborated by the submitted source contexts."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 69,
+      "notes": "The record supplies concrete setups and oracles for expiry boundaries, caching, concurrency, HTTP failures, static compatibility, environment mutation, validation, and deployment rendering. However, it claims two TestTokenRequestBody tests and 16 provider tests, while the submitted patch contains no such class and only 14 provider test methods; its reported 5799/82 counts also conflict with implementation.md's 5797/80 results. It additionally lacks committed repository-wiring tests, a Settings repr secrecy test, and an ECS startup test that would have exposed the missing EMBEDDINGS_API_BASE plumbing. Helm, Terraform, real-IdP, and reported full-suite execution remain unverified, although the artifact clearly discloses several of those limitations."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 66,
+      "notes": "The patch implements the core flow coherently: auth.py posts client-credentials form data, checks HTTP status, caches under a lock, refreshes at the boundary, and client.py supplies the token as LiteLLM's per-call api_key while preserving static kwargs. The diff contexts and named symbols are consistent with the repository structure, and the summary honestly acknowledges the ECS limitation and existing process-lifetime failure latch. The largest defects are that ECS OAuth2 cannot start because EMBEDDINGS_API_BASE is required but not exposed or injected, and embeddings_oauth_client_secret is an ordinary repr-visible Pydantic string despite the requirement that no repr reveal it. The patch also omits the request-body tests claimed by testing.md, and its Helm documentation continues naming mcpgw.app keys despite implementing values under charts/registry."
+    }
+  },
+  "task_score": 76.2,
+  "verdict": "The submission has strong, repository-grounded design work and a mostly sound core OAuth2 implementation, but critical ECS incompleteness, a Settings repr secret leak, and contradictory test evidence prevent production readiness.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-10T21:18:11.467712Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 243406,
+      "cached_input_tokens": 176864,
+      "cache_write_input_tokens": 45918,
+      "output_tokens": 10813,
+      "reasoning_output_tokens": 9059
+    },
+    "duration_ms": 106865
+  }
+}

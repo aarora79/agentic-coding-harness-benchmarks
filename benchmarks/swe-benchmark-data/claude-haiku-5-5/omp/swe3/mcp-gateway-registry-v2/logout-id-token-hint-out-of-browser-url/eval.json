@@ -1,0 +1,64 @@
+{
+  "task": "logout-id-token-hint-out-of-browser-url",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 21,
+      "total": 81,
+      "notes": "The issue clearly identifies the affected logout hops, providers, compatibility requirement, and testable single-use and expiry behavior. Its paths and symbols align with the submitted diff, including `registry/auth/routes.py`, `auth_server/server.py`, session encryption, and the shared database. The largest defect is that “no token value is written to any log line” conflicts with the stated residual auth-server-to-IdP URL, which may still reach proxy logs; mixed-version logout is also only preserved under a required deployment order. No independent task statement was supplied, so the narrowed first-hop scope cannot be verified against requirements beyond the identifier and artifacts."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The LLD is unusually concrete about collection naming, encryption, atomic consumption, TTL indexing, failure fallback, metrics, and rollout order, and its named interfaces correspond to the patch. It correctly recognizes that deletion of `oauth_sessions` prevents a later session lookup and commits to an implementable shared-store flow. Its central security claim is unsound: a caller obtaining `logout_ref` can redeem it at `oauth2_logout` and inspect the resulting 302 `Location` containing the JWT, while the reference is not bound to the provider or redirect context. The design acknowledges reference logging and mixed-version failure but understates both risks, and the exact base source and claimed line references could not be independently reproduced because repository shell access failed."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 70,
+      "notes": "The review finds concrete design defects involving TTL-index failure, exception logging, database access, collection naming, and deployment order, and records specific resolutions. Findings such as F-B1 and F-O1 correspond directly to implementation choices in `session_store.py` and the retained legacy query parameter. Its most important miss is F-S5: the auth endpoint converts a leaked reference into a response URL containing the plaintext `id_token_hint`, so the assertion that the reference cannot yield the token is false. It also does not challenge provider substitution, the contradictory log requirement, or the absence of feature tests in the planned patch."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 69,
+      "notes": "The plan covers provider behavior, expiry, reuse, atomic consumption, store failures, legacy compatibility, index configuration, and E2E SSO termination with mostly concrete expected outcomes. Several expectations contradict the design and patch: F4 expects no Cognito reference although the registry issues one for every valid token, and F15 forbids logging the reference although the LLD explicitly says it appears in access logs. E4 cannot guarantee redirect intermediates disappear from browser history, and D4 varies registry replicas rather than the auth-server consumers whose concurrency matters. The plan also supplies few repository test locations, fixtures, mocking details, or executable commands, leaving substantial implementation decisions to the tester."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 65,
+      "notes": "The diff implements the main flow end to end: it stores encrypted tokens under hashed, expiring references, atomically consumes them, preserves the legacy parameter, removes the obsolete meter, and updates documentation. The submitted context is internally consistent with the named symbols, but independent source comparison and `git apply --check` could not be executed because every repository shell command failed during sandbox initialization, so the summary's verification claims remain unconfirmed. The largest defect is that `logout_ref` remains a short-lived bearer code redeemable for the JWT through the returned IdP `Location`, is not bound to the selected provider, and is expected to appear in access logs. No feature tests accompany this security-sensitive change, and Cognito performs unnecessary reference storage and consumption despite the testing plan claiming otherwise."
+    }
+  },
+  "task_score": 72.4,
+  "verdict": "The submission is detailed and largely implements the proposed first-hop mitigation, but it misses that the logged, unbound logout reference can itself be redeemed for the ID token and supplies no implementation tests for the new security path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-10T21:23:03.368534Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 174050,
+      "cached_input_tokens": 92140,
+      "cache_write_input_tokens": 28799,
+      "output_tokens": 9249,
+      "reasoning_output_tokens": 7943
+    },
+    "duration_ms": 96069
+  }
+}

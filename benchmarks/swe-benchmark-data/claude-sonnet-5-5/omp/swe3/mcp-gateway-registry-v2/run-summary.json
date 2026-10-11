@@ -1,0 +1,1438 @@
+{
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "model_slug": "claude-sonnet-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "scope": "mcp-gateway-registry-v2",
+  "provider": "bedrock",
+  "ref": null,
+  "refs": [
+    "1.23.0",
+    "1.24.3",
+    "1.24.7",
+    "1.25.0",
+    "1.27.1",
+    "1.28.0",
+    "v1.0.18",
+    "v1.0.19",
+    "v1.0.20",
+    "v1.0.21"
+  ],
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-11T00:08:50.912962Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 504890,
+      "cached_input_tokens": 357888,
+      "cache_write_input_tokens": 121681,
+      "output_tokens": 12669,
+      "reasoning_output_tokens": 10958
+    },
+    "duration_ms": 138991
+  },
+  "num_tasks": 21,
+  "num_scored": 21,
+  "num_failed": 0,
+  "failed_tasks": [],
+  "mean_task_score_excl_failed": 79.49,
+  "mean_cost_usd_excl_failed": 2.62,
+  "tasks": [
+    {
+      "task": "consistent-csrf-across-toggle-endpoints",
+      "complexity": "medium",
+      "ref": "v1.0.20",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 38,
+      "input_tokens": 80,
+      "output_tokens": 52833,
+      "total_tokens": 4195488,
+      "latency_seconds": 398.7,
+      "total_cost_usd": 1.81986739,
+      "result_subtype": "success",
+      "task_score": 89.0,
+      "cache_read_tokens": 4013262,
+      "cache_write_tokens": 129313,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 132.5,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 22,
+          "total": 87,
+          "notes": "The issue clearly inventories six routes, distinguishes cookie and bearer behavior, and supplies testable negative, positive, and empty-cookie criteria. The repository release notes independently confirm that v1.0.21 addressed bearer-token CSRF failures on toggle endpoints. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) Its largest defect is wording that says a no-cookie bearer request succeeds on all six routes, although `/api/toggle/{service_path}` uses cookie-only `enhanced_auth` and should pass CSRF but still receive 401. No independent task statement was supplied, so the claimed six-route scope remains partly inferred from repository context and the artifacts."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 22,
+          "specificity": 24,
+          "risk_awareness": 23,
+          "total": 92,
+          "notes": "The LLD is unusually concrete: it names the real route functions, imports, dependency overrides, authentication precedence, rollout behavior, and exact cookie-presence predicate. Its planned edits correspond directly to the submitted diff in `registry/auth/csrf.py` and the four route modules, and it correctly distinguishes the UI route's eventual 401 from CSRF success. The main weakness is that several repository-runtime assertions\u2014form caching, malformed-cookie parser behavior, and precise test-fixture effects\u2014are presented as settled without executable verification. It nevertheless addresses compatibility, stale cookie-plus-bearer behavior, observability, rollback, and deferred adjacent routes proportionately."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 22,
+          "specificity": 23,
+          "risk_awareness": 24,
+          "total": 91,
+          "notes": "The review finds consequential defects rather than merely approving the design, especially the empty-valued-cookie bypass in the earlier truthiness guard and the stale-cookie-plus-bearer behavior. It also identifies concrete fixture migrations in `test_agent_routes.py` and `test_server_routes.py` and records resolutions reflected in the final LLD and patch. Its largest omission is failing to challenge the issue's ambiguous all-routes bearer-success criterion or demand an integration check of actual authentication precedence. Claims about malformed cookie parsing and upstream header trust could not be independently exercised in the available environment."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 85,
+          "notes": "The plan provides concrete payloads and strong oracles for missing, invalid, mismatched, valid, empty-cookie, and cookie-plus-bearer cases, with all six routes covered by parametrized unit tests. The curl shapes agree with the submitted handler signatures: query input for agents, JSON for skills and virtual servers, and form data for server toggles. The weakest portion is the vague `api/registry_client.py --help` exercise, while manual coverage is uneven for the internal route and some checks depend on exact 200 or 404 outcomes rather than isolating CSRF behavior. It honestly states that tests were not executed and includes backward-compatibility, deployment, rollback, and state-verification checks."
+        },
+        "implementation": {
+          "completeness": 23,
+          "correctness": 22,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 90,
+          "notes": "The patch implements the design end to end: `verify_csrf_for_session_requests` uses cookie-key presence, delegates to the established validator, and is wired into all six named toggle handlers. It preserves strict behavior elsewhere, migrates affected overrides, documents the edge case, and adds dependency-level plus per-route tests for both credential paths; this aligns with the fix recorded for PR #894. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) The largest residual risk is that the new route tests rely on mocked handlers producing exactly 404 after CSRF passes, while real bearer authentication and successful state changes are not exercised by the patch itself. The summary is candid about unexecuted tests and its LLD deviation, but the environment prevented an independent local `git apply --check` or source execution, leaving applicability and formatting as evidence gaps."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "honor-cloud-provider-override-in-ui",
+      "complexity": "low",
+      "ref": "1.24.7",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 18,
+      "input_tokens": 40,
+      "output_tokens": 21556,
+      "total_tokens": 1419571,
+      "latency_seconds": 153.4,
+      "total_cost_usd": 0.7266503199999998,
+      "result_subtype": "success",
+      "task_score": 89.0,
+      "cache_read_tokens": 1326081,
+      "cache_write_tokens": 71894,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 140.5,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 24,
+          "risk_awareness": 18,
+          "total": 85,
+          "notes": "The issue provides unusually concrete reproduction conditions, response oracles, scope exclusions, and compatibility requirements. Its paths and symbols align with the submitted patch preimage, including the raw detector call in registry/api/system_routes.py and MCP_CLOUD_PROVIDER documentation in .env.example. Its claim that unset overrides leave behavior unchanged is incomplete because the proposed resolver also honors registry-card hints, and it omits the resolver's metric and logging side effects. No independent task statement was supplied, so related-issue claims and intended scope beyond the task identifier could not be independently established."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 23,
+          "specificity": 24,
+          "risk_awareness": 22,
+          "total": 92,
+          "notes": "The LLD is grounded in exact files, functions, call sites, cache behavior, authentication, and deployment surfaces, and commits to an implementable one-call-site change. It explicitly covers the operator-hint branch and request-driven metric/log side effect that the issue omitted, with alternatives and rollback guidance. Its main gap is that the regression design tests only explicit override and cascade fallback, not the newly exposed operator-hint behavior or repository-failure fallback. Exact Helm, Terraform, cache-duration, and line-number claims could not all be independently confirmed from the available checkout tooling."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 23,
+          "specificity": 23,
+          "risk_awareness": 23,
+          "total": 91,
+          "notes": "The review identifies a concrete operational defect: each UI resolution can increment cloud_detection_total and emit another INFO log on explicit or operator branches. It also gives actionable test guidance about patching registry.core.telemetry.settings and clearing _detect_cloud_provider_with_method's cache. The largest omission is that it does not require coverage for the operator-hint branch or directly challenge the issue's unconditional backward-compatibility statement. Its specific assertion about CloudWatch alarm filtering was not independently verifiable."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 87,
+          "notes": "The plan supplies concrete HTTP and unit-test setup, exact JSON oracles, authentication coverage, invalid-value behavior, deployment checks, and cascade compatibility coverage. The proposed route tests directly exercise the reported AWS_REGION conflict and use deterministic cache and hint isolation. The parity check using a generic cloud-detection log is weak because the endpoint request itself can emit that log, so it does not prove a startup or heartbeat payload carried the same values. There is also no automated operator-hint, repository-failure, or metric-count regression test, and the token-file path was not independently verified."
+        },
+        "implementation": {
+          "completeness": 23,
+          "correctness": 23,
+          "specificity": 24,
+          "risk_awareness": 20,
+          "total": 90,
+          "notes": "The patch implements the central behavior end to end by awaiting _resolve_cloud(), preserving the response schema, adding two route-level regression tests, and updating operator-facing configuration documentation. Its diff context is internally consistent with the submitted baseline symbols and follows the documented lazy-import, dependency-override, and cache-clearing conventions. The largest residual risk is the knowingly retained request-driven metric increment and repeated INFO logging, plus the absence of coverage for the resolver's operator-hint branch. The claimed reverse apply check could not be independently reproduced, and the summary explicitly states that tests were not executed."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "configurable-ui-title",
+      "complexity": "medium",
+      "ref": "1.23.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 57,
+      "input_tokens": 120,
+      "output_tokens": 53011,
+      "total_tokens": 7547857,
+      "latency_seconds": 406.4,
+      "total_cost_usd": 2.68253942,
+      "result_subtype": "success",
+      "task_score": 88.4,
+      "cache_read_tokens": 7316736,
+      "cache_write_tokens": 177990,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 130.4,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 86,
+          "notes": "The issue is unusually complete, naming concrete UI consumers, configuration surfaces, defaults, exports, documentation, tests, and explicit non-goals. Its largest defect is contradictory compatibility wording: registry-only deployments intentionally change title when UI_TITLE is unset, yet another criterion says unset deployments see no title change. The cited Docker, Terraform, Helm, API, and React paths are consistent with the patch and repository parameter conventions. No independent task statement was supplied, so the proposed branding semantics cannot be verified beyond the task identifier and internally consistent artifacts."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 23,
+          "total": 90,
+          "notes": "The strongest aspect is its repository-specific treatment of startup deployment-mode correction, pre-authentication access, generic config exports, Helm rollout churn, and all deployment plumbing. It commits to concrete fields, properties, endpoints, hooks, templates, and rollback behavior, while the repository parameter reference corroborates the authenticated /api/config and cross-surface configuration conventions. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/unified-parameter-reference.md)) The main deficiency is an unrevised architecture diagram that still routes Login and Logout through /api/config even though the corrected implementation uses public /api/auth/config. Exact baseline line references and claims about unavailable local binaries could not be independently verified because repository command execution failed during sandbox initialization."
+        },
+        "review": {
+          "completeness": 23,
+          "correctness": 23,
+          "specificity": 24,
+          "risk_awareness": 24,
+          "total": 94,
+          "notes": "The review finds concrete, consequential defects rather than merely approving the design: authenticated endpoint access for Login/Logout, Helm pod-template churn and duplicate environment names, first-render title flashing, long-title layout behavior, and public data exposure. Each finding includes consequences, alternatives, priority, and an actionable resolution tied to files such as docker/nginx_rev_proxy_http_only.conf, deployment.yaml, and extra_env_test.yaml. Its limited gap is that it does not challenge the issue's contradictory backward-compatibility criterion or anticipate weaknesses in the later frontend test isolation."
+        },
+        "testing": {
+          "completeness": 23,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 22,
+          "total": 84,
+          "notes": "The plan covers resolution rules, both API surfaces, exports, UI behavior, injection safety, deployment wiring, rollback, startup auto-correction, and exact expected values. Its largest correctness defect is that the /api/config curl commands provide no cookie or bearer token even though that endpoint is authenticated, while REGISTRY_URL points at the nginx-facing localhost address. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/unified-parameter-reference.md)) The docker compose up registry prerequisite also does not clearly establish the stated URL, and the frontend checklist supplies no executable test command or automated component-level assertions for Layout, UptimeDisplay, Login, or Logout. Most paths and commands are plausible, but they could not be executed or independently enumerated in the local repository because the command sandbox failed before launch."
+        },
+        "implementation": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 88,
+          "notes": "The patch implements the design end to end across Settings.effective_ui_title, both config endpoints, four UI consumers, admin exports, Compose, Terraform, Helm, documentation, and three test layers. Its hunk contexts and symbols are internally consistent, and the repository's current parameter reference corroborates the UI_TITLE, ui_title, and registry.app.uiTitle mapping. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/unified-parameter-reference.md)) The main defects are that a hardcoded fallback title remains in React source despite the issue's literal prohibition, component rendering is not automated, and jest.isolateModules may load the hook against a different React module instance than renderHook. The summary honestly reports that tests were not run, but its clean-apply and baseline-commit claims could not be independently checked because local command execution was unavailable."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "index-demo-videos-in-one-page",
+      "complexity": "trivial",
+      "ref": "1.24.3",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 16,
+      "input_tokens": 36,
+      "output_tokens": 19247,
+      "total_tokens": 1222142,
+      "latency_seconds": 149.7,
+      "total_cost_usd": 0.6596579000000001,
+      "result_subtype": "success",
+      "task_score": 88.4,
+      "cache_read_tokens": 1130435,
+      "cache_write_tokens": 72424,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 128.6,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 22,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 89,
+          "notes": "The issue's strongest aspect is its testable scope: one index page, a prominent README link, valid relative links, preserved existing links, and markdown-only changes. Its main limitation is the absent independent task statement, so details such as including GIF recordings and excluding MkDocs navigation are candidate-defined rather than externally mandated. The acceptance criteria map cleanly to observable files and behavior without forcing unrelated code changes. The exact baseline count, issue #1190, and claim that every video source was found could not be independently confirmed because local shell execution failed, although current repository pages corroborate several named documentation paths. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/agent-skills-operational-guide.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/virtual-server-operations.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/aws-agent-registry-federation.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/security-scanner.md))"
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 22,
+          "specificity": 24,
+          "risk_awareness": 22,
+          "total": 91,
+          "notes": "The LLD is unusually concrete for a documentation change, inventorying sources, committing to exact groups and links, and defining the two-file integration boundary. Its largest minor gap is that textual URL equality and future manual maintenance are implicit design choices rather than a defined normalization or enforcement mechanism. Referenced pages such as the Agent Skills, Virtual Server, CLI, IAM, federation, security, and versioning guides exist, and accessible text supports several proposed descriptions. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/agent-skills-operational-guide.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/virtual-server-operations.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/mcp-registry-cli.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/iam-settings-ui.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/aws-agent-registry-federation.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/security-scanner.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/server-versioning-operations.md)) The exact 13-URL inventory, baseline line numbers, workflow command, and claimed broken GIF could not be verified against the local baseline because command execution was unavailable."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 22,
+          "specificity": 22,
+          "risk_awareness": 22,
+          "total": 87,
+          "notes": "The review's strongest contribution is identifying specific concerns: federation wording, source-versus-site navigation, list drift, outbound hosts, tracking parameters, and the broken-image exclusion. Its main weakness is that several reviewer sections merely approve and nobody materially challenges the completeness regex, relative-link behavior after MkDocs rendering, or URL deduplication semantics. The review's description checks are credible because repository pages use the cited Agent Skills, Virtual Server, and AWS federation wording. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/agent-skills-operational-guide.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/virtual-server-operations.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/aws-agent-registry-federation.md)) The claimed first-draft correction and exact `.github/workflows/docs.yml` configuration could not be independently verified."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 86,
+          "notes": "The plan provides concrete commands, expected outputs, a negative completeness test, source-link checks, manual rendering checks, and explicit acknowledgement that browser verification was not run. Its largest defect is that `git diff --stat` is an indirect backward-compatibility oracle and does not itself prove that every pre-existing README video link remains byte-for-byte unchanged. The relative-link test has a meaningful filesystem oracle, while the URL scan is precise for the three enumerated host forms but would miss unanticipated video URL formats. Claims that the commands produced 13 URLs, that the README match is on line 14, and that the patched clone was tested could not be independently reproduced."
+        },
+        "implementation": {
+          "completeness": 23,
+          "correctness": 22,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 89,
+          "notes": "The patch implements the submitted design end to end: it adds the grouped index, preserves existing banner links, adds the prominent README entry, and limits changes to Markdown. The largest residual risk is future drift because the index is hand-maintained and the patch adds no enforcement, although that limitation is honestly documented and proportionate to the task. Referenced guides exist, and accessible repository text supports descriptions such as registering, managing, and using Agent Skills and managing Virtual MCP Servers through the web UI. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/agent-skills-operational-guide.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/virtual-server-operations.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/mcp-registry-cli.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/iam-settings-ui.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/aws-agent-registry-federation.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/security-scanner.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/server-versioning-operations.md)) The exact baseline commit, patch applicability, all 13 source URLs, and relative-file existence could not be independently confirmed because local shell execution failed, so correctness stops short of exceptional."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "cli-custom-egress-oauth-provider-flags",
+      "complexity": "low",
+      "ref": "1.28.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 33,
+      "input_tokens": 70,
+      "output_tokens": 31467,
+      "total_tokens": 2928448,
+      "latency_seconds": 235.3,
+      "total_cost_usd": 1.2297829499999997,
+      "result_subtype": "success",
+      "task_score": 86.4,
+      "cache_read_tokens": 2799610,
+      "cache_write_tokens": 97301,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 133.7,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 88,
+          "notes": "The issue clearly traces the failure from missing CLI flags through `cmd_egress_configure` to `resolve_provider`, and provides directly testable acceptance criteria for all five fields. Its paths and symbols align internally with the submitted diff, including `RegistryClient.configure_egress_auth` and the unchanged egress-auth endpoint. The largest evidence limitation is that no independent task statement exists, while issue #1601 and the claimed baseline could not be independently inspected because the local command sandbox failed. Scope boundaries, omission semantics, SSRF ownership, and the reconfiguration-clearing risk are nevertheless unusually explicit."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 89,
+          "notes": "The LLD commits to concrete changes in `api/registry_client.py`, `api/registry_management.py`, the documentation, and a new unit-test file, with exact parameter and body-key behavior. Its design is consistent with the patch's existing `if value is not None` pattern and appends parameters to preserve callers. The main weakness is that several repository-wide claims\u2014especially standalone-package coupling, route rebuild details, and existing test conventions\u2014could not be independently verified against the inaccessible local tree. It still handles enum drift, server validation ownership, logging, compatibility, clearing behavior, rollout, and deferred UI parity proportionately."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 23,
+          "total": 87,
+          "notes": "The strongest finding is Byte-1: omission from the request does not preserve stored optional fields because the route rebuilds provider settings, a consequence reflected in the final design and docs. The review also identifies enum drift, React-modal clobbering, command-line secret exposure, and logging concerns with actionable dispositions. Its statement that the modal sends `null` is imprecise\u2014the described behavior can arise from omitted fields becoming `None` in the server model\u2014and the DNS-pinning assertion could not be verified. Despite those limitations, it meaningfully challenges the design rather than merely approving it."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 85,
+          "notes": "The plan supplies concrete commands and strong oracles for all-field, omitted-field, subset, invalid-choice, enum-drift, backward-compatibility, and manual end-to-end cases. The proposed tests exercise the real parser through `main()` and inspect the exact POST method, endpoint, and body. Its largest defect is that two implemented test docstrings claim omission keeps stored values, directly contradicting the plan's correct statement that the server clears omitted optional settings. Tests were not executed, and the commands and referenced existing validation test could not be independently checked because the repository shell was unavailable."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 19,
+          "total": 83,
+          "notes": "The patch implements the complete intended chain: five parser flags, handler forwarding, optional client body fields, argparse choices, documentation, and focused tests. The diff contexts are internally consistent around `configure_egress_auth`, `cmd_egress_configure`, and the parser, and the summary honestly states that tests were not run and that server-side clearing remains. The largest defect is misleading test documentation asserting omitted fields preserve stored values even though the implementation summary and docs acknowledge the opposite. The local sandbox prevented an independent `git apply --check` and source-tree inspection, so exact applicability and all surrounding callers remain unverified evidence gaps rather than demonstrated code failures."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "hide-register-button-on-virtual-and-skills-tabs",
+      "complexity": "trivial",
+      "ref": "v1.0.18",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 8,
+      "input_tokens": 18,
+      "output_tokens": 8790,
+      "total_tokens": 476242,
+      "latency_seconds": 59.8,
+      "total_cost_usd": 0.30599965,
+      "result_subtype": "success",
+      "task_score": 84.0,
+      "cache_read_tokens": 425365,
+      "cache_write_tokens": 42069,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 147.0,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 21,
+          "specificity": 24,
+          "risk_awareness": 21,
+          "total": 89,
+          "notes": "The issue precisely defines the two affected viewFilter values, preserved tabs, unchanged controls, and explicit non-goals. The submitted diff context supports its identification of the Register button, handleRegisterServer, and neighboring health action in frontend/src/pages/Dashboard.tsx. Its largest evidence limitation is the absent independent task statement, leaving the claim that /servers/register is inappropriate for both tabs dependent on the artifacts themselves. Local repository inspection was blocked by the command sandbox, so the referenced issue, route behavior, and exact tab union could not be independently verified."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 21,
+          "specificity": 24,
+          "risk_awareness": 21,
+          "total": 89,
+          "notes": "The LLD commits to a minimal deny-list condition, names the integration points, and explains why External Registries remains unchanged. Its proposed JSX matches the submitted patch exactly and preserves the surrounding handleRegisterServer and handleRefreshHealth behavior. The main limitation is thin verification and rollback guidance, with the known future-tab behavior of the deny-list only discussed indirectly through alternatives and review. The claimed source line numbers, viewFilter union, App.tsx route, and RegisterPage.tsx semantics could not be independently checked because repository shell access failed."
+        },
+        "review": {
+          "completeness": 18,
+          "correctness": 21,
+          "specificity": 19,
+          "risk_awareness": 20,
+          "total": 78,
+          "notes": "The review's strongest findings are concrete: External Registries may also be semantically questionable, future tabs will expose Register by default, and UI hiding is not authorization. Those observations are consistent with the submitted deny-list patch and its unchanged route and handler. Its largest deficiency is that most reviewer sections merely approve the design and do not challenge the absence of an automated render regression test or add actionable validation requirements. Claims about backend authorization and deployment surfaces could not be independently verified from the inaccessible repository."
+        },
+        "testing": {
+          "completeness": 18,
+          "correctness": 18,
+          "specificity": 21,
+          "risk_awareness": 18,
+          "total": 75,
+          "notes": "The tab matrix provides clear visual oracles for all six named views and adds navigation, stale-state, layout, and unchanged-control checks. These expectations align directly with the condition in the submitted patch, including preservation on External Registries. The largest deficiency is that the plan defines only manual feature checks and a generic regression command, with no concrete component test that would fail if either excluded value regressed. The npm start and npm test -- --watchAll=false commands could not be verified against frontend/package.json because local source inspection was unavailable."
+        },
+        "implementation": {
+          "completeness": 24,
+          "correctness": 22,
+          "specificity": 24,
+          "risk_awareness": 19,
+          "total": 89,
+          "notes": "The patch directly implements the requested behavior by wrapping only the existing Register button with explicit virtual and skills exclusions. Its hunk is internally coherent, preserves the handler, classes, icon, label, and adjacent health button, and introduces no unrelated churn. The principal residual risk is the intentional deny-list behavior: any future tab will display Register unless explicitly excluded, which the summary does not identify as a follow-up. The claimed baseline commit and successful git apply --check could not be independently confirmed because the read-only command runner failed before accessing the working tree."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "default-create-in-idp-checkbox-unchecked",
+      "complexity": "low",
+      "ref": "v1.0.21",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 24,
+      "input_tokens": 50,
+      "output_tokens": 19022,
+      "total_tokens": 1828626,
+      "latency_seconds": 356.5,
+      "total_cost_usd": 0.8426856900000002,
+      "result_subtype": "success",
+      "task_score": 83.0,
+      "cache_read_tokens": 1716577,
+      "cache_write_tokens": 92977,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 53.4,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 17,
+          "total": 83,
+          "notes": "The issue gives concrete, testable behavior for initial state, reset, payload values, backend fallback, example JSON, tests, and documentation. Its strongest aspect is the explicit separation of the UI/management flow from scripted endpoints. The repository documentation confirms the old IdP-oriented wording and create_in_idp=true example. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/iam-settings-ui.md)) The main deficiency is that changing the management API's omitted-field behavior is compatibility-sensitive, but the issue provides no migration or release-note requirement; related issue #916 was not independently verified."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 86,
+          "notes": "The LLD is unusually concrete for this small change, naming IAMGroups.tsx state/reset paths, EXAMPLE_SCOPE_JSON, management_create_group, GroupCreateRequest, tests, and documentation. Its strongest aspect is the committed end-to-end data flow and the single frontend default constant, including the label association discovered during review. The largest gap is rollout treatment for clients relying on the management endpoint's implicit true default: it only says to note the change, without identifying consumers or a fallback strategy. Claims that all deferred scripted endpoints are documented as default-true and that the task text excludes them could not be independently verified from the supplied task context."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 84,
+          "notes": "The review finds substantive repository-specific defects: the unbound label, the true-valued example JSON, the backend fallback, and the compatibility impact on automation. Its strongest aspect is that findings are prioritized and visibly folded back into specific LLD steps rather than merely approved. The main deficiency is that it accepts the breaking management-API default change after only requesting a rollout note, without demanding release documentation or consumer analysis. Byte's statement that task text names only the UI form chain is unsupported because the submission explicitly says no independent task statement was supplied."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 19,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 79,
+          "notes": "The plan provides concrete frontend payload oracles, backend mock expectations, HTTP examples, UX checks, and explicit true/false compatibility coverage. Its strongest aspect is testing behavior at both DOM and API boundaries rather than inspecting source text. The largest gap is the acceptance case for reset after successful creation: only cancel-and-reopen is explicitly tested, while IdP absence checks are manual and the curl-created resources lack local cleanup instructions. The exact command execution and assumptions such as the local response id equaling the group name could not be independently verified because the local command runner failed before executing repository reads."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 83,
+          "notes": "The patch consistently changes initial state, reset state, example JSON, checkbox accessibility, backend fallback, backend regression expectation, frontend tests, and UI documentation, matching the submitted design. The documentation hunk matches the repository's visible old wording and true-valued example, and the remaining diff contexts and symbols are internally coherent. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/iam-settings-ui.md)) The largest implementation risk is the intentionally breaking default for management API callers, for which the patch adds no release note or migration aid; it also lacks a frontend test proving reset after successful creation. The evaluator's local runner failed before execution, so git apply --check and the claimed five frontend and three backend passing tests could not be independently verified."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "lifecycle-workflow-webhooks",
+      "complexity": "high",
+      "ref": "1.24.7",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 115,
+      "input_tokens": 236,
+      "output_tokens": 118142,
+      "total_tokens": 30926866,
+      "latency_seconds": 954.3,
+      "total_cost_usd": 9.02924374,
+      "result_subtype": "success",
+      "task_score": 83.0,
+      "cache_read_tokens": 30432482,
+      "cache_write_tokens": 376006,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 123.8,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 24,
+          "risk_awareness": 23,
+          "total": 90,
+          "notes": "The issue clearly defines five related gaps, defaults, negative behavior, deployment requirements, and meaningful non-goals. Its acceptance criteria specify exact HMAC bytes, filtered pagination totals, error outcomes, permission behavior, and configuration surfaces. The largest limitation is that no independent task statement confirms this entire bundled scope or resolves how version registrations should be treated. Related issue numbers and some repository behavior claims could not be independently verified."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 23,
+          "risk_awareness": 23,
+          "total": 86,
+          "notes": "The LLD names concrete route, service, configuration, permission, metric, frontend, and deployment integration points and commits to exact serialization and authorization rules. The submitted diff contains the described webhook service, lifecycle helper, route modifications, scope seeds, and deployment surfaces. Its largest defect is deliberately exempting different-version server registrations and treating batch draft status as unspecified, both of which weaken the issue's every-registration-path acceptance criteria. Exact baseline line references and patch applicability could not be independently confirmed because the local execution wrapper failed before running repository commands."
+        },
+        "review": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 24,
+          "total": 90,
+          "notes": "The review surfaces concrete, consequential defects including PUT/edit/batch bypasses, pagination fast-path errors, mocked settings behavior, custom-scope migration, replay, and secret exposure. Findings reference specific symbols and mechanics such as `model_fields_set`, `has_field_filters`, raw-body signing, and admin derivation. Its largest omission is accepting the different-version registration exemption and batch ambiguity without reconciling them with the issue's acceptance criteria. The reviewed rev-1 LLD was not supplied, so the claimed completeness of each post-review resolution is not independently verifiable."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 15,
+          "specificity": 19,
+          "risk_awareness": 21,
+          "total": 75,
+          "notes": "The plan covers functional, negative, compatibility, deployment, security, metrics, and end-to-end behavior with strong raw-body HMAC and filtered-pagination oracles. It specifically tests scanner errors, unsigned mode, permission bypass paths, replay handling, scope migration, and rollback. Its largest correctness defect is requiring every listed bypass check, including server PUT with omitted status, to return 403 while the compatibility section and implementation require that omission to preserve status and succeed; it also assumes registration-before-scan ordering despite documenting no ordering guarantee. Several agent, skill, batch, and deployment cases are only instructions to repeat tests rather than concrete requests, and no route-level automated tests are identified."
+        },
+        "implementation": {
+          "completeness": 18,
+          "correctness": 16,
+          "specificity": 21,
+          "risk_awareness": 19,
+          "total": 74,
+          "notes": "The patch implements the central mechanics: one-time JSON serialization with `content=`, HMAC signing, event IDs, scan summaries, metrics, status filtering, lifecycle helpers, scope seeds, configuration surfaces, documentation, and focused unit tests. Concrete changes in `webhook_service.py`, `lifecycle.py`, the three route modules, `agent_batch_item_processor.py`, and the Terraform and Helm files are internally aligned with much of the LLD. The largest defect is the explicit exemption for different-version server registrations, which can bypass both mandated initial status and lifecycle permission, while batch registration knowingly accepts an explicit draft as unspecified when another status is mandated. The summary discloses these deviations and absent OpenAPI regeneration, but it overstates complete enforcement; test execution and `git apply --check` could not be independently verified."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "build-docker-images-from-uv-lock",
+      "complexity": "medium",
+      "ref": "1.23.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 44,
+      "input_tokens": 94,
+      "output_tokens": 50911,
+      "total_tokens": 4606339,
+      "latency_seconds": 387.8,
+      "total_cost_usd": 1.85830755,
+      "result_subtype": "success",
+      "task_score": 82.0,
+      "cache_read_tokens": 4438375,
+      "cache_write_tokens": 116959,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 131.3,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 19,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 80,
+          "notes": "The issue provides unusually testable acceptance criteria, naming the affected Dockerfiles, missing locks, CI behavior, CPU-only PyTorch constraint, and documentation requirement. Repository evidence confirms the named build configuration and also shows a root Dockerfile that the issue neither analyzes nor explicitly excludes. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/build-config.yaml), [github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/824)) Its largest deficiency is an internal scope mismatch: it promises equivalent, reproducible images, while the later design retains unpinned MCP-server torch packages and removes registry torchvision. The precise claim that Dockerfile.registry-cpu is unused, and the complete missing-lock inventory, could not be independently verified from the available repository view."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 86,
+          "notes": "The LLD is strongly repository-oriented and commits to concrete changes for exact-sync behavior, virtual-environment paths, CPU torch resolution, CI discovery, metrics PATH handling, caching, and rollout. Its analysis of uv exact synchronization and the need for --inexact in the torch-preloaded MCP images is particularly useful and implementation-ready. The largest limitation is that it knowingly leaves runtime torch and torchvision unpinned in two images, weakening the central reproducibility objective; dropping registry torchvision also conflicts with the issue's image-equivalence goal. It additionally contradicts itself by describing one serial CI job and later nine jobs, while exact wheel availability, exit codes, and the GPU-workstation --no-sources guidance were not independently verified."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 21,
+          "specificity": 22,
+          "risk_awareness": 22,
+          "total": 86,
+          "notes": "The review finds several real design defects rather than merely approving the proposal, including hard-coded root discovery, missing lock-only build triggers, metrics interpreter selection, action pinning, and the silent torchvision removal. Each material finding states a consequence and a concrete resolution tied back to the revised LLD. Its largest weakness is treating unpinned runtime torch as an acceptable deferred residual even though that directly preserves the motivating same-commit dependency drift in two images. The claimed repository-wide torchvision grep and sentence-transformers dependency conclusion could not be independently reproduced, and the review does not investigate the root Dockerfile identified elsewhere in repository evidence."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 83,
+          "notes": "The plan has concrete oracles for stale and missing locks, CUDA-package exclusion, exact versus inexact synchronization, image imports, CI annotations, lock-only workflow triggering, and reproducible package inventories. Its commands generally match repository conventions, including uv-run pytest usage documented by the project. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/testing/README.md)) The largest gap is that it changes Dockerfile.mcp-server-cpu but never builds or smoke-tests that image, and it does not provide a concrete build command for the generic root-context template case. Some negative-edit instructions are underspecified, /app/.venv/bin/pip may not exist in a uv-created environment, and exact torch versions and uv error strings depend on artifacts and tool versions that were not independently verified."
+        },
+        "implementation": {
+          "completeness": 18,
+          "correctness": 16,
+          "specificity": 22,
+          "risk_awareness": 19,
+          "total": 75,
+          "notes": "The visible patch portion implements the lock-check workflow, lock-only registry trigger, contributor documentation, and one generated lock, while the summary precisely describes the remaining intended Dockerfile and lock changes. The workflow discovery loop, read-only permissions, aggregated failures, and SHA-pinned actions are internally consistent with the LLD. The largest evidence limitation is that the submitted diff is truncated inside auth_server/uv.lock before the Dockerfile, pyproject.toml, server-lock, metrics, and root-lock changes, so those core edits and patch applicability cannot be verified against the real source. Even if the summary is accurate, two MCP images retain unpinned runtime torch packages, registry torchvision is removed, and no image build was performed, leaving meaningful compatibility and reproducibility risk."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "fix-reserved-groups-var-in-service-account-script",
+      "complexity": "low",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 18,
+      "input_tokens": 38,
+      "output_tokens": 22917,
+      "total_tokens": 1226184,
+      "latency_seconds": 153.1,
+      "total_cost_usd": 0.6627481299999999,
+      "result_subtype": "success",
+      "task_score": 82.0,
+      "cache_read_tokens": 1145574,
+      "cache_write_tokens": 57655,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 149.7,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 87,
+          "notes": "The issue clearly defines the silent exit, affected workflows, exact-match behavior, compatibility targets, and explicit non-goals. Its largest weakness is the broad repository-wide reserved-variable criterion, which is not paired with a precise audit method and exceeds the limited requirement established by the task identifier. The submitted hunks corroborate four claimed GROUPS assignments in the named verify_setup and list_groups functions. No independent task statement exists, and the claimed macos-setup impact and exhaustive repository sweep could not be independently verified."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 19,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 84,
+          "notes": "The LLD provides decision-ready edits for four concrete files and correctly separates local declaration from assignment to preserve command status under set -e. Its largest technical weakness is claiming that any failing curl/jq pipeline still aborts, which is not guaranteed without pipefail, and echo \"$sa_groups\" retains a narrow option-parsing edge for names such as -n. The implementation hunks align with the specified sa_groups, groups_json, and grep -qxF changes. The asserted exact four-site sweep, baseline line locations, and macOS portability were not independently verifiable."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 19,
+          "specificity": 21,
+          "risk_awareness": 20,
+          "total": 80,
+          "notes": "The review identifies concrete concerns involving local-assignment status masking, incomplete site coverage, substring matching, regex interpretation, and option-like group names. Its largest deficiency is that it does not catch the LLD's overstatement about pipeline failures or the remaining echo input edge, while some portability confidence is based on the LLD rather than independent evidence. The recommendations map directly to the submitted four-file patch and grep -qxF -- implementation. Claims of byte-identical output and BSD grep compatibility were not independently exercised."
+        },
+        "testing": {
+          "completeness": 18,
+          "correctness": 18,
+          "specificity": 21,
+          "risk_awareness": 17,
+          "total": 74,
+          "notes": "The plan supplies concrete curl stubs, commands, inputs, and expected outputs for success, substring rejection, empty membership, and both list_groups variants. Its largest gap is the absence of the explicitly required missing-mapper test; additionally, negative verify_setup cases run only against the last script generated by the loop and rely on manual output inspection rather than enforced assertions. The final git grep checks only the literal GROUPS= form and cannot substantiate the broader no-reserved-variable acceptance criterion. Real Keycloak execution and bash 3.2/macOS verification are honestly identified as unexecuted."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 19,
+          "total": 85,
+          "notes": "The patch implements the stated design across both verify_setup functions and both list_groups functions, with focused renames and exact fixed-string membership matching. The largest remaining weakness is the lack of regression tests, while echo \"$sa_groups\" can still mishandle a single option-like group name such as -n despite the summary's broader protection claim. The four submitted hunks are internally consistent with their surrounding function contexts, preserve existing mapper handling, and contain no unrelated churn. The evaluator could not run git apply --check or inspect the local baseline because the provided sandbox launcher failed before commands executed, so applyability and the stated baseline commit remain evidence gaps rather than confirmed defects."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "configurable-mcp-proxy-upstream-timeout",
+      "complexity": "medium",
+      "ref": "1.25.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 37,
+      "input_tokens": 78,
+      "output_tokens": 45042,
+      "total_tokens": 4398152,
+      "latency_seconds": 310.4,
+      "total_cost_usd": 1.8635831499999995,
+      "result_subtype": "success",
+      "task_score": 81.0,
+      "cache_read_tokens": 4190865,
+      "cache_write_tokens": 162167,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 145.1,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 83,
+          "notes": "The issue clearly defines the hardcoded timeout problem, compatibility goal, deployment surfaces, testable acceptance criteria, and explicit non-goals. Its largest defect is requiring malformed environment values to fall back with a warning: the proposed typed Settings field normally parses that environment variable first, so malformed input produces startup validation failure before the helper can run. The supplied patch context supports the named `httpx.AsyncClient(timeout=30.0)`, Settings, and config-catalog integration points. No independent task statement establishes that 30 seconds, a five-second floor, or every listed deployment surface was externally required."
+        },
+        "lld": {
+          "completeness": 21,
+          "correctness": 17,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 82,
+          "notes": "The LLD is unusually concrete about files, data flow, HTTPX timeout semantics, nginx interaction, logging, deployment wiring, and tests. It preserves the malformed-environment contradiction, and it does not explain how the registry-hosted config page can show the effective auth-server value when the deployment changes inject the variable only into auth-server resources. The proposed changes align closely with the supplied baseline contexts for `_read_mcp_proxy_max_body_bytes`, `mcp_proxy`, `Settings`, and `CONFIG_GROUPS`. Exact baseline line claims and nginx-generation details could not be independently rechecked because repository shell execution was unavailable."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 19,
+          "specificity": 22,
+          "risk_awareness": 22,
+          "total": 83,
+          "notes": "The review finds specific, consequential issues including silent clamping, HTTPX per-phase semantics, nginx's independent timeout, Helm reserved names, resource retention, and the need for a handler-wiring assertion. Its largest omission is failing to notice that malformed environment input cannot reach the helper fallback under normal Settings initialization, and it also accepts the admin-config design without checking cross-service value propagation. Its recommendations map directly to concrete patch elements such as module constants, warning logs, `reserved-env-names.txt`, and the AsyncClient call assertion. The asserted repository rule against constants inside functions and the claimed frontend grep result were not supported by a referenced repository artifact."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 16,
+          "specificity": 19,
+          "risk_awareness": 20,
+          "total": 75,
+          "notes": "The plan covers helper behavior, handler wiring, compatibility, Docker, Helm, Terraform, rollback, nginx interaction, and a meaningful slow-upstream end-to-end scenario. Its central weakness is that the malformed-environment test replaces Settings with `SimpleNamespace`, bypassing the production validation path that would fail during startup instead of returning 30. The admin-config command explicitly says to adjust the route and merely selects an object without asserting the overridden value, while the standalone Terraform plan may also require unrelated root inputs. The registered slow MCP fixture, exact config endpoint, and executable deployment environment are not established by the supplied repository evidence."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 82,
+          "notes": "For valid integer values, the patch implements the core behavior end to end: a validated Settings field, helper, AsyncClient wiring, logging, deployment configuration, documentation, and focused tests. The largest correctness defect is that invalid environment strings fail typed Settings construction before `_read_mcp_proxy_upstream_timeout_seconds()` can perform its promised warning-and-default fallback; additionally, only auth-server deployment resources receive the variable, so the registry config catalog is not shown to report the effective override. The unified diff has internally consistent target contexts and its stated +312/-5 totals match the presented hunks, including `auth_server/server.py`, both test files, Helm, and Terraform changes. Patch applicability and runtime behavior could not be independently executed because the read-only shell sandbox failed, and the submission itself reports that no tests or validators were run."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "pass-ssrf-allowlist-env-to-registry-container",
+      "complexity": "trivial",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 11,
+      "input_tokens": 24,
+      "output_tokens": 12209,
+      "total_tokens": 673104,
+      "latency_seconds": 87.8,
+      "total_cost_usd": 0.40148448999999997,
+      "result_subtype": "success",
+      "task_score": 80.8,
+      "cache_read_tokens": 612752,
+      "cache_write_tokens": 48119,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 139.1,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 24,
+          "risk_awareness": 17,
+          "total": 84,
+          "notes": "The issue has precise, testable scope: it names both target compose files, exact entries, defaults, and exclusions. Its largest deficiency is claiming hand-editing is the only workaround despite identifying optional extra_env/registry.env, which can supply process variables; it also misses that explicit empty environment values override that file. The current repository structure corroborates the explicit environment list and optional registry.env model, but not the exact 1.27.1 line claims. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docker-compose.prebuilt.yml)) No independent task statement was supplied, and local shell inspection failed before execution, so the tag-specific compose audit could not be fully verified."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 20,
+          "specificity": 24,
+          "risk_awareness": 18,
+          "total": 85,
+          "notes": "The LLD commits to exact files, insertion points, data flow, security rationale, and container-recreation rollout. Its main omission is backward compatibility: ${VAR:-} creates explicit empty environment values that can override nonempty values from the existing registry.env, contradicting the broad claim that unset behavior is unchanged. The submitted patch context is internally consistent with the documented list-style environment blocks, and the current prebuilt file confirms that structural pattern. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docker-compose.prebuilt.yml)) The metadata-address guarantee and exact Terraform, Helm, and 1.27.1 line claims could not be independently verified."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 19,
+          "specificity": 20,
+          "risk_awareness": 17,
+          "total": 76,
+          "notes": "The review usefully checks empty-string parsing, recreation versus restart, excessive CIDR breadth, metadata protection, and deployment parity. Its largest weakness is that every reviewer approves without identifying the environment-over-env_file precedence regression, even though that is the most consequential compatibility concern. It names concrete symbols and files such as Settings fields, url_guard, config_routes.py, and the compose blocks rather than offering only generic approval. Exact tag-specific assertions about those symbols and UI exposure remained unverifiable because repository command execution was unavailable."
+        },
+        "testing": {
+          "completeness": 21,
+          "correctness": 18,
+          "specificity": 20,
+          "risk_awareness": 16,
+          "total": 75,
+          "notes": "The plan provides strong core oracles for rendered configuration, runtime printenv values, unset defaults, denial behavior, and an allowlisted end-to-end health check. Its largest gap is exporting variables in the shell rather than placing them in .env, so the primary test does not prove the stated operator workflow; it also omits the existing registry.env compatibility case. The awk output expectations and runtime commands are concrete, but the registration and UI checks lack an exact command, fixture, or endpoint-level assertion. Tests were explicitly not executed, and startup prerequisites and commands could not be validated locally."
+        },
+        "implementation": {
+          "completeness": 24,
+          "correctness": 20,
+          "specificity": 24,
+          "risk_awareness": 16,
+          "total": 84,
+          "notes": "The patch directly implements the designed two-variable additions in both identified compose files with focused context and no unrelated churn; the current prebuilt structure contains the same keys and environment model. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docker-compose.prebuilt.yml)) The largest defect is that explicit ${VAR:-} empties may override nonempty values supplied through optional registry.env, a compatibility risk absent from the summary. The diff context is internally consistent with all artifacts, but git apply --check could not be run because the local sandbox failed before command execution, so exact applicability to the claimed commit remains unverified. No other stated design requirement appears missing, and the summary accurately limits the changed files."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "idp-authenticated-embedding-endpoint",
+      "complexity": "high",
+      "ref": "1.28.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 91,
+      "input_tokens": 188,
+      "output_tokens": 111208,
+      "total_tokens": 16977983,
+      "latency_seconds": 811.4,
+      "total_cost_usd": 5.596251870000001,
+      "result_subtype": "success",
+      "task_score": 79.8,
+      "cache_read_tokens": 16604966,
+      "cache_write_tokens": 261621,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 137.1,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 21,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 87,
+          "notes": "The issue provides unusually testable acceptance criteria, explicit compatibility expectations, concrete security requirements, and disciplined non-goals. Its paths and core integration model align with the repository's embeddings, configuration, search, and export surfaces. The largest gap is deployment scope: the repository reference lists docker-compose.dhi.yml as a supported configuration surface, but the issue requires only the other three Compose variants. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/unified-parameter-reference.md)) No independent task statement establishes whether its variable names and restricted model-prefix policy are the intended contract."
+        },
+        "lld": {
+          "completeness": 21,
+          "correctness": 18,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 82,
+          "notes": "The LLD is grounded in concrete symbols such as LiteLLMClient, Settings, CONFIG_GROUPS, DocumentDBSearchRepository, and FederationAuthManager, and commits to detailed caching, validation, locking, Terraform, Helm, and fallback behavior. The per-call api_key design is technically plausible because LiteLLM documents that argument for embeddings. ([docs.litellm.ai](https://docs.litellm.ai/docs/providers/azure/azure_embedding)) Its largest flaw is permitting arbitrary http:// token endpoints with only a warning, exposing the client secret in cleartext; the repository's later parameter contract instead requires HTTPS by default and limits insecure mode explicitly. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/unified-parameter-reference.md)) It also omits the DHI Compose and umbrella-chart checklist surfaces, while the exact pinned LiteLLM provider-header behavior was not independently verified."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 22,
+          "total": 85,
+          "notes": "The review finds substantive defects rather than merely approving the design, including short token lifetimes, Azure and Bedrock header behavior, missing api_base token leakage, Terraform no-op requirements, Helm reserved names, and the persistent embedding-unavailable latch. The latch concern is consistent with repository documentation describing process-lifetime lexical fallback after an embedding failure. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/design/hybrid-search-architecture.md)) Its largest miss is accepting unrestricted plaintext HTTP token delivery, and it does not catch the omitted DHI Compose surface or the config endpoint's Bearer-auth limitation. It also overstates export masking without discussing the repository's include_sensitive option."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 14,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 75,
+          "notes": "The unit-test plan has strong setup and exact oracles for request shape, refresh timing, concurrency, environment pollution, validation, failure handling, and secret masking. However, its curl commands authenticate /api/config/full and /api/config/export with a Bearer token even though the repository explicitly documents that those endpoints return 401 for Bearer authentication and require the browser-session path. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/unified-parameter-reference.md)) Deployment coverage omits docker-compose.dhi.yml, and the Helm test named as checking all EMBEDDINGS_* keys actually checks only two; the proposed reindex endpoint and FAQ path were not verified. The artifact honestly states that tests were not executed, which is an evidence gap rather than a scoring penalty by itself."
+        },
+        "implementation": {
+          "completeness": 18,
+          "correctness": 15,
+          "specificity": 22,
+          "risk_awareness": 15,
+          "total": 70,
+          "notes": "The patch coherently implements the central path: a lock-protected monotonic token cache, client-credentials form request, per-call LiteLLM api_key injection, startup validation, search-repository propagation, masking, deployment configuration, documentation, and focused tests. The largest defect is accepting http:// for any token host, knowingly sending the client secret unencrypted; repository guidance for this feature uses HTTPS by default with a separate loopback-only insecure escape hatch. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/unified-parameter-reference.md)) It also misses docker-compose.dhi.yml and the umbrella Helm values surface required by the repository's parameter checklist, while the summary claims 29 files although the submitted diff contains 30 file entries. Local git apply verification and the claimed compile and shell checks could not be independently rerun because the provided command sandbox failed before execution."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "nginx-location-trailing-slash-route-hijack",
+      "complexity": "medium",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 46,
+      "input_tokens": 100,
+      "output_tokens": 55766,
+      "total_tokens": 5699229,
+      "latency_seconds": 536.4,
+      "total_cost_usd": 2.2189492600000005,
+      "result_subtype": "success",
+      "task_score": 79.4,
+      "cache_read_tokens": 5499583,
+      "cache_write_tokens": 143780,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 104.0,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 23,
+          "risk_awareness": 21,
+          "total": 84,
+          "notes": "The issue clearly defines the prefix-matching defect, bare-path compatibility requirement, collision behavior, testable acceptance criteria, and explicit non-goals. Its strongest evidence is the submitted `_create_location_block` baseline context showing the registered path used directly in a prefix location. Its main correctness flaw is claiming `/a` hijacks `/api/...` and that `/api/...` should reach the catch-all, while the artifacts also state the template has a longer `/api/` location, which nginx would select instead. No independent task statement was supplied, and issue #1501 plus regeneration claims could not be independently verified."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 16,
+          "specificity": 23,
+          "risk_awareness": 19,
+          "total": 80,
+          "notes": "The LLD commits to concrete changes in `_render_config_impl`, `_generate_transport_location_blocks`, and `_create_location_block`, including ROOT_PATH handling, internal rewrite behavior, collision policy, logging, rollout, and rollback. The exact-match alias and normalized trailing-slash prefix form a coherent solution that preserves POST bodies and authenticated routing. The largest defect is `_NGINX_TEMPLATE_LOCATION` deliberately ignoring `^~` locations even though the artifacts acknowledge such template locations; a same-name generated plain prefix can therefore still cause a duplicate or routing conflict, contradicting the valid-by-construction guarantee. It also leaves first-wins behavior for normalized duplicate registrations dependent on server iteration order and understates the operational loss from skipping a registered server."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 20,
+          "total": 80,
+          "notes": "The review finds a consequential design defect: normalized registrations and template names can duplicate locations, fail `nginx -t`, and leave the vulnerable last-good configuration active. Byte and Circuit provide prioritized, actionable recommendations that directly shaped `_claim_server_locations` and provider-block stripping. However, the review declares all blockers resolved without noticing that the proposed scanner excludes known `^~` locations, and it repeats the incorrect `/api` hijack narrative despite nginx longest-prefix selection. Assertions about path validation, replica convergence, and the completed nginx smoke test could not be independently verified."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 16,
+          "specificity": 22,
+          "risk_awareness": 19,
+          "total": 79,
+          "notes": "The plan covers generated configuration, sibling paths, bare POST behavior, upstream URI construction, collisions, ROOT_PATH, rollout, rollback, browser behavior, and backward compatibility with concrete expected results. The submitted tests specifically assert `/a/` ownership, an exact `/a` rewrite, duplicate suppression, and retained `/validate/` behavior. Its largest weakness is that `_resolve_location` models only exact and plain-prefix locations and `_render_server_blocks` omits the real `/api/` location, producing the incorrect oracle that `/api/servers` selects `/` rather than the template API block. The critical real-nginx checks are manual and strip several directives, while the claimed pass counts and smoke observations could not be independently verified."
+        },
+        "implementation": {
+          "completeness": 20,
+          "correctness": 16,
+          "specificity": 21,
+          "risk_awareness": 17,
+          "total": 74,
+          "notes": "The patch implements the core design end to end by normalizing stems, emitting `/name/` prefixes, adding exact internal-rewrite aliases, reserving location names, and adding focused unit coverage. Its hunks consistently thread `bare_path_alias` through `_generate_transport_location_blocks` into `_create_location_block`, and provider stripping is moved before template scanning as designed. The largest defect is the collision regex excluding `^~` template locations, so the implementation does not fully deliver its promise that legacy registrations can never produce an invalid or conflicting configuration. The repository shell failed before reads, so patch application, the pinned commit, and the reported 104/724 test results could not be independently verified."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "portable-env-secret-generation-in-build-script",
+      "complexity": "trivial",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 20,
+      "input_tokens": 42,
+      "output_tokens": 29266,
+      "total_tokens": 1465321,
+      "latency_seconds": 508.7,
+      "total_cost_usd": 0.81199767,
+      "result_subtype": "success",
+      "task_score": 79.0,
+      "cache_read_tokens": 1367216,
+      "cache_write_tokens": 68797,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 57.5,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 23,
+          "correctness": 18,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 86,
+          "notes": "The issue provides unusually concrete scope, six affected generation paths, explicit non-goals, and testable criteria covering metadata, newline handling, failures, and compatibility. Its description accurately identifies the non-portable `sed -i` forms shown in the submitted `build_and_run.sh` context. The largest weakness is that the claimed discarded secrets and auth-server crash loop are not tied to a verified first-assignment reader; the LLD instead names `source .env`, where a later assignment supersedes an earlier one. No independent task statement exists, so the asserted production impact and issue reference could not be independently established."
+        },
+        "lld": {
+          "completeness": 22,
+          "correctness": 18,
+          "specificity": 23,
+          "risk_awareness": 18,
+          "total": 81,
+          "notes": "The LLD commits to concrete helpers, validated variable names, exact call-site changes, metadata-preserving writes, read-back behavior, and realistic alternatives in `build_and_run.sh`. The proposed Bash is generally feasible and matches the submitted symbols such as `handle_error`, the five fixed-secret blocks, and the metrics service loop. Its main design defect is that `cat \"$tmp_file\" > \"$file\"` truncates the live file before completing, so a disk or write failure can corrupt `.env` despite the promised fail-safe handling; concurrent invocations are likewise unaddressed. It also incorrectly says secrets are never logged while retaining `${NEW_TOKEN:0:20}`, and baseline line numbers and external file claims could not be independently verified."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 19,
+          "specificity": 22,
+          "risk_awareness": 20,
+          "total": 82,
+          "notes": "The review finds concrete defects rather than merely approving the design, notably unanchored greps, missing-final-newline handling, temp cleanup, and regex injection through service-derived names. Each finding has a consequence and a specific resolution reflected in the LLD and patch. It misses the non-atomic copy-back risk and accepts the claim that generation occurs only when the effective value is empty, although the grep logic triggers when any duplicate assignment is empty. The frontend section adds little, and the asserted crash-loop impact remains unverified."
+        },
+        "testing": {
+          "completeness": 18,
+          "correctness": 16,
+          "specificity": 20,
+          "risk_awareness": 17,
+          "total": 71,
+          "notes": "The plan supplies concrete shell setups and expected values for placeholder replacement, similar names, invalid names, mode preservation, repeated runs, and GNU-versus-BSD behavior. However, most cases are manual observations rather than executable assertions, ownership is not checked, and no concrete test exercises all converted fixed and per-service call sites. The no-trailing-newline case removes the unterminated target line before append and therefore does not reliably prove the explicit newline branch, while `chmod 555` may not induce failure for privileged runners. Cat-write failure, read-back failure, interruption, and concurrent edits are not covered, and the stated health endpoint could not be verified."
+        },
+        "implementation": {
+          "completeness": 20,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 16,
+          "total": 75,
+          "notes": "The diff implements the described helper, anchors the two broad checks, and routes all five shown fixed secrets plus `METRICS_API_KEY_*` through `set_env_var`, so it is internally consistent with the LLD. Name validation, format-safe `printf`, exact read-back, and reuse of `handle_error` are sound, focused changes. The largest defect is destructive, non-atomic copy-back: a partial `cat` failure can leave `.env` truncated, while cleanup failure can exit under `set -e` without the required `ERROR:` message; no permanent regression test accompanies the new shared primitive. The submitted hunk contexts are coherent, but the local command sandbox failed before execution, so `git apply --check`, the claimed baseline commit, and actual verification results could not be independently confirmed."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "per-caller-per-target-rate-limits-and-quarantine",
+      "complexity": "high",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 131,
+      "input_tokens": 268,
+      "output_tokens": 164908,
+      "total_tokens": 33602151,
+      "latency_seconds": 1265.5,
+      "total_cost_usd": 10.110953710000004,
+      "result_subtype": "success",
+      "task_score": 78.6,
+      "cache_read_tokens": 33065338,
+      "cache_write_tokens": 371637,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 130.3,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 24,
+          "correctness": 22,
+          "specificity": 24,
+          "risk_awareness": 23,
+          "total": 93,
+          "notes": "The issue precisely defines pairwise quotas, quarantine behavior, API/CLI/UI scope, failure semantics, and explicit non-goals with testable acceptance criteria. Its named integration points align with the submitted baseline contexts for RateLimiter.check, auth_server/server.py::_enforce_rate_limit, the definition and membership repositories, and nginx's throttle marker. The largest limitation is that it calls quarantine immediate while accepting replica propagation through a short cache, and no independent task statement establishes whether every proposed surface was required. The historical issue numbers could not be independently verified, but they are peripheral to the specified behavior."
+        },
+        "lld": {
+          "completeness": 23,
+          "correctness": 14,
+          "specificity": 23,
+          "risk_awareness": 17,
+          "total": 77,
+          "notes": "The LLD is unusually concrete about files, APIs, response mapping, caching, observability, rollout, and failure behavior. Its prescribed caller-target key omits the caller kind, so a user username and client_id with the same text share a counter despite the requirement that two callers never share one. Its merge-safe membership replacement uses separate read, $pull, and $addToSet operations, allowing concurrent updates, partial failure, or an intervening cached read to expose incorrect ordinary-group state. It also contradicts itself about whether generic membership PUT may set reserved groups and uses python registry_management.py where the submitted repository path is api/registry_management.py."
+        },
+        "review": {
+          "completeness": 21,
+          "correctness": 15,
+          "specificity": 23,
+          "risk_awareness": 17,
+          "total": 76,
+          "notes": "The review identifies concrete repository-specific concerns including cache-key separation, refresh stampedes, seed races, generic-edit quarantine removal, admin bypass, and bounded propagation. Its largest miss is endorsing the length-prefixed key as collision-safe without noticing the user/client namespace collision. It also recommends the two-operation $pull then $addToSet membership update without addressing intermediate visibility, second-operation failure, or concurrent lost-update semantics. Claims such as the exact number of constructor call sites could not be independently rechecked because the repository shell sandbox failed to initialize."
+        },
+        "testing": {
+          "completeness": 22,
+          "correctness": 15,
+          "specificity": 22,
+          "risk_awareness": 16,
+          "total": 75,
+          "notes": "The plan provides strong behavioral oracles for pair independence, quarantine precedence, marker-free 403 responses, stale snapshots, cold starts, compatibility, UI behavior, and rollback. Several manual commands use an undefined ADMIN variable, and the data-plane curl loops submit '{}' without a JSON content type or valid MCP request, so successful pre-throttle responses may be upstream errors rather than demonstrated allowed calls. The suite omits the user-versus-client identity collision and does not test a read, failure, or competing update between the repository's $pull and $addToSet operations. The submitted patch contains many of the named unit tests, but the claimed pytest command and applicability could not be executed in the unavailable shell."
+        },
+        "implementation": {
+          "completeness": 22,
+          "correctness": 13,
+          "specificity": 22,
+          "risk_awareness": 15,
+          "total": 72,
+          "notes": "The patch implements the requested model, limiter, snapshot guard, routes, CLI, UI, documentation, metrics, seeding, and substantial tests rather than stopping at the core counter change. In registry/rate_limiting/limiter.py, _caller_target_subject receives only identity, target type, and target name, so user:alice and client:alice in the same group generate the same counter subject and violate pair isolation. In memberships_repository.py, upsert performs find_one, $pull, and $addToSet separately, permitting transient cached bypass, partial updates, and concurrent-update unions that the previous atomic replacement avoided. The model also reserves the quarantine names only on group-limit axes despite the issue's broader criterion, and the claimed git apply --check could not be independently rerun because the read-only shell wrapper failed before command execution."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "logout-id-token-hint-out-of-browser-url",
+      "complexity": "low",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 47,
+      "input_tokens": 102,
+      "output_tokens": 55253,
+      "total_tokens": 5541006,
+      "latency_seconds": 401.0,
+      "total_cost_usd": 2.1526461,
+      "result_subtype": "success",
+      "task_score": 78.4,
+      "cache_read_tokens": 5352135,
+      "cache_write_tokens": 133516,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 137.8,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 21,
+          "correctness": 20,
+          "specificity": 23,
+          "risk_awareness": 22,
+          "total": 86,
+          "notes": "The issue clearly defines the WAF and disclosure problems, mixed-version behavior, negative ticket cases, non-goals, and testable acceptance criteria around `logout_handler` and `/oauth2/logout/{provider}`. Its strongest aspect is the explicit distinction between 404/405 compatibility fallback and other failures, where exposing the token is forbidden. The repository's published session-store design corroborates shared database storage, AES-GCM protection under `SECRET_KEY`, and deletion before cookie clearing. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) The largest evidence gap is the absent independent task statement and inability to verify issue #1503 directly; the requirement that no ticket be logged also lacks a stated access-log implementation boundary."
+        },
+        "lld": {
+          "completeness": 21,
+          "correctness": 16,
+          "specificity": 23,
+          "risk_awareness": 20,
+          "total": 80,
+          "notes": "The LLD is unusually concrete about files, models, request statuses, atomic `find_one_and_delete`, TTL handling, metrics, rollout, and the mixed-version matrix. Its largest defect is a load-bearing contradiction: the API section says failed ticket redemption falls back to a supplied legacy `id_token_hint`, while the issue requires expired, replayed, unknown, or wrong-provider tickets to redirect without a hint. It also accepts Uvicorn logging the ticket despite the issue's acceptance criterion that no ticket value be logged, although it correctly records the remaining auth-server-to-IdP token exposure. The shared MongoDB session model and encryption assumptions are supported by repository release documentation, but the named source symbols and claimed line locations could not be independently checked because the local command sandbox failed before execution. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md))"
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 18,
+          "specificity": 22,
+          "risk_awareness": 21,
+          "total": 81,
+          "notes": "The review's strongest contribution is Cipher's specific downgrade finding: only 404/405 may restore the legacy URL parameter, while timeouts, authentication failures, and 5xx responses must omit the hint. It also identifies concrete operational issues including TTL-reaper lag, timeout latency, provider-status ambiguity, and observability result labels. However, it declares the redemption behavior resolved while missing that the revised LLD still allows an invalid ticket to fall back to a simultaneously supplied `id_token_hint`; it likewise calls the token absent from the browser before acknowledging the final browser redirect still contains it. Repository-specific assertions about imports and router conventions were not independently verifiable due to the unavailable local shell."
+        },
+        "testing": {
+          "completeness": 20,
+          "correctness": 15,
+          "specificity": 21,
+          "risk_awareness": 20,
+          "total": 76,
+          "notes": "The plan covers creation, redemption, replay, expiry, provider binding, compatibility combinations, degraded service behavior, WAF behavior, rollback, metrics, and concrete pytest paths. Its largest correctness problem is that it never tests the decisive case of both `logout_ticket` and legacy `id_token_hint` being supplied when redemption fails, so it would miss the implementation's acceptance-criteria violation. The end-to-end oracle requiring auth-server logs not to contain the full ticket conflicts with the LLD and implementation summary, which explicitly accept Uvicorn access logging of that query value. The `-b \"session=...\"` curl command also does not establish that `session` is the configured cookie alias, and the proposed test files and commands could not be run independently."
+        },
+        "implementation": {
+          "completeness": 18,
+          "correctness": 14,
+          "specificity": 21,
+          "risk_awareness": 16,
+          "total": 69,
+          "notes": "The patch implements the principal flow end to end: an internal-JWT-gated ticket endpoint, encrypted MongoDB storage, atomic redemption, registry-side 404/405 fallback, metrics, documentation, and focused unit tests. The largest defect is in `_resolve_logout_id_token_hint`: after an unredeemable ticket it returns the legacy `id_token_hint`, and `test_unredeemable_ticket_falls_back_to_legacy_param` explicitly preserves behavior that contradicts the issue's requirement to continue without a hint. It also leaves ticket values in Uvicorn access logs despite the issue's no-ticket-logging criterion, and lacks route-level tests for endpoint authentication, provider rejection, and store failure. The summary honestly reports residual exposure and unexecuted verification, but `git apply --check`, target-file context, imports, and test execution could not be independently verified because every local read-only command failed during sandbox initialization."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "derive-repo-url-from-skill-md",
+      "complexity": "medium",
+      "ref": "v1.0.19",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 27,
+      "input_tokens": 56,
+      "output_tokens": 29332,
+      "total_tokens": 2663481,
+      "latency_seconds": 211.3,
+      "total_cost_usd": 1.1667441500000002,
+      "result_subtype": "success",
+      "task_score": 77.6,
+      "cache_read_tokens": 2529560,
+      "cache_write_tokens": 104533,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 138.8,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 22,
+          "correctness": 20,
+          "specificity": 22,
+          "risk_awareness": 17,
+          "total": 81,
+          "notes": "The issue defines concrete URL cases, UI behavior, editable-field semantics, and explicit non-goals. The submitted patch confirms the named SkillCard, SemanticSearchResults, SkillInfo, and parse endpoint surfaces are relevant. Its largest gap is failing to reconcile the non-GitHub rejection criterion with the repository's broad hostname classification, which accepts look-alike hosts containing \"github\". No independent task statement was supplied, and the referenced issue could not be independently verified locally."
+        },
+        "lld": {
+          "completeness": 21,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 78,
+          "notes": "The LLD gives a concrete end-to-end data flow, names relevant symbols, addresses existing indexed records, and commits to precise frontend merge behavior. Its described changes correspond closely to the patch's SkillInfo constructors, search metadata builders, hooks, and modal components. The main correctness defect is deliberately reusing a hostname rule that treats any host containing \"github\" as GitHub, contradicting the stated non-GitHub behavior. It also claims malformed input never raises, although accessing parsed.port can raise ValueError for an invalid port, and it does not establish behavior for every configured search backend."
+        },
+        "review": {
+          "completeness": 20,
+          "correctness": 18,
+          "specificity": 22,
+          "risk_awareness": 19,
+          "total": 79,
+          "notes": "The review finds several real cross-layer defects, including useSkills dropping the field, edit mode clearing it, search metadata omission, credential propagation, and reindex requirements. Those findings map directly to concrete hunks in Dashboard.tsx, useSkills.ts, skill_models.py, and search_repository.py. Its largest weakness is recognizing the look-alike-host violation but dismissing it as minor despite an explicit acceptance criterion requiring non-GitHub URLs to return null. It also misses the helper's malformed-port exception and gives limited scrutiny to automated regression coverage."
+        },
+        "testing": {
+          "completeness": 19,
+          "correctness": 18,
+          "specificity": 20,
+          "risk_awareness": 17,
+          "total": 74,
+          "notes": "The plan supplies specific API oracles, UX state transitions, compatibility checks, enterprise and raw URL cases, credential stripping, and reindex-aware semantic-search validation. The submitted unit test file concretely covers most helper cases and uses the repository's pytest conventions. The largest gap is that endpoint plumbing and both modal behaviors remain manual, so regressions outside the helper are not automatically pinned. It also omits the acknowledged look-alike hostname case, malformed ports, and an explicit search-backend matrix; the semantic-search request flags could not be independently verified locally."
+        },
+        "implementation": {
+          "completeness": 20,
+          "correctness": 17,
+          "specificity": 22,
+          "risk_awareness": 17,
+          "total": 76,
+          "notes": "The patch implements the main flow end to end: derivation, parse response, list and search projections, frontend types and mappings, edit/parse form behavior, and both modal links. The hunks are internally consistent with the named constructors and fields, and the summary accurately discloses reindexing, stale-value behavior, absent frontend tests, and unexecuted verification. The largest defect is that derive_repository_url accepts non-GitHub look-alike hosts whenever the existing classifier finds the substring \"github\", violating the artifact's own acceptance criterion; malformed ports can also escape as ValueError. Only the helper receives automated tests, and the environment blocked an independent git apply check against the local working tree."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "server-side-oauth-token-storage",
+      "complexity": "high",
+      "ref": "1.23.0",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 66,
+      "input_tokens": 138,
+      "output_tokens": 103035,
+      "total_tokens": 10681521,
+      "latency_seconds": 717.1,
+      "total_cost_usd": 4.00220601,
+      "result_subtype": "success",
+      "task_score": 65.2,
+      "cache_read_tokens": 10364403,
+      "cache_write_tokens": 213945,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 143.7,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 13,
+          "correctness": 9,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 62,
+          "notes": "The issue provides unusually concrete acceptance criteria, security boundaries, failure behavior, and non-goals. Its central diagnosis is incomplete: repository evidence identifies groups and the broader OAuth session payload as the cookie-size cause, while this proposal leaves groups and id_token in the cookie. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971)) The proposed token endpoint also does not restore the stated UI feature because frontend wiring is explicitly excluded. No independent task statement was supplied, so the separate requirement to return access and refresh tokens could not be verified."
+        },
+        "lld": {
+          "completeness": 13,
+          "correctness": 10,
+          "specificity": 22,
+          "risk_awareness": 19,
+          "total": 64,
+          "notes": "The LLD is concrete about files, repository interfaces, document fields, encryption, expiry, rollout, and failure handling. Its load-bearing decision to preserve cookie-only validation prevents it from moving groups and id_token server-side, although those fields are the repository-documented source of the remaining oversized-cookie failure. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971)) Claims that Terraform and Helm need no changes and can use unspecified existing secret mechanisms are insufficiently grounded. The design is implementation-ready for its narrower token-retrieval feature but not for the established session-size problem."
+        },
+        "review": {
+          "completeness": 16,
+          "correctness": 15,
+          "specificity": 21,
+          "risk_awareness": 20,
+          "total": 72,
+          "notes": "The review finds specific, consequential defects including zero refresh lifetimes, delayed TTL deletion, ciphertext-owner binding, stale records, and login latency, then records actionable resolutions. Its largest omission is failure to challenge the premise that access and refresh tokens are the remaining cookie-size cause or notice that the design still serializes id_token and groups. The patch's callback test explicitly preserves id_token, while repository evidence calls for an opaque session identifier and server-side identity state. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971)) The reviewed v1 artifact was not submitted, so whether each claimed resolution accurately reflects that version could not be verified."
+        },
+        "testing": {
+          "completeness": 15,
+          "correctness": 14,
+          "specificity": 22,
+          "risk_awareness": 19,
+          "total": 70,
+          "notes": "The plan supplies concrete HTTP, repository, crypto, expiry, rotation, rollback, and compatibility oracles rather than merely checking that calls succeed. Its decisive cookie-size test uses large access and refresh tokens that the baseline already excludes, only a modest id_token, and no large groups array, so it can pass while the established regression remains. Repository evidence specifically attributes the failure to the full session payload and external groups. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971)) The candidate states that no tests were run, and local command execution was unavailable, so the proposed pytest and deployment commands remain unverified."
+        },
+        "implementation": {
+          "completeness": 11,
+          "correctness": 10,
+          "specificity": 21,
+          "risk_awareness": 16,
+          "total": 58,
+          "notes": "The patch coherently implements its narrower LLD through Fernet encryption, a scoped repository, TTL enforcement, callback storage, retrieval, logout revocation, configuration, documentation, and substantial tests. Its largest defect is that `oauth2_callback` still places identity state and id_token in the signed cookie\u2014the new test explicitly asserts `session[\"id_token\"]` remains\u2014so large groups or id_token values can still exceed the browser limit that the repository fix addresses. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971)) Corrupt documents can also escape the promised error contract because repository model validation and unexpected service errors are not mapped to uniform 404 or 503 responses. The submitted diff contexts are internally plausible, but the claimed `git apply --check` and exact baseline applicability could not be independently rerun because the local read-only shell sandbox failed before command execution."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "registration-admission-control-gate",
+      "complexity": "high",
+      "ref": "v1.0.19",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 113,
+      "input_tokens": 232,
+      "output_tokens": 114220,
+      "total_tokens": 20524506,
+      "latency_seconds": 874.8,
+      "total_cost_usd": 6.36531742,
+      "result_subtype": "success",
+      "task_score": 59.6,
+      "cache_read_tokens": 20165716,
+      "cache_write_tokens": 244338,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 130.6,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 11,
+          "correctness": 8,
+          "specificity": 21,
+          "risk_awareness": 17,
+          "total": 57,
+          "notes": "The issue is unusually concrete about endpoint coverage, fail-closed behavior, configuration, logging, acceptance criteria, and exclusions. Its largest defect is that it replaces repository issue #809's contract: it omits retries, original request headers, startup connectivity checking, and /api/config exposure while changing field names, credentials configuration, and unavailable responses. Repository issue #809 explicitly requires source_api, registration_payload, request_headers, REGISTRATION_GATE_MAX_RETRIES, and registration_gate_enabled in /api/config. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809)) No independent task statement was supplied, but the referenced repository issue is sufficient evidence that these are material requirements rather than optional details."
+        },
+        "lld": {
+          "completeness": 13,
+          "correctness": 10,
+          "specificity": 22,
+          "risk_awareness": 18,
+          "total": 63,
+          "notes": "The LLD's strongest aspect is its decision-ready repository mapping, including the named route handlers, persistence calls, deployment surfaces, redaction algorithm, timeout semantics, and rollout plan. It nevertheless designs a different webhook protocol from #809 and explicitly excludes required retries while omitting request-header forwarding, the startup HEAD check, and configuration API exposure. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809)) Its exact-key redaction also does not meet the repository requirement to strip any field containing secret, token, password, or api_key, and it retains auth_header_name. The submitted line-number and baseline-application claims could not be independently verified because the local shell sandbox was unavailable."
+        },
+        "review": {
+          "completeness": 15,
+          "correctness": 11,
+          "specificity": 19,
+          "risk_awareness": 19,
+          "total": 64,
+          "notes": "The review raises concrete and consequential findings about log injection, redirect credential leakage, timeout bounds, plaintext ECS secrets, TOCTOU, and per-route wiring. Its central failure is approving the LLD without comparing it to #809's required retries, request_headers contract, startup connectivity check, /api/config field, credential variable, and unavailable-response semantics. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809)) For example, it accepts retries as out of scope even though the repository issue specifies two retries with exponential backoff and corresponding tests. The recommendations are actionable within the candidate's alternate design, but they do not rescue the task-level incompatibility."
+        },
+        "testing": {
+          "completeness": 13,
+          "correctness": 12,
+          "specificity": 21,
+          "risk_awareness": 17,
+          "total": 63,
+          "notes": "The plan provides strong behavioral oracles: exact statuses and details, persistence mocks that must remain uncalled, endpoint identity checks, redaction inspection, rollback checks, and deployment rendering commands. It lacks coverage for #809's retry/backoff behavior, original-header filtering, startup HEAD check, auth_credential naming, and /api/config exposure. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809)) The manual sequence exports gate settings after declaring the registry already running, so those checks require an unstated restart, and the UI-form curl scenarios omit concrete authentication and session setup. The listed pytest tests closely exercise the submitted implementation, but the commands and paths could not be independently executed in the unavailable local shell."
+        },
+        "implementation": {
+          "completeness": 9,
+          "correctness": 8,
+          "specificity": 19,
+          "risk_awareness": 15,
+          "total": 51,
+          "notes": "The patch coherently implements its alternate design: it adds a centralized gate service, inserts enforcement before the eight shown persistence calls, wires configuration across deployment surfaces, sanitizes denial messages, disables redirects, and supplies substantial tests. It does not implement the repository task's required request_headers contract, retries and max-retries setting, startup connectivity check, /api/config exposure, REGISTRATION_GATE_AUTH_CREDENTIAL name, or unavailable 403 behavior. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/809)) Its SENSITIVE_KEYS logic only matches exact names and still transmits auth_header_name, contradicting #809's broader credential-stripping rules, while the summary expressly admits the configuration viewer was omitted. The supplied diff contexts appear internally consistent, but patch application and test execution could not be independently verified because local command execution failed and the candidate reports that tests were not run."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    },
+    {
+      "task": "macos-setup-python-version-precheck",
+      "complexity": "trivial",
+      "ref": "1.27.1",
+      "artifacts_produced": 6,
+      "artifacts_expected": 6,
+      "num_turns": 15,
+      "input_tokens": 32,
+      "output_tokens": 16794,
+      "total_tokens": 927590,
+      "latency_seconds": 128.2,
+      "total_cost_usd": 0.50782435,
+      "result_subtype": "success",
+      "task_score": 54.6,
+      "cache_read_tokens": 862285,
+      "cache_write_tokens": 48479,
+      "prefix_cache_hit_rate": null,
+      "generation_tokens_per_sec": 131.0,
+      "kv_cache_usage": null,
+      "agent_invocations": 1,
+      "topped_up_artifacts": [],
+      "eval_scores": {
+        "github_issue": {
+          "completeness": 19,
+          "correctness": 7,
+          "specificity": 22,
+          "risk_awareness": 10,
+          "total": 58,
+          "notes": "The issue provides concrete acceptance criteria, explicit non-goals, and precise failure output. The repository confirms the named skill, Phase 1 prerequisite block, and later `uv sync` integration point. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) Its central diagnosis is wrong: it treats the PATH `python3` as the interpreter `uv sync` must use, while the repository explicitly says that check creates false failures and uv can manage other interpreters. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md), [docs.astral.sh](https://docs.astral.sh/uv/concepts/python-versions/)) No independent task statement was supplied, and the exact 1.27.1 commit claim could not be independently verified because local shell inspection was unavailable."
+        },
+        "lld": {
+          "completeness": 20,
+          "correctness": 6,
+          "specificity": 22,
+          "risk_awareness": 14,
+          "total": 62,
+          "notes": "The LLD is unusually concrete about files, shell branches, parsing, timeout behavior, injection constraints, and rollback scope. The repository confirms that the skill is remotely runnable, establishes `INSTALL_DIR` before Phase 1, clones in Phase 2, and invokes `uv sync` in Phase 5. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) The load-bearing decision is nevertheless incorrect: comparing PATH `python3` does not model uv interpreter resolution, and the repository's implemented design explicitly rejects that gate. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md), [docs.astral.sh](https://docs.astral.sh/uv/guides/install-python/?)) The asserted line numbers, baseline commit, and BSD-sed compatibility could not be checked against the inaccessible local 1.27.1 tree."
+        },
+        "review": {
+          "completeness": 14,
+          "correctness": 7,
+          "specificity": 18,
+          "risk_awareness": 11,
+          "total": 50,
+          "notes": "The review identifies specific secondary concerns including unsupported specifiers, interpolation safety, network timeout, and remote-main drift. Its largest failure is that every reviewer accepts the PATH-interpreter premise without examining whether that interpreter is the one consumed by `uv sync`. The repository now documents that this exact approach blocks otherwise working machines, while uv supports managed interpreters. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md), [docs.astral.sh](https://docs.astral.sh/uv/concepts/python-versions/)) The claimed 20\u201340 minutes of saved work and the resolutions against the 1.27.1 baseline were not independently verifiable."
+        },
+        "testing": {
+          "completeness": 17,
+          "correctness": 6,
+          "specificity": 18,
+          "risk_awareness": 10,
+          "total": 51,
+          "notes": "Cases A\u2013G provide concrete marker-level expectations, negative assertions, parsing coverage, offline behavior, compatibility checks, and an end-to-end scenario. However, cases B and the end-to-end test encode the defective oracle that an old PATH `python3` must stop setup, even when uv can resolve or manage a conforming interpreter. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md), [docs.astral.sh](https://docs.astral.sh/uv/concepts/python-versions/)) The plan omits the decisive matrix case of old system Python plus a usable uv-managed Python, and the no-Python PATH setup is underspecified. The macOS/BSD-sed run, offline case, and exact extracted block were not executed or independently verifiable."
+        },
+        "implementation": {
+          "completeness": 17,
+          "correctness": 5,
+          "specificity": 20,
+          "risk_awareness": 10,
+          "total": 52,
+          "notes": "The patch is localized to the real macOS skill and fully implements its submitted LLD, including parsing, explicit failure branches, timeout handling, and remediation text. The repository confirms the relevant Phase 1 structure and Phase 5 `uv sync` call, but its actual solution checks uv's interpreter resolution and explicitly warns that gating on PATH `python3` causes false failures. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/.claude/skills/macos-setup/SKILL.md)) The patch therefore implements the wrong end-to-end behavior; its unpinned upstream-main lookup also preserves a requirement-source race that the summary acknowledges. Exact patch applicability, the claimed baseline hash, and the reported manual test results could not be independently verified because the local command runner was unavailable."
+        }
+      },
+      "is_error": false,
+      "failed": false
+    }
+  ],
+  "run_date": "2026-10-11"
+}

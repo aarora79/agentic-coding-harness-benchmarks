@@ -221,6 +221,23 @@ PRICES: dict[str, dict[str, float]] = {
         "cache_read": 0.2,
         "output": 10.0,
     },
+    # Claude Haiku 5.5 -- Regional, standard (prompt under 100K input tokens).
+    # From the AWS price list (AmazonBedrockFoundationModels, us-east-1). Above
+    # 100K input tokens Bedrock bills a long-context tier at 5x these rates
+    # ($0.55 / $0.6875 / $0.055 / $2.75), which this table does not model.
+    "anthropic.claude-haiku-5-5": {
+        "input": 0.11,
+        "cache_write": 0.1375,
+        "cache_read": 0.011,
+        "output": 0.55,
+    },
+    # Claude Haiku 5.5 -- Global cross-region, standard.
+    "global.anthropic.claude-haiku-5-5": {
+        "input": 0.1,
+        "cache_write": 0.125,
+        "cache_read": 0.01,
+        "output": 0.5,
+    },
 }
 
 _PER_1M = 1_000_000.0

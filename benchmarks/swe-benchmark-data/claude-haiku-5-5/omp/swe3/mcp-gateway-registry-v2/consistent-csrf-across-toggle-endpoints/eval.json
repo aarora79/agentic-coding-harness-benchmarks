@@ -1,0 +1,64 @@
+{
+  "task": "consistent-csrf-across-toggle-endpoints",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 11,
+      "specificity": 21,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "The issue provides concrete endpoint matrices, testable acceptance criteria, credential precedence, and explicit exclusions. Its largest defect is internal inconsistency: it requires bearer-only access to `/api/toggle/{service_path}`, while its own table and the LLD identify that route as cookie-only through `enhanced_auth`. It also expands the requirement to add CSRF protection to server and virtual-server routes despite the absence of an independent task statement supporting that scope. Cookie-plus-bearer and internal-service risks are addressed, but the resulting break for existing cookie scripts is omitted here."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 70,
+      "notes": "The wrapper dependency, cookie precedence rule, route integration points, test impacts, and rollout consequences are unusually concrete. The design is based on commit `2099caa8...` and tag `1.24.4`, not the submitted repository ref `v1.0.20`, so its line numbers, call-site counts, and applicability are not established for the judged checkout. The v1.0.21 release notes describe PR #894 as fixing bearer access for agent and skill toggles with no breaking changes, whereas this design deliberately introduces breaking CSRF requirements on two additional routes. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md)) The design recognizes compatibility and form-parsing risks, but delegates essential validation to an unexecuted smoke script."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 17,
+      "total": 63,
+      "notes": "The review identifies concrete hazards involving cookie-plus-bearer requests, empty bearer values, form parsing, dependency overrides, and existing virtual-server tests. It nevertheless misses the wrong repository base and the issue/LLD disagreement over `/api/toggle/{service_path}`. It claims the testing plan includes a CORS preflight/origin check when no such check appears, and says the server toggle lacks a test file to follow despite repeatedly naming `tests/unit/api/test_server_routes.py`. Declaring no blocking findings is weak because the required form-binding smoke check remains open and no result is supplied."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 59,
+      "notes": "The dependency-level matrix has meaningful negative cases and precise 200/403 oracles, especially for cookie-plus-bearer and malformed authorization headers. The manual procedure is incorrect for several routes: it proposes repeating the agent query-parameter request for `/api/servers/toggle`, which uses form fields, and for skill and virtual-server handlers that accept request models. Its claim that cookie browser behavior is unchanged contradicts the newly imposed CSRF requirement on server and virtual-server toggles, and the promised CORS preflight check is absent. Syntax compilation and an apply check against the later pinned SHA do not validate behavior or applicability to the submitted `v1.0.20` checkout."
+    },
+    "implementation": {
+      "completeness": 11,
+      "correctness": 7,
+      "specificity": 17,
+      "risk_awareness": 7,
+      "total": 42,
+      "notes": "The core helper is concrete and sensibly preserves CSRF checking when a nonempty session cookie accompanies a bearer header. The patch is built and checked against `2099caa8...` rather than the submitted `v1.0.20` repository, so its applicability to the actual target is unverified and the claimed apply result is not relevant evidence. It omits the LLD's new CSRF unit tests, required virtual-server integration-fixture changes, route behavior tests, and documentation, even though the LLD explicitly predicts existing virtual-server tests will fail without the override. The summary's claim of no deviations is therefore false, and the extra breaking protection on server and virtual-server routes exceeds the release-described agent/skill bearer fix. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/v1.0.21.md))"
+    }
+  },
+  "task_score": 60.4,
+  "verdict": "The submission contains a strong, specific security design, but it targets the wrong repository revision and delivers an inadequately tested patch that materially diverges from both its own LLD and the evidenced release scope.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-10T21:07:43.482009Z",
+    "repo_ref": "v1.0.20",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 164330,
+      "cached_input_tokens": 95411,
+      "cache_write_input_tokens": 26912,
+      "output_tokens": 11384,
+      "reasoning_output_tokens": 10028
+    },
+    "duration_ms": 160092
+  }
+}
