@@ -62,6 +62,12 @@ from typing import Any
 
 # Live-heartbeat cadence: how often run_level logs window progress + throughput.
 _HEARTBEAT_SECONDS = 30
+# A file's mtime comes from the kernel's coarse clock, which can trail
+# time.time() by a few milliseconds, so a file written just after the level
+# starts can carry an mtime just before it. The stray sweep accepts mtimes this
+# far before the start; its other guards (new since the level began, untracked)
+# still apply.
+_MTIME_SLACK_SECONDS = 2.0
 # vLLM Prometheus counters the heartbeat reads for a live tokens/sec readout.
 _GEN_TOKENS_METRIC = "vllm:generation_tokens_total"
 _PROMPT_TOKENS_METRIC = "vllm:prompt_tokens_total"
@@ -263,8 +269,9 @@ def _sweep_stray_root_writes(
         cannot traverse; the resolved parent is re-checked against ``root``.
       * only plain files, never directories or symlinks (a symlink could point
         outside the repo, and a new directory is reported instead of moved).
-      * only files modified at or after the level's start, so a file that merely
-        became visible is left alone.
+      * only files modified at or after the level's start (less
+        ``_MTIME_SLACK_SECONDS`` for filesystem clock granularity), so a file
+        that merely became visible is left alone.
       * only files git positively reports as untracked; an unverifiable answer
         (``root`` is not a git repo, git missing, timeout) leaves the file alone.
 
@@ -296,7 +303,7 @@ def _sweep_stray_root_writes(
             stat = path.stat()
             if path.resolve().parent != root.resolve():
                 continue
-            if stat.st_mtime < since:
+            if stat.st_mtime < since - _MTIME_SLACK_SECONDS:
                 continue
         except OSError:
             continue
