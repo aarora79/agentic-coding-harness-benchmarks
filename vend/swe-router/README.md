@@ -37,7 +37,7 @@ Five files land in the skill directory:
 |---|---|
 | `SKILL.md` | the skill itself |
 | `route.py` | the selection, as code. Standard library only — no install step |
-| `models.json` | the measurements — 21 models, scores and cost per tier |
+| `models.json` | the measurements — 23 models, scores and cost per tier |
 | `model-aliases.json` | model names as different assistants spell them |
 | `allowed-models.txt` | which models your organisation permits. **Edit this one.** |
 
@@ -45,7 +45,7 @@ The path differs by assistant, which is what `--dir` is for. The skill has no de
 
 ### Restricting it to models your organisation allows
 
-`allowed-models.txt` ships with the skill, allowing the five models on the measured frontier. **Edit it.** As written it is a starting point, not a policy: four of those five are self-hosted, and if you do not serve them the skill will recommend a model nobody can select. The file says so at the top and lists what to add.
+`allowed-models.txt` ships with the skill, allowing the five models on the measured frontier. **Edit it.** As written it is a starting point, not a policy: one of those five, `qwen3.8-27b`, is self-hosted, and if you do not serve it the skill will recommend a model nobody can select. The file says so at the top and lists what to add.
 
 The file is also the candidate set, not just a filter. The skill treats every entry as a model the developer can actually select, and does not inspect the agent's model picker or provider config to check — a model reached through a proxy or driven by a second agent is invisible to that kind of check, so second-guessing the list mostly costs developers the cheaper option. That puts the whole promise on whoever maintains the file: **list a model and a developer can select it; if they cannot reach it, it does not belong on the list.**
 
@@ -61,7 +61,7 @@ If it is firing when you do not want it, narrow the `Run it BEFORE…` sentence 
 
 ## What the numbers mean
 
-`models.json` holds 21 models measured on **21 software-engineering tasks** drawn from real closed issues in one open-source repository. Each task asks the model to take a problem from description to a working patch, producing six artifacts: a GitHub issue spec, a low-level design, an expert review, a testing plan, the patch, and an implementation summary. An LLM judge with access to the repository scores each artifact.
+`models.json` holds 23 models measured on **21 software-engineering tasks** drawn from real closed issues in one open-source repository. Each task asks the model to take a problem from description to a working patch, producing six artifacts: a GitHub issue spec, a low-level design, an expert review, a testing plan, the patch, and an implementation summary. An LLM judge with access to the repository scores each artifact.
 
 | Field | Meaning |
 |---|---|
@@ -69,7 +69,7 @@ If it is firing when you do not want it, narrow the `Run it BEFORE…` sentence 
 | `cost_per_task_usd` | Mean cost of one task |
 | `hosting` | `Bedrock` or `self-hosted`. Reported, never used to rank |
 | `tasks_completed` / `tasks_total` | Three models did not finish all 21 |
-| `on_combined_frontier` | Nothing beats it on both axes across all 21 models. Context, not a selection key — it comes from overall means and can disagree with the per-tier ranking |
+| `on_combined_frontier` | Nothing beats it on both axes across all 23 models. Context, not a selection key — it comes from overall means and can disagree with the per-tier ranking |
 | `on_hosting_frontier` | The same, computed within one hosting basis, which is the apples-to-apples version |
 | `score_by_complexity` | Mean score per tier — the number the floor is compared against |
 | `completion_by_complexity` | How many tasks it finished per tier, where failure shows |
@@ -153,7 +153,7 @@ Same size. Opposite answers. What separated them was whether the task hinged on 
 
 ### Why difficulty picks the table
 
-Models do not degrade in parallel, so the running order changes from one table to the next. Six of the eighteen, ranked within each tier (`!` marks a tier where the model failed at least one task):
+Models do not degrade in parallel, so the running order changes from one table to the next. Six of the twenty-three, ranked within each tier (`!` marks a tier where the model failed at least one task):
 
 ```
   trivial              low                  medium               high
@@ -186,7 +186,9 @@ A bold completion count means the model failed at least one task at that tier, w
 
 | $/task | Model | Score | Finished |
 |---:|---|---:|:-:|
+| $0.14 | `claude-haiku-5-5` | 74.9 | 5/5 |
 | $0.26 | `qwen3.6-35b` | 58.4 | 5/5 |
+| $0.40 | `minicpm5-2b` | 43.8 | 5/5 |
 | $0.47 | `qwen3-coder-30b` | 45.6 | 5/5 |
 | $0.48 | `minimax-m2.5` | 54.7 | 5/5 |
 | $0.76 | `claude-haiku-4-5` | 55.4 | 5/5 |
@@ -195,9 +197,12 @@ A bold completion count means the model failed at least one task at that tier, w
 | $1.47 | `qwen3.8-27b` | 81.4 | 5/5 |
 | $2.15 | `deepseek-v3.2` | 64.4 | 5/5 |
 | $2.47 | `kimi-k2.7-code` | 72.4 | 5/5 |
+| $2.62 | `claude-sonnet-5-5` | 77.4 | 5/5 |
 | $3.51 | `minimax-m3` | 65.7 | 5/5 |
+| $3.87 | `kimi-k3-bedrock` | 73.6 | 5/5 |
 | $4.18 | `claude-opus-4-5` | 68.8 | 5/5 |
 | $4.33 | `kimi-k3` | 81.8 | 5/5 |
+| $4.44 | `claude-opus-5-5` | 81.5 | 5/5 |
 | $4.67 | `claude-sonnet-5` | 76.1 | 5/5 |
 | $4.95 | `claude-opus-4-6-v1` | 74.2 | 5/5 |
 | $5.32 | `claude-opus-4-8` | 73.8 | 5/5 |
@@ -209,7 +214,9 @@ A bold completion count means the model failed at least one task at that tier, w
 
 | $/task | Model | Score | Finished |
 |---:|---|---:|:-:|
+| $0.14 | `claude-haiku-5-5` | 79.2 | 5/5 |
 | $0.26 | `qwen3.6-35b` | 62.5 | 5/5 |
+| $0.40 | `minicpm5-2b` | 51.0 | 5/5 |
 | $0.47 | `qwen3-coder-30b` | 48.4 | 5/5 |
 | $0.48 | `minimax-m2.5` | 60.2 | 5/5 |
 | $0.76 | `claude-haiku-4-5` | 57.8 | 5/5 |
@@ -218,9 +225,12 @@ A bold completion count means the model failed at least one task at that tier, w
 | $1.47 | `qwen3.8-27b` | 80.9 | 5/5 |
 | $2.15 | `deepseek-v3.2` | 63.9 | 5/5 |
 | $2.47 | `kimi-k2.7-code` | 71.7 | 5/5 |
+| $2.62 | `claude-sonnet-5-5` | 83.8 | 5/5 |
 | $3.51 | `minimax-m3` | 60.6 | 5/5 |
+| $3.87 | `kimi-k3-bedrock` | 80.1 | 5/5 |
 | $4.18 | `claude-opus-4-5` | 66.2 | 5/5 |
 | $4.33 | `kimi-k3` | 84.2 | 5/5 |
+| $4.44 | `claude-opus-5-5` | 83.2 | 5/5 |
 | $4.67 | `claude-sonnet-5` | 80.5 | 5/5 |
 | $4.95 | `claude-opus-4-6-v1` | 75.4 | 5/5 |
 | $5.32 | `claude-opus-4-8` | 81.1 | 5/5 |
@@ -232,7 +242,9 @@ A bold completion count means the model failed at least one task at that tier, w
 
 | $/task | Model | Score | Finished |
 |---:|---|---:|:-:|
+| $0.14 | `claude-haiku-5-5` | 73.9 | 6/6 |
 | $0.26 | `qwen3.6-35b` | 59.9 | 6/6 |
+| $0.40 | `minicpm5-2b` | 40.4 | **5/6** |
 | $0.47 | `qwen3-coder-30b` | 40.8 | 6/6 |
 | $0.48 | `minimax-m2.5` | 57.2 | 6/6 |
 | $0.76 | `claude-haiku-4-5` | 57.8 | 6/6 |
@@ -241,9 +253,12 @@ A bold completion count means the model failed at least one task at that tier, w
 | $1.47 | `qwen3.8-27b` | 78.7 | 6/6 |
 | $2.15 | `deepseek-v3.2` | 62.1 | 6/6 |
 | $2.47 | `kimi-k2.7-code` | 69.6 | 6/6 |
+| $2.62 | `claude-sonnet-5-5` | 82.9 | 6/6 |
 | $3.51 | `minimax-m3` | 56.8 | 6/6 |
+| $3.87 | `kimi-k3-bedrock` | 66.0 | 6/6 |
 | $4.18 | `claude-opus-4-5` | 67.9 | 6/6 |
 | $4.33 | `kimi-k3` | 76.8 | 6/6 |
+| $4.44 | `claude-opus-5-5` | 80.0 | 6/6 |
 | $4.67 | `claude-sonnet-5` | 77.5 | 6/6 |
 | $4.95 | `claude-opus-4-6-v1` | 68.3 | 6/6 |
 | $5.32 | `claude-opus-4-8` | 73.3 | 6/6 |
@@ -255,7 +270,9 @@ A bold completion count means the model failed at least one task at that tier, w
 
 | $/task | Model | Score | Finished |
 |---:|---|---:|:-:|
+| $0.14 | `claude-haiku-5-5` | 60.0 | **4/5** |
 | $0.26 | `qwen3.6-35b` | 56.0 | 5/5 |
+| $0.40 | `minicpm5-2b` | 33.5 | **4/5** |
 | $0.47 | `qwen3-coder-30b` | 35.8 | 5/5 |
 | $0.48 | `minimax-m2.5` | 51.4 | 5/5 |
 | $0.76 | `claude-haiku-4-5` | 53.4 | 5/5 |
@@ -264,9 +281,12 @@ A bold completion count means the model failed at least one task at that tier, w
 | $1.47 | `qwen3.8-27b` | 71.5 | **4/5** |
 | $2.15 | `deepseek-v3.2` | 56.0 | 5/5 |
 | $2.47 | `kimi-k2.7-code` | 58.5 | **3/5** |
+| $2.62 | `claude-sonnet-5-5` | 73.2 | 5/5 |
 | $3.51 | `minimax-m3` | 59.7 | 5/5 |
+| $3.87 | `kimi-k3-bedrock` | 73.1 | 5/5 |
 | $4.18 | `claude-opus-4-5` | 62.0 | 5/5 |
 | $4.33 | `kimi-k3` | 74.3 | 5/5 |
+| $4.44 | `claude-opus-5-5` | 80.2 | 5/5 |
 | $4.67 | `claude-sonnet-5` | 73.7 | 5/5 |
 | $4.95 | `claude-opus-4-6-v1` | 65.1 | 5/5 |
 | $5.32 | `claude-opus-4-8` | 70.8 | 5/5 |

@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 84,
+      "notes": "The issue clearly defines registration and display behavior, with concrete URL mappings, conditional-link rules, editable-field behavior, and explicit non-goals. Its cited models and UI integration points are consistent with the submitted source diff, including SkillInfo, SkillSearchResult, Dashboard.tsx, and both modal components. Its largest gap is rollout semantics: it requires search responses to expose stored repository URLs while excluding backfill, without explaining that existing indexed documents need re-indexing. No independent task statement was supplied, so requirements beyond the identifier and internally stated acceptance criteria could not be verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 71,
+      "notes": "The LLD is unusually concrete about models, builders, search metadata read sites, frontend mappings, and the existing repository_url persistence path. Its proposed _is_strict_github_host accepts github.* and raw.githubusercontent.com but not raw.github.*, directly contradicting the issue's GitHub Enterprise raw-URL acceptance criterion; the Open Questions section acknowledges rather than resolves this failure. Dashboard's proposed data.repository_url || prev.repository_url also retains an old repository after parsing a non-GitHub URL instead of leaving the field empty as promised. It recognizes re-indexing and misleading-host risks, but supplies neither a verified re-index procedure nor a fallback plan."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 68,
+      "notes": "The review identifies concrete integration hazards such as both SkillInfo builders, three search read sites, edit-form prefill, arbitrary github.* hosts, and existing-index rehydration. Its largest failure is approving the design without noticing that raw.github.mycompany.com is rejected by the proposed helper despite being an explicit acceptance case. It also misses the stale-state behavior caused by retaining prev.repository_url when parsing returns null. The verdict therefore understates two user-visible correctness defects, while update replacement semantics and the re-index mechanism remain explicitly unverified."
+    },
+    "testing": {
+      "completeness": 13,
+      "correctness": 12,
+      "specificity": 19,
+      "risk_awareness": 14,
+      "total": 58,
+      "notes": "The helper tests provide concrete inputs and exact expected values for ordinary github.com, one enterprise blob URL, raw.githubusercontent.com, and several negative cases. They omit the required raw.github.<host> enterprise case, which would expose the implementation defect, and the claim that every LLD shape is covered is therefore inaccurate. No implemented test asserts parse-response propagation, list or search serialization, stale form clearing, conditional modal links, or compatibility with old search documents. The reported 148-test run and TypeScript findings could not be independently verified, and the implementation summary names a different base tag from the submitted repository ref."
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 21,
+      "risk_awareness": 15,
+      "total": 65,
+      "notes": "The patch broadly implements the intended data flow across URL derivation, parsing, list and search response models, index metadata, frontend types, form state, and both modal links. derive_repository_url rejects raw.github.mycompany.com because _is_strict_github_host only accepts github.* or raw.githubusercontent.com, so a stated acceptance criterion is not implemented. Dashboard's data.repository_url || prev.repository_url can also leave a stale GitHub repository value after the user switches to and parses a non-GitHub URL. The patch is focused and handles missing indexed metadata safely with get(), but its claimed 1.24.4 base conflicts with repository context ref v1.0.19 and an independent apply check was unavailable."
+    }
+  },
+  "task_score": 69.2,
+  "verdict": "The submission is detailed and implements most surfaces, but it misses required raw GitHub Enterprise derivation, can retain stale form data, and is not demonstrably based on the submitted repository ref.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-10T21:11:25.838625Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 184800,
+      "cached_input_tokens": 108575,
+      "cache_write_input_tokens": 30197,
+      "output_tokens": 9229,
+      "reasoning_output_tokens": 7226
+    },
+    "duration_ms": 90176
+  }
+}

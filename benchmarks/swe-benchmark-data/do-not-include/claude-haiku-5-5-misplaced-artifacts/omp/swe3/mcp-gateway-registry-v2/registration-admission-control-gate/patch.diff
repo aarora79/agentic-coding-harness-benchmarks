@@ -1,0 +1,866 @@
+diff --git a/.env.example b/.env.example
+index 0854bdc..aff2bd6 100644
+--- a/.env.example
++++ b/.env.example
+@@ -614,6 +614,13 @@ ANS_SYNC_INTERVAL_HOURS=6
+ # Cache TTL for ANS verification results (in seconds)
+ ANS_VERIFICATION_CACHE_TTL_SECONDS=3600
+
++# Registration admission control gate (see docs/design/registration-admission-gate.md)
++REGISTRATION_GATE_ENABLED=false
++REGISTRATION_GATE_URL=
++REGISTRATION_GATE_TIMEOUT_SECONDS=5
++# Authorization header value sent to the gate (secret; leave empty if the gate needs none)
++REGISTRATION_GATE_AUTH_HEADER=
++
+ # =============================================================================
+ # A2A AGENT SECURITY SCANNING CONFIGURATION
+ # =============================================================================
+diff --git a/charts/registry/templates/deployment.yaml b/charts/registry/templates/deployment.yaml
+index 041a02e..161cd98 100644
+--- a/charts/registry/templates/deployment.yaml
++++ b/charts/registry/templates/deployment.yaml
+@@ -151,6 +151,13 @@ spec:
+                   name: {{ .Values.ans.apiSecretExistingSecret }}
+                   key: {{ .Values.ans.apiSecretExistingSecretKey }}
+             {{- end }}
++            {{- if .Values.registrationGate.authHeaderExistingSecret }}
++            - name: REGISTRATION_GATE_AUTH_HEADER
++              valueFrom:
++                secretKeyRef:
++                  name: {{ .Values.registrationGate.authHeaderExistingSecret }}
++                  key: {{ .Values.registrationGate.authHeaderExistingSecretKey }}
++            {{- end }}
+           livenessProbe:
+             httpGet:
+               path: /health
+diff --git a/charts/registry/templates/secret.yaml b/charts/registry/templates/secret.yaml
+index fdd05cd..16eca0e 100644
+--- a/charts/registry/templates/secret.yaml
++++ b/charts/registry/templates/secret.yaml
+@@ -25,6 +25,9 @@
+ {{- if and .Values.ans.apiSecret .Values.ans.apiSecretExistingSecret }}
+   {{- fail "Cannot set both ans.apiSecret and ans.apiSecretExistingSecret — env overrides envFrom and can cause confusing behavior" }}
+ {{- end }}
++{{- if and .Values.registrationGate.authHeader .Values.registrationGate.authHeaderExistingSecret }}
++  {{- fail "Cannot set both registrationGate.authHeader and registrationGate.authHeaderExistingSecret - env overrides envFrom and can cause confusing behavior" }}
++{{- end }}
+ {{- if not .Values.app.existingSecret }}
+ {{- $routingMode := .Values.global.ingress.routingMode | default "subdomain" }}
+ {{- $domain := .Values.global.domain | default "localhost" }}
+@@ -169,6 +172,15 @@ data:
+   ANS_VERIFICATION_CACHE_TTL_SECONDS: {{ .Values.ans.verificationCacheTtlSeconds | toString | b64enc | quote }}
+   {{- end }}
+   {{- end }}
++  # Registration admission control gate
++  {{- if .Values.registrationGate.enabled }}
++  REGISTRATION_GATE_ENABLED: {{ "true" | b64enc | quote }}
++  REGISTRATION_GATE_URL: {{ .Values.registrationGate.url | b64enc | quote }}
++  REGISTRATION_GATE_TIMEOUT_SECONDS: {{ .Values.registrationGate.timeoutSeconds | toString | b64enc | quote }}
++  {{- if and .Values.registrationGate.authHeader (not .Values.registrationGate.authHeaderExistingSecret) }}
++  REGISTRATION_GATE_AUTH_HEADER: {{ .Values.registrationGate.authHeader | b64enc | quote }}
++  {{- end }}
++  {{- end }}
+   # Registry Card Configuration
+   REGISTRY_URL: {{ (.Values.registryCard.url | default $registryExternalUrl) | b64enc | quote }}
+   REGISTRY_NAME: {{ (.Values.registryCard.name | default "AI Registry") | b64enc | quote }}
+diff --git a/charts/registry/values.yaml b/charts/registry/values.yaml
+index a44b145..bb01cc0 100644
+--- a/charts/registry/values.yaml
++++ b/charts/registry/values.yaml
+@@ -85,6 +85,15 @@ ans:
+   syncIntervalHours: "6"  # Background re-verification interval
+   verificationCacheTtlSeconds: "3600"  # Cache TTL for verification results
+
++# Registration admission control gate (see docs/design/registration-admission-gate.md)
++registrationGate:
++  enabled: false  # Enable the admission gate that checks every registration
++  url: ""  # Gate endpoint (HTTP POST). Required when enabled
++  timeoutSeconds: "5"  # Gate request timeout
++  authHeader: ""  # Authorization header value sent to the gate (secret)
++  authHeaderExistingSecret: ""  # If set, read REGISTRATION_GATE_AUTH_HEADER from this K8s secret instead of authHeader
++  authHeaderExistingSecretKey: "REGISTRATION_GATE_AUTH_HEADER"  # Key within the existing secret
++
+ # Registry Card Configuration (for federation and discovery)
+ registryCard:
+   url: ""  # External URL of the registry (e.g., https://registry.example.com). Defaults to computed ingress URL.
+diff --git a/docker-compose.podman.yml b/docker-compose.podman.yml
+index 59710fe..4c46c27 100644
+--- a/docker-compose.podman.yml
++++ b/docker-compose.podman.yml
+@@ -111,6 +111,10 @@ services:
+       - ANS_API_TIMEOUT_SECONDS=${ANS_API_TIMEOUT_SECONDS:-30}
+       - ANS_SYNC_INTERVAL_HOURS=${ANS_SYNC_INTERVAL_HOURS:-6}
+       - ANS_VERIFICATION_CACHE_TTL_SECONDS=${ANS_VERIFICATION_CACHE_TTL_SECONDS:-3600}
++      - REGISTRATION_GATE_ENABLED=${REGISTRATION_GATE_ENABLED:-false}
++      - REGISTRATION_GATE_URL=${REGISTRATION_GATE_URL:-}
++      - REGISTRATION_GATE_TIMEOUT_SECONDS=${REGISTRATION_GATE_TIMEOUT_SECONDS:-5}
++      - REGISTRATION_GATE_AUTH_HEADER=${REGISTRATION_GATE_AUTH_HEADER:-}
+       # Podman/local: allow the dashboard to call /api/* using the session cookie
+       # (disables nginx auth_request for /api/*; FastAPI still enforces auth)
+       - NGINX_DISABLE_API_AUTH_REQUEST=${NGINX_DISABLE_API_AUTH_REQUEST:-true}
+diff --git a/docker-compose.prebuilt.yml b/docker-compose.prebuilt.yml
+index 42dcf68..ada7649 100644
+--- a/docker-compose.prebuilt.yml
++++ b/docker-compose.prebuilt.yml
+@@ -117,6 +117,10 @@ services:
+       - ANS_API_TIMEOUT_SECONDS=${ANS_API_TIMEOUT_SECONDS:-30}
+       - ANS_SYNC_INTERVAL_HOURS=${ANS_SYNC_INTERVAL_HOURS:-6}
+       - ANS_VERIFICATION_CACHE_TTL_SECONDS=${ANS_VERIFICATION_CACHE_TTL_SECONDS:-3600}
++      - REGISTRATION_GATE_ENABLED=${REGISTRATION_GATE_ENABLED:-false}
++      - REGISTRATION_GATE_URL=${REGISTRATION_GATE_URL:-}
++      - REGISTRATION_GATE_TIMEOUT_SECONDS=${REGISTRATION_GATE_TIMEOUT_SECONDS:-5}
++      - REGISTRATION_GATE_AUTH_HEADER=${REGISTRATION_GATE_AUTH_HEADER:-}
+       # Federation static token auth
+       - FEDERATION_STATIC_TOKEN_AUTH_ENABLED=${FEDERATION_STATIC_TOKEN_AUTH_ENABLED:-false}
+       - FEDERATION_STATIC_TOKEN=${FEDERATION_STATIC_TOKEN:-}
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 92b8a61..4ae93e6 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -197,6 +197,10 @@ services:
+       - ANS_API_TIMEOUT_SECONDS=${ANS_API_TIMEOUT_SECONDS:-30}
+       - ANS_SYNC_INTERVAL_HOURS=${ANS_SYNC_INTERVAL_HOURS:-6}
+       - ANS_VERIFICATION_CACHE_TTL_SECONDS=${ANS_VERIFICATION_CACHE_TTL_SECONDS:-3600}
++      - REGISTRATION_GATE_ENABLED=${REGISTRATION_GATE_ENABLED:-false}
++      - REGISTRATION_GATE_URL=${REGISTRATION_GATE_URL:-}
++      - REGISTRATION_GATE_TIMEOUT_SECONDS=${REGISTRATION_GATE_TIMEOUT_SECONDS:-5}
++      - REGISTRATION_GATE_AUTH_HEADER=${REGISTRATION_GATE_AUTH_HEADER:-}
+       # Federation Peer Sync Configuration
+       - FEDERATION_TOKEN_ENDPOINT=${FEDERATION_TOKEN_ENDPOINT}
+       - FEDERATION_CLIENT_ID=${FEDERATION_CLIENT_ID}
+diff --git a/docs/design/registration-admission-gate.md b/docs/design/registration-admission-gate.md
+new file mode 100644
+index 0000000..94461c1
+--- /dev/null
++++ b/docs/design/registration-admission-gate.md
+@@ -0,0 +1,57 @@
++# Registration Admission Control Gate
++
++The registry can consult an operator-run policy endpoint, the admission gate, before it persists any agent, server, or skill registration. This page is the contract an implementer of that endpoint must satisfy.
++
++## Configuration
++
++| Variable | Default | Meaning |
++|---|---|---|
++| `REGISTRATION_GATE_ENABLED` | `false` | When `false`, the registry makes no gate call and behaves as before. |
++| `REGISTRATION_GATE_URL` | empty | Gate endpoint. Required when enabled; an empty URL blocks every registration. |
++| `REGISTRATION_GATE_TIMEOUT_SECONDS` | `5` | Request timeout for one gate call. |
++| `REGISTRATION_GATE_AUTH_HEADER` | empty | Sent as the `Authorization` header when set. Treat as a secret. |
++
++Helm reads the same settings from `registrationGate.*` in `charts/registry/values.yaml`. Set `registrationGate.authHeaderExistingSecret` to read the header from an existing Kubernetes secret instead of the chart secret.
++
++Known limit: on ECS the auth header is passed as a plain container environment value, the same way `ANS_API_KEY` is passed today. It is visible in the task definition.
++
++## Request
++
++`POST {REGISTRATION_GATE_URL}` with `Content-Type: application/json`.
++
++```json
++{"registration_type": "agent_register", "asset": {"...": "..."}}
++```
++
++`registration_type` is one of:
++
++| Registry route | `registration_type` |
++|---|---|
++| `POST /agents/register` | `agent_register` |
++| `PUT /agents/{path}` | `agent_update` |
++| `POST /register` (UI) | `server_register` |
++| `POST /servers/register` (API) | `server_api_register` |
++| `POST /edit/{path}` | `server_update` |
++| `POST /internal/register` | `server_internal_register` |
++| `POST /skills` | `skill_create` |
++| `PUT /skills/{path}` | `skill_update` |
++
++`asset` is the registration payload with the top-level keys `auth_credential`, `auth_credential_encrypted`, and `headers` removed. Nested keys are not removed, so an operator that needs them must not put credentials in a nested field.
++
++## Response
++
++| Gate response | Registry behavior | Caller sees |
++|---|---|---|
++| `200` | Allow; the registration proceeds. | Normal route response. |
++| `403` with JSON `{"detail": "<text>"}` | Deny. | `403`, `detail` = first 500 characters of `<text>` followed by ` (from admission gate)`. |
++| `403` without a usable string `detail` | Deny. | `403`, `detail` = `Registration denied by admission gate`. |
++| Any other status | Blocked (fail closed). | `503`, `detail` = `Registration gate unavailable; registration blocked`. |
++| Timeout, connection error, or empty URL while enabled | Blocked (fail closed). | `503`, same detail. |
++
++The gate's `detail` text is returned to the caller verbatim (after truncation), so write it for the person who submitted the registration.
++
++## Behavior notes
++
++- The gate is consulted before the registry validates or persists the asset, so a denied registration leaves no partial state.
++- The check runs on every registration route listed above, including updates.
++- The gate is read on each request, so a configuration change takes effect without a restart.
+diff --git a/registry/api/agent_routes.py b/registry/api/agent_routes.py
+index f30942d..c33cd18 100644
+--- a/registry/api/agent_routes.py
++++ b/registry/api/agent_routes.py
+@@ -37,6 +37,7 @@ from ..schemas.agent_models import (
+ )
+ from ..services.agent_service import agent_service
+ from ..utils.request_utils import get_client_ip
++from .registration_gate import enforce_registration_gate
+
+
+ def get_search_repo() -> SearchRepositoryBase:
+@@ -423,6 +424,8 @@ async def register_agent(
+         except ValueError:
+             logger.warning(f"Invalid source_updated_at format: {request.source_updated_at}")
+
++    await enforce_registration_gate("agent_register", request.model_dump(mode="json"))
++
+     try:
+         from ..utils.agent_validator import agent_validator
+
+@@ -1247,6 +1250,8 @@ async def update_agent(
+
+     tag_list = [tag.strip() for tag in request.tags.split(",") if tag.strip()]
+
++    await enforce_registration_gate("agent_update", request.model_dump(mode="json"))
++
+     try:
+         # Build optional kwargs for fields that have defaults on AgentCard
+         update_optional_kwargs: dict[str, Any] = {}
+diff --git a/registry/api/registration_gate.py b/registry/api/registration_gate.py
+new file mode 100644
+index 0000000..d15f5e8
+--- /dev/null
++++ b/registry/api/registration_gate.py
+@@ -0,0 +1,49 @@
++"""Route helper that enforces the registration admission gate.
++
++Converts gate outcomes into HTTP errors. Called by registration routes after
++request validation and before any persistence side effect.
++"""
++
++from typing import Any
++
++from fastapi import HTTPException, status
++
++from ..core.config import settings
++from ..services.registration_gate_service import (
++    RegistrationDeniedError,
++    RegistrationGateService,
++    RegistrationGateUnavailableError,
++)
++
++GATE_UNAVAILABLE_DETAIL = "Registration gate unavailable; registration blocked"
++
++
++def _gate_service() -> RegistrationGateService:
++    """Build the gate client from current settings (read per request)."""
++    return RegistrationGateService(
++        enabled=settings.registration_gate_enabled,
++        url=settings.registration_gate_url,
++        timeout_seconds=settings.registration_gate_timeout_seconds,
++        auth_header=settings.registration_gate_auth_header,
++    )
++
++
++async def enforce_registration_gate(registration_type: str, asset: dict[str, Any]) -> None:
++    """Raise HTTPException if the admission gate does not allow the registration.
++
++    Raises:
++        HTTPException: 403 with the gate detail when denied; 503 when the gate
++            cannot decide.
++    """
++    try:
++        await _gate_service().check(registration_type, asset)
++    except RegistrationDeniedError as e:
++        raise HTTPException(
++            status_code=status.HTTP_403_FORBIDDEN,
++            detail=f"{e.detail} (from admission gate)",
++        ) from e
++    except RegistrationGateUnavailableError as e:
++        raise HTTPException(
++            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
++            detail=GATE_UNAVAILABLE_DETAIL,
++        ) from e
+diff --git a/registry/api/server_routes.py b/registry/api/server_routes.py
+index 2e3fc28..96b975b 100644
+--- a/registry/api/server_routes.py
++++ b/registry/api/server_routes.py
+@@ -20,6 +20,7 @@ from ..core.schemas import AuthCredentialUpdateRequest
+ from ..services.security_scanner import security_scanner_service
+ from ..services.server_service import server_service
+ from ..utils.credential_encryption import encrypt_credential_in_server_dict
++from .registration_gate import enforce_registration_gate
+
+ logger = logging.getLogger(__name__)
+
+@@ -785,6 +786,8 @@ async def register_service(
+         except ValueError:
+             logger.warning(f"Invalid source_updated_at format: {source_updated_at}")
+
++    await enforce_registration_gate("server_register", server_entry)
++
+     # Register the server (or new version if path exists with different version)
+     result = await server_service.register_server(server_entry)
+
+@@ -1028,6 +1031,8 @@ async def internal_register_service(
+             },
+         )
+
++    await enforce_registration_gate("server_internal_register", server_entry)
++
+     # Register the server (this will overwrite if server exists and overwrite=True)
+     logger.warning(
+         "INTERNAL REGISTER: Calling server_service.register_server"
+@@ -1587,6 +1592,8 @@ async def edit_server_submit(
+         updated_server_entry.pop("auth_credential_encrypted", None)
+         updated_server_entry.pop("auth_header_name", None)
+
++    await enforce_registration_gate("server_update", updated_server_entry)
++
+     # Update server
+     success = await server_service.update_server(service_path, updated_server_entry)
+
+@@ -2701,6 +2708,8 @@ async def register_service_api(
+                 },
+             )
+
++    await enforce_registration_gate("server_api_register", server_entry)
++
+     try:
+         # Register service (use update_server if overwriting, otherwise register_server)
+         if existing_server and overwrite:
+diff --git a/registry/api/skill_routes.py b/registry/api/skill_routes.py
+index a863ef1..9b9b0a3 100644
+--- a/registry/api/skill_routes.py
++++ b/registry/api/skill_routes.py
+@@ -53,6 +53,7 @@ from ..services.skill_service import (
+ )
+ from ..services.tool_validation_service import get_tool_validation_service
+ from ..utils.path_utils import normalize_skill_path
++from .registration_gate import enforce_registration_gate
+
+ # Configure logging
+ logging.basicConfig(
+@@ -634,6 +635,8 @@ async def register_skill(
+     service = get_skill_service()
+     owner = user_context.get("username")
+
++    await enforce_registration_gate("skill_create", request.model_dump(mode="json"))
++
+     try:
+         skill = await service.register_skill(request=request, owner=owner, validate_url=True)
+         logger.info(f"Registered skill: {skill.name} by {owner}")
+@@ -689,6 +692,8 @@ async def update_skill(
+     if not _user_can_modify_skill(existing, user_context):
+         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
++    await enforce_registration_gate("skill_update", request.model_dump(mode="json"))
++
+     updates = request.model_dump(exclude_unset=True, mode="json")
+
+     # Convert raw metadata dict to SkillMetadata structure for consistent storage
+diff --git a/registry/core/config.py b/registry/core/config.py
+index 3f52288..2780019 100644
+--- a/registry/core/config.py
++++ b/registry/core/config.py
+@@ -315,6 +315,14 @@ class Settings(BaseSettings):
+         description="ANS verification cache TTL in seconds",
+     )
+
++    # Registration Admission Control Gate
++    registration_gate_enabled: bool = Field(default=False, description="Enable the registration admission gate")
++    registration_gate_url: str = Field(default="", description="Admission gate endpoint URL (HTTP POST)")
++    registration_gate_timeout_seconds: int = Field(default=5, description="Admission gate request timeout in seconds")
++    registration_gate_auth_header: str = Field(
++        default="", description="Authorization header value sent to the admission gate (secret)"
++    )
++
+     # Audit Logging Configuration
+     audit_log_enabled: bool = True  # Enable/disable audit logging globally
+     audit_log_dir: str = "logs/audit"  # Directory for local audit log files
+diff --git a/registry/services/registration_gate_service.py b/registry/services/registration_gate_service.py
+new file mode 100644
+index 0000000..ee2cbf0
+--- /dev/null
++++ b/registry/services/registration_gate_service.py
+@@ -0,0 +1,120 @@
++"""Registration admission control gate.
++
++Consults an operator-configured external policy endpoint before an agent, server,
++or skill registration is persisted. Any failure to obtain a decision blocks the
++registration (fail-closed).
++"""
++
++import logging
++from typing import Any
++
++import httpx
++
++logger = logging.getLogger(__name__)
++
++GATE_REDACTED_KEYS = ("auth_credential", "auth_credential_encrypted", "headers")
++GATE_DETAIL_MAX_CHARS = 500
++GATE_GENERIC_DENY_DETAIL = "Registration denied by admission gate"
++
++
++class RegistrationDeniedError(Exception):
++    """The admission gate rejected the registration.
++
++    Attributes:
++        detail: Gate-provided reason, already truncated to GATE_DETAIL_MAX_CHARS.
++    """
++
++    def __init__(self, detail: str) -> None:
++        super().__init__(detail)
++        self.detail = detail
++
++
++class RegistrationGateUnavailableError(Exception):
++    """The admission gate could not produce a decision; the registration is blocked."""
++
++
++def _redact(asset: dict[str, Any]) -> dict[str, Any]:
++    """Return a shallow copy of asset without credential-bearing top-level keys."""
++    return {key: value for key, value in asset.items() if key not in GATE_REDACTED_KEYS}
++
++
++def _extract_detail(response: httpx.Response) -> str:
++    """Return the gate's JSON "detail" string, or the generic deny text if unusable."""
++    try:
++        detail = response.json().get("detail")
++    except (ValueError, AttributeError):
++        return GATE_GENERIC_DENY_DETAIL
++    if not isinstance(detail, str) or not detail:
++        return GATE_GENERIC_DENY_DETAIL
++    return detail[:GATE_DETAIL_MAX_CHARS]
++
++
++class RegistrationGateService:
++    """Client for the registration admission gate.
++
++    Args:
++        enabled: When False, check() returns without making a request.
++        url: Gate endpoint (HTTP POST). Required when enabled.
++        timeout_seconds: Per-request timeout.
++        auth_header: Value for the Authorization header; omitted when empty.
++        transport: Optional httpx transport, used by tests.
++    """
++
++    def __init__(
++        self,
++        *,
++        enabled: bool,
++        url: str,
++        timeout_seconds: int,
++        auth_header: str,
++        transport: httpx.AsyncBaseTransport | None = None,
++    ) -> None:
++        self._enabled = enabled
++        self._url = url
++        self._timeout_seconds = timeout_seconds
++        self._auth_header = auth_header
++        self._transport = transport
++
++    async def check(self, registration_type: str, asset: dict[str, Any]) -> None:
++        """Ask the gate whether a registration may be persisted.
++
++        Raises:
++            RegistrationDeniedError: The gate returned 403.
++            RegistrationGateUnavailableError: Gate misconfigured, unreachable,
++                timed out, or returned any other status.
++        """
++        if not self._enabled:
++            return
++        if not self._url:
++            logger.error(
++                "Registration gate is enabled but REGISTRATION_GATE_URL is empty; blocking registration"
++            )
++            raise RegistrationGateUnavailableError("REGISTRATION_GATE_URL is not set")
++
++        body = {"registration_type": registration_type, "asset": _redact(asset)}
++        headers = {"Content-Type": "application/json"}
++        if self._auth_header:
++            headers["Authorization"] = self._auth_header
++        path = asset.get("path")
++        try:
++            async with httpx.AsyncClient(
++                timeout=self._timeout_seconds, transport=self._transport
++            ) as client:
++                response = await client.post(self._url, json=body, headers=headers)
++        except httpx.HTTPError as e:
++            logger.error(
++                f"Registration gate request failed for {registration_type} path={path}: {e}"
++            )
++            raise RegistrationGateUnavailableError(str(e)) from e
++
++        if response.status_code == 200:
++            logger.info(f"Registration gate allowed {registration_type} path={path}")
++            return
++        if response.status_code == 403:
++            detail = _extract_detail(response)
++            logger.warning(f"Registration gate denied {registration_type} path={path}: {detail}")
++            raise RegistrationDeniedError(detail)
++        logger.error(
++            f"Registration gate returned HTTP {response.status_code} for {registration_type} path={path}"
++        )
++        raise RegistrationGateUnavailableError(f"gate returned HTTP {response.status_code}")
+diff --git a/terraform/aws-ecs/main.tf b/terraform/aws-ecs/main.tf
+index ae63911..ad9e76e 100755
+--- a/terraform/aws-ecs/main.tf
++++ b/terraform/aws-ecs/main.tf
+@@ -178,6 +178,11 @@ module "mcp_gateway" {
+   ans_sync_interval_hours            = var.ans_sync_interval_hours
+   ans_verification_cache_ttl_seconds = var.ans_verification_cache_ttl_seconds
+
++  registration_gate_enabled         = var.registration_gate_enabled
++  registration_gate_url             = var.registration_gate_url
++  registration_gate_timeout_seconds = var.registration_gate_timeout_seconds
++  registration_gate_auth_header     = var.registration_gate_auth_header
++
+   # Registry card configuration (federation metadata)
+   registry_name              = var.registry_name
+   registry_organization_name = var.registry_organization_name
+diff --git a/terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf b/terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf
+index b531a6a..31997cf 100755
+--- a/terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf
++++ b/terraform/aws-ecs/modules/mcp-gateway/ecs-services.tf
+@@ -815,6 +815,22 @@ module "ecs_service_registry" {
+           name  = "ANS_VERIFICATION_CACHE_TTL_SECONDS"
+           value = tostring(var.ans_verification_cache_ttl_seconds)
+         },
++        {
++          name  = "REGISTRATION_GATE_ENABLED"
++          value = tostring(var.registration_gate_enabled)
++        },
++        {
++          name  = "REGISTRATION_GATE_URL"
++          value = var.registration_gate_url
++        },
++        {
++          name  = "REGISTRATION_GATE_TIMEOUT_SECONDS"
++          value = tostring(var.registration_gate_timeout_seconds)
++        },
++        {
++          name  = "REGISTRATION_GATE_AUTH_HEADER"
++          value = var.registration_gate_auth_header
++        },
+         {
+           name  = "AUDIT_LOG_ENABLED"
+           value = tostring(var.audit_log_enabled)
+diff --git a/terraform/aws-ecs/modules/mcp-gateway/variables.tf b/terraform/aws-ecs/modules/mcp-gateway/variables.tf
+index b57c749..44dab8a 100755
+--- a/terraform/aws-ecs/modules/mcp-gateway/variables.tf
++++ b/terraform/aws-ecs/modules/mcp-gateway/variables.tf
+@@ -739,6 +739,31 @@ variable "ans_verification_cache_ttl_seconds" {
+   default     = 3600
+ }
+
++variable "registration_gate_enabled" {
++  description = "Enable the registration admission gate. Every registration is checked by the gate before it is persisted."
++  type        = bool
++  default     = false
++}
++
++variable "registration_gate_url" {
++  description = "Admission gate endpoint URL (HTTP POST). Required when registration_gate_enabled is true."
++  type        = string
++  default     = ""
++}
++
++variable "registration_gate_timeout_seconds" {
++  description = "Admission gate request timeout in seconds."
++  type        = number
++  default     = 5
++}
++
++variable "registration_gate_auth_header" {
++  description = "Authorization header value sent to the admission gate (secret)."
++  type        = string
++  default     = ""
++  sensitive   = true
++}
++
+ # =============================================================================
+ # REGISTRY CARD CONFIGURATION (Federation Metadata)
+ # =============================================================================
+diff --git a/terraform/aws-ecs/terraform.tfvars.example b/terraform/aws-ecs/terraform.tfvars.example
+index 9bb97cf..f05ac66 100755
+--- a/terraform/aws-ecs/terraform.tfvars.example
++++ b/terraform/aws-ecs/terraform.tfvars.example
+@@ -333,6 +333,15 @@ registry_api_token = "<redacted upstream example value>"
+ # Cache TTL for ANS verification results in seconds (default: 3600)
+ # ans_verification_cache_ttl_seconds = 3600
+
++# Registration admission control gate: every registration is checked by an external gate
++# before it is persisted (see docs/design/registration-admission-gate.md)
++# registration_gate_enabled = false
++# registration_gate_url = "https://gate.example.com/check"
++# registration_gate_timeout_seconds = 5
++# RECOMMENDED: set the auth header via environment variable:
++# export TF_VAR_registration_gate_auth_header="your-gate-auth-header"
++# registration_gate_auth_header = "your-gate-auth-header"
++
+ # ============================================================================
+ # FEDERATION CONFIGURATION (Peer-to-Peer Registry Sync)
+ # ============================================================================
+diff --git a/terraform/aws-ecs/variables.tf b/terraform/aws-ecs/variables.tf
+index 5b158ef..8926c0c 100755
+--- a/terraform/aws-ecs/variables.tf
++++ b/terraform/aws-ecs/variables.tf
+@@ -684,6 +684,31 @@ variable "ans_verification_cache_ttl_seconds" {
+   default     = 3600
+ }
+
++variable "registration_gate_enabled" {
++  description = "Enable the registration admission gate. Every registration is checked by the gate before it is persisted."
++  type        = bool
++  default     = false
++}
++
++variable "registration_gate_url" {
++  description = "Admission gate endpoint URL (HTTP POST). Required when registration_gate_enabled is true."
++  type        = string
++  default     = ""
++}
++
++variable "registration_gate_timeout_seconds" {
++  description = "Admission gate request timeout in seconds."
++  type        = number
++  default     = 5
++}
++
++variable "registration_gate_auth_header" {
++  description = "Authorization header value sent to the admission gate (secret)."
++  type        = string
++  default     = ""
++  sensitive   = true
++}
++
+ # =============================================================================
+ # AUDIT LOGGING CONFIGURATION
+ # =============================================================================
+diff --git a/tests/unit/services/test_registration_gate_service.py b/tests/unit/services/test_registration_gate_service.py
+new file mode 100644
+index 0000000..52884e6
+--- /dev/null
++++ b/tests/unit/services/test_registration_gate_service.py
+@@ -0,0 +1,223 @@
++import json
++import unittest
++from unittest import mock
++
++import httpx
++from fastapi import HTTPException
++
++from registry.api.registration_gate import (
++    GATE_UNAVAILABLE_DETAIL,
++    enforce_registration_gate,
++)
++from registry.services.registration_gate_service import (
++    GATE_DETAIL_MAX_CHARS,
++    GATE_GENERIC_DENY_DETAIL,
++    RegistrationDeniedError,
++    RegistrationGateService,
++    RegistrationGateUnavailableError,
++)
++
++GATE_URL = "http://gate.test/check"
++ASSET = {"path": "/my-agent", "name": "My Agent", "headers": {"X-Key": "k"}}
++
++
++def _service(
++    handler,
++    *,
++    enabled: bool = True,
++    url: str = GATE_URL,
++    auth_header: str = "",
++) -> RegistrationGateService:
++    return RegistrationGateService(
++        enabled=enabled,
++        url=url,
++        timeout_seconds=5,
++        auth_header=auth_header,
++        transport=httpx.MockTransport(handler),
++    )
++
++
++def _respond(status_code: int, **kwargs) -> httpx.Response:
++    return httpx.Response(status_code, **kwargs)
++
++
++class TestRegistrationGateServiceDecisions(unittest.IsolatedAsyncioTestCase):
++    async def test_allow_returns_none(self):
++        service = _service(lambda request: _respond(200, json={}))
++
++        result = await service.check("agent_register", ASSET)
++
++        self.assertIsNone(result)
++
++    async def test_deny_carries_gate_detail(self):
++        service = _service(lambda request: _respond(403, json={"detail": "naming violation"}))
++
++        with self.assertRaises(RegistrationDeniedError) as ctx:
++            await service.check("agent_register", ASSET)
++
++        self.assertEqual(ctx.exception.detail, "naming violation")
++
++    async def test_deny_with_non_json_body_uses_generic_detail(self):
++        service = _service(lambda request: _respond(403, content=b"<html>nope</html>"))
++
++        with self.assertRaises(RegistrationDeniedError) as ctx:
++            await service.check("agent_register", ASSET)
++
++        self.assertEqual(ctx.exception.detail, GATE_GENERIC_DENY_DETAIL)
++
++    async def test_deny_with_empty_detail_uses_generic_detail(self):
++        service = _service(lambda request: _respond(403, json={"detail": ""}))
++
++        with self.assertRaises(RegistrationDeniedError) as ctx:
++            await service.check("agent_register", ASSET)
++
++        self.assertEqual(ctx.exception.detail, GATE_GENERIC_DENY_DETAIL)
++
++    async def test_deny_with_non_string_detail_uses_generic_detail(self):
++        service = _service(lambda request: _respond(403, json={"detail": ["a", "b"]}))
++
++        with self.assertRaises(RegistrationDeniedError) as ctx:
++            await service.check("agent_register", ASSET)
++
++        self.assertEqual(ctx.exception.detail, GATE_GENERIC_DENY_DETAIL)
++
++    async def test_deny_detail_is_truncated(self):
++        service = _service(lambda request: _respond(403, json={"detail": "x" * 2000}))
++
++        with self.assertRaises(RegistrationDeniedError) as ctx:
++            await service.check("agent_register", ASSET)
++
++        self.assertEqual(len(ctx.exception.detail), GATE_DETAIL_MAX_CHARS)
++
++    async def test_server_error_from_gate_is_unavailable(self):
++        service = _service(lambda request: _respond(500))
++
++        with self.assertRaises(RegistrationGateUnavailableError):
++            await service.check("agent_register", ASSET)
++
++    async def test_non_403_client_error_from_gate_is_unavailable(self):
++        service = _service(lambda request: _respond(404))
++
++        with self.assertRaises(RegistrationGateUnavailableError):
++            await service.check("agent_register", ASSET)
++
++    async def test_timeout_is_unavailable(self):
++        def handler(request):
++            raise httpx.ReadTimeout("gate too slow", request=request)
++
++        with self.assertRaises(RegistrationGateUnavailableError):
++            await _service(handler).check("agent_register", ASSET)
++
++    async def test_connection_error_is_unavailable(self):
++        def handler(request):
++            raise httpx.ConnectError("connection refused", request=request)
++
++        with self.assertRaises(RegistrationGateUnavailableError):
++            await _service(handler).check("agent_register", ASSET)
++
++
++class TestRegistrationGateServiceRequests(unittest.IsolatedAsyncioTestCase):
++    async def test_disabled_gate_makes_no_request(self):
++        calls: list[httpx.Request] = []
++
++        def handler(request):
++            calls.append(request)
++            return _respond(403)
++
++        await _service(handler, enabled=False).check("agent_register", ASSET)
++
++        self.assertEqual(calls, [])
++
++    async def test_enabled_gate_without_url_is_unavailable_and_makes_no_request(self):
++        calls: list[httpx.Request] = []
++
++        def handler(request):
++            calls.append(request)
++            return _respond(200)
++
++        with self.assertRaises(RegistrationGateUnavailableError):
++            await _service(handler, url="").check("agent_register", ASSET)
++
++        self.assertEqual(calls, [])
++
++    async def test_auth_header_is_sent_when_set(self):
++        seen: list[httpx.Request] = []
++
++        def handler(request):
++            seen.append(request)
++            return _respond(200)
++
++        await _service(handler, auth_header="Bearer t0ken").check("agent_register", ASSET)
++
++        self.assertEqual(seen[0].headers["Authorization"], "Bearer t0ken")
++
++    async def test_auth_header_is_absent_when_unset(self):
++        seen: list[httpx.Request] = []
++
++        def handler(request):
++            seen.append(request)
++            return _respond(200)
++
++        await _service(handler, auth_header="").check("agent_register", ASSET)
++
++        self.assertNotIn("Authorization", seen[0].headers)
++
++    async def test_credential_fields_are_removed_from_asset(self):
++        seen: list[httpx.Request] = []
++        asset = {
++            "path": "/srv",
++            "auth_credential": "plain-secret",
++            "auth_credential_encrypted": "cipher",
++            "headers": [{"X-Key": "k"}],
++        }
++
++        def handler(request):
++            seen.append(request)
++            return _respond(200)
++
++        await _service(handler).check("server_register", asset)
++
++        sent_asset = json.loads(seen[0].content)["asset"]
++        self.assertEqual(sent_asset, {"path": "/srv"})
++
++    async def test_request_body_carries_registration_type_and_asset(self):
++        seen: list[httpx.Request] = []
++
++        def handler(request):
++            seen.append(request)
++            return _respond(200)
++
++        await _service(handler).check("skill_create", {"path": "/s"})
++
++        self.assertEqual(
++            json.loads(seen[0].content),
++            {"registration_type": "skill_create", "asset": {"path": "/s"}},
++        )
++
++
++class TestEnforceRegistrationGate(unittest.IsolatedAsyncioTestCase):
++    def _patched_service(self, handler):
++        service = _service(handler)
++        return mock.patch("registry.api.registration_gate._gate_service", return_value=service)
++
++    async def test_deny_maps_to_403_with_admission_gate_suffix(self):
++        with self._patched_service(lambda request: _respond(403, json={"detail": "bad name"})):
++            with self.assertRaises(HTTPException) as ctx:
++                await enforce_registration_gate("agent_register", ASSET)
++
++        self.assertEqual(ctx.exception.status_code, 403)
++        self.assertEqual(ctx.exception.detail, "bad name (from admission gate)")
++
++    async def test_unavailable_gate_maps_to_503(self):
++        with self._patched_service(lambda request: _respond(500)):
++            with self.assertRaises(HTTPException) as ctx:
++                await enforce_registration_gate("agent_register", ASSET)
++
++        self.assertEqual(ctx.exception.status_code, 503)
++        self.assertEqual(ctx.exception.detail, GATE_UNAVAILABLE_DETAIL)
++
++    async def test_allow_raises_nothing(self):
++        with self._patched_service(lambda request: _respond(200)):
++            result = await enforce_registration_gate("agent_register", ASSET)
++
++        self.assertIsNone(result)

@@ -1,0 +1,64 @@
+{
+  "task": "idp-authenticated-embedding-endpoint",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The issue clearly defines the expiring-token problem, user impact, testable outcomes, and useful non-goals. Repository documentation corroborates the existing LiteLLM embedding configuration and static credential surfaces. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md)) Its largest gap is that “IdP mode selected” is ambiguous and precedence when both credential modes are configured is not an acceptance criterion. No independent task statement was supplied, and the asserted config UI and issue #1415 dependency could not be verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 14,
+      "total": 61,
+      "notes": "The LLD names concrete settings, client and repository integration points, token state, refresh behavior, deployment surfaces, and rollout considerations. Its load-bearing request mechanism remains unresolved as “check litellm API for header support,” despite declaring no open questions, and the proposed config API route and masking file are unverified. It also incorrectly claims refresh failure requires restart, although its own design retries through every get_token call, and treats HTTPX’s phased connect/read/write/pool timeout as a total request deadline. ([python-httpx.org](https://www.python-httpx.org/advanced/timeouts/)) Secret delivery through a Helm ConfigMap and provider shutdown lifecycle are not handled adequately."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 17,
+      "risk_awareness": 18,
+      "total": 63,
+      "notes": "The review’s strongest contribution is identifying concrete blockers around startup validation, secret exposure, deployment wiring, and timeout behavior. However, it treats unverified paths such as `registry/api/embeddings_admin_routes.py` and `GET /admin/config` as real while leaving LiteLLM header support as an unanswered question. Cipher incorrectly resolves timeout safety by calling `httpx.Client(timeout=30)` a total timeout, contrary to HTTPX’s documented phase-specific semantics. ([python-httpx.org](https://www.python-httpx.org/advanced/timeouts/)) It also fails to challenge placing a client secret in a Kubernetes ConfigMap, while the final architecture reviewer declares no concerns."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 6,
+      "specificity": 17,
+      "risk_awareness": 15,
+      "total": 56,
+      "notes": "The plan broadly covers caching, concurrency, refresh, compatibility, startup validation, leakage, deployment, rollback, and end-to-end behavior. Many examples are not executable: `responses` does not mock HTTPX, `idp_provider` is not a proposed constructor parameter, `AppSettings` and standalone `validate_idp_config` disagree with the patch, and `client_secret` is undefined in the logging assertion. The expiry test’s five-second token is immediately inside the sixty-second refresh buffer, while Docker uses `docker exec registry` without naming the container and the mock-fixture pytest command is invalid. Repository documentation uses `uv run pytest` and identifies `/api/servers/register`, whereas several search, indexing, and config endpoints in this plan remain unsupported. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/testing/README.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/registry_api.md))"
+    },
+    "implementation": {
+      "completeness": 7,
+      "correctness": 3,
+      "specificity": 11,
+      "risk_awareness": 5,
+      "total": 26,
+      "notes": "The patch implements a token provider and threads the three settings into `LiteLLMClient`, so a partial happy path exists. Its largest defect is in `registry/core/config.py`: it deletes `embeddings_aws_region` while `search_repository.py` still reads that setting, and replaces rather than supplements `_validate_egress_auth_config()`, disabling an existing startup safety check. It also deletes `_validated_dimension` initialization and omits required deployment wiring, documentation, tests, and config-secret masking, despite the summary claiming no deviations and exact LLD implementation. Public documentation corroborates that `EMBEDDINGS_AWS_REGION` is an existing supported setting, while patch applicability and exact pinned LiteLLM header behavior could not be dry-run because the local command sandbox failed before execution. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/embeddings.md))"
+    }
+  },
+  "task_score": 56.8,
+  "verdict": "Detailed design work is undermined by unverified assumptions and a critically regressive, incomplete patch that removes existing configuration and validation while omitting required security and deployment changes.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-08T19:35:15.557388Z",
+    "repo_ref": "1.28.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 180694,
+      "cached_input_tokens": 107201,
+      "cache_write_input_tokens": 36203,
+      "output_tokens": 9655,
+      "reasoning_output_tokens": 7830
+    },
+    "duration_ms": 139808
+  }
+}

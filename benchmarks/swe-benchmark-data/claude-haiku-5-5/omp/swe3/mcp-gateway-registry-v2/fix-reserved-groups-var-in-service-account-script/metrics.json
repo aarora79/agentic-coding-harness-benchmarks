@@ -1,0 +1,156 @@
+{
+  "task": "fix-reserved-groups-var-in-service-account-script",
+  "repo": "https://github.com/agentic-community/mcp-gateway-registry",
+  "ref": "1.27.1",
+  "complexity": "low",
+  "tags": [
+    "bug",
+    "bash",
+    "keycloak",
+    "setup-scripts",
+    "shellcheck",
+    "fixed-in-1.28.0"
+  ],
+  "model": "us.anthropic.claude-haiku-5-5",
+  "model_slug": "claude-haiku-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 188.3,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 70,
+    "output_tokens": 55857,
+    "cache_read_tokens": 1939432,
+    "cache_write_tokens": 158629,
+    "total_tokens": 2153988,
+    "total_cost_usd": 0.0738742895,
+    "latency_seconds": 296.6,
+    "num_turns": 33,
+    "generation_tokens_per_sec": 188.3,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 70,
+  "output_tokens": 55857,
+  "latency_seconds": 296.6,
+  "num_turns": 33,
+  "total_cost_usd": 0.0738742895,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 1939432,
+  "cache_creation_tokens": 158629,
+  "models_used": [
+    "us.anthropic.claude-haiku-5-5"
+  ],
+  "run_started_at": "2026-10-10T17:48:43.793489Z",
+  "run_ended_at": "2026-10-10T17:53:40.441883Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 70,
+    "output_tokens": 55857,
+    "cache_read_tokens": 1939432,
+    "cache_write_tokens": 158629,
+    "total_tokens": 2153988,
+    "total_cost_usd": 0.0738742895,
+    "latency_seconds": 296.6,
+    "num_turns": 33,
+    "generation_tokens_per_sec": 188.3,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "fix-reserved-groups-var-in-service-account-script",
+    "model": "us.anthropic.claude-haiku-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 89,
+        "notes": "The issue precisely describes the GROUPS collision, both affected setup scripts, exact-match behavior, compatibility targets, and testable exit-status criteria. Its strongest aspect is connecting the substring check in assign_to_group() to the corrected verification path instead of treating the rename in isolation. The submitted diff contains the named functions, variables, and matching expressions, although no independent task statement establishes whether the exact-match expansion was originally required. The claim that every caller checks the exit status was not independently verifiable, but the explicit exclusions and follow-up files keep the proposed scope controlled."
+      },
+      "lld": {
+        "completeness": 22,
+        "correctness": 20,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 86,
+        "notes": "The LLD is unusually concrete for this small change, naming both scripts, functions, REST endpoint, variable lifetimes, matching semantics, and rollout boundaries. Its main technical weakness is claiming that a failing curl pipeline propagates under set -e even though it later acknowledges that, without pipefail, curl failure can be masked by jq; curl also lacks -f for HTTP errors. The proposed separate local declaration and assignment, grep -Fxq -e usage, and unchanged mapper path are internally consistent with the submitted patch contexts. The reserved-variable sweep is useful but not exhaustive as written because its expression names only selected BASH special variables despite describing a broader BASH* sweep."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 21,
+        "total": 87,
+        "notes": "The review finds a concrete defect in the draft design—leading-hyphen patterns being parsed as grep options—and records the exact -e correction subsequently used by the patch. It also identifies the missing-pipefail diagnostic limitation, authorization-adjacent substring false positives, downstream exit-code change, and deferred GROUPS assignments in the two user-management scripts. Some assertions, such as a sweep proving that no test or documentation refers to the variable name, are unsupported and not materially relevant to runtime behavior. It also misses that echo can interpret specific values such as -n or -e, so the claimed handling of arbitrary leading-hyphen group names is not complete."
+      },
+      "testing": {
+        "completeness": 18,
+        "correctness": 13,
+        "specificity": 16,
+        "risk_awareness": 18,
+        "total": 65,
+        "notes": "The plan covers successful verification, substring rejection, leading-hyphen input, assignment behavior, API failure, compatibility, the reserved-variable sweep, and a live Keycloak check with concrete expected outcomes. Its largest deficiency is that the supplied harness cannot run the full script as written because the curl stub returns an empty token response, while the alternative of sourcing a script with main removed is described but not implemented. Several important oracles, including proving that no PUT occurred, are prose rather than executable assertions or request-count checks. The negative and failure coverage is thoughtful, but the plan is not sufficiently copy-pasteable or reproducible to provide strong regression protection."
+      },
+      "implementation": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 85,
+        "notes": "The patch implements the design in both submitted script contexts: GROUPS becomes local sa_groups, CURRENT_GROUPS becomes local current_groups, and all four membership checks use fixed whole-line matching with -e. The changes are narrow, preserve the existing API calls and output structure, and the summary honestly identifies unexecuted live-Keycloak, Bash 3.2, and shellcheck verification. A remaining edge case is piping through echo, which can consume group values such as -n or -e as options; printf would make the exact-match behavior robust for those names. Independent source and git apply verification was unavailable because repository shell commands failed before execution, so applicability is supported by the internally consistent diff context rather than a successful local apply check."
+      }
+    },
+    "task_score": 82.4,
+    "verdict": "With no independent task statement, this is a strong and coherent fix whose largest limitation is a testing plan that specifies good cases but does not provide a runnable, assertion-complete harness.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-10T21:13:09.730938Z",
+      "repo_ref": "1.27.1",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 183754,
+        "cached_input_tokens": 123967,
+        "cache_write_input_tokens": 27620,
+        "output_tokens": 10887,
+        "reasoning_output_tokens": 9056
+      },
+      "duration_ms": 103878
+    }
+  }
+}

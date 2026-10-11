@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 79,
+      "notes": "The strongest aspect is the concrete, testable acceptance criteria spanning derivation, form population, editability, and both modal components, with clear exclusions for non-GitHub providers and repository verification. The submitted patch contains the named parse route, Dashboard state, Skill type, SkillCard, and SemanticSearchResults integration points, supporting the issue's overall repository model. The largest gap is that it never decides whether a later parse returning null should clear or preserve an existing user-edited repository URL, despite calling out user intent. No independent task statement was supplied, and the local command runner could not access the repository, so issue #846 and exact baseline symbols could not be independently verified."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 13,
+      "specificity": 20,
+      "risk_awareness": 14,
+      "total": 65,
+      "notes": "The LLD is specific about seven files, the parse data flow, response field, form state, and conditional modal links, and those locations correspond to the submitted patch. Its largest technical defect is the derivation algorithm: it accepts any GitHub-classified URL with two path segments without validating the documented blob or raw patterns, and only rewrites raw.githubusercontent.com, so it cannot produce the stated canonical host for raw GitHub Enterprise URLs. It also leaves the API contract undecided between null and omission and instructs implementers to add a Dashboard input that the patch indicates already existed. Exact line numbers, helper behavior, and model declarations could not be checked directly against the working tree because repository reads were unavailable."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 19,
+      "total": 75,
+      "notes": "The strongest work is the identification of concrete design defects, especially null-handling in form state, post-construction URL validation, and misleadingly generic helper naming, with actionable resolutions. It fails to catch the raw Enterprise-host canonicalization error and overstates several minor concerns, such as undefined optional state causing runtime errors and constant-time complexity for operations that scale with URL length. Its proposed validation resolution is merely another urlparse structural check rather than the claimed Pydantic HttpUrl validation, and the implementation later ignores both the recommended null clearing and validation blocker. Claims about existing SSRF validation and hostname matching could not be independently verified against source."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 16,
+      "total": 64,
+      "notes": "The plan covers useful unit, endpoint, compatibility, UI, negative, and end-to-end scenarios with exact expected repository URLs, including a raw Enterprise case that would expose an implementation defect. Several advertised commands are unusable: the endpoint script calls quote on the top-level module returned by __import__('urllib.parse'), and the registration example contains invalid JSON at the description field. The empty-segment case has an ambiguous oracle and neither offered result matches the submitted algorithm, while many frontend checks amount to manual inspection rather than durable assertions. The existence of the sample SKILL.md URL and proposed test files could not be verified against the inaccessible working tree."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 11,
+      "total": 62,
+      "notes": "The focused seven-file patch implements the central public-GitHub flow end to end: derivation, parse response propagation, editable form state, typing, and conditional links in both modal components. Two behavioral defects remain: data.repository_url ?? prev.repository_url preserves a stale repository when parsing a non-GitHub URL, and raw Enterprise hosts cannot be canonicalized because only raw.githubusercontent.com is rewritten. The helper also validates neither the required path shape nor its constructed URL, no automated tests are added, and the summary falsely claims all review blockers and acceptance criteria are satisfied; its suggested HEAD~1..HEAD verification also does not inspect an uncommitted git apply result. The diff contexts and symbols are internally coherent, but exact applicability could not be confirmed with git apply --check because local repository commands were blocked."
+    }
+  },
+  "task_score": 69.0,
+  "verdict": "The submission is concrete and largely end-to-end, but unresolved URL canonicalization, stale form-state behavior, weak executable testing, and an overstated implementation summary prevent it from being merge-ready.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-08T19:26:11.250891Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 173057,
+      "cached_input_tokens": 116975,
+      "cache_write_input_tokens": 31674,
+      "output_tokens": 10327,
+      "reasoning_output_tokens": 8895
+    },
+    "duration_ms": 172584
+  }
+}

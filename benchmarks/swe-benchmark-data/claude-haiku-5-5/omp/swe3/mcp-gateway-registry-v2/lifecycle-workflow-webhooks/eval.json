@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 21,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 82,
+      "notes": "The issue clearly defines seven coherent changes, explicit non-goals, and testable outcomes such as exact headers, HTTP 403/422 behavior, and all three asset types. Its named dependencies match paths and symbols targeted by the submitted patch, including registry/services/webhook_service.py and registration gate integration. The largest gaps are that metric exposure is undefined and the requirement that every webhook be signed does not specify behavior when the secret is absent. No independent task statement was supplied, so broader requirement coverage cannot be verified beyond the identifier and internally consistent artifacts."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 20,
+      "risk_awareness": 17,
+      "total": 71,
+      "notes": "The LLD is unusually concrete about route functions, configuration fields, payload bytes, pagination behavior, and rollout sequencing. Its largest correctness defect is the unresolved statement that scan_complete is emitted in finally, despite the review later saying early returns must not emit and claiming that the LLD was revised. It also leaves the required metric exposure undecided, weakens universal signing into optional unsigned delivery, and assumes one path-based permission helper fits server, agent, and skill authorization conventions. Local source and patch applicability could not be independently checked because the repository shell failed before execution with a sandbox loopback error."
+    },
+    "review": {
+      "completeness": 17,
+      "correctness": 16,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 71,
+      "notes": "The review identifies concrete design hazards, notably disabled-scan early returns, exact-byte signing, server fast-path filtering, bounded metric labels, and startup validation. Its strongest recommendation directly challenges the LLD's finally-based emission rather than merely approving the design. However, it incorrectly claims that resolution was applied while the LLD still says finally, and it misses the undecided metric interface, post-scan state ordering, and generic permission-path assumptions. The review honestly records that most of auth_server/scopes.yml was not checked, but nevertheless gives a proceed verdict before resolving that uncertainty."
+    },
+    "testing": {
+      "completeness": 15,
+      "correctness": 18,
+      "specificity": 17,
+      "risk_awareness": 17,
+      "total": 67,
+      "notes": "The plan provides meaningful oracles for signing, tampering, lifecycle enforcement, permission denial, compatibility, and disabled scans; F2 would catch the implementation's missing agent failure event. Coverage is incomplete across the three asset types, and it contains no tests for delivery counters, timeout/non-2xx outcomes, duplicate scan events, permission-scope configuration, or documentation accuracy. Several tests lack concrete fixtures or request-level setup, while the verification commands provide neither exact pytest paths nor executable command lines. The end-to-end scenario is useful but covers only a server and does not validate failure ordering or the operational metric exposure promised by the issue."
+    },
+    "implementation": {
+      "completeness": 14,
+      "correctness": 11,
+      "specificity": 18,
+      "risk_awareness": 12,
+      "total": 55,
+      "notes": "The patch substantially implements signing, status filtering and enforcement, permission checks, documentation, and focused helper tests across the named route files. The critical scan workflow is incorrect: agent scanner exceptions emit no failed event, while server and skill emit completed before disable/tag side effects and can then emit failed from the enclosing exception handler, producing contradictory duplicate events. Explicit null status bypasses check_status_patch, skill initial-status enforcement occurs after its registration gate, and get_webhook_delivery_counts is not connected to an externally observable metric endpoint. The summary also declares a 1.24.4 base despite the submitted 1.24.7 context, and git apply --check could not be run because the local shell sandbox failed before command execution."
+    }
+  },
+  "task_score": 69.2,
+  "verdict": "The submission has strong, repository-oriented design artifacts, but the implementation leaves critical scan-event semantics, lifecycle authorization edge cases, and metric exposure incomplete or incorrect.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-10T21:21:27.286065Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 242828,
+      "cached_input_tokens": 190959,
+      "cache_write_input_tokens": 40156,
+      "output_tokens": 10783,
+      "reasoning_output_tokens": 8696
+    },
+    "duration_ms": 108325
+  }
+}

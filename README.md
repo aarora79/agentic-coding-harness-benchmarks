@@ -3,7 +3,7 @@
 <p align="center">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT--0-yellow.svg" alt="License: MIT-0"></a>
 <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/models-endpoint-availability.html"><img src="https://img.shields.io/badge/Amazon-Bedrock-blue" alt="Bedrock"></a>
-<a href="./"><img src="https://img.shields.io/badge/Models-45%20from%2011%20providers-orange" alt="Models: 45"></a>
+<a href="docs/results-index.md"><img src="https://img.shields.io/badge/Models%20benchmarked-28%20from%2011%20providers-orange" alt="Models benchmarked: 28 from 11 providers"></a>
 </p>
 
 <p align="center">
@@ -61,7 +61,7 @@ One command per model. The `/benchmark` skill runs the pre-flight checks, the ha
 
 ![Cost vs. quality Pareto frontier, omp harness on /swe3](docs/images/cost-quality-omp-swe3.png)
 
-On ours, 21 models over 21 tasks: `claude-opus-5` scores highest at **82.83** for **$11.95** a task, and `claude-opus-5-5` lands 1.7 points behind it at **81.16 for $4.44**, under two fifths of the price. `kimi-k3` scores **79.17 for $4.33**. The cheapest model above 78 is `qwen3.8-27b`, which scores **78.48 at $1.47** and beats `claude-sonnet-5` (76.97, $4.67) at under a third of the cost.
+On ours, 23 models over 21 tasks: `claude-opus-5` scores highest at **82.83** for **$11.95** a task, and `claude-opus-5-5` lands 1.7 points behind it at **81.16 for $4.44**, under two fifths of the price. `claude-sonnet-5-5` scores **79.49 for $2.62**, and the cheapest model above 78 is `qwen3.8-27b` at **78.48 for $1.47**. At the bottom of the price range, `claude-haiku-5-5` scores **72.69 for $0.14** a task, though it did not finish one of the 21 tasks.
 
 ## Step 2 — Developers install the skill
 
@@ -89,7 +89,7 @@ Install notes, the file-by-file breakdown and the measured results: **[vend/swe-
 
 ### Results
 
-21 models over 21 tasks. Each task comes from a closed issue in a real repository, pinned to the release before the fix shipped, so the defect is present in the tree the agent clones. An independent judge scores every run 0-100, and the tasks split across four complexity tiers. Earlier runs on other harnesses and datasets stay published as background. They use different task sets, so their scores do not merge into the headline table.
+23 models over 21 tasks. Each task comes from a closed issue in a real repository, pinned to the release before the fix shipped, so the defect is present in the tree the agent clones. An independent judge scores every run 0-100, and the tasks split across four complexity tiers. Earlier runs on other harnesses and datasets stay published as background. They use different task sets, so their scores do not merge into the headline table.
 
 **[All results](docs/results-index.md)** · [Headline run (omp, /swe3, v2)](docs/harness-omp-swe3.md) · [Strands harness](docs/harness-strands-swe3.md) · [Which model for which task?](docs/model-selection-by-complexity.md) · [Cost per task methodology](docs/cost-per-task-methodology.md) · [v1 dataset](docs/results-swe3.md) · [/swe2 multi-agent](docs/results-swe2.md) · [Cross-harness comparison](docs/agentic-coding-swe-comparison-swe3.md)
 

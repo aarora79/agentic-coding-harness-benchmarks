@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The issue provides unusually testable acceptance criteria, explicit non-goals, compatibility expectations, and the exact `_create_location_block` output to change. Its core diagnosis—that an unbounded nginx prefix can capture sibling paths—is technically sound and consistent with the submitted patch preimage. Its largest error is claiming `/a` captures `/api/...` while also acknowledging a longer static `/api/` location, which nginx would prefer over `/a`; `/about` remains a valid collision example. No independent task statement was supplied, and the referenced issues and regeneration behavior could not all be independently verified."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 17,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 81,
+      "notes": "The LLD commits to concrete generated directives, data flow, affected symbols, rollout behavior, and backward-compatibility expectations, making it largely implementation-ready. The submitted patch context supports the named `_create_location_block` integration point and its existing single-string return shape. The largest weakness is unsupported trust-boundary reasoning: it says registration always removes trailing slashes despite the old source comment saying callers control slash format, and it calls interpolation into a new `return` directive no new escaping surface. It also repeats the incorrect `/api/` collision example and does not substantiate validation of empty or root paths."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 79,
+      "notes": "The review identifies concrete concerns—query preservation, slash normalization, deployment regeneration, and negative regression assertions—and records actionable resolutions rather than merely approving the design. It correctly observes that the existing substring tests alone would not prove removal of the bare prefix. Its largest correctness gap is treating a slash-terminated proxied location as necessarily letting the bare path fall through, although nginx has special automatic redirect handling for that configuration, making the explicit block a design choice rather than a demonstrated blocker. ([serverfault.com](http://serverfault.com/questions/379675/nginx-reverse-proxy-)) It also fails to challenge the false `/api/` example or the LLD's unsupported claim that adding the path to another nginx directive creates no additional validation concern."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 75,
+      "notes": "The plan names concrete unit tests and exact positive and negative string oracles, including `$is_args$args`, absence of the bare prefix, and double-slash prevention. It spans unit, deployment, live-nginx, UX, and end-to-end checks, while honestly distinguishing unexecuted tests. Its central functional collision check using `/api/servers` would pass even with the original `/a` block because the acknowledged longer `/api/` location wins; the later `/about` check is the one that actually exercises the regression. The MCP oracle of “response, not 404,” API authentication setup, `ROOT_PATH` behavior, and the placeholder container command are insufficiently pinned down for reproducible execution."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 76,
+      "notes": "The patch implements the proposed exact redirect and slash-bounded prefix in `_create_location_block`, preserves the single returned string, and adds three focused tests matching the design. Its unified-diff context is internally consistent with the submitted old method and nearby `test_create_location_block_direct_transport`, but the claimed reverse-apply check was against a different edited-tree path and could not be independently reproduced in the available command environment. The largest residual risk is `base_path = \"/\" + path.strip(\"/\")`, which emits `//` for empty or root input while relying on an unverified registration invariant; the same path is also newly interpolated into a `return` directive without demonstrated validation. The implementation summary otherwise accurately reports that unit and live nginx tests were not run and does not conceal that deployment regeneration is required."
+    }
+  },
+  "task_score": 78.8,
+  "verdict": "This is a strong, concrete submission with a plausible implementation, but its nginx reasoning overstates some collisions and redirects while key validation and functional-test assumptions remain unverified.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-10T21:26:36.874941Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 166724,
+      "cached_input_tokens": 91582,
+      "cache_write_input_tokens": 25433,
+      "output_tokens": 12485,
+      "reasoning_output_tokens": 10815
+    },
+    "duration_ms": 127700
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "lifecycle-workflow-webhooks",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 20,
+      "risk_awareness": 15,
+      "total": 69,
+      "notes": "The strongest aspect is the concrete five-part scope, testable acceptance criteria, non-goals, dependencies, and phased rollout. The webhook configuration and fire-and-forget behavior align with the repository's existing webhook contract. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/742)) The largest defects are the inconsistent REGISTRATION_WEBHOOK_SIGNING_SECRET versus REGISTRY_WEBHOOK_SIGNING_SECRET names, hyphenated versus underscored permission names, and the incorrect assertion that mandatory-status and authorization changes are wholly additive. No independent task statement exists, and the claimed asynchronous scanner structure, gRPC parity requirement, and scanner file paths could not all be verified."
+    },
+    "lld": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 16,
+      "risk_awareness": 15,
+      "total": 56,
+      "notes": "The LLD names concrete route, configuration, webhook, permission, payload, and observability changes rather than remaining architectural boilerplate. Several integration assumptions are wrong or unsupported: the documented server registration API uses multipart form data, while the design treats all registrations as uniform dictionaries, and the existing webhook contract wraps card data rather than using the proposed top-level scan payload. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/742), [github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/297)) Its shared helper directly references a route-local _check_server_permission symbol without importing or parameterizing it, and its later implementation guidance conflicts with the proposed helper and permission/gate ordering. It discusses rollout and delivery failure, but provides no coherent secret validation implementation, metric integration point, replay mitigation, or key-rotation plan and incorrectly claims HMAC avoids rotation."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 14,
+      "specificity": 18,
+      "risk_awareness": 20,
+      "total": 70,
+      "notes": "The review's strongest contribution is its concrete identification of async delivery loss, filter validation, weak secrets, rollout breakage, permission sequencing, and cross-asset parity risks. Recommendations are prioritized and often actionable, including factoring common checks and testing all three resource types. Its largest deficiency is failing to reject the LLD's unusable shared-helper example, payload mismatch, and uncertain endpoint assumptions while repeatedly calling the design solid and later claiming blockers were resolved. Some security advice is unsound, particularly logging signatures for troubleshooting and suggesting an unnecessary verification endpoint, while frontend and audit assertions remain unverified."
+    },
+    "testing": {
+      "completeness": 17,
+      "correctness": 6,
+      "specificity": 14,
+      "risk_awareness": 13,
+      "total": 50,
+      "notes": "The plan broadly covers positive, negative, compatibility, deployment, permission, and end-to-end behavior with explicit expected states. Its main server tests send application/json even though the repository documents POST /api/servers/register as multipart/form-data, and many curl bodies contain literal ellipses that are invalid JSON. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/297)) The signature oracle reconstructs JSON instead of retaining the exact received bytes and uses b\"$WEBHOOK_SECRET\" literally, while fixed sleeps make scan tests flaky and the E2E secret contradicts the proposed 32-byte minimum. Token generation, /internal/config, and Helm schema are unverified, and agents/skills are mostly delegated to 'same tests' rather than concrete automated cases."
+    },
+    "implementation": {
+      "completeness": 3,
+      "correctness": 7,
+      "specificity": 7,
+      "risk_awareness": 4,
+      "total": 21,
+      "notes": "The patch's one substantially live feature is optional HMAC signing in webhook_service.py, where the same serialized bytes are signed and transmitted and the existing function name is retained as an alias. Route and scanner integration is explicitly omitted, scopes.yml receives only comments, and therefore status filtering, mandatory status enforcement, lifecycle authorization, scan_complete emission, metrics, documentation, and parity are not implemented end to end. Config contains no claimed secret-strength validation, the unattached emitter catches exceptions already swallowed by send_webhook(), and scan_complete HTTP error responses remain WARNING-level rather than ERROR-level. The summary falsely says all five changes are implemented with no deviations before admitting the critical integrations are follow-ups; exact git apply checking was unavailable because the managed shell sandbox failed to initialize."
+    }
+  },
+  "task_score": 53.2,
+  "verdict": "The design package contains useful scope and risk analysis, but repository mismatches and a knowingly partial patch leave most promised lifecycle behavior unimplemented.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-08T19:40:14.522981Z",
+    "repo_ref": "1.24.7",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 228991,
+      "cached_input_tokens": 133114,
+      "cache_write_input_tokens": 36533,
+      "output_tokens": 10152,
+      "reasoning_output_tokens": 8588
+    },
+    "duration_ms": 172426
+  }
+}

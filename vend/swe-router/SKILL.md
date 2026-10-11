@@ -35,7 +35,7 @@ Everything below assumes a substantial coding task about to begin: a feature, a 
 
 These sit beside this one:
 
-- **`models.json`** — 21 models measured on a 21-task benchmark: mean score out of 100, cost per task in dollars, hosting, and how many tasks each finished. Read the `provenance` block: it names the date, harness, dataset and judge.
+- **`models.json`** — 23 models measured on a 21-task benchmark: mean score out of 100, cost per task in dollars, hosting, and how many tasks each finished. Read the `provenance` block: it names the date, harness, dataset and judge.
 - **`model-aliases.json`** — the same models under the names different assistants use, plus the rules for matching them.
 - **`route.py`** — runs the selection. Standard library only, so `python3 route.py` works wherever the skill is installed.
 - **`allowed-models.txt`** — the organisation's approved model list, and a hard constraint when present. One model per line, `#` starts a comment. `route.py` finds and reads it; you never open it. It ships allowing the five models on the measured frontier, which a platform team is expected to edit.
@@ -91,12 +91,14 @@ Take that tier's table from `score_by_complexity`, and read `completion_by_compl
 | Model | overall | on `low` | on `high` | finished on `high` |
 |---|---:|---:|---:|:-:|
 | `claude-opus-5` | 82.83 | 86.2 | 79.8 | 5/5 |
+| `claude-sonnet-5-5` | 79.49 | 83.8 | 73.2 | 5/5 |
 | `claude-sonnet-5` | 76.97 | 80.5 | 73.7 | 5/5 |
 | `qwen3.8-27b` | 78.48 | 80.9 | 71.5 | **4/5** |
 | `kimi-k2.7-code` | 69.13 | 71.7 | 58.5 | **3/5** |
+| `claude-haiku-5-5` | 72.69 | 79.2 | 60.0 | **4/5** |
 | `gemma-4-31b` | 59.74 | 63.3 | 50.0 | 5/5 |
 
-Two things the overall mean hides. `qwen3.8-27b` outscores `claude-sonnet-5` overall (78.48 against 76.97) and trails it by 2.2 points on hard work — the ranking between them flips with the tier. And it did not finish one hard task at all, which the mean cannot show because a failure is excluded from it rather than averaged in.
+Two things the overall mean hides. `qwen3.8-27b` outscores `claude-sonnet-5` overall (78.48 against 76.97) and trails it by 2.2 points on hard work — the ranking between them flips with the tier. And it did not finish one hard task at all, which the mean cannot show because a failure is excluded from it rather than averaged in. `claude-haiku-5-5` falls further: 79.2 on `low`, 60.0 on `high`, with one hard task unfinished.
 
 **A completion rate below the full count is a warning, not a rounding detail.** A model that finishes 4 of 5 hard tasks fails one in five outright. Say so when you recommend it, and prefer a model that finishes when the floor is close either way.
 

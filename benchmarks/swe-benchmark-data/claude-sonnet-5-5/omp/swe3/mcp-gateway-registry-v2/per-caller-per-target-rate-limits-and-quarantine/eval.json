@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 24,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 93,
+      "notes": "The issue precisely defines pairwise quotas, quarantine behavior, API/CLI/UI scope, failure semantics, and explicit non-goals with testable acceptance criteria. Its named integration points align with the submitted baseline contexts for RateLimiter.check, auth_server/server.py::_enforce_rate_limit, the definition and membership repositories, and nginx's throttle marker. The largest limitation is that it calls quarantine immediate while accepting replica propagation through a short cache, and no independent task statement establishes whether every proposed surface was required. The historical issue numbers could not be independently verified, but they are peripheral to the specified behavior."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 14,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 77,
+      "notes": "The LLD is unusually concrete about files, APIs, response mapping, caching, observability, rollout, and failure behavior. Its prescribed caller-target key omits the caller kind, so a user username and client_id with the same text share a counter despite the requirement that two callers never share one. Its merge-safe membership replacement uses separate read, $pull, and $addToSet operations, allowing concurrent updates, partial failure, or an intervening cached read to expose incorrect ordinary-group state. It also contradicts itself about whether generic membership PUT may set reserved groups and uses python registry_management.py where the submitted repository path is api/registry_management.py."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 15,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 76,
+      "notes": "The review identifies concrete repository-specific concerns including cache-key separation, refresh stampedes, seed races, generic-edit quarantine removal, admin bypass, and bounded propagation. Its largest miss is endorsing the length-prefixed key as collision-safe without noticing the user/client namespace collision. It also recommends the two-operation $pull then $addToSet membership update without addressing intermediate visibility, second-operation failure, or concurrent lost-update semantics. Claims such as the exact number of constructor call sites could not be independently rechecked because the repository shell sandbox failed to initialize."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 75,
+      "notes": "The plan provides strong behavioral oracles for pair independence, quarantine precedence, marker-free 403 responses, stale snapshots, cold starts, compatibility, UI behavior, and rollback. Several manual commands use an undefined ADMIN variable, and the data-plane curl loops submit '{}' without a JSON content type or valid MCP request, so successful pre-throttle responses may be upstream errors rather than demonstrated allowed calls. The suite omits the user-versus-client identity collision and does not test a read, failure, or competing update between the repository's $pull and $addToSet operations. The submitted patch contains many of the named unit tests, but the claimed pytest command and applicability could not be executed in the unavailable shell."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 15,
+      "total": 72,
+      "notes": "The patch implements the requested model, limiter, snapshot guard, routes, CLI, UI, documentation, metrics, seeding, and substantial tests rather than stopping at the core counter change. In registry/rate_limiting/limiter.py, _caller_target_subject receives only identity, target type, and target name, so user:alice and client:alice in the same group generate the same counter subject and violate pair isolation. In memberships_repository.py, upsert performs find_one, $pull, and $addToSet separately, permitting transient cached bypass, partial updates, and concurrent-update unions that the previous atomic replacement avoided. The model also reserves the quarantine names only on group-limit axes despite the issue's broader criterion, and the claimed git apply --check could not be independently rerun because the read-only shell wrapper failed before command execution."
+    }
+  },
+  "task_score": 78.6,
+  "verdict": "The submission is comprehensive and highly specific, but the caller-type counter collision and non-atomic membership rewrite leave two material correctness risks on the feature's critical path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-11T00:50:54.018871Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 392005,
+      "cached_input_tokens": 291354,
+      "cache_write_input_tokens": 75092,
+      "output_tokens": 13904,
+      "reasoning_output_tokens": 12088
+    },
+    "duration_ms": 156161
+  }
+}

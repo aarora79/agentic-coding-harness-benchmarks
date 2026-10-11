@@ -1,0 +1,64 @@
+{
+  "task": "per-caller-per-target-rate-limits-and-quarantine",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 84,
+      "notes": "The issue clearly defines the missing caller-target quota, quarantine behavior, scope boundaries, and testable acceptance criteria. Its named integration points, `auth_server/server.py` and `RateLimiter.check()`, agree with the submitted patch. The largest gap is that an immediate kill switch is requested without acceptance criteria for cache propagation or store outages, both of which later materially weaken that guarantee. No independent task statement was supplied, so requirement coverage beyond the identifier and internally consistent artifacts could not be verified."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 83,
+      "notes": "The LLD is highly specific about real symbols, counter-key construction, validation, response semantics, admin behavior, UI integration, and failure handling. Its strongest technical decision is the unambiguous caller-target subject combined with explicit three-way axis validation. However, accepting the existing 30-second membership cache conflicts with the stated immediate kill-switch motivation, and PUT-only reserved-name validation ignores definitions that may already exist from version 1.27.1 and remain deletable. It identifies the fail-open outage exposure honestly, but leaves that security limitation and quarantine activation delay unmitigated."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 9,
+      "specificity": 18,
+      "risk_awareness": 17,
+      "total": 59,
+      "notes": "The review raises concrete concerns about axis fall-through, administrator handling, store outages, cache latency, and frontend coverage. Its central resolution record is inaccurate: it says the limiter test fakes and new tests were implemented, while `testing.md`, `implementation.md`, and the patch all state that no tests or fake updates were added. It also misses the absent CLI membership subject-type change and accepts DELETE as impossible without considering pre-upgrade reserved-name definitions. These contradictions make its final no-further-revision verdict unreliable despite several useful findings."
+    },
+    "testing": {
+      "completeness": 10,
+      "correctness": 9,
+      "specificity": 13,
+      "risk_awareness": 13,
+      "total": 45,
+      "notes": "The plan identifies valuable cases for pair isolation, quarantine ordering, administrators, reserved names, store failures, frontend behavior, and delimiter-safe subjects. It supplies few executable setups or exact commands, omits explicit backward-compatibility tests for existing caller and target axes, and leaves every proposed regression test unimplemented. The proposed oracle that the Nth request is denied appears off by one for a quota allowing N requests, while the zero-backend-call wording conflicts with the membership lookup required to detect caller quarantine. Most seriously, it acknowledges that existing target-classifying tests will fail because `_FakeMemberships` and `_FakeDefs` lack the newly invoked methods."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 13,
+      "total": 60,
+      "notes": "The patch implements the main model, repository, limiter, HTTP response, API, and React paths, and the caller-target gate construction is internally consistent with the design. It does not update `rate-limit-member-set --subject-type` choices, so target quarantine is not manageable through the CLI as required, and it adds no tests or fake methods despite introducing unconditional target-membership calls that break existing mocked target tests. Reserved-name protection is applied only to PUT, and the target UI overwrites or deletes the entire membership rather than preserving unrelated groups. The claimed apply check could not be independently rerun because local command execution failed during sandbox initialization, although the submitted diff contexts and symbols are internally coherent."
+    }
+  },
+  "task_score": 66.2,
+  "verdict": "The submission provides a strong repository-specific design and mostly implements the core behavior, but incomplete CLI support and knowingly broken, absent regression tests are substantial release-blocking limitations.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-10T21:29:25.403471Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 133714,
+      "cached_input_tokens": 89390,
+      "cache_write_input_tokens": 32031,
+      "output_tokens": 7850,
+      "reasoning_output_tokens": 6568
+    },
+    "duration_ms": 80872
+  }
+}

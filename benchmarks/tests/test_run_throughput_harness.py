@@ -136,6 +136,22 @@ class TestSweepStrayRootWrites(unittest.TestCase):
         self.assertFalse(stray.exists())
         self.assertEqual(self._quarantined(), ["github-issue.md"])
 
+    def test_mtime_just_before_the_level_start_is_still_quarantined(self) -> None:
+        """A coarse filesystem clock can stamp a new file a few ms before since.
+
+        This failed intermittently on GitHub runners, where a file written right
+        after ``time.time()`` sometimes carried an earlier mtime.
+        """
+        before = harness._root_entry_names(self.root)
+        since = time.time()
+        stray = self.root / "github-issue.md"
+        stray.write_text("# GitHub Issue\n", encoding="utf-8")
+        os.utime(stray, (since - 0.05, since - 0.05))
+
+        moved = self._sweep(before, since)
+
+        self.assertEqual(moved, ["github-issue.md"])
+
     def test_quarantined_content_is_preserved(self) -> None:
         """Moved, not deleted: a misattributed file must be recoverable."""
         before = harness._root_entry_names(self.root)
