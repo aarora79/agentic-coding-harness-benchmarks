@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -67,6 +67,19 @@ def _write(data: dict) -> Path:
     return Path(tmp.name)
 
 
+def _runs(dates: dict[str, str | None]) -> Path:
+    """Write one omp/swe3/v2 run summary per model, with the given run_date."""
+    root = Path(tempfile.mkdtemp())
+    for model, run_date in dates.items():
+        folder = root / model / "omp" / "swe3" / "mcp-gateway-registry-v2"
+        folder.mkdir(parents=True)
+        summary: dict = {"model_slug": model, "tasks": []}
+        if run_date:
+            summary["run_date"] = run_date
+        (folder / "run-summary.json").write_text(json.dumps(summary), "utf-8")
+    return root
+
+
 class BuildTest(unittest.TestCase):
     def test_includes_every_model_not_only_the_frontier(self) -> None:
         # The skill filters to what the user's assistant offers before ranking,
@@ -119,7 +132,8 @@ class BuildTest(unittest.TestCase):
     def test_provenance_carries_the_measurement_context(self) -> None:
         # A vended file has no reader who knows this repo, so the context
         # travels with the data.
-        out = bvm.build(_write(_frontier()), _REPO_ROOT)
+        runs = _runs({"big": "2026-10-01", "small": "2026-09-01"})
+        out = bvm.build(_write(_frontier()), _REPO_ROOT, runs_dir=runs)
         p = out["provenance"]
         self.assertEqual(p["harness"], "omp")
         self.assertEqual(p["skill"], "swe3")
@@ -140,6 +154,40 @@ class BuildTest(unittest.TestCase):
     def test_empty_source_is_a_clear_error(self) -> None:
         with self.assertRaisesRegex(SystemExit, "no all_models"):
             bvm.build(_write(_frontier(all_models=[])), _REPO_ROOT)
+
+    def test_provenance_ignores_where_the_file_lives(self) -> None:
+        # The squash-merge case: the same bytes must stamp the same provenance,
+        # whatever commit or path they arrived under.
+        runs = _runs({"big": "2026-10-01"})
+        first = bvm.build(_write(_frontier()), _REPO_ROOT, runs_dir=runs)
+        second = bvm.build(_write(_frontier()), _REPO_ROOT, runs_dir=runs)
+        keys = ("measured_on", "source_sha256")
+        self.assertEqual(
+            [first["provenance"][k] for k in keys],
+            [second["provenance"][k] for k in keys],
+        )
+
+    def test_source_sha256_changes_with_the_data(self) -> None:
+        runs = _runs({})
+        before = bvm.build(_write(_frontier()), _REPO_ROOT, runs_dir=runs)
+        after = bvm.build(_write(_frontier(note="new")), _REPO_ROOT, runs_dir=runs)
+        self.assertNotEqual(
+            before["provenance"]["source_sha256"],
+            after["provenance"]["source_sha256"],
+        )
+
+    def test_measured_on_is_the_latest_run_of_a_frontier_model(self) -> None:
+        # "other" is not in the frontier JSON, so its later date is ignored.
+        runs = _runs(
+            {"big": "2026-10-01", "small": "2026-09-15", "other": "2026-12-31"}
+        )
+        out = bvm.build(_write(_frontier()), _REPO_ROOT, runs_dir=runs)
+        self.assertEqual(out["provenance"]["measured_on"], "2026-10-01")
+
+    def test_measured_on_is_null_without_any_run_date(self) -> None:
+        runs = _runs({"big": None, "small": None})
+        out = bvm.build(_write(_frontier()), _REPO_ROOT, runs_dir=runs)
+        self.assertIsNone(out["provenance"]["measured_on"])
 
 
 class CommittedArtifactTest(unittest.TestCase):
@@ -194,35 +242,11 @@ class CommittedArtifactTest(unittest.TestCase):
             self.assertLessEqual(min(tiers), m["score"] + 0.01, m["model"])
             self.assertGreaterEqual(max(tiers), m["score"] - 0.01, m["model"])
 
-    def test_source_commit_tracks_the_frontier_not_head(self) -> None:
-        # Stamping HEAD would make the file differ after every unrelated commit
-        # and turn --check into noise. It must identify the data's version.
+    def test_source_sha256_matches_the_committed_frontier_bytes(self) -> None:
+        # What `sha256sum <file> | cut -c1-12` prints, so anyone can check it.
         payload = bvm.build(bvm.DEFAULT_SOURCE, _REPO_ROOT)
-        stamped = payload["provenance"]["source_commit"]
-        head = subprocess.run(
-            ["git", "-C", str(_REPO_ROOT), "rev-parse", "--short", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=False,
-        ).stdout.strip()
-        last_touch = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(_REPO_ROOT),
-                "log",
-                "-1",
-                "--format=%h",
-                "--",
-                str(bvm.DEFAULT_SOURCE.relative_to(_REPO_ROOT)),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        ).stdout.strip()
-        self.assertEqual(stamped, last_touch)
-        if head != last_touch:
-            self.assertNotEqual(stamped, head)
+        digest = hashlib.sha256(bvm.DEFAULT_SOURCE.read_bytes()).hexdigest()[:12]
+        self.assertEqual(payload["provenance"]["source_sha256"], digest)
 
     def test_vend_dir_holds_exactly_the_portable_files(self) -> None:
         # The portability contract: the skill must work in a directory holding

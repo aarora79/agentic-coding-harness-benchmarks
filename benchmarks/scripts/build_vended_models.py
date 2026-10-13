@@ -31,8 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import subprocess  # nosec B404 - used with list args, no shell, hardcoded 'git'
-from datetime import date
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -53,8 +52,12 @@ TIERS = ("trivial", "low", "medium", "high")
 DEFAULT_OUT = _REPO_ROOT / "vend" / "swe-router" / "models.json"
 
 # Bumped when the shape of models.json changes in a way a consumer would notice.
-# Consumers pin this; the skill refuses a major it does not know.
-SCHEMA_VERSION = "1.0"
+# Consumers pin this; the skill refuses a major it does not know. 1.1 replaced
+# provenance.source_commit (a git sha) with source_sha256 (a content hash) and
+# took measured_on from the run summaries instead of a commit date.
+SCHEMA_VERSION = "1.1"
+# provenance.source_sha256 length: enough to tell versions apart, short to read.
+SOURCE_HASH_CHARS = 12
 
 # The judge is not recorded in the frontier JSON, so it is stated here. Keep in
 # step with codex_judge.py's default (JUDGE_MODEL overrides it per run).
@@ -77,78 +80,59 @@ COST_BASIS = {
 }
 
 
-def _git_commit(source: Path) -> str | None:
-    """Return the short sha of the commit that last changed ``source``.
+def _source_sha256(source: Path) -> str:
+    """Return the first 12 hex digits of the SHA-256 of ``source``'s bytes.
 
-    Deliberately not HEAD. HEAD moves with every commit to the repository, so
-    stamping it would make the generated file differ after any unrelated change
-    and turn the --check guard into noise. The commit that last touched the
-    source is what actually identifies this version of the data.
+    Identifies the exact version of the data from the file itself. An earlier
+    version stamped the commit that last touched the file, which a squash merge
+    replaces: the stamp made on the branch then no longer matched ``main``, and
+    the committed-artifact check failed with every score still correct (after
+    #184, #210 and #219). A content hash is the same on the branch and after the
+    merge, and anyone can check it with ``sha256sum <file> | cut -c1-12``.
 
     Args:
         source: The frontier JSON.
 
     Returns:
-        The abbreviated commit, or None outside a git checkout or for a file
-        that has never been committed.
+        A 12-character lowercase hex string.
     """
-    try:
-        out = subprocess.run(  # nosec B603 B607 - hardcoded 'git', list args, no shell
-            [
-                "git",
-                "-C",
-                str(source.parent),
-                "log",
-                "-1",
-                "--format=%h",
-                "--",
-                source.name,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
+    return hashlib.sha256(source.read_bytes()).hexdigest()[:SOURCE_HASH_CHARS]
+
+
+def _latest_run_date(
+    runs_dir: Path, harness: str, skill: str, dataset: str, models: set[str]
+) -> str | None:
+    """Return the latest ``run_date`` among the run summaries behind the frontier.
+
+    That is when the newest measurement in the file was taken, which is what a
+    consumer means by "measured on". It comes from committed data, so it does
+    not move when a commit is rewritten, and it does not depend on anyone's
+    timezone.
+
+    Args:
+        runs_dir: The swe-benchmark-data root.
+        harness: Harness folder, e.g. "omp".
+        skill: Skill folder, e.g. "swe3".
+        dataset: Dataset scope folder.
+        models: The model slugs the frontier JSON lists; other runs are ignored.
+
+    Returns:
+        An ISO date, or None when no matching summary records a ``run_date``.
+    """
+    dates = []
+    pattern = f"*/{harness}/{skill}/{dataset}/run-summary.json"
+    for path in runs_dir.glob(pattern):
+        summary = json.loads(path.read_text(encoding="utf-8"))
+        if summary.get("model_slug") in models and summary.get("run_date"):
+            dates.append(summary["run_date"])
+    if not dates:
+        logger.warning(
+            "no run_date in any %s summary for the frontier's models; "
+            "measured_on will be null",
+            pattern,
         )
-    except (OSError, subprocess.SubprocessError):
         return None
-    return out.stdout.strip() or None
-
-
-def _measured_on(source: Path) -> str:
-    """Return the date the source frontier was last modified, ISO format.
-
-    Uses the file's last git commit date when available, so regenerating without
-    changing the data does not advance the measurement date. Falls back to the
-    filesystem mtime.
-
-    Args:
-        source: The frontier JSON.
-
-    Returns:
-        An ISO date string.
-    """
-    try:
-        out = subprocess.run(  # nosec B603 B607 - hardcoded 'git', list args, no shell
-            [
-                "git",
-                "-C",
-                str(source.parent),
-                "log",
-                "-1",
-                "--format=%cs",
-                "--",
-                source.name,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-        if out.stdout.strip():
-            return out.stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        pass
-    return date.fromtimestamp(source.stat().st_mtime).isoformat()
+    return max(dates)
 
 
 def _relative_or_name(source: Path, repo_root: Path) -> str:
@@ -243,7 +227,8 @@ def build(
 
     Args:
         source: Path to a ``pareto-frontier-*.json``.
-        repo_root: Repository root, used for the provenance commit.
+        repo_root: Repository root, used to record the source path.
+        runs_dir: The swe-benchmark-data root; defaults to the committed one.
 
     Returns:
         The payload to write as models.json.
@@ -264,11 +249,19 @@ def build(
     bedrock = {m["model"] for m in data.get("bedrock_frontier", [])}
     self_hosted = {m["model"] for m in data.get("self_hosted_frontier", [])}
 
+    runs_dir = runs_dir if runs_dir is not None else DEFAULT_RUNS_DIR
     by_tier = per_tier_stats(
-        runs_dir if runs_dir is not None else DEFAULT_RUNS_DIR,
+        runs_dir,
         data.get("harness", ""),
         data.get("skill", ""),
         data.get("repo", ""),
+    )
+    measured_on = _latest_run_date(
+        runs_dir,
+        data.get("harness", ""),
+        data.get("skill", ""),
+        data.get("repo", ""),
+        {m["model"] for m in models},
     )
     out_models = []
     for m in sorted(models, key=lambda x: -x["mean_score"]):
@@ -305,9 +298,9 @@ def build(
         "schema_version": SCHEMA_VERSION,
         "generated_by": "benchmarks/scripts/build_vended_models.py",
         "provenance": {
-            "measured_on": _measured_on(source),
+            "measured_on": measured_on,
             "source_file": _relative_or_name(source, repo_root),
-            "source_commit": _git_commit(source),
+            "source_sha256": _source_sha256(source),
             "harness": data.get("harness"),
             "skill": data.get("skill"),
             "dataset": data.get("repo"),

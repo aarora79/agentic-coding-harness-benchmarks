@@ -82,7 +82,7 @@ If it is firing when you do not want it, narrow the `Run it BEFORE…` sentence 
 
 **Self-hosted costs are measured under load.** Hosted figures come from a metered bill. Self-hosted figures come from the server's hourly price divided by throughput measured at a stated concurrency — a platform team serving a group of developers, not one person with an idle GPU. Both are a cost per task, and the skill ranks them together.
 
-**These numbers move.** A fix to token accounting once changed `claude-opus-5` from $7.63 to $11.95 per task while every score stayed identical. Check `provenance.measured_on` and refetch if it looks old.
+**These numbers move.** A fix to token accounting once changed `claude-opus-5` from $7.63 to $11.95 per task while every score stayed identical. Check `provenance.measured_on`, the date of the newest run in the file, and refetch if it looks old. `provenance.source_sha256` identifies the exact data: it is the first 12 hex digits of the SHA-256 of the frontier file it was built from, so two copies with the same value hold the same numbers.
 
 ## How it decides
 
