@@ -46,6 +46,7 @@ import argparse
 import importlib.util
 import json
 import logging
+import os
 import re
 import shutil
 import statistics
@@ -493,8 +494,11 @@ def _judge_task(
     # cloning -- safe there (one run per task), unsafe here: two repeats of the
     # SAME task in flight would delete each other's checkout mid-run, and the
     # cleanup below would remove the survivor. Giving each attempt its own parent
-    # makes the collision impossible rather than merely unlikely.
-    clone_dir = str(Path(config.clone_dir) / f"router-attempt-{attempt}")
+    # makes the collision impossible rather than merely unlikely. The process id
+    # extends that to two passes run side by side (one judge model each), which
+    # otherwise clone the same task into the same folder and collide on git's
+    # lock file.
+    clone_dir = str(Path(config.clone_dir) / f"router-{os.getpid()}-attempt-{attempt}")
     clone_path = HARNESS._clone_repo(task, ref, clone_dir, log_prefix=label)
     record: dict[str, Any] = {
         "task": task.id,

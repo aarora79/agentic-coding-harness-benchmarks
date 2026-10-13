@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -200,6 +201,41 @@ class CloneIsolationTest(unittest.TestCase):
             rr.HARNESS = real
         self.assertEqual(len(seen), 3)
         self.assertEqual(len(set(seen)), 3, f"clone dirs collided: {seen}")
+
+    def test_two_passes_side_by_side_get_different_clone_parents(self) -> None:
+        # Two processes judging with different models clone the same task at
+        # the same attempt number; the process id keeps their folders apart.
+        seen: list[str] = []
+
+        class _FakeHarness:
+            @staticmethod
+            def _clone_repo(task, ref, clone_dir, log_prefix=""):
+                seen.append(clone_dir)
+                raise RuntimeError("stop here; the clone dir is what is under test")
+
+        class _Task:
+            id = "same-task"
+            problem_statement = "x"
+            repo = "https://example.com/r"
+
+        class _Dataset:
+            @staticmethod
+            def resolved_ref(task):
+                return "main"
+
+        class _Config:
+            clone_dir = "/tmp/router-test"  # nosec B108 - test fixture path
+
+        real = rr.HARNESS
+        rr.HARNESS = _FakeHarness
+        try:
+            for pid in (1111, 2222):
+                with mock.patch.object(rr.os, "getpid", return_value=pid):
+                    with self.assertRaises(RuntimeError):
+                        rr._judge_task(_Config(), _Dataset(), _Task(), 1, "l")
+        finally:
+            rr.HARNESS = real
+        self.assertEqual(len(set(seen)), 2, f"clone dirs collided: {seen}")
 
 
 if __name__ == "__main__":
