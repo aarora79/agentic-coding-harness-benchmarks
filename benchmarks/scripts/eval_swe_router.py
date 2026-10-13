@@ -78,6 +78,7 @@ _SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "swe-router"
 sys.path.insert(0, str(_SKILL_DIR))
 
 from route import RouteError, route  # noqa: E402
+from swe_router_rubric import BUCKET_TO_ROUTE_TIER  # noqa: E402
 
 # Hardware-derived $/token for self-hosted models, same source and same
 # "cheapest sustainable concurrency level" rule plot_cost_quality.py uses, so a
@@ -836,6 +837,52 @@ def _load_tasks(dataset_path: Path) -> tuple[list[dict[str, Any]], str]:
     return tasks, data.get("output_scope") or data.get("name")
 
 
+def _apply_rubric_inputs(
+    path: Path,
+    tasks: list[dict[str, Any]],
+    results: dict[str, dict[str, dict[str, Any]]],
+) -> tuple[dict[str, float], dict[str, str], dict[str, Any]]:
+    """Route on a rubric pass instead of the skill's floor and tier.
+
+    Each task's required quality becomes its floor and its difficulty bucket its
+    column. The columns themselves are rebuilt to match: every model's existing
+    score on a task is filed under that task's bucket rather than its dataset
+    tier, so the router compares a task against measured scores on tasks the
+    same rubric called equally demanding. No run is repeated; only the grouping
+    changes. route.py still knows four tier names, so the buckets travel as
+    those keys (``BUCKET_TO_ROUTE_TIER``); the report names them by bucket.
+
+    Args:
+        path: A rubric-inputs JSON from ``run-swe-router-headless.py --mode rubric``.
+        tasks: Dataset tasks.
+        results: Output of ``_load_results``; regrouped in place.
+
+    Returns:
+        Per-task floors, per-task column keys, and the rubric pass's metadata.
+
+    Raises:
+        SystemExit: If the file is not a rubric pass or misses a task.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("mode") != "rubric":
+        raise SystemExit(f"{path} is not a rubric pass (mode={data.get('mode')!r})")
+    scored = data.get("tasks") or {}
+    missing = {t["id"] for t in tasks} - set(scored)
+    if missing:
+        raise SystemExit(
+            f"--rubric-inputs is missing {len(missing)} task(s): {', '.join(sorted(missing))}"
+        )
+    floors = {tid: float(v["required_quality"]) for tid, v in scored.items()}
+    columns = {tid: BUCKET_TO_ROUTE_TIER[v["bucket"]] for tid, v in scored.items()}
+    for per_task in results.values():
+        for task_id, record in per_task.items():
+            if task_id in columns:
+                record["complexity"] = columns[task_id]
+    meta = dict(data.get("judged_by") or {})
+    meta["mode"] = "rubric"
+    return floors, columns, meta
+
+
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -877,6 +924,15 @@ def _parse_args() -> argparse.Namespace:
         help="JSON from a real run of the skill's step 1: {tasks: {id: {floor, "
         "tier}}}. Supplies BOTH the floor and the tier per task, replacing "
         "--floor/--floor-sweep and the dataset's complexity label.",
+    )
+    parser.add_argument(
+        "--rubric-inputs",
+        type=Path,
+        default=None,
+        help="JSON from run-swe-router-headless.py --mode rubric. Each task's "
+        "required quality is its floor and its difficulty bucket its column; "
+        "every model's existing scores are regrouped by bucket. Replaces "
+        "--judged-inputs, --floor and the dataset's complexity label.",
     )
     parser.add_argument(
         "--floors-file",
@@ -957,6 +1013,12 @@ def main() -> None:
     judged_tiers: dict[str, str] = {}
     judged_meta: dict[str, Any] = {}
     file_floors: dict[str, float] = {}
+    if args.rubric_inputs and args.judged_inputs:
+        raise SystemExit("use --rubric-inputs or --judged-inputs, not both")
+    if args.rubric_inputs:
+        file_floors, judged_tiers, judged_meta = _apply_rubric_inputs(
+            args.rubric_inputs, tasks, results
+        )
     if args.judged_inputs:
         judged = json.loads(args.judged_inputs.read_text(encoding="utf-8"))
         judged_meta = judged.get("judged_by") or {}
@@ -1032,7 +1094,11 @@ def main() -> None:
             "holdout": args.holdout,
             "judged_by": judged_meta,
             "floor_note": (
-                "Judged per task by "
+                "Required quality per task, from the rubric pass by "
+                f"{judged_meta.get('harness')} + {judged_meta.get('model')}: blast "
+                "radius and verification, priced by routing-policy.json."
+                if judged_meta.get("mode") == "rubric"
+                else "Judged per task by "
                 f"{judged_meta.get('harness')} + {judged_meta.get('model')} "
                 "running the skill's step 1 against the cloned repo -- the real "
                 "judgment the skill asks for, not a policy constant. See "
@@ -1049,7 +1115,12 @@ def main() -> None:
                 + "."
             ),
             "tier_note": (
-                "Classified per task by the same judged run, NOT read from the "
+                "Difficulty bucket per task from the rubric pass; every model's "
+                "existing scores regrouped into bucket columns (easy, moderate, "
+                "hard, very hard shown as trivial, low, medium, high). The "
+                "dataset's own label is kept beside each row."
+                if judged_meta.get("mode") == "rubric"
+                else "Classified per task by the same judged run, NOT read from the "
                 "dataset. Each row carries the dataset's own `complexity` label "
                 "beside it so disagreement is visible."
                 if judged_meta

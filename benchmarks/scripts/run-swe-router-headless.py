@@ -77,6 +77,7 @@ from runner_config import (  # noqa: E402
     RunnerConfigError,
     load_runner_config,
 )
+import swe_router_rubric as RUBRIC  # noqa: E402
 
 # The router skill lives with the repo's other skills. Its SKILL.md is inlined
 # into the prompt: omp has no --skill flag, and Claude Code's slash command is
@@ -90,6 +91,18 @@ VALID_TIERS = ("trivial", "low", "medium", "high")
 # rather than a judgment worth recording.
 MIN_FLOOR = 55.0
 MAX_FLOOR = 80.0
+
+# What the agent is asked to judge. "floor" is the shipped skill's step 1 (a
+# consequence floor and a complexity tier); "rubric" scores the six rubric
+# dimensions from benchmarks/config/swe-router/rubric.md, which code then turns
+# into a required quality and a difficulty bucket (swe_router_rubric.py).
+MODE_FLOOR = "floor"
+MODE_RUBRIC = "rubric"
+MODES = (MODE_FLOOR, MODE_RUBRIC)
+DEFAULT_OUT = {
+    MODE_FLOOR: REPO_ROOT / "docs" / "metrics" / "swe-router-judged-inputs.json",
+    MODE_RUBRIC: REPO_ROOT / "docs" / "metrics" / "swe-router-rubric-inputs.json",
+}
 
 DEFAULT_DATASET = "dataset/mcp-gateway-registry-v2.yaml"
 DEFAULT_TIMEOUT_SECONDS = 900
@@ -455,6 +468,8 @@ def _judge_task(
     task: Task,
     attempt: int,
     label: str,
+    mode: str = MODE_FLOOR,
+    rubric_text: str = "",
 ) -> dict[str, Any]:
     """Clone a task's repo, run one judgment in it, and return the result.
 
@@ -467,6 +482,8 @@ def _judge_task(
         task: The task to judge.
         attempt: 1-based repeat index, recorded on the judgment.
         label: Log prefix.
+        mode: ``floor`` for the skill's step 1, ``rubric`` for the six scores.
+        rubric_text: The rubric, inlined into the prompt in rubric mode.
 
     Returns:
         A judgment record: the tuple plus provenance and cost, or an ``error``.
@@ -486,7 +503,12 @@ def _judge_task(
         "judged_at": _utc_now_iso(),
     }
     try:
-        prompt = _build_prompt(task, clone_path)
+        if mode == MODE_RUBRIC:
+            prompt = RUBRIC.build_prompt(
+                task.id, task.problem_statement or "", clone_path, rubric_text
+            )
+        else:
+            prompt = _build_prompt(task, clone_path)
         if config.agent == AGENT_OMP:
             text, result = _run_omp_judgment(
                 config, prompt, clone_path, clone_path.parent / "omp-agent"
@@ -505,12 +527,16 @@ def _judge_task(
             "latency_seconds": metrics.get("latency_seconds"),
             "total_cost_usd": metrics.get("total_cost_usd"),
         }
-        record.update(_extract_judgment(text))
+        if mode == MODE_RUBRIC:
+            record.update(RUBRIC.extract_judgment(text))
+            verdict = " ".join(f"{d}={record['scores'][d]}" for d in RUBRIC.DIMENSIONS)
+        else:
+            record.update(_extract_judgment(text))
+            verdict = f"floor={record['floor']} tier={record['tier']}"
         logger.info(
-            "  %s judged floor=%s tier=%s (%ss, $%s)",
+            "  %s judged %s (%ss, $%s)",
             label,
-            record["floor"],
-            record["tier"],
+            verdict,
             record["metrics"]["latency_seconds"],
             record["metrics"]["total_cost_usd"],
         )
@@ -571,6 +597,9 @@ def _collect(
     tasks: list[Task],
     repeats: int,
     concurrency: int,
+    mode: str = MODE_FLOOR,
+    rubric_text: str = "",
+    policy: RUBRIC.RoutingPolicy | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Run every (task, repeat) judgment and consolidate the successful ones.
 
@@ -580,6 +609,9 @@ def _collect(
         tasks: Tasks to judge.
         repeats: How many independent judgments per task.
         concurrency: How many judgments to run at once.
+        mode: ``floor`` or ``rubric``; picks the prompt and the consolidation.
+        rubric_text: The rubric, for rubric mode.
+        policy: The routing policy, for rubric mode's consolidation.
 
     Returns:
         Every judgment record, and the consolidated ``{task_id: tuple}`` map.
@@ -603,6 +635,8 @@ def _collect(
                 task,
                 attempt,
                 f"[{task.id} #{attempt}] {i} of {total}",
+                mode,
+                rubric_text,
             ): (task, attempt)
             for i, (task, attempt) in enumerate(jobs, start=1)
         }
@@ -616,7 +650,12 @@ def _collect(
         if not good:
             logger.error("task %s produced no usable judgment", task.id)
             continue
-        consolidated[task.id] = _consolidate(good)
+        if mode == MODE_RUBRIC:
+            if policy is None:
+                raise ValueError("rubric mode needs a routing policy to consolidate")
+            consolidated[task.id] = RUBRIC.consolidate(good, policy)
+        else:
+            consolidated[task.id] = _consolidate(good)
     return records, consolidated
 
 
@@ -703,6 +742,70 @@ def _judgments_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _rubric_markdown(payload: dict[str, Any]) -> str:
+    """Render rubric-mode judgments as a markdown document.
+
+    One row per task: the six consolidated scores, the required quality and
+    bucket code derives from them, and whether identical repeats agreed.
+
+    Args:
+        payload: The full rubric-inputs mapping.
+
+    Returns:
+        The markdown source.
+    """
+    meta, tasks = payload["judged_by"], payload["tasks"]
+    short = {
+        "hidden_contract": "HC",
+        "silent_invariant": "SI",
+        "coordinated_surfaces": "CS",
+        "ambiguity": "AM",
+        "verification": "VE",
+        "blast_radius": "BR",
+    }
+    stable_q = sum(1 for v in tasks.values() if v["quality_unanimous"])
+    stable_b = sum(1 for v in tasks.values() if v["bucket_unanimous"])
+    lines = [
+        f"# How {meta['harness']} + {meta['model']} scores each task on the rubric",
+        "",
+        f"The rubric pass over `{meta['dataset']}`: each task scored on six "
+        f"dimensions, 0 to 2, {meta['repeats']} independent time(s), in a clone "
+        "of its repository at the task's pinned ref. No model output was read; "
+        "this describes the tasks only. Code turns the scores into a required "
+        "quality and a difficulty bucket (`routing-policy.json`).",
+        "",
+        f"- **Stability.** Required quality agreed across repeats on "
+        f"{stable_q}/{len(tasks)} tasks; the bucket on {stable_b}/{len(tasks)}.",
+        f"- **Runs.** {meta['runs_ok']} succeeded, {meta['runs_failed']} failed. "
+        f"Cost ${meta.get('judging_cost_usd')}.",
+        f"- **Judged.** {meta['started_at']} to {meta['finished_at']}.",
+        "",
+        "Columns: "
+        + ", ".join(f"{s} {d.replace('_', ' ')}" for d, s in short.items())
+        + ". Each score is the lower median of the repeats.",
+        "",
+        "| Task | "
+        + " | ".join(short.values())
+        + " | Quality | Bucket | Confidence | Repeats agree |",
+        "|---|" + "---:|" * len(short) + "---:|---|---|---|",
+    ]
+    for task_id, v in tasks.items():
+        agree = (
+            "yes"
+            if v["quality_unanimous"] and v["bucket_unanimous"]
+            else f"quality {v['quality_seen']}; buckets {v['buckets_seen']}"
+        )
+        cells = " | ".join(str(v["scores"][d]) for d in short)
+        lines.append(
+            f"| {task_id} | {cells} | **{v['required_quality']:g}** "
+            f"| {v['bucket']} | {v['confidence']} | {agree} |"
+        )
+    lines += ["", "## What each task needs", ""]
+    for task_id, v in tasks.items():
+        lines += [f"### {task_id}", "", v.get("summary") or "(no summary recorded)", ""]
+    return "\n".join(lines)
+
+
 def _select_tasks(dataset: Dataset, task_ids: list[str]) -> list[Task]:
     """Select tasks to judge, preserving dataset order.
 
@@ -736,10 +839,30 @@ def _parse_args() -> argparse.Namespace:
             "      --model us.anthropic.claude-opus-5 --repeats 3\n"
             "  uv run scripts/run-swe-router-headless.py --tasks configurable-ui-title "
             "--repeats 1\n"
+            "  uv run scripts/run-swe-router-headless.py --mode rubric --repeats 3\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--config", default=None, help="Runner config YAML path.")
+    parser.add_argument(
+        "--mode",
+        choices=MODES,
+        default=MODE_FLOOR,
+        help="floor: the skill's step 1 (floor and tier). rubric: the six "
+        "rubric dimensions. Default: %(default)s.",
+    )
+    parser.add_argument(
+        "--rubric",
+        type=Path,
+        default=RUBRIC.DEFAULT_RUBRIC,
+        help="Rubric text for --mode rubric. Default: %(default)s.",
+    )
+    parser.add_argument(
+        "--policy",
+        type=Path,
+        default=RUBRIC.DEFAULT_POLICY,
+        help="Routing policy for --mode rubric. Default: %(default)s.",
+    )
     parser.add_argument(
         "--agent", default=AGENT_OMP, help="Coding agent: omp | claude."
     )
@@ -778,8 +901,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out",
         type=Path,
-        default=REPO_ROOT / "docs" / "metrics" / "swe-router-judged-inputs.json",
-        help="Where to write the judged inputs. Default: %(default)s.",
+        default=None,
+        help="Where to write the judged inputs. Default: "
+        "docs/metrics/swe-router-judged-inputs.json, or "
+        "docs/metrics/swe-router-rubric-inputs.json in rubric mode.",
     )
     parser.add_argument(
         "--out-md",
@@ -808,7 +933,12 @@ def main() -> None:
         payload = json.loads(args.render.read_text(encoding="utf-8"))
         out_md = args.out_md or (REPO_ROOT / "docs" / f"{args.render.stem}.md")
         out_md.parent.mkdir(parents=True, exist_ok=True)
-        out_md.write_text(_judgments_markdown(payload), encoding="utf-8")
+        render = (
+            _rubric_markdown
+            if payload.get("mode") == MODE_RUBRIC
+            else _judgments_markdown
+        )
+        out_md.write_text(render(payload), encoding="utf-8")
         logger.info("wrote %s", out_md)
         return
     overrides = {
@@ -838,15 +968,37 @@ def main() -> None:
     except DatasetError as exc:
         raise SystemExit(f"dataset error: {exc}") from exc
     tasks = _select_tasks(dataset, args.tasks.split(",") if args.tasks else [])
+    args.out = args.out or DEFAULT_OUT[args.mode]
+    rubric_text, policy = "", None
+    if args.mode == MODE_RUBRIC:
+        try:
+            rubric_text = args.rubric.read_text(encoding="utf-8")
+            policy = RUBRIC.load_policy(args.policy)
+        except (OSError, RUBRIC.RubricError) as exc:
+            raise SystemExit(f"cannot load the rubric or policy: {exc}") from exc
 
     if args.dry_run:
         clone = Path("/tmp/example-clone")  # nosec B108 - illustrative path only
-        print(_build_prompt(tasks[0], clone))
+        if args.mode == MODE_RUBRIC:
+            print(
+                RUBRIC.build_prompt(
+                    tasks[0].id, tasks[0].problem_statement or "", clone, rubric_text
+                )
+            )
+        else:
+            print(_build_prompt(tasks[0], clone))
         return
 
     started = _utc_now_iso()
     records, consolidated = _collect(
-        config, dataset, tasks, args.repeats, args.concurrency
+        config,
+        dataset,
+        tasks,
+        args.repeats,
+        args.concurrency,
+        args.mode,
+        rubric_text,
+        policy,
     )
     costs = [
         r["metrics"]["total_cost_usd"]
@@ -859,8 +1011,13 @@ def main() -> None:
             "model": config.model,
             "provider": config.provider,
             "skill": "swe-router",
-            "step": "1 and 1b (consequence floor + complexity tier) only; "
-            "route.py is run separately by eval_swe_router.py",
+            "step": (
+                "rubric pass: six dimensions scored 0-2; code derives required "
+                "quality and difficulty bucket"
+                if args.mode == MODE_RUBRIC
+                else "1 and 1b (consequence floor + complexity tier) only; "
+                "route.py is run separately by eval_swe_router.py"
+            ),
             "dataset": str(dataset_path.relative_to(REPO_ROOT)),
             "repeats": args.repeats,
             "started_at": started,
@@ -869,8 +1026,14 @@ def main() -> None:
             "runs_ok": sum(1 for r in records if "error" not in r),
             "runs_failed": sum(1 for r in records if "error" in r),
         },
-        "consolidation": "median floor, modal tier across repeats; per-task "
-        "spread kept in floors_seen / tiers_seen",
+        "mode": args.mode,
+        "consolidation": (
+            "lower median per dimension across repeats; per-repeat quality and "
+            "bucket kept in quality_seen / buckets_seen"
+            if args.mode == MODE_RUBRIC
+            else "median floor, modal tier across repeats; per-task spread kept "
+            "in floors_seen / tiers_seen"
+        ),
         "tasks": consolidated,
         "judgments": records,
     }
@@ -878,6 +1041,24 @@ def main() -> None:
     args.out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     out_md = args.out_md or (REPO_ROOT / "docs" / f"{args.out.stem}.md")
     out_md.parent.mkdir(parents=True, exist_ok=True)
+    if args.mode == MODE_RUBRIC:
+        payload["rubric"] = str(args.rubric)
+        payload["policy"] = policy.model_dump(mode="json") if policy else None
+        args.out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        out_md.write_text(_rubric_markdown(payload), encoding="utf-8")
+        stable = sum(1 for v in consolidated.values() if v["bucket_unanimous"])
+        logger.info(
+            "scored %d/%d task(s); %d run(s) failed; bucket unanimous on %d/%d; cost $%s",
+            len(consolidated),
+            len(tasks),
+            payload["judged_by"]["runs_failed"],
+            stable,
+            len(consolidated),
+            payload["judged_by"]["judging_cost_usd"],
+        )
+        logger.info("wrote %s", args.out)
+        logger.info("wrote %s", out_md)
+        return
     out_md.write_text(_judgments_markdown(payload), encoding="utf-8")
 
     unstable = [t for t, v in consolidated.items() if not v["floor_unanimous"]]
