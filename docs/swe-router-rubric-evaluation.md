@@ -6,7 +6,7 @@ Phase 0 of replacing `swe-router`'s two free-form judgments with one rubric, tes
 
 > [!NOTE]
 > **Terms.**
-> **Rubric pass**: a model reads a task and its repository and scores six dimensions from 0 to 2 (`benchmarks/config/swe-router/rubric.md`). It never sees any model's output.
+> **Rubric pass**: a model reads a task and its repository and scores six dimensions from 0 to 2 (`vend/swe-router/rubric.md`). It never sees any model's output.
 > **Required quality**: the score a result must reach, set by blast radius and verification (`routing-policy.json`).
 > **Bucket**: easy, moderate, hard or very hard, from the sum of the other four dimensions.
 > **Column**: each model's mean measured score on the tasks in one bucket.

@@ -50,7 +50,7 @@ Size counts for nothing. The rubric tells the model that line count, file count 
 | Verification | Would the repository's tests catch a wrong change? | bar |
 | Blast radius | What does a mistake cost once shipped, and can a revert undo it? | bar |
 
-`benchmarks/config/swe-router/rubric.md` defines each dimension: where to look, what 0, 1 and 2 mean, and a common mistake. Every score needs evidence: a file, a document, a test or a sentence of the task. The model also reports its confidence as high, medium or low.
+`vend/swe-router/rubric.md` defines each dimension: where to look, what 0, 1 and 2 mean, and a common mistake. Every score needs evidence: a file, a document, a test or a sentence of the task. The model also reports its confidence as high, medium or low.
 
 ## Step 3: turn scores into a bar and a bucket
 
@@ -88,7 +88,7 @@ Two parts of this step exist only in the evaluation so far. `route.py` knows fou
 | `allowed-models.txt` | code | the customer's platform team | yes: the models their developers can select |
 | `SKILL.md` | the model | this repository | no |
 
-During phase 0, `rubric.md` and `routing-policy.json` sit in `benchmarks/config/swe-router/`. Phase 1 moves them into `vend/swe-router/`. The installer will then keep a customer's edited `routing-policy.json` on upgrade, as it already keeps `allowed-models.txt`.
+Phase 1 moved `rubric.md` and `routing-policy.json` from `benchmarks/config/swe-router/` into `vend/swe-router/`. The installer keeps a customer's edited `routing-policy.json` on upgrade, as it keeps `allowed-models.txt`.
 
 ## How a customer adapts it
 

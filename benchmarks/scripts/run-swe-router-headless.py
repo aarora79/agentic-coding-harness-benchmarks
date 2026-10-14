@@ -95,7 +95,7 @@ MAX_FLOOR = 80.0
 
 # What the agent is asked to judge. "floor" is the shipped skill's step 1 (a
 # consequence floor and a complexity tier); "rubric" scores the six rubric
-# dimensions from benchmarks/config/swe-router/rubric.md, which code then turns
+# dimensions from vend/swe-router/rubric.md, which code then turns
 # into a required quality and a difficulty bucket (swe_router_rubric.py).
 MODE_FLOOR = "floor"
 MODE_RUBRIC = "rubric"
