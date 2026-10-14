@@ -2,7 +2,7 @@
 
 Phase 0 of replacing `swe-router`'s two free-form judgments with one rubric. Tested on the 21 tasks of `mcp-gateway-registry-v2` against the benchmark results already on disk. Nothing was re-run or re-judged.
 
-**Verdict.** The rubric routes better than today's skill for a developer on Claude Opus 5.5: it saves more and drops below the quality bar on fewer tasks. For a developer on Claude Haiku 5.5 it works when the candidates are Amazon Bedrock models, at 4% of the judging cost; with self-hosted models allowed, it once sent a hard task to a model that failed it. One change I expected to help, relative difficulty buckets, made routing worse.
+**Verdict.** The rubric routes better than today's skill for a developer on Claude Opus 5.5: it saves more and drops below the quality bar on fewer tasks. For a developer on Claude Haiku 5.5 it works when the candidates are Amazon Bedrock models, at 4% of the judging cost; with self-hosted models allowed, it once sent a hard task to a model that failed it. Two refinements I expected to help, relative buckets and a fitted line per model, did not consistently improve on plain buckets. With 21 tasks run once each, the differences between these methods are within noise; more tasks, not more methods, is the next step.
 
 > [!NOTE]
 > **Terms.**
@@ -96,7 +96,36 @@ Source: `docs/metrics/swe-router-rubric-replays/*-relative-*.json`.
 
 Quarters of 21 tasks leave columns of 3 to 12 tasks, fewer again under leave-one-out, so each model's column mean rests on a handful of runs. That noise costs more than the better sorting gains. The policy keeps `absolute` as the default and offers `relative` for task sets large enough to fill four columns.
 
-The finding points at the next step. The rubric's difficulty sum ranks tasks well (0.82 and 0.78); the loss is in turning it into four thin columns. Fitting each model's score as a smooth function of the difficulty sum, across all the other tasks at once, would use the ranking without slicing the data.
+The finding pointed at a smoother approach, tested next.
+
+## The smooth version: a line per model
+
+Instead of bucket columns, each model's score is fitted as a straight line in the difficulty sum over the other 20 tasks (`eval_swe_router.py --column-model regression`), and the router compares the required quality against each model's predicted score at the routed task's difficulty. Every task informs every prediction, so no estimate rests on a thin column.
+
+| Judge, candidates | Today's skill | Absolute buckets | Line per model |
+|---|---:|---:|---:|
+| Haiku 5.5, all models (failure = 0) | −5.06 | −7.17 | **−3.40** |
+| Haiku 5.5, Bedrock | −3.10 | −3.84 | −4.06 |
+| Opus 5.5, all models | −5.06 | **−3.75** | −5.72 |
+| Opus 5.5, Bedrock | −3.10 | **−3.57** | −5.02 |
+
+Quality change against `claude-opus-5`. Cost saved with the line: 78.3% and 73.6% (Haiku 5.5 judging), 71.1% and 71.3% (Opus 5.5). Source: `docs/metrics/swe-router-rubric-replays/*-regression-*.json`.
+
+It helps in one cell and hurts in the others. The fitted lines show why:
+
+| Model | Points lost per step of difficulty, Haiku 5.5 judging | Opus 5.5 judging | Spread of single-task scores around the line |
+|---|---:|---:|---:|
+| claude-haiku-5-5 | **4.2 ± 1.5** | **3.6 ± 1.4** | about 11 |
+| claude-sonnet-5-5 | 1.3 ± 1.3 | 1.9 ± 1.1 | about 9 |
+| claude-opus-5-5 | 1.0 ± 1.2 | 1.7 ± 1.0 | about 8 |
+| claude-opus-5 | 1.0 ± 0.7 | 1.8 ± 0.5 | about 4-5 |
+
+± is one standard error. Spread is the residual standard deviation, in score points.
+
+Two conclusions:
+
+- **Haiku 5.5 is the only model that loses a lot as the rubric's difficulty rises**: about 4 points per step, more than two standard errors from zero under both judges. The others lose 1 to 2 points per step; for Sonnet 5.5 and Opus 5.5 that is within two standard errors of zero, and for Opus 5 it is small but clear. On this data, the routing decision that matters most is whether a task is easy enough for Haiku 5.5.
+- **The 21 tasks cannot tell the column methods apart.** A single task's score varies by about 8-11 points around its line for most models, and the methods differ by 1 to 2 points of mean quality. Further tuning on these tasks would fit noise. The policy keeps absolute buckets, the simplest; the line is kept as an option.
 
 ## Caveats
 
@@ -106,9 +135,9 @@ The finding points at the next step. The rubric's difficulty sum ranks tasks wel
 
 ## Next
 
-1. Test the smooth version (score as a function of difficulty sum per model) on the same data. It needs no new runs.
-2. Run the rubric unchanged on the cli/cli tasks (`plan-cli-cli-cross-repo-benchmark.md`), the zero-shot check on a second repository.
-3. Decide on phase 1: moving the rubric into the shipped skill.
+1. Run the rubric unchanged on the cli/cli tasks (`plan-cli-cli-cross-repo-benchmark.md`): 21 independent tasks, the zero-shot check on a second repository, and twice the data for estimating columns.
+2. Check whether "is this easy enough for Haiku 5.5?" holds there too, since only Haiku 5.5's score moved with difficulty here.
+3. Decide on phase 1, moving the rubric into the shipped skill, with absolute buckets as the default.
 
 ## Reproduce
 

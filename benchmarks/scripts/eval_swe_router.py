@@ -53,6 +53,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 import yaml
@@ -109,6 +110,11 @@ TIERS = ("trivial", "low", "medium", "high")
 # tasks run once each. Mirrors the skill's tie band; kept as a constant so the
 # report can state the band it applied.
 DEFAULT_TIE_BAND = 3.0
+# --column-model regression routes on one predicted score per model and task.
+# route.py still selects by tier key, so the predictions travel under this one.
+PREDICTED_TIER = "medium"
+# Below this many scored tasks a model's line is not fitted; its mean stands in.
+MIN_POINTS_FOR_FIT = 3
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -373,6 +379,71 @@ def _regrouped(
     }
 
 
+def _fit_line(points: list[tuple[float, float]]) -> tuple[float, float]:
+    """Least-squares line through (difficulty sum, score) points.
+
+    Falls back to a flat line at the mean when there are too few points or no
+    spread in difficulty, where a slope would be noise.
+
+    Args:
+        points: ``(x, y)`` pairs.
+
+    Returns:
+        ``(intercept, slope)``.
+    """
+    ys = [y for _, y in points]
+    if len(points) < MIN_POINTS_FOR_FIT:
+        return (statistics.fmean(ys) if ys else 0.0), 0.0
+    xs = [x for x, _ in points]
+    x_mean, y_mean = statistics.fmean(xs), statistics.fmean(ys)
+    sxx = sum((x - x_mean) ** 2 for x in xs)
+    if sxx == 0:
+        return y_mean, 0.0
+    slope = sum((x - x_mean) * (y - y_mean) for x, y in points) / sxx
+    return y_mean - slope * x_mean, slope
+
+
+def _predicted_stats(
+    results: dict[str, dict[str, dict[str, Any]]],
+    sums: dict[str, int],
+    task_id: str,
+    holdout: bool,
+) -> dict[str, dict[str, Any]]:
+    """Each model's stats for routing one task, its score predicted from difficulty.
+
+    For every model, fits score against the rubric's difficulty sum over its
+    scored runs on the other tasks (all tasks without ``holdout``) and predicts
+    its score at this task's sum. Every task informs every prediction, so no
+    model's estimate rests on a thin column. Failed runs are left out of the
+    fit, as they are left out of the column means; the completion count still
+    reports them.
+
+    Args:
+        results: Output of ``_load_results``.
+        sums: Each task's consolidated difficulty sum from the rubric pass.
+        task_id: The task being routed.
+        holdout: Fit without the routed task.
+
+    Returns:
+        ``_tier_stats``-shaped stats with the prediction under ``PREDICTED_TIER``.
+    """
+    exclude = task_id if holdout else None
+    stats = _tier_stats(results, exclude_task=exclude)
+    for model, s in stats.items():
+        points = [
+            (float(sums[tid]), rec["score"])
+            for tid, rec in results[model].items()
+            if tid != exclude and tid in sums and not rec["failed"]
+        ]
+        intercept, slope = _fit_line(points)
+        predicted = min(100.0, max(0.0, intercept + slope * sums[task_id]))
+        s["score_by_complexity"] = {PREDICTED_TIER: round(predicted, 2)}
+        s["completion_by_complexity"] = {
+            PREDICTED_TIER: f"{s['tasks_completed']}/{s['tasks_total']}"
+        }
+    return stats
+
+
 def _evaluate(
     tasks: list[dict[str, Any]],
     results: dict[str, dict[str, dict[str, Any]]],
@@ -386,6 +457,7 @@ def _evaluate(
     provenance: dict[str, Any],
     judged_tiers: dict[str, str] | None = None,
     column_for: Callable[[str], dict[str, str]] | None = None,
+    stats_for: Callable[[str], dict[str, dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     """Replay the router over every task and compare it to the baseline.
 
@@ -406,6 +478,8 @@ def _evaluate(
             both to route it and to rebuild the columns it is routed against.
             Lets the grouping itself depend on the held-out task, as relative
             rubric buckets do. Overrides ``judged_tiers`` and the dataset label.
+        stats_for: Given the task being routed, every model's stats with one
+            predicted score under ``PREDICTED_TIER``. Overrides ``column_for``.
 
     Returns:
         A result mapping with ``rows`` (one per task) and ``totals``.
@@ -437,7 +511,14 @@ def _evaluate(
             columns = column_for(task_id)
             tier = columns[task_id]
             grouped = _regrouped(results, columns)
-        if holdout or column_for is not None:
+        if stats_for is not None:
+            tier = PREDICTED_TIER
+            models_path = tmp_dir / f"models-{task_id}.json"
+            models_path.write_text(
+                json.dumps(_models_json(stats_for(task_id), provenance)),
+                encoding="utf-8",
+            )
+        elif holdout or column_for is not None:
             models_path = tmp_dir / f"models-{task_id}.json"
             stats = _tier_stats(grouped, exclude_task=task_id if holdout else None)
             models_path.write_text(
@@ -1009,6 +1090,14 @@ def _parse_args() -> argparse.Namespace:
         "policy's difficulty.bucketing.",
     )
     parser.add_argument(
+        "--column-model",
+        choices=("buckets", "regression"),
+        default="buckets",
+        help="With --rubric-inputs: compare the required quality against bucket "
+        "column means, or against each model's score predicted from the task's "
+        "difficulty sum by a line fitted over the other tasks. Default: %(default)s.",
+    )
+    parser.add_argument(
         "--floors-file",
         type=Path,
         default=None,
@@ -1090,11 +1179,20 @@ def main() -> None:
     if args.rubric_inputs and args.judged_inputs:
         raise SystemExit("use --rubric-inputs or --judged-inputs, not both")
     column_for = None
+    stats_for = None
+    if args.column_model == "regression" and not args.rubric_inputs:
+        raise SystemExit("--column-model regression needs --rubric-inputs")
     if args.rubric_inputs:
         bucketing = args.bucketing or load_policy().difficulty.bucketing
         file_floors, column_for, judged_meta = _apply_rubric_inputs(
             args.rubric_inputs, tasks, bucketing, args.holdout
         )
+        if args.column_model == "regression":
+            scored = json.loads(args.rubric_inputs.read_text(encoding="utf-8"))["tasks"]
+            sums = {tid: int(v["difficulty_sum"]) for tid, v in scored.items()}
+
+            stats_for = partial(_predicted_stats, results, sums, holdout=args.holdout)
+            judged_meta["column_model"] = "regression"
     if args.judged_inputs:
         judged = json.loads(args.judged_inputs.read_text(encoding="utf-8"))
         judged_meta = judged.get("judged_by") or {}
@@ -1137,6 +1235,7 @@ def main() -> None:
                 provenance=provenance,
                 judged_tiers=judged_tiers,
                 column_for=column_for,
+                stats_for=stats_for,
             )
         except RouteError as exc:
             raise SystemExit(f"routing failed at floor {floor}: {exc}") from exc

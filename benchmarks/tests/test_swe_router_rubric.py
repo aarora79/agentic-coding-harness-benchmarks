@@ -258,6 +258,64 @@ class ReplayRubricInputsTest(unittest.TestCase):
             ev._apply_rubric_inputs(self._inputs({}), [{"id": "a"}], "absolute", False)
 
 
+class RegressionColumnTest(unittest.TestCase):
+    def _results(self) -> dict:
+        # Model "steep" loses 10 points per difficulty step; "flat" does not.
+        sums = {"a": 0, "b": 2, "c": 4, "d": 6, "e": 8}
+        rec = lambda s, failed=False: {  # noqa: E731
+            "score": None if failed else s,
+            "cost_usd": 1.0,
+            "failed": failed,
+            "complexity": "low",
+        }
+        results = {
+            "steep": {t: rec(90 - 5 * x) for t, x in sums.items()},
+            "flat": {t: rec(80.0) for t in sums},
+        }
+        return results, sums
+
+    def test_fit_recovers_a_clean_line(self) -> None:
+        a, b = ev._fit_line([(0, 90), (2, 80), (4, 70)])
+        self.assertEqual((round(a, 6), round(b, 6)), (90, -5))
+
+    def test_too_few_points_fall_back_to_the_mean(self) -> None:
+        self.assertEqual(ev._fit_line([(1, 60), (3, 80)]), (70, 0.0))
+
+    def test_no_spread_in_difficulty_falls_back_to_the_mean(self) -> None:
+        self.assertEqual(ev._fit_line([(4, 60), (4, 70), (4, 80)]), (70, 0.0))
+
+    def test_prediction_falls_with_difficulty_for_a_degrading_model(self) -> None:
+        results, sums = self._results()
+        easy = ev._predicted_stats(results, sums, "a", holdout=True)
+        hard = ev._predicted_stats(results, sums, "d", holdout=True)
+        key = ev.PREDICTED_TIER
+        self.assertEqual(
+            (
+                easy["steep"]["score_by_complexity"][key],
+                hard["steep"]["score_by_complexity"][key],
+            ),
+            (90.0, 60.0),
+        )
+
+    def test_holdout_leaves_the_routed_task_out_of_the_fit(self) -> None:
+        results, sums = self._results()
+        results["steep"]["d"]["score"] = 100.0  # an outlier on the routed task
+        pred = ev._predicted_stats(results, sums, "d", holdout=True)
+        self.assertEqual(pred["steep"]["score_by_complexity"][ev.PREDICTED_TIER], 60.0)
+
+    def test_failed_runs_are_left_out_of_the_fit(self) -> None:
+        # Routing a and dropping failed b leaves c, d, e: still a clean line.
+        results, sums = self._results()
+        results["steep"]["b"] = {
+            "score": None,
+            "cost_usd": 1.0,
+            "failed": True,
+            "complexity": "low",
+        }
+        pred = ev._predicted_stats(results, sums, "a", holdout=True)
+        self.assertEqual(pred["steep"]["score_by_complexity"][ev.PREDICTED_TIER], 90.0)
+
+
 class RelativeBucketTest(unittest.TestCase):
     def test_needs_four_tasks(self) -> None:
         with self.assertRaisesRegex(r.RubricError, "at least 4"):
