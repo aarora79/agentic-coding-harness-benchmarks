@@ -65,7 +65,7 @@ On ours, 23 models over 21 tasks: `claude-opus-5` scores highest at **82.83** fo
 
 ## Step 2 — Developers install the skill
 
-Seven files copied into a skills directory. The skill imports nothing and needs no build step. Run this from the root of the repository you want it in, and it lands in `.claude/skills/swe-router`:
+Seven files copied into a skills directory. The skill needs `python3` 3.8 or later on PATH, with no packages and no build step; the installer refuses to run without it. Run this from the root of the repository you want it in, and it lands in `.claude/skills/swe-router`:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh | bash

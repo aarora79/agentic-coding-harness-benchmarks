@@ -73,6 +73,8 @@ Pass your six answers and your confidence:
 python3 route.py --confidence high --rubric '{"hidden_contract": 1, "silent_invariant": 0, "coordinated_surfaces": 2, "ambiguity": 1, "verification": 1, "blast_radius": 1}'
 ```
 
+**If `python3` is missing or the command fails to start, stop.** Tell the developer the skill needs Python 3.8 or later on PATH, with no packages, and recommend nothing. Do not work out the bucket, the required quality or the pick yourself: the arithmetic lives in `route.py` so that it is never done in prose.
+
 That is the whole invocation. `route.py` finds `allowed-models.txt` and `routing-policy.json` on its own. It works out the bucket and the required quality, keeps the permitted models the benchmark measured, skips any that failed a benchmark task in that bucket, and takes the cheapest whose score in that bucket clears the required quality.
 
 It prints JSON. The fields that matter:

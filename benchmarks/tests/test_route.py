@@ -503,6 +503,45 @@ class CliTest(unittest.TestCase):
         out = self._cli("--rubric", json.dumps(_rubric()), "--tier", "low")
         self.assertEqual(out.returncode, 2)
 
+    def test_an_old_python_gets_a_message_not_a_traceback(self) -> None:
+        code = (
+            "import runpy, sys; sys.version_info = (3, 7, 0); "
+            f"sys.argv = ['route.py', '--tier', 'low', '--floor', '60']; "
+            f"runpy.run_path({str(_VEND / 'route.py')!r}, run_name='__main__')"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, check=False
+        )
+        self.assertEqual(
+            (out.returncode, json.loads(out.stdout)["error"]),
+            (2, "route.py needs Python 3.8 or later"),
+        )
+
+    def test_installer_refuses_without_python3_and_writes_nothing(self) -> None:
+        # A stub python3 that fails stands in for a missing or too-old one. The
+        # check runs before any download, so this needs no network.
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "bin").mkdir()
+        stub = tmp / "bin" / "python3"
+        stub.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        stub.chmod(0o755)
+        env = {"PATH": f"{tmp / 'bin'}:/usr/bin:/bin", "HOME": str(tmp)}
+        out = subprocess.run(
+            ["bash", str(_VEND / "install.sh"), "--dir", str(tmp / "skills")],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        self.assertEqual(
+            (
+                out.returncode,
+                "Nothing was written" in out.stderr,
+                (tmp / "skills").exists(),
+            ),
+            (1, True, False),
+        )
+
     def test_route_py_imports_nothing_outside_the_standard_library(self) -> None:
         src = (_VEND / "route.py").read_text(encoding="utf-8")
         imports = set(re.findall(r"^(?:from|import)\s+([a-zA-Z_][\w.]*)", src, re.M))

@@ -48,6 +48,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Fail with a message the skill can read out, not a traceback, on a Python too
+# old for this file. The installer checks the same floor.
+if sys.version_info < (3, 8):  # pragma: no cover - depends on the interpreter
+    print('{"status": "error", "error": "route.py needs Python 3.8 or later"}')
+    sys.exit(2)
+
 _HERE = Path(__file__).resolve().parent
 
 # Five or six tasks per tier, one run each. Dropping a single task reverses the

@@ -43,7 +43,9 @@ Seven files land in the skill directory:
 | `model-aliases.json` | model names as different assistants spell them |
 | `allowed-models.txt` | which models your organisation permits. **Edit this one.** |
 
-The path differs by assistant, which is what `--dir` is for. The skill has no dependencies and imports nothing — a directory of files is the whole install, and copying that directory by hand works just as well as the installer.
+**It needs `python3`, 3.8 or later, on PATH, and no Python packages.** `route.py` uses only the standard library. The installer checks for it before downloading anything and stops with instructions if it is missing; `route.py` itself reports a too-old Python as an error rather than a traceback.
+
+The path differs by assistant, which is what `--dir` is for. The skill has no other dependencies and imports nothing outside the standard library, so a directory of files is the whole install, and copying that directory by hand works just as well as the installer.
 
 ### Restricting it to models your organisation allows
 

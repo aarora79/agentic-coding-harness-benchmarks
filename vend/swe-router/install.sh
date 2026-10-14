@@ -83,6 +83,21 @@ if ! command -v curl >/dev/null 2>&1; then
     exit 1
 fi
 
+# The skill runs route.py, which needs only the Python standard library but
+# does need python3, 3.8 or later, on PATH. Without it the skill cannot
+# recommend anything, so refuse to install rather than leave a skill that
+# fails the first time it fires. Nothing has been downloaded yet.
+if ! command -v python3 >/dev/null 2>&1 \
+        || ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' 2>/dev/null; then
+    echo "install.sh: swe-router needs python3 (3.8 or later) on PATH, and none was found." >&2
+    echo "It needs no Python packages, only the interpreter. Install one, then re-run:" >&2
+    echo "  macOS:          xcode-select --install" >&2
+    echo "  Debian/Ubuntu:  sudo apt install python3" >&2
+    echo "  Windows:        use WSL, or install from python.org" >&2
+    echo "Nothing was written." >&2
+    exit 1
+fi
+
 BASE="https://raw.githubusercontent.com/${REPO}/${REF}/vend/${SKILL_NAME}"
 TARGET="${SKILLS_DIR}/${SKILL_NAME}"
 
@@ -136,6 +151,7 @@ for f in $SKILL_FILES; do
 done
 
 chmod +x "${TARGET}/route.py"
+
 
 echo
 echo "Installed ${SKILL_NAME} to ${TARGET}"
