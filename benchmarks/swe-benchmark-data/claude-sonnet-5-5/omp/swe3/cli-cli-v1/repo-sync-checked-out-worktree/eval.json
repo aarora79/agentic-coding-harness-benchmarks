@@ -1,0 +1,64 @@
+{
+  "task": "repo-sync-checked-out-worktree",
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The issue clearly defines the affected branch decision, desired worktree states, dirty and missing-directory behavior, compatibility cases, and explicit non-goals. Its largest defect is that the reproduction never advances the upstream branch, so as written it does not reproduce the reported staged changes. The submitted baseline diff context supports the diagnosis that a non-current existing branch reaches UpdateBranch with FETCH_HEAD. Because no independent task statement exists, the policy choice to modify another worktree rather than refuse cannot be externally verified."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 16,
+      "total": 78,
+      "notes": "The design is implementation-ready in its file mapping, interface changes, control flow, FETCH_HEAD resolution, compatibility branches, and error behavior. The cited git.Client Copy method and RepoDir field exist, supporting the proposed cross-worktree client construction. ([pkg.go.dev](https://pkg.go.dev/github.com/cli/cli/v2/git)) Its largest deficiencies are failure to parse quoted or newline-containing worktree paths and specifying a copy-paste shell command using Go %q, which is not shell-safe for every path; Git recommends NUL-delimited porcelain parsing for unusual paths. ([github.com](https://github.com/git/git/blob/master/Documentation/git-worktree.adoc)) The absent independent task statement also leaves the broader auto-update policy unverifiable."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 72,
+      "notes": "The review's strongest contribution is identifying the per-worktree FETCH_HEAD problem and requiring resolution to a commit ID before changing directories. It also addresses missing worktree directories, dirty-state protection, command argument separation, and the residual TOCTOU window with concrete consequences. Its largest error is declaring no injection surface while approving a user-copyable `git -C %q stash --all` tip whose Go quoting is not general shell quoting; it also misses the porcelain path-decoding gap. The deferred rebase and bisect limitation is honestly recorded, but no independent requirement confirms that accepting it is sufficient."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 14,
+      "specificity": 22,
+      "risk_awareness": 17,
+      "total": 73,
+      "notes": "The plan provides strong behavioral oracles for refs, HEAD, file contents, status cleanliness, unchanged dirty state, force behavior, parser exactness, and backward-compatible paths. Its largest flaw is that the missing-directory test detaches the calling worktree even though executeLocalRepoSync calls CurrentBranch before CheckedOutWorktree and the git client defines detached HEAD as ErrNotOnAnyBranch. ([pkg.go.dev](https://pkg.go.dev/github.com/cli/cli/v2/git), [github.com](https://github.com/cli/cli/pull/7082)) The manual reproduction again omits an upstream update, and one error check uses assert rather than the repository-required require. The claimed test execution could not be independently verified."
+    },
+    "implementation": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 69,
+      "notes": "The patch implements its selected design across the git abstraction, sync control flow, mocks, command help, focused unit cases, and real-repository fixtures. Its baseline identifier matches the v2.98.0 release commit, and the proposed Copy and RepoDir APIs exist. ([github.com](https://github.com/cli/cli/releases/tag/v2.98.0), [pkg.go.dev](https://pkg.go.dev/github.com/cli/cli/v2/git)) The largest defects are the shell-unsafe copy-paste remediation text and incomplete handling of porcelain paths requiring quoting, while the missing-directory fixture likely exits at CurrentBranch because it deliberately detaches the caller. Local patch application and test execution were unavailable because the repository command runner failed before process launch, so the summary's green verification claims remain unsupported."
+    }
+  },
+  "task_score": 75.2,
+  "verdict": "The submission is coherent and mostly implementation-ready, but unsafe special-path handling and a likely invalid missing-worktree test materially undermine the implementation and its claimed verification.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T16:46:43.806257Z",
+    "repo_ref": "v2.98.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 212553,
+      "cached_input_tokens": 114231,
+      "cache_write_input_tokens": 31206,
+      "output_tokens": 18153,
+      "reasoning_output_tokens": 16125
+    },
+    "duration_ms": 313043
+  }
+}

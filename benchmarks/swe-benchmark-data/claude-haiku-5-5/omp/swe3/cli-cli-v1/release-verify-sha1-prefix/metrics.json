@@ -1,0 +1,156 @@
+{
+  "task": "release-verify-sha1-prefix",
+  "repo": "https://github.com/cli/cli",
+  "ref": "v2.92.0",
+  "complexity": "medium",
+  "tags": [
+    "release",
+    "go",
+    "cli",
+    "attestation",
+    "sha256",
+    "fixed-in-2.93.0"
+  ],
+  "model": "us.anthropic.claude-haiku-5-5",
+  "model_slug": "claude-haiku-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 148.5,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 136,
+    "output_tokens": 75849,
+    "cache_read_tokens": 4076105,
+    "cache_write_tokens": 274038,
+    "total_tokens": 4426128,
+    "total_cost_usd": 0.12424928999999997,
+    "latency_seconds": 510.9,
+    "num_turns": 65,
+    "generation_tokens_per_sec": 148.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 136,
+  "output_tokens": 75849,
+  "latency_seconds": 510.9,
+  "num_turns": 65,
+  "total_cost_usd": 0.12424928999999997,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 4076105,
+  "cache_creation_tokens": 274038,
+  "models_used": [
+    "us.anthropic.claude-haiku-5-5"
+  ],
+  "run_started_at": "2026-10-14T12:31:37.249354Z",
+  "run_ended_at": "2026-10-14T12:40:08.193050Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 136,
+    "output_tokens": 75849,
+    "cache_read_tokens": 4076105,
+    "cache_write_tokens": 274038,
+    "total_tokens": 4426128,
+    "total_cost_usd": 0.12424928999999997,
+    "latency_seconds": 510.9,
+    "num_turns": 65,
+    "generation_tokens_per_sec": 148.5,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "release-verify-sha1-prefix",
+    "model": "us.anthropic.claude-haiku-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 88,
+        "notes": "The issue clearly defines the SHA-1/SHA-256 behavior for both release commands, with testable acceptance criteria and useful non-goals. The submitted patch contexts confirm the hard-coded `sha1` constructor calls in `verify.go` and `verify_asset.go`. Its main limitation is that no independent task statement establishes every claimed requirement, particularly malformed-ref rejection and GitHub's SHA-256 rollout behavior. It addresses compatibility and invalid input well, but attestation-service support for SHA-256 remains unverified."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 21,
+        "specificity": 24,
+        "risk_awareness": 22,
+        "total": 90,
+        "notes": "The LLD is unusually concrete about data flow, constructor changes, error handling, and the two command integration points. Its cited `NewDigestedArtifactForRelease` call sites and test seams agree with the submitted source diff. The largest deficiency is minor internal inconsistency: the file-change table proposes `release_test.go`, while the testing and implementation artifacts create `artifact_test.go`; the claimed repository-wide caller search could not be independently rerun. It responsibly identifies malformed refs, backward compatibility, policy coverage, rollout, and unknown server indexing."
+      },
+      "review": {
+        "completeness": 19,
+        "correctness": 19,
+        "specificity": 20,
+        "risk_awareness": 20,
+        "total": 78,
+        "notes": "The strongest review finding is the concrete demand for length-plus-hex validation and explicit coverage of `FetchParams.Digest` and the verifier-policy gap. It names actionable symbols such as `releaseRefAlgorithm`, `BuildDigestPolicyOption`, and `api.MockClient.OnGetByDigest`. Much of the multi-role review repeats approval rather than independently challenging the constructor API change, output coverage, or the test-file inconsistency. Its security framing overstates malformed API data as a query-injection concern, while the genuinely material SHA-256 service-indexing question remains unresolved."
+      },
+      "testing": {
+        "completeness": 19,
+        "correctness": 19,
+        "specificity": 23,
+        "risk_awareness": 20,
+        "total": 81,
+        "notes": "The plan gives concrete table inputs, test names, mock setup, and meaningful oracles for both digest algorithms and rejected refs. The implementation diff contains the described `OnGetByDigest` captures and assertions that malformed refs avoid the attestation call. Its largest gap is failure to directly assert the user-visible resolved-tag output or capture the artifact passed to the verifier, and it omits the repository-prescribed `go test ./...` and `make lint` checks. It also presents scoped package tests as final verification even though implementation.md says the full package trees were not rerun after the last test-table edit."
+      },
+      "implementation": {
+        "completeness": 21,
+        "correctness": 21,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 84,
+        "notes": "The patch implements the central behavior in both commands, derives the algorithm once, validates malformed refs, and adds focused SHA-1/SHA-256 and negative tests. Its diff contexts consistently target the existing constructor and command call sites, and the error handling follows the surrounding Go pattern. The main coverage deficiency is that no test observes the artifact received by `AttVerifier` or directly checks the resolved-tag output, although the shared object makes the intended propagation plausible. The summary incorrectly says the old constructor behavior was hard-coded `sha256` rather than `sha1`, and independent `git apply --check` execution was unavailable because the local command sandbox could not initialize."
+      }
+    },
+    "task_score": 84.2,
+    "verdict": "This is a strong, implementation-ready submission whose largest limitation is incomplete verification of the user-visible and verifier-policy propagation paths.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-14T14:25:16.931281Z",
+      "repo_ref": "v2.92.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 134875,
+        "cached_input_tokens": 82010,
+        "cache_write_input_tokens": 29605,
+        "output_tokens": 9055,
+        "reasoning_output_tokens": 7686
+      },
+      "duration_ms": 147172
+    }
+  }
+}

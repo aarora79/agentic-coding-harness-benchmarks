@@ -1,0 +1,64 @@
+{
+  "task": "release-verify-sha1-prefix",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 84,
+      "notes": "The issue clearly traces the algorithm through lookup, output, and verifier policy, with testable acceptance criteria and useful non-goals. Its reproduction syntax for verify-asset incorrectly suggests an asset plus --tag, while the command accepts an optional positional tag followed by the file path. ([cli.github.com](https://cli.github.com/manual/gh_release_verify-asset)) The submitted diff context supports the cited hard-coded constructor locations, although a sandbox bootstrap failure prevented independent checkout inspection. With no independent task statement, the claimed SHA-256 repository rollout and server-side indexing behavior remain unverified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 21,
+      "total": 90,
+      "notes": "The LLD is unusually concrete about files, interfaces, data flow, output changes, compatibility, annotated tags, and test seams. Its proposed helper and both call-site changes are internally consistent with the submitted baseline diff and preserve valid 40-hex behavior. The largest unresolved dependency is whether the attestation service actually indexes SHA-256 refs under the proposed key, which the design acknowledges but cannot establish from the supplied task context. It also validates with hex.DecodeString before checking length, allowing an oversized server-controlled hexadecimal value to cause an avoidable allocation and very large error output."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 88,
+      "notes": "The review finds real, actionable defects: inconsistent error text, case normalization ambiguity, malformed-ref compatibility, an unused import, and a verifier mock that cannot observe the artifact. It records concrete resolutions that are reflected in the revised LLD and patch rather than merely issuing generic approvals. Its largest miss is treating an unbounded ref only as a long-line concern, overlooking the allocation performed by hex.DecodeString before length rejection. The assertion about future attestation-service behavior remains unverifiable because no independent task or service contract was supplied."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 78,
+      "notes": "The unit-test matrix has strong oracles for algorithm selection, request digest, output, verifier input, malformed refs, and SHA-1 compatibility. The proposed recording verifier and captured FetchParams.Digest directly test the two important downstream effects rather than merely asserting successful execution. The plan omits the repository-required go test ./... and make lint checks, substituting narrower package tests and go vet. Its default manual success target is cli/cli v2.92.0 even though that repository documents immutable releases beginning with v2.93.0, and the claimed control-character coverage is not actually supplied by the listed z/g non-hex cases. ([github.com](https://github.com/cli/cli/blob/trunk/README.md))"
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 88,
+      "notes": "The patch implements the complete proposed path: one shared helper, both command integrations, correct import cleanup, and tests for lookup, display, verifier input, compatibility, and early failure. The unified-diff contexts and referenced symbols are internally consistent with the baseline artifacts, but the environment's shell sandbox failed before execution, so git apply --check and independent source compilation could not be confirmed. The main implementation risk is calling hex.DecodeString before bounding the input length, which needlessly allocates for an oversized hexadecimal API value and then includes the full value in the error. Apart from that bounded-input concern, the implementation matches the revised LLD and its summary accurately describes the behavioral change."
+    }
+  },
+  "task_score": 85.6,
+  "verdict": "This is a strong, coherent design and implementation package whose largest material limitation is a testing plan with an unsuitable manual baseline and missing repository-mandated full test and lint commands.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T20:40:04.592294Z",
+    "repo_ref": "v2.92.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 191774,
+      "cached_input_tokens": 126214,
+      "cache_write_input_tokens": 34091,
+      "output_tokens": 11485,
+      "reasoning_output_tokens": 9119
+    },
+    "duration_ms": 169448
+  }
+}

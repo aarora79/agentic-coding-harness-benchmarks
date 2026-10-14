@@ -1,0 +1,64 @@
+{
+  "task": "pr-merge-delete-branch-owner-case",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 24,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 93,
+      "notes": "The issue precisely connects the casing mismatch to `NewMergeContext`, the `crossRepoPR` guard, and the missing branch-delete request, with reproducible steps and testable same-repository and fork criteria. The pinned v2.100.0 evidence confirms the case-sensitive comparison at `merge.go:592` and early return at `merge.go:519`. ([gist.github.com](https://gist.github.com/dweomer/199fcf350ffd35c489ba6c67199673a7)) Its main deficiency is that the output acceptance criterion does not distinguish TTY from non-TTY behavior, although the baseline suppresses that informational line outside a TTY. No independent task statement was supplied, so intended scope beyond the task identifier and internally consistent artifacts could not be verified."
+    },
+    "lld": {
+      "completeness": 24,
+      "correctness": 23,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 93,
+      "notes": "The LLD is implementation-ready: it names the exact field-list replacement, assignment, consumers, fixture migrations, API call, and interactive behavior. Repository evidence supports both the existing faulty query and the finder behavior that adds `isCrossRepository` and `headRepositoryOwner` during branch lookup. ([gist.github.com](https://gist.github.com/dweomer/199fcf350ffd35c489ba6c67199673a7), [github.com](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/shared/finder.go)) Its largest gap is that the proposed tests do not assert the `FindOptions.Fields` contract, so omission of the new GraphQL field would not be caught by the mocked-PR regressions. The broad GHES compatibility claim is plausible but lacks a supported-version boundary or direct pinned-schema verification."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 89,
+      "notes": "The review finds a concrete deficiency in the original design - missing interactive-prompt coverage - and identifies the two fork fixtures that must gain `IsCrossRepository: true`. Its fixture analysis agrees with the mock finder, which backfills only `HeadRepositoryOwner.Login` and leaves the boolean at its zero value. ([github.com](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/shared/finder.go)) The largest missed concern is that neither proposed regression verifies that `NewMergeContext` actually requests `isCrossRepository`. Some GHES and deleted-head-repository assertions are presented confidently without pinned repository or compatibility evidence."
+    },
+    "testing": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The plan supplies concrete commands, fixtures, HTTP expectations, prompt text, negative behavior, backward-compatibility scenarios, and end-to-end branch-state oracles. The key REST oracle matches the documented `--delete-branch` contract and the baseline failure path. ([cli.github.com](https://cli.github.com/manual/gh_pr_merge), [gist.github.com](https://gist.github.com/dweomer/199fcf350ffd35c489ba6c67199673a7)) Its largest gap is again the absence of a field-selection assertion, allowing tests to pass with a stubbed `IsCrossRepository` value even if the real GraphQL query stopped requesting it. The manual fork and GHES procedures require substantial external account and server setup, and the GHES expectation is not tied to a stated supported version."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 23,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 90,
+      "notes": "The patch implements the design end to end by swapping the requested field, assigning `crossRepoPR` from `pr.IsCrossRepository`, updating both fork fixtures, and adding flag-path and prompt regressions. The `merge.go` hunk matches the verified v2.100.0 symbols and line context, and the resulting delete path is consistent with the existing guard and REST behavior. ([gist.github.com](https://gist.github.com/dweomer/199fcf350ffd35c489ba6c67199673a7)) The largest weakness is that the tests inject the boolean through `StubFinderForRunCommandStyleTests` without asserting the requested field list, leaving the API wiring less protected than the decision logic. No behavioral deviation from the LLD is apparent, but local `git apply --check`, compilation, and formatting could not be independently executed because the provided shell sandbox failed during initialization."
+    }
+  },
+  "task_score": 91.0,
+  "verdict": "This is an excellent, repository-grounded fix with focused regression coverage; its largest material limitation is that no test pins the GraphQL field request that supplies the new decision value.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T20:22:53.123717Z",
+    "repo_ref": "v2.100.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 170770,
+      "cached_input_tokens": 77720,
+      "cache_write_input_tokens": 28149,
+      "output_tokens": 8573,
+      "reasoning_output_tokens": 7079
+    },
+    "duration_ms": 135233
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "task": "skill-install-nested-discovery",
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 19,
+      "correctness": 13,
+      "specificity": 22,
+      "risk_awareness": 13,
+      "total": 67,
+      "notes": "The issue provides concrete path examples, testable acceptance criteria, and explicit non-goals. Its largest defect is expanding automatic discovery to every non-hidden SKILL.md, whereas the repository's actual fix deliberately supports non-standard layouts only through an explicit exact path. ([github.com](https://github.com/cli/cli/pull/13459)) It correctly identifies that prefixed skills directories already work and that nested hidden directories do not. No independent task statement establishes the claimed issue-comment requirements for catalog-wide catch-all discovery."
+    },
+    "lld": {
+      "completeness": 18,
+      "correctness": 12,
+      "specificity": 21,
+      "risk_awareness": 14,
+      "total": 65,
+      "notes": "The LLD is well grounded in real integration points such as discovery.go, matchSkillByName, selectSkill, publish, and MatchSkillPath. Its critical error is leaving isSkillPath unchanged, so an arbitrary path such as packages/agent-skills/x requires full-tree discovery instead of the direct lookup implemented by the repository fix; this also preserves failure on truncated large trees. ([github.com](https://github.com/cli/cli/pull/13459), [cli.github.com](https://cli.github.com/manual/gh_skill_install)) The catch-all design additionally contradicts the repository's stated decision not to broaden search or publish behavior, while its vendor and testdata exclusions contradict the issue's own acceptance boundary. The scaling discussion therefore understates both picker expansion and exact-path traversal risk."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The review's strongest work is finding concrete defects B1, B2, C1, S1, and S3 and recording actionable resolutions. It misses the central product and implementation flaw: automatic catch-all discovery is broader than the repository's intended explicit-path behavior, and arbitrary exact paths still do not take the direct lookup route. ([github.com](https://github.com/cli/cli/pull/13459)) Circuit's claim that path lookup works at any depth is therefore incomplete for large or truncated trees. The summary also says four blocking findings were resolved despite enumerating five should-fix findings."
+    },
+    "testing": {
+      "completeness": 16,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 13,
+      "total": 65,
+      "notes": "The plan supplies concrete fixtures, commands, negative cases, and meaningful convention and path oracles. Its largest gap is the absence of an installRun or isSkillPath regression test for an arbitrary nested path; matcher-level tests inject an already-discovered list and bypass the routing behavior that the real fix changed. ([github.com](https://github.com/cli/cli/pull/13459), [cli.github.com](https://cli.github.com/manual/gh_skill_install)) Consequently the suite can pass while exact paths still trigger full-tree traversal and fail on tree truncation. Several UX checks are not represented in the patch, and the manual picker expectation incorrectly presents a standard skill by repository path rather than its DisplayName."
+    },
+    "implementation": {
+      "completeness": 15,
+      "correctness": 10,
+      "specificity": 19,
+      "risk_awareness": 9,
+      "total": 53,
+      "notes": "The patch concretely extends hidden-directory matching, adds path equality selection, preserves standard-name precedence, and includes focused Go tests against the submitted baseline symbols. Its largest defect is implementing automatic catch-all discovery, contrary to the repository fix's explicit non-broadening decision, while failing to add the shared path-detection logic needed for efficient exact-path install and preview. ([github.com](https://github.com/cli/cli/pull/13459), [cli.github.com](https://cli.github.com/manual/gh_skill_install)) This creates prompt and compatibility expansion and leaves arbitrary paths dependent on complete recursive-tree discovery; the exported DiscoverLocalSkills behavior is also narrowed without updating its surrounding contract. The sandbox could not execute local commands, so the claimed git apply check, compilation, and test results could not be independently verified."
+    }
+  },
+  "task_score": 64.8,
+  "verdict": "The submission is detailed and repository-aware, but it solves the nested-path bug with an unsupported catch-all discovery expansion while missing the direct exact-path routing central to the actual fix.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T16:51:11.071145Z",
+    "repo_ref": "v2.93.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 156968,
+      "cached_input_tokens": 105312,
+      "cache_write_input_tokens": 35668,
+      "output_tokens": 9213,
+      "reasoning_output_tokens": 7561
+    },
+    "duration_ms": 144365
+  }
+}

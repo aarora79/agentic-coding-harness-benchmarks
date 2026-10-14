@@ -1,0 +1,156 @@
+{
+  "task": "codespace-ports-forward-concurrent-map",
+  "repo": "https://github.com/cli/cli",
+  "ref": "v2.95.0",
+  "complexity": "medium",
+  "tags": [
+    "codespace",
+    "go",
+    "cli",
+    "concurrency",
+    "race-condition",
+    "fixed-in-2.96.0"
+  ],
+  "model": "us.anthropic.claude-opus-5-5",
+  "model_slug": "claude-opus-5-5",
+  "agent": "omp",
+  "skill": "swe3",
+  "provider": "bedrock",
+  "endpoint": null,
+  "aws_region": "us-east-1",
+  "serving": {
+    "instance_type": "g6e.4xlarge",
+    "tensor_parallel_size": null,
+    "precision": null,
+    "context_window": null
+  },
+  "artifacts_produced": 6,
+  "artifacts_expected": 6,
+  "generation_tokens_per_sec": 62.2,
+  "token_accounting_warning": null,
+  "prompt_token_reconciliation": null,
+  "metrics": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 98,
+    "output_tokens": 50550,
+    "cache_read_tokens": 5097072,
+    "cache_write_tokens": 132017,
+    "total_tokens": 5279737,
+    "total_cost_usd": 2.95998054,
+    "latency_seconds": 812.8,
+    "num_turns": 48,
+    "generation_tokens_per_sec": 62.2,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "input_tokens": 98,
+  "output_tokens": 50550,
+  "latency_seconds": 812.8,
+  "num_turns": 48,
+  "total_cost_usd": 2.95998054,
+  "is_error": false,
+  "result_subtype": "success",
+  "cache_read_tokens": 5097072,
+  "cache_creation_tokens": 132017,
+  "models_used": [
+    "us.anthropic.claude-opus-5-5"
+  ],
+  "run_started_at": "2026-10-14T17:54:29.470209Z",
+  "run_ended_at": "2026-10-14T18:08:02.313659Z",
+  "metrics_that_matter": {
+    "note": "Headline metrics as reported by the model API (claude -p); there is no vLLM server for this provider, so no server-side cache telemetry.",
+    "input_tokens": 98,
+    "output_tokens": 50550,
+    "cache_read_tokens": 5097072,
+    "cache_write_tokens": 132017,
+    "total_tokens": 5279737,
+    "total_cost_usd": 2.95998054,
+    "latency_seconds": 812.8,
+    "num_turns": 48,
+    "generation_tokens_per_sec": 62.2,
+    "sources": {
+      "input_tokens": "omp_api.usage.input",
+      "output_tokens": "omp_api.usage.output",
+      "cache_read_tokens": "omp_api.usage.cache_read_input_tokens",
+      "cache_write_tokens": "omp_api.usage.cache_creation_input_tokens",
+      "total_tokens": "total tokens processed once each (issue #136): input + output, plus cache_read + cache_write ONLY when the cache is additive (not a partition of input). An agent with disjoint counts declares that instead of being detected (issue #183).",
+      "total_cost_usd": "omp_api.total_cost_usd (metered)",
+      "latency_seconds": "harness wall-clock (or omp_api.duration_ms)",
+      "num_turns": "omp_api.num_turns",
+      "generation_tokens_per_sec": "derived: output_tokens / latency_seconds"
+    }
+  },
+  "evaluation": {
+    "task": "codespace-ports-forward-concurrent-map",
+    "model": "us.anthropic.claude-opus-5-5",
+    "scores": {
+      "github_issue": {
+        "completeness": 22,
+        "correctness": 21,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 88,
+        "notes": "The issue clearly identifies the command, concurrency path, observed stack, user impact, exclusions, and testable acceptance criteria; issue #13399 confirms the command and `CreateTunnelPort` failure at manager.go:452. ([github.com](https://github.com/cli/cli/issues/13399)) Its strongest aspect is distinguishing the shared options-map race, tunnel mutation, and notification behavior instead of treating every reported error as one cause. The largest limitation is the absent independent task statement: the leaked-header explanation for HTTP 400 and lost-notification hang are technically reasoned extensions rather than established requirements, although the dependency's nonblocking single-recipient channel supports the latter. ([github.com](https://github.com/microsoft/dev-tunnels/blob/v0.0.7/go/tunnels/remote_forwarded_ports.go)) The compatibility criterion covering many unrelated codespace commands is also broader than necessary to define this bug."
+      },
+      "lld": {
+        "completeness": 23,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 22,
+        "total": 90,
+        "notes": "The LLD is implementation-ready: it names the real connection and forwarder files, specifies mutex ownership, option cloning, pointer semantics, method signatures, polling behavior, mock synchronization, and rollout checks. Baseline source confirms that `CodespaceConnection` owns exported manager, options, and tunnel pointers while `NewPortForwarder` copies the connection value, making the selected lock ownership and pointer conversion appropriate. ([github.com](https://github.com/malor/gh-cli/blob/fix-doc/internal/codespaces/connection/connection.go), [github.com](https://github.com/malor/gh-cli/blob/trunk/internal/codespaces/portforwarder/port_forwarder.go)) Its largest deficiency is that the latency estimate is explicitly unmeasured and it does not discuss context-unaware waiting to acquire `portsMu` during a slow management request. The exact v0.1.19 line-level mutation claims could not be independently retrieved from the local checkout, though the submitted issue stack and available dependency notification source corroborate the critical behavior."
+      },
+      "review": {
+        "completeness": 22,
+        "correctness": 22,
+        "specificity": 23,
+        "risk_awareness": 23,
+        "total": 90,
+        "notes": "The review performs real design stress rather than ceremonial approval, especially by finding the concurrent mock-map access, the lock-defeating connection copy, and the ability to bypass synchronization through exported fields. The value-copy and exported-field findings agree with the baseline `CodespaceConnection` and `NewPortForwarder` definitions. ([github.com](https://github.com/malor/gh-cli/blob/fix-doc/internal/codespaces/connection/connection.go), [github.com](https://github.com/malor/gh-cli/blob/trunk/internal/codespaces/portforwarder/port_forwarder.go)) Recommendations are prioritized, actionable, and explicitly resolved in the revised LLD, while cancellation, serialization cost, security exposure, and testability receive proportionate treatment. The largest limitation is that the mock handler's precise line-level race could not be independently verified after local shell access failed, and several reviewer sections add little beyond approving unchanged behavior."
+      },
+      "testing": {
+        "completeness": 20,
+        "correctness": 20,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 82,
+        "notes": "The plan has concrete race-test commands, repeated scheduling runs, exact helper outcomes, manual multi-port checks, cancellation coverage, compatibility checks, and valid repository surfaces such as `make bin/gh` and codespace JSON fields. ([github.com](https://github.com/cli/cli/blob/trunk/Makefile), [cli.github.com](https://cli.github.com/manual/gh_codespace_ports)) Its largest deficiency is that the acceptance criterion that stored request options remain unchanged is assigned only to code review rather than a test that invokes create and then inspects the original headers. The negative check requires manually reverting and adapting files, so it is not a stable reproducible test recipe, and the manual `org` visibility scenario depends on codespace policy. The concurrent test also omits the LLD's promised protocol oracle, so it can pass while creating requested ports with an incorrect protocol."
+      },
+      "implementation": {
+        "completeness": 22,
+        "correctness": 22,
+        "specificity": 22,
+        "risk_awareness": 20,
+        "total": 86,
+        "notes": "The patch implements the central design end to end: connection-wide serialization, per-call header-map cloning, shared pointer ownership, guarded mock state, bounded forwarded-port waits, and focused concurrency and cancellation tests. Its target symbols and surrounding contexts match the established baseline structure, and the submitted baseline hash corresponds to release v2.95.0. ([github.com](https://github.com/malor/gh-cli/blob/fix-doc/internal/codespaces/connection/connection.go), [github.com](https://github.com/malor/gh-cli/blob/trunk/internal/codespaces/portforwarder/port_forwarder.go), [github.com](https://github.com/cli/cli/releases/tag/v2.95.0)) The largest defect is test coverage: no test proves `conn.options.AdditionalHeaders` remains unmodified, and `TestForwardPortConcurrently` verifies presence but not the promised HTTP protocol. Local sandbox initialization failed, so `git apply --check`, compilation, and repository-wide symbol searches could not be independently executed; no source-level contradiction was found through the available exact issue, release, and baseline evidence."
+      }
+    },
+    "task_score": 87.2,
+    "verdict": "This is a strong, repository-specific solution whose main limitation is incomplete automated proof of request-option immutability and the absence of an independent task statement defining the extra notification scope.",
+    "judge": {
+      "model": "openai.gpt-5.6-sol",
+      "provider": "codex-exec",
+      "repo_grounded": true,
+      "evaluated_at": "2026-10-14T20:05:04.130328Z",
+      "repo_ref": "v2.95.0",
+      "reasoning_effort": "high",
+      "token_usage": {
+        "input_tokens": 161243,
+        "cached_input_tokens": 93851,
+        "cache_write_input_tokens": 31752,
+        "output_tokens": 12007,
+        "reasoning_output_tokens": 10116
+      },
+      "duration_ms": 201251
+    }
+  }
+}

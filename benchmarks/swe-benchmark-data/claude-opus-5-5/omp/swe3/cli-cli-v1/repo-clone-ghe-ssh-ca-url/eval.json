@@ -1,0 +1,64 @@
+{
+  "task": "repo-clone-ghe-ssh-ca-url",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 24,
+      "correctness": 23,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 94,
+      "notes": "The issue crisply defines the authentication failure, fork-upstream impact, wiki behavior, fallbacks, exclusions, and testable acceptance criteria. Its core diagnosis matches the reported repository bug: clone reconstructs the tenant username instead of using API sshUrl. ([github.com](https://github.com/cli/cli/issues/14344)) The largest weakness is that it prescribes same-host validation without establishing that alternate SSH hosts are invalid for every supported enterprise configuration. The assertion that Repository.sshUrl exists on every supported GHES version was not independently verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 91,
+      "notes": "The LLD names the real query, model, clone call sites, parent flow, URL parser, fallback, and concrete test structure; the Repository model does contain SSHURL and GitHubRepo uses a shared parent fragment. ([github.com](https://github.com/cli/cli/blob/trunk/api/queries_repo.go)) Its principal deficiency is the mandatory equality between the API hostname and SSH hostname, which can reject a legitimate server-provided alternate SSH endpoint even though the API URL is supposed to be authoritative. The fallback preserves prior behavior and the design explicitly covers leading-option injection, HTTPS compatibility, wiki transformation, and unfixed callers. Exact availability of sshUrl across all historical GHES versions and the claimed local test restriction could not be verified."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 88,
+      "notes": "The review genuinely challenges the design and produces actionable changes for option-like URLs, off-host values, fallback testing, helper signatures, and the repo-fork scope distinction. Its strongest finding is that a leading-dash URL reaches positional git arguments without an option delimiter, with a concrete mitigation and regression test. Its weakest reasoning overstates SSH key or agent disclosure from merely connecting to another host and does not adequately examine legitimate separate SSH hostnames before requiring same-host validation. The review otherwise tracks the submitted source flow and resolves each prioritized finding rather than merely approving the design."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 87,
+      "notes": "The plan supplies concrete mocked responses and exact git-command oracles for the tenant URL, wiki, fallback, HTTPS, unsafe values, and parent upstream behavior. It also includes compatibility, manual GHE.com, UX, rollback, and end-to-end checks tied to the acceptance criteria. The largest gap is incomplete unit coverage for explicitly promised ssh:// and git+ssh:// arguments, malformed values, and a same-host non-SSH API URL; some piped manual trace commands also do not independently preserve clone failure status. Claims requiring access to an SSH-CA tenant and the exact make target could not be executed in the provided environment."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 88,
+      "notes": "The patch implements the central flow end to end: it selects sshUrl in the shared repository fragment, routes both clone and parent upstream URLs through one helper, preserves FormatRemoteURL fallback, and adds command-level regression tests. The target symbols and surrounding architecture are consistent with the repository evidence: Repository already exposes SSHURL and Parent hostname initialization, while FormatRemoteURL constructs tenant-based SSH URLs. ([github.com](https://github.com/cli/cli/blob/trunk/api/queries_repo.go), [github.com](https://github.com/cli/cli/blob/trunk/internal/ghrepo/repo.go)) The largest design risk carried into code is rejecting all alternate-host SSH URLs, and tests omit the promised ssh://, git+ssh://, malformed, and same-host wrong-scheme cases. The submitted git apply --check claim and compilation could not be independently rerun because the read-only shell failed before repository commands executed."
+    }
+  },
+  "task_score": 89.6,
+  "verdict": "Strong, unusually concrete work that appears to implement the reported fix, with the main limitation being an insufficiently justified same-host restriction and several missing URL-form test cases.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T20:42:40.949679Z",
+    "repo_ref": "v2.100.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 202499,
+      "cached_input_tokens": 120176,
+      "cache_write_input_tokens": 32684,
+      "output_tokens": 9984,
+      "reasoning_output_tokens": 7848
+    },
+    "duration_ms": 156344
+  }
+}

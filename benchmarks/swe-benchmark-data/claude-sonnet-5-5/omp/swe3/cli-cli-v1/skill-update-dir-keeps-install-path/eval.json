@@ -1,0 +1,64 @@
+{
+  "task": "skill-update-dir-keeps-install-path",
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 91,
+      "notes": "The issue provides a reproducible namespaced layout, explicit expected paths, non-goals, and testable acceptance criteria for custom and agent directories. Its explanation matches the submitted baseline context in pkg/cmd/skills/update/update.go, including base derivation and os.RemoveAll cleanup. The largest deficiency is that promising every failed update leaves the installation intact conflicts with declaring atomic replacement out of scope, since an in-place multi-file rewrite can partially succeed. No independent task statement was supplied, and the related issue link and reproduction could not be independently exercised."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The design is unusually concrete about installedSkill.dir, installer.Options, filepath.Dir/Base, affected files, validation, and removal of cleanup. The chosen mapping correctly preserves flat, namespaced, and locally renamed paths for GitHub-backed updates. Its largest gap is knowingly leaving partial writes possible despite the issue's failed-update acceptance criterion; --force is recovery guidance, not prevention. DirName is implemented only in installSkill while installLocalSkill remains unchanged, so the stated general installer option does not consistently govern every installer path."
+    },
+    "review": {
+      "completeness": 20,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 80,
+      "notes": "The review finds concrete defects rather than merely approving: multi-skill DirName collisions, partial in-place writes, locally renamed directories, and skipped failure verification. Its most important finding correctly explains how a failed multi-file update could leave mixed content and an advanced tree SHA. The main deficiency is approving that risk even though it contradicts an explicit issue acceptance criterion. The security claim is also too broad because filepath.Join(baseDir, DirName) is not itself constrained to one path element, even though the update caller currently supplies filepath.Base."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 16,
+      "total": 76,
+      "notes": "The plan has strong path and content oracles for namespaced, unrelated-namespace, renamed, agent-host, flat, and no-relocation behavior. Its failure test makes the only blob fetch fail before any write, so it cannot detect the acknowledged partial-write regression where an earlier file was already overwritten. It also omits the SourceDir installer path and the repository-required full go test ./... and make lint checks. The documented --dir, --all, --force, and --dry-run flags agree with the official command manual, but the claimed executions were not independently verifiable. ([cli.github.com](https://cli.github.com/manual/gh_skill_update))"
+    },
+    "implementation": {
+      "completeness": 18,
+      "correctness": 18,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 74,
+      "notes": "The patch directly implements the core path-preservation rule by passing filepath.Dir(u.local.dir) and filepath.Base(u.local.dir), and it removes the destructive relocation cleanup. The focused tests cover the principal successful update layouts and preserve extra local files. The largest defect is that a later-file failure can still leave a partially updated installation, contrary to the submitted acceptance criteria; additionally, DirName is ignored by installLocalSkill and is not validated as a single safe path element. The hunk symbols and contexts are internally consistent, but the managed sandbox could not launch git apply --check or tests, so applicability and execution claims could not be independently confirmed."
+    }
+  },
+  "task_score": 79.8,
+  "verdict": "This is a strong, repository-specific solution to path relocation, but it does not meet its own guarantee that every failed update preserves the complete prior installation.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T16:53:52.094806Z",
+    "repo_ref": "v2.94.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 127723,
+      "cached_input_tokens": 77221,
+      "cache_write_input_tokens": 28517,
+      "output_tokens": 10378,
+      "reasoning_output_tokens": 8282
+    },
+    "duration_ms": 161009
+  }
+}

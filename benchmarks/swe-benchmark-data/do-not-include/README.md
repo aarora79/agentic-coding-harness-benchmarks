@@ -75,3 +75,12 @@ Both faults are fixed in [#218](https://github.com/aarora79/agentic-coding-harne
 The six artifacts Haiku 5.5 produced for `registration-admission-control-gate` in its published run on 2026-10-10. The prompt named the output directory `.../omp/swe3/mcp-gateway-registry-v2/registration-admission-control-gate/` 56 times; the model wrote everything to `.../omp/swe3/mcp-gateway-registry/registration-admission-control-gate/` instead, dropping the `-v2`. The harness found nothing in the right place and retried, and the retry stopped after 12 turns without writing anything.
 
 The task counts as a **failure** in the published run (20 / 21 scored, mean 72.69). These files were never judged and must not be: scoring them would grant Haiku 5.5 a pass no other model could have earned by writing to the wrong folder. They are kept, outside the harness's scan, so the failure can be read. Unlike the other runs here they include the markdown artifacts and `patch.diff`, which the repo's `.gitignore` excludes by default; they were added explicitly. One hunk header in `patch.diff` quoted an example token from upstream's `terraform.tfvars.example`; it reads `<redacted upstream example value>` here. Git ignores hunk-header text, so the patch still applies at `v1.0.19`.
+
+The same failure recurred on the cli/cli dataset on 2026-10-14, for two of the 21 tasks. Both sit under `omp/swe3/cli-cli-v1/`, the path the prompt named:
+
+| Task | Where Haiku 5.5 wrote | Retry |
+|---|---|---|
+| `auth-clipboard-config-default` | `claude-haiku-5-5/claude-code/cli/auth-clipboard-config-default/`, the skill's generic model / harness / repo layout instead of the given path | Wrote to the same wrong folder |
+| `skill-install-nested-discovery` | `claude-haiku-5-5/omp/swe3/cli-v1/skill-install-nested-discovery/`, dropping one `cli` | Wrote nothing; said the request named no `artifacts_dir` and asked for one |
+
+Both count as **failures** in the published run (19 / 21 scored, mean 80.82), and neither was judged. A third misplaced write, `cli-ci-v1/repo-clone-ghe-ssh-ca-url/` on that task's first attempt, is not kept: the retry wrote to the right place and was scored. The secret scan found nothing to redact in these files.

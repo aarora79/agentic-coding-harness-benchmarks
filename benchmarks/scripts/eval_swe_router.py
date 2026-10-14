@@ -458,6 +458,7 @@ def _evaluate(
     judged_tiers: dict[str, str] | None = None,
     column_for: Callable[[str], dict[str, str]] | None = None,
     stats_for: Callable[[str], dict[str, dict[str, Any]]] | None = None,
+    fixed_stats: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Replay the router over every task and compare it to the baseline.
 
@@ -480,6 +481,9 @@ def _evaluate(
             rubric buckets do. Overrides ``judged_tiers`` and the dataset label.
         stats_for: Given the task being routed, every model's stats with one
             predicted score under ``PREDICTED_TIER``. Overrides ``column_for``.
+        fixed_stats: Every model's stats from ANOTHER dataset, routed against
+            for every task. ``results`` then only supplies each routed task's
+            outcome. ``column_for`` still names the routed task's column.
 
     Returns:
         A result mapping with ``rows`` (one per task) and ``totals``.
@@ -497,7 +501,8 @@ def _evaluate(
     tmp_dir = Path(tempfile.mkdtemp(prefix="router-eval-"))
     in_sample_path = tmp_dir / "models-in-sample.json"
     in_sample_path.write_text(
-        json.dumps(_models_json(_tier_stats(results), provenance)), encoding="utf-8"
+        json.dumps(_models_json(fixed_stats or _tier_stats(results), provenance)),
+        encoding="utf-8",
     )
     for task in tasks:
         task_id = task["id"]
@@ -511,7 +516,9 @@ def _evaluate(
             columns = column_for(task_id)
             tier = columns[task_id]
             grouped = _regrouped(results, columns)
-        if stats_for is not None:
+        if fixed_stats is not None:
+            models_path = in_sample_path
+        elif stats_for is not None:
             tier = PREDICTED_TIER
             models_path = tmp_dir / f"models-{task_id}.json"
             models_path.write_text(
@@ -895,7 +902,10 @@ def _document(report: dict[str, Any]) -> str:
     cfg = report["config"]
     prov = report["provenance"]
     sampling = (
-        "Leave-one-out: each task routes from tier means recomputed with that "
+        f"Zero-shot: every task routes from columns built on `{cfg['columns_from']}` "
+        "alone, a different repository, so no pick saw any task of this one."
+        if cfg.get("columns_from")
+        else "Leave-one-out: each task routes from tier means recomputed with that "
         "task excluded, so no pick knows the run it is scored against."
         if cfg["holdout"]
         else "In-sample: the router read tier means computed from these same "
@@ -1030,6 +1040,44 @@ def _apply_rubric_inputs(
     return floors, column_for, meta
 
 
+def _columns_from_other_dataset(
+    dataset_path: Path,
+    rubric_inputs: Path,
+    harness: str,
+    skill: str,
+) -> tuple[dict[str, dict[str, Any]], str]:
+    """Every model's bucket columns, built from a different dataset.
+
+    This is the zero-shot case: the router has only another repository's
+    benchmark to go on. Each of that dataset's tasks is filed under the bucket
+    its own rubric pass gave it, and the columns are its models' means there.
+    Buckets are absolute, so the routed tasks are placed by the same fixed
+    ranges.
+
+    Args:
+        dataset_path: The dataset whose results build the columns.
+        rubric_inputs: That dataset's rubric pass.
+        harness: Harness folder.
+        skill: Skill folder.
+
+    Returns:
+        ``_tier_stats`` output for that dataset, and its scope.
+
+    Raises:
+        SystemExit: If the dataset has no results or the rubric pass misses a task.
+    """
+    tasks, scope = _load_tasks(dataset_path)
+    results = _load_results(harness, skill, scope)
+    if not results:
+        raise SystemExit(
+            f"no results for --columns-from under {harness}/{skill}/{scope}"
+        )
+    _, column_for, _ = _apply_rubric_inputs(rubric_inputs, tasks, "absolute", False)
+    known = {t["id"] for t in tasks}
+    columns = {tid: c for tid, c in column_for("").items() if tid in known}
+    return _tier_stats(_regrouped(results, columns)), scope
+
+
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -1096,6 +1144,20 @@ def _parse_args() -> argparse.Namespace:
         help="With --rubric-inputs: compare the required quality against bucket "
         "column means, or against each model's score predicted from the task's "
         "difficulty sum by a line fitted over the other tasks. Default: %(default)s.",
+    )
+    parser.add_argument(
+        "--columns-from",
+        type=Path,
+        default=None,
+        help="Zero-shot replay: build the bucket columns from THIS other dataset's "
+        "results instead of --dataset's, and route --dataset's tasks against them. "
+        "Needs --rubric-inputs and --columns-rubric-inputs; absolute buckets only.",
+    )
+    parser.add_argument(
+        "--columns-rubric-inputs",
+        type=Path,
+        default=None,
+        help="The rubric pass for --columns-from's dataset.",
     )
     parser.add_argument(
         "--floors-file",
@@ -1193,6 +1255,24 @@ def main() -> None:
 
             stats_for = partial(_predicted_stats, results, sums, holdout=args.holdout)
             judged_meta["column_model"] = "regression"
+    fixed_stats = None
+    if args.columns_from:
+        if not (args.rubric_inputs and args.columns_rubric_inputs):
+            raise SystemExit(
+                "--columns-from needs --rubric-inputs and --columns-rubric-inputs"
+            )
+        if bucketing != "absolute" or args.column_model != "buckets" or args.holdout:
+            raise SystemExit(
+                "--columns-from supports absolute buckets only, without --holdout "
+                "(the routed tasks are never in the columns)"
+            )
+        columns_path = args.columns_from
+        if not columns_path.is_absolute():
+            columns_path = BENCHMARKS_DIR / columns_path
+        fixed_stats, columns_scope = _columns_from_other_dataset(
+            columns_path, args.columns_rubric_inputs, args.harness, args.skill
+        )
+        judged_meta["columns_from"] = columns_scope
     if args.judged_inputs:
         judged = json.loads(args.judged_inputs.read_text(encoding="utf-8"))
         judged_meta = judged.get("judged_by") or {}
@@ -1236,6 +1316,7 @@ def main() -> None:
                 judged_tiers=judged_tiers,
                 column_for=column_for,
                 stats_for=stats_for,
+                fixed_stats=fixed_stats,
             )
         except RouteError as exc:
             raise SystemExit(f"routing failed at floor {floor}: {exc}") from exc
@@ -1245,7 +1326,11 @@ def main() -> None:
             "mean score %.2f vs %.2f (%+.2f; %+.2f with failures as 0), "
             "%d task(s) under floor",
             floor,
-            "leave-one-out" if args.holdout else "in-sample",
+            "zero-shot"
+            if fixed_stats
+            else "leave-one-out"
+            if args.holdout
+            else "in-sample",
             totals["routed_total_cost_usd"],
             totals["baseline_total_cost_usd"],
             totals["cost_saving_pct"],
@@ -1270,6 +1355,7 @@ def main() -> None:
             "no_allow_list": args.no_allow_list,
             "tie_band": args.tie_band,
             "holdout": args.holdout,
+            "columns_from": judged_meta.get("columns_from"),
             "judged_by": judged_meta,
             "floor_note": (
                 "Required quality per task, from the rubric pass by "

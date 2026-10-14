@@ -1,0 +1,64 @@
+{
+  "task": "pr-view-json-number-on-issue",
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 23,
+      "specificity": 24,
+      "risk_awareness": 20,
+      "total": 90,
+      "notes": "The issue clearly identifies the false-positive exit status, its scripting impact, and the field-dependent behavior. Its explanation matches `finder.Find` and the `findByNumber` path in `pkg/cmd/pr/shared/finder.go`.  The acceptance criteria are concrete, although \"same behavior\" for `#N` and URL selectors does not explicitly enumerate both positive and negative cases. No independent task statement was supplied, so the related issue and intended scope could not be independently confirmed."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 23,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 89,
+      "notes": "The LLD is implementation-ready, naming the correct finder branch, query helper, tests, callers, and data flow. Public source corroborates that URL parsing establishes `baseRefRepo` and `prNumber`, and that positive numbers flow through `findByNumber`.  It appropriately discusses the extra API request, changed failure point, rollout, and alternatives. Its exact GitHub error text, complete caller inventory, and rate-limit implications were not fully verifiable, and it does not require the repository-wide test and lint commands."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 20,
+      "specificity": 20,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The review identifies concrete blast-radius concerns, including number-only callers, URL selection, merge refs, API cost, and the obsolete no-HTTP test. The `pr diff` number-only finder usage is consistent with repository source. ([github.com](https://github.com/malor/gh-cli/blob/trunk/pkg/cmd/pr/diff/diff.go)) Its largest weakness is insufficient challenge: it misses the absent exact-error assertion, incomplete automated selector coverage, and repository-wide lint and test requirements. It also incorrectly says the release-note recommendation is reflected in `testing.md`, where no such checklist item appears."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 80,
+      "notes": "The plan provides concrete commands and meaningful stdout, stderr, JSON, and exit-status oracles for both PR and issue cases. It covers direct numbers, `#N`, URLs, other field sets, finder unit tests, and affected command packages. The E2E snippet uses an undefined `$N`, while the automated negative test only requires some error rather than the promised specific not-found error. It also omits `go test ./...` and `make lint`, and the hard-coded live issue and PR identities could not be independently verified."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 23,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 89,
+      "notes": "The patch implements the design directly by removing the unvalidated number-only return and routing every positive `prNumber` through `findByNumber`; current upstream source reflects that same control flow.  The target files, symbols, and surrounding context are consistent with the submitted baseline, and the added tests cover successful lookup, GraphQL rejection, and URL repository selection. The largest gap is that tests assert only `wantErr`, omit automated `#N` and URL-negative cases, and therefore do not pin the exact accepted error behavior. The claimed test execution and clean local application could not be independently verified because the read-only command sandbox failed before executing commands."
+    }
+  },
+  "task_score": 85.0,
+  "verdict": "This is a strong, repository-grounded minimal fix whose main limitation is that the review and tests do not fully enforce the promised error and selector behavior.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T16:24:23.454512Z",
+    "repo_ref": "v2.92.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 163048,
+      "cached_input_tokens": 83789,
+      "cache_write_input_tokens": 25174,
+      "output_tokens": 12090,
+      "reasoning_output_tokens": 10336
+    },
+    "duration_ms": 193458
+  }
+}

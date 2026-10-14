@@ -1,0 +1,304 @@
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 6467fe7..c47d8eb 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -23,6 +23,7 @@ const (
+ 	aliasesKey            = "aliases"
+ 	browserKey            = "browser" // used by cli/go-gh to open URLs in web browsers
+ 	colorLabelsKey        = "color_labels"
++	copyToClipboardKey    = "copy_to_clipboard"
+ 	apiHostKey            = "api_host" // used by cli/go-gh to redirect API requests for a host
+ 	editorKey             = "editor"   // used by cli/go-gh to open interactive text editor
+ 	gitProtocolKey        = "git_protocol"
+@@ -177,6 +178,11 @@ func (c *cfg) Telemetry() gh.ConfigEntry {
+ 	return c.GetOrDefault("", telemetryKey).Unwrap()
+ }
+
++func (c *cfg) CopyToClipboard() gh.ConfigEntry {
++	// Intentionally panic if there is no user provided value or default value (which would be a programmer error)
++	return c.GetOrDefault("", copyToClipboardKey).Unwrap()
++}
++
+ func (c *cfg) Version() o.Option[string] {
+ 	return c.get("", versionKey)
+ }
+@@ -765,6 +771,15 @@ var Options = []ConfigOption{
+ 			return c.Telemetry().Value
+ 		},
+ 	},
++	{
++		Key:           copyToClipboardKey,
++		Description:   "whether to copy the one-time OAuth device code to the clipboard during gh auth login and gh auth refresh",
++		DefaultValue:  "disabled",
++		AllowedValues: []string{"enabled", "disabled"},
++		CurrentValue: func(c gh.Config, hostname string) string {
++			return c.CopyToClipboard().Value
++		},
++	},
+ }
+
+ func HomeDirPath(subdir string) (string, error) {
+diff --git a/internal/config/test.go b/internal/config/test.go
+index 6f096e9..e7870cd 100644
+--- a/internal/config/test.go
++++ b/internal/config/test.go
+@@ -75,6 +75,9 @@ func NewMockConfigFromString(cfgString string) *ghmock.ConfigMock {
+ 	mock.TelemetryFunc = func() gh.ConfigEntry {
+ 		return cfg.Telemetry()
+ 	}
++	mock.CopyToClipboardFunc = func() gh.ConfigEntry {
++		return cfg.CopyToClipboard()
++	}
+ 	mock.ColorLabelsFunc = func(hostname string) gh.ConfigEntry {
+ 		return cfg.ColorLabels(hostname)
+ 	}
+diff --git a/internal/gh/gh.go b/internal/gh/gh.go
+index f8ca185..648cebf 100644
+--- a/internal/gh/gh.go
++++ b/internal/gh/gh.go
+@@ -59,6 +59,8 @@ type Config interface {
+ 	Spinner(hostname string) ConfigEntry
+ 	// Telemetry returns the configured telemetry setting, ignoring host scoping since telemetry is a global setting.
+ 	Telemetry() ConfigEntry
++	// CopyToClipboard returns the configured copy-to-clipboard setting, ignoring host scoping since it is a global setting.
++	CopyToClipboard() ConfigEntry
+
+ 	// Aliases provides persistent storage and modification of command aliases.
+ 	Aliases() AliasConfig
+diff --git a/internal/gh/mock/config.go b/internal/gh/mock/config.go
+index 31e35cb..8b5e0f1 100644
+--- a/internal/gh/mock/config.go
++++ b/internal/gh/mock/config.go
+@@ -4,10 +4,9 @@
+ package ghmock
+
+ import (
+-	"sync"
+-
+ 	"github.com/cli/cli/v2/internal/gh"
+ 	o "github.com/cli/cli/v2/pkg/option"
++	"sync"
+ )
+
+ // Ensure, that ConfigMock does implement gh.Config.
+@@ -41,6 +40,9 @@ var _ gh.Config = &ConfigMock{}
+ //			ColorLabelsFunc: func(hostname string) gh.ConfigEntry {
+ //				panic("mock out the ColorLabels method")
+ //			},
++//			CopyToClipboardFunc: func() gh.ConfigEntry {
++//				panic("mock out the CopyToClipboard method")
++//			},
+ //			EditorFunc: func(hostname string) gh.ConfigEntry {
+ //				panic("mock out the Editor method")
+ //			},
+@@ -108,6 +110,9 @@ type ConfigMock struct {
+ 	// ColorLabelsFunc mocks the ColorLabels method.
+ 	ColorLabelsFunc func(hostname string) gh.ConfigEntry
+
++	// CopyToClipboardFunc mocks the CopyToClipboard method.
++	CopyToClipboardFunc func() gh.ConfigEntry
++
+ 	// EditorFunc mocks the Editor method.
+ 	EditorFunc func(hostname string) gh.ConfigEntry
+
+@@ -178,6 +183,9 @@ type ConfigMock struct {
+ 			// Hostname is the hostname argument value.
+ 			Hostname string
+ 		}
++		// CopyToClipboard holds details about calls to the CopyToClipboard method.
++		CopyToClipboard []struct {
++		}
+ 		// Editor holds details about calls to the Editor method.
+ 		Editor []struct {
+ 			// Hostname is the hostname argument value.
+@@ -251,6 +259,7 @@ type ConfigMock struct {
+ 	lockBrowser            sync.RWMutex
+ 	lockCacheDir           sync.RWMutex
+ 	lockColorLabels        sync.RWMutex
++	lockCopyToClipboard    sync.RWMutex
+ 	lockEditor             sync.RWMutex
+ 	lockGetOrDefault       sync.RWMutex
+ 	lockGitProtocol        sync.RWMutex
+@@ -475,6 +484,33 @@ func (mock *ConfigMock) ColorLabelsCalls() []struct {
+ 	return calls
+ }
+
++// CopyToClipboard calls CopyToClipboardFunc.
++func (mock *ConfigMock) CopyToClipboard() gh.ConfigEntry {
++	if mock.CopyToClipboardFunc == nil {
++		panic("ConfigMock.CopyToClipboardFunc: method is nil but Config.CopyToClipboard was just called")
++	}
++	callInfo := struct {
++	}{}
++	mock.lockCopyToClipboard.Lock()
++	mock.calls.CopyToClipboard = append(mock.calls.CopyToClipboard, callInfo)
++	mock.lockCopyToClipboard.Unlock()
++	return mock.CopyToClipboardFunc()
++}
++
++// CopyToClipboardCalls gets all the calls that were made to CopyToClipboard.
++// Check the length with:
++//
++//	len(mockedConfig.CopyToClipboardCalls())
++func (mock *ConfigMock) CopyToClipboardCalls() []struct {
++} {
++	var calls []struct {
++	}
++	mock.lockCopyToClipboard.RLock()
++	calls = mock.calls.CopyToClipboard
++	mock.lockCopyToClipboard.RUnlock()
++	return calls
++}
++
+ // Editor calls EditorFunc.
+ func (mock *ConfigMock) Editor(hostname string) gh.ConfigEntry {
+ 	if mock.EditorFunc == nil {
+diff --git a/pkg/cmd/auth/login/login.go b/pkg/cmd/auth/login/login.go
+index 24d30c5..7aeba6b 100644
+--- a/pkg/cmd/auth/login/login.go
++++ b/pkg/cmd/auth/login/login.go
+@@ -40,6 +40,7 @@ type LoginOptions struct {
+ 	InsecureStorage  bool
+ 	SkipSSHKeyPrompt bool
+ 	Clipboard        bool
++	clipboardSet     bool
+ }
+
+ func NewCmdLogin(f *cmdutil.Factory, runF func(*LoginOptions) error) *cobra.Command {
+@@ -138,6 +139,7 @@ func NewCmdLogin(f *cmdutil.Factory, runF func(*LoginOptions) error) *cobra.Comm
+ 				opts.Hostname, _ = ghauth.DefaultHost()
+ 			}
+
++			opts.clipboardSet = cmd.Flags().Changed("clipboard")
+ 			opts.MainExecutable = f.ExecutablePath
+ 			if runF != nil {
+ 				return runF(opts)
+@@ -216,6 +218,11 @@ func loginRun(opts *LoginOptions) error {
+ 		return loginErr
+ 	}
+
++	copyToClipboard := opts.Clipboard
++	if !opts.clipboardSet && cfg.CopyToClipboard().Value == "enabled" {
++		copyToClipboard = true
++	}
++
+ 	return shared.Login(&shared.LoginOptions{
+ 		IO:              opts.IO,
+ 		Config:          authCfg,
+@@ -240,7 +247,7 @@ func loginRun(opts *LoginOptions) error {
+ 		},
+ 		SecureStorage:    !opts.InsecureStorage,
+ 		SkipSSHKeyPrompt: opts.SkipSSHKeyPrompt,
+-		CopyToClipboard:  opts.Clipboard,
++		CopyToClipboard:  copyToClipboard,
+ 	})
+ }
+
+diff --git a/pkg/cmd/auth/refresh/refresh.go b/pkg/cmd/auth/refresh/refresh.go
+index 8ef5e7a..6a07f94 100644
+--- a/pkg/cmd/auth/refresh/refresh.go
++++ b/pkg/cmd/auth/refresh/refresh.go
+@@ -39,6 +39,7 @@ type RefreshOptions struct {
+ 	Interactive     bool
+ 	InsecureStorage bool
+ 	Clipboard       bool
++	clipboardSet    bool
+ }
+
+ func NewCmdRefresh(f *cmdutil.Factory, runF func(*RefreshOptions) error) *cobra.Command {
+@@ -102,6 +103,7 @@ func NewCmdRefresh(f *cmdutil.Factory, runF func(*RefreshOptions) error) *cobra.
+ 				return cmdutil.FlagErrorf("--hostname required when not running interactively")
+ 			}
+
++			opts.clipboardSet = cmd.Flags().Changed("clipboard")
+ 			opts.MainExecutable = f.ExecutablePath
+ 			if runF != nil {
+ 				return runF(opts)
+@@ -200,7 +202,11 @@ func refreshRun(opts *RefreshOptions) error {
+
+ 	additionalScopes.RemoveValues(opts.RemoveScopes)
+
+-	authedToken, authedUser, err := opts.AuthFlow(plainHTTPClient, opts.IO, hostname, additionalScopes.ToSlice(), opts.Interactive, opts.Clipboard)
++	copyToClipboard := opts.Clipboard
++	if !opts.clipboardSet && cfg.CopyToClipboard().Value == "enabled" {
++		copyToClipboard = true
++	}
++	authedToken, authedUser, err := opts.AuthFlow(plainHTTPClient, opts.IO, hostname, additionalScopes.ToSlice(), opts.Interactive, copyToClipboard)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/pkg/cmd/auth/refresh/refresh_test.go b/pkg/cmd/auth/refresh/refresh_test.go
+index 9353de3..9db7793 100644
+--- a/pkg/cmd/auth/refresh/refresh_test.go
++++ b/pkg/cmd/auth/refresh/refresh_test.go
+@@ -213,15 +213,16 @@ type authOut struct {
+
+ func Test_refreshRun(t *testing.T) {
+ 	tests := []struct {
+-		name          string
+-		opts          *RefreshOptions
+-		prompterStubs func(*prompter.PrompterMock)
+-		cfgHosts      []string
+-		authOut       authOut
+-		oldScopes     string
+-		wantErr       string
+-		nontty        bool
+-		wantAuthArgs  authArgs
++		name            string
++		opts            *RefreshOptions
++		prompterStubs   func(*prompter.PrompterMock)
++		cfgHosts        []string
++		authOut         authOut
++		oldScopes       string
++		wantErr         string
++		nontty          bool
++		wantAuthArgs    authArgs
++		copyToClipboard string
+ 	}{
+ 		{
+ 			name:    "no hosts configured",
+@@ -270,6 +271,22 @@ func Test_refreshRun(t *testing.T) {
+ 				clipboard:     true,
+ 			},
+ 		},
++		{
++			name: "no hostname, one host configured, copy_to_clipboard config enabled",
++			cfgHosts: []string{
++				"github.com",
++			},
++			copyToClipboard: "enabled",
++			opts: &RefreshOptions{
++				Hostname: "",
++			},
++			wantAuthArgs: authArgs{
++				hostname:      "github.com",
++				scopes:        []string{},
++				secureStorage: true,
++				clipboard:     true,
++			},
++		},
+ 		{
+ 			name: "no hostname, one host configured",
+ 			cfgHosts: []string{
+@@ -487,6 +504,9 @@ func Test_refreshRun(t *testing.T) {
+ 				_, err := cfg.Authentication().Login(hostname, "test-user", "abc123", "https", false)
+ 				require.NoError(t, err)
+ 			}
++			if tt.copyToClipboard != "" {
++				cfg.Set("", "copy_to_clipboard", tt.copyToClipboard)
++			}
+ 			tt.opts.Config = func() (gh.Config, error) {
+ 				return cfg, nil
+ 			}
+diff --git a/pkg/cmd/config/list/list_test.go b/pkg/cmd/config/list/list_test.go
+index 3a04647..5549ac8 100644
+--- a/pkg/cmd/config/list/list_test.go
++++ b/pkg/cmd/config/list/list_test.go
+@@ -107,6 +107,7 @@ func Test_listRun(t *testing.T) {
+ 				accessible_prompter=disabled
+ 				spinner=enabled
+ 				telemetry=enabled
++				copy_to_clipboard=disabled
+ 			`),
+ 		},
+ 	}

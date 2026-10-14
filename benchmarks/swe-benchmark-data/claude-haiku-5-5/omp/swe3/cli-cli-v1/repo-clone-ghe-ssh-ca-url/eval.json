@@ -1,0 +1,64 @@
+{
+  "task": "repo-clone-ghe-ssh-ca-url",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 23,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 89,
+      "notes": "The issue provides a strong, testable contract covering API-provided SSH URLs, fork upstreams, HTTPS compatibility, fallback behavior, and wiki clones. Its named symbols and root cause match the submitted diff context and the public issue, including `GitHubRepo`, `FormatRemoteURL`, and `cloneRun`. ([github.com](https://github.com/cli/cli/issues/14344), [github.com](https://github.com/cli/cli/blob/v2.54.0/internal/ghrepo/repo.go)) The explicit exclusions keep the change bounded. Its main limitation is the absent independent task statement and limited treatment of malformed API URL risks."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 85,
+      "notes": "The design commits to an exact data flow, helper contract, two integration points, fallback semantics, and wiki transformation. The submitted source context supports the cited files and interfaces, while the public issue confirms that the repository model already supports `SSHURL`. ([github.com](https://github.com/cli/cli/issues/14344)) Its largest gap is that the proposed implementation verification covers only the primary clone path, not the parent URL or leading-dash branch. The older-GHES fallback discussion also assumes the GraphQL field exists in the server schema; an unsupported field would fail the query rather than decode empty."
+    },
+    "review": {
+      "completeness": 18,
+      "correctness": 20,
+      "specificity": 21,
+      "risk_awareness": 18,
+      "total": 77,
+      "notes": "The strongest review finding is the concrete leading-dash option-injection case, with a narrowly scoped guard and clear consequence. It also examines pointer interface satisfaction, shared parent fragments, request count, fallback behavior, and command output. Its largest deficiency is approving the patch without noticing that the new mock does not prove `sshUrl` was requested and that no automated test covers the required parent-upstream behavior. The comparison to existing HTTPS trust is imprecise because `FormatRemoteURL` synthesizes that URL rather than accepting an arbitrary API URL."
+    },
+    "testing": {
+      "completeness": 14,
+      "correctness": 13,
+      "specificity": 19,
+      "risk_awareness": 15,
+      "total": 61,
+      "notes": "The plan gives concrete commands, fixture data, command regexes, compatibility cases, and realistic manual GHE.com steps. Its critical oracle flaw is that the GraphQL mock returns `sshUrl` regardless of the submitted query, so the new test could pass if the `queries_repo.go` change were removed. It explicitly leaves fork-upstream and leading-dash behavior untested, and existing HTTPS tests without `sshUrl` do not exercise the claimed negative case with that field present. Wiki behavior with an API SSH URL and query-shape verification are also missing."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 77,
+      "notes": "The focused patch implements the stated data flow by requesting `sshUrl`, selecting it for SSH at both clone sites, preserving fallback behavior, and retaining the existing wiki transformation. The diff context and public issue support the target symbols and underlying defect, but local forward applicability, formatting, and compilation could not be independently rechecked because the repository shell failed before executing commands. ([github.com](https://github.com/cli/cli/issues/14344), [github.com](https://github.com/cli/cli/blob/v2.54.0/internal/ghrepo/repo.go)) The largest defect is test coverage: the test does not verify the query field and omits parent, malformed URL, and API-backed wiki cases; it also uses `t.Fatalf` instead of the repository-mandated `require` error assertion. The summary accurately discloses unexecuted tests, although its claim that a skill forbids running them is unsupported and conflicts with the repository guidance."
+    }
+  },
+  "task_score": 77.8,
+  "verdict": "The submission presents a technically sound and well-scoped fix, but its implementation confidence is materially limited by a GraphQL mock that cannot catch omission of the new field and by missing automated coverage for the upstream path.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T14:28:18.057776Z",
+    "repo_ref": "v2.100.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 134641,
+      "cached_input_tokens": 61746,
+      "cache_write_input_tokens": 23395,
+      "output_tokens": 11812,
+      "reasoning_output_tokens": 9819
+    },
+    "duration_ms": 181113
+  }
+}

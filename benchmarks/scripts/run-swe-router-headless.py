@@ -100,10 +100,10 @@ MAX_FLOOR = 80.0
 MODE_FLOOR = "floor"
 MODE_RUBRIC = "rubric"
 MODES = (MODE_FLOOR, MODE_RUBRIC)
-DEFAULT_OUT = {
-    MODE_FLOOR: REPO_ROOT / "docs" / "metrics" / "swe-router-judged-inputs.json",
-    MODE_RUBRIC: REPO_ROOT / "docs" / "metrics" / "swe-router-rubric-inputs.json",
-}
+DEFAULT_FLOOR_OUT = REPO_ROOT / "docs" / "metrics" / "swe-router-judged-inputs.json"
+# A rubric pass describes one dataset's tasks, so its default file name carries
+# the dataset scope and the judging model: one file per dataset and judge.
+RUBRIC_OUT_TEMPLATE = "swe-router-rubric-{scope}-{model}.json"
 
 DEFAULT_DATASET = "dataset/mcp-gateway-registry-v2.yaml"
 DEFAULT_TIMEOUT_SECONDS = 900
@@ -148,6 +148,24 @@ HARNESS = _load_harness()
 def _utc_now_iso() -> str:
     """Return the current UTC time as an ISO 8601 string with a trailing Z."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _default_out(
+    mode: str,
+    dataset: Dataset,
+    dataset_path: Path,
+    config: RunnerConfig,
+) -> Path:
+    """Where to write the judged inputs when --out is not given.
+
+    A rubric pass is named after its dataset and judge, so passes over two
+    datasets, or by two judges, never overwrite each other.
+    """
+    if mode != MODE_RUBRIC:
+        return DEFAULT_FLOOR_OUT
+    scope = dataset.output_scope or dataset_path.stem
+    name = RUBRIC_OUT_TEMPLATE.format(scope=scope, model=config.model_slug)
+    return REPO_ROOT / "docs" / "metrics" / name
 
 
 def _build_prompt(task: Task, clone_path: Path) -> str:
@@ -907,8 +925,8 @@ def _parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="Where to write the judged inputs. Default: "
-        "docs/metrics/swe-router-judged-inputs.json, or "
-        "docs/metrics/swe-router-rubric-inputs.json in rubric mode.",
+        "docs/metrics/swe-router-judged-inputs.json, or in rubric mode "
+        "docs/metrics/swe-router-rubric-<dataset scope>-<model slug>.json.",
     )
     parser.add_argument(
         "--out-md",
@@ -972,7 +990,7 @@ def main() -> None:
     except DatasetError as exc:
         raise SystemExit(f"dataset error: {exc}") from exc
     tasks = _select_tasks(dataset, args.tasks.split(",") if args.tasks else [])
-    args.out = args.out or DEFAULT_OUT[args.mode]
+    args.out = args.out or _default_out(args.mode, dataset, dataset_path, config)
     rubric_text, policy = "", None
     if args.mode == MODE_RUBRIC:
         try:

@@ -1,0 +1,64 @@
+{
+  "task": "pr-view-json-number-on-issue",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 20,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 16,
+      "total": 81,
+      "notes": "The issue precisely identifies the number-only shortcut and supplies concrete, testable acceptance criteria. Its cited `finder.Find` and `findByNumber` integration points match the repository structure. ([github.com](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/shared/finder.go)) Its largest deficiency is omitting the finder-wide effects on `pr checks --web`, `pr diff`, and commands that now require network access. No independent task statement was supplied, and the exact live GitHub error wording could not be verified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 92,
+      "notes": "The LLD is implementation-ready, naming the exact finder branch, GraphQL operation, tests, callers, failure behavior, and rejected alternatives. The repository confirms that numeric lookups flow through `findByNumber`, while `diffRun` requests only `number` before fetching the REST diff. ([github.com](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/shared/finder.go), [github.com](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/diff/diff.go)) Its main flaw is claiming the empty-selector `refs/pull/N/head` route is unaffected, although removing the shortcut also adds validation and network failure exposure there. The document appropriately labels GitHub's exact error text as an unverified inference."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 24,
+      "total": 90,
+      "notes": "The review finds a real design blocker: the shared fix changes `checks --web`, and it also identifies the earlier `pr diff` failure point and new network dependency. Its `pr diff` analysis agrees with the actual sequence from finder lookup to REST fetch. ([github.com](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/diff/diff.go)) The largest correctness blemish is the security claim that only digit-parsed selectors reach `findByNumber`; URL and branch-configuration paths can reach it too, and `strconv.Atoi` is not strictly digit-only. The recommendations are prioritized, actionable, and followed by an explicit blocker resolution."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 81,
+      "notes": "The strongest portion is the exact finder test setup, including operation matchers, response bodies, concrete oracles, and explanations of why both cases fail before the fix. The unit command and `gh pr view` invocation are consistent with the repository's command surface. ([cli.github.com](https://cli.github.com/manual/gh_pr_view)) The main deficiency is that manual checks invoke an unspecified installed `gh` rather than the patched binary, and the promised `pr diff` behavioral coverage is absent. Collateral command behavior and network failures are discussed but not directly asserted, and live behavior was not verified."
+    },
+    "implementation": {
+      "completeness": 24,
+      "correctness": 24,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 93,
+      "notes": "The patch directly removes the erroneous shortcut, preserves the existing numeric lookup path, and adds both successful and issue-number GraphQL tests. Its target files, symbols, and surrounding control flow match the repository, including the existing `findByNumber` API and the number-only `diffRun` caller. ([github.com](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/shared/finder.go), [github.com](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/diff/diff.go)) The largest limitation is that the summary overstates its selected package list as all finder callers and supplies no direct regression test for the documented command-level side effects. Patch application and claimed test execution could not be independently repeated, but no source-level defect or design deviation is apparent."
+    }
+  },
+  "task_score": 87.4,
+  "verdict": "This is a strong and likely correct fix, with the largest limitation being incomplete issue and test coverage of the finder-wide network and command-behavior changes amid the missing independent task statement.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T14:14:18.859608Z",
+    "repo_ref": "v2.92.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 134559,
+      "cached_input_tokens": 70609,
+      "cache_write_input_tokens": 24005,
+      "output_tokens": 9977,
+      "reasoning_output_tokens": 8416
+    },
+    "duration_ms": 144035
+  }
+}

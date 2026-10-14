@@ -1,0 +1,64 @@
+{
+  "task": "project-item-edit-by-name",
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 22,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 83,
+      "notes": "The issue defines a concrete readable invocation, backward-compatibility requirements, testable errors, and useful non-goals. The official command documentation confirms the number/owner/URL/field flow, but describes `--value` specifically as a single-select option name, while this issue expands it to text, number, date, and iteration without independent task evidence. ([cli.github.com](https://cli.github.com/manual/gh_project_item-edit), [github.com](https://github.com/cli/cli/releases/)) That unsupported scope expansion is its largest deficiency because it substantially enlarges API and compatibility risk. No independent task statement was supplied, and the claimed related issue and several API-limit assumptions could not be verified from the unavailable local execution environment."
+    },
+    "lld": {
+      "completeness": 21,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 82,
+      "notes": "The LLD is unusually concrete about `item_edit.go`, shared query helpers, mutation reuse, lookup ordering, pagination, ambiguity handling, and failure-before-mutation behavior. Its principal weakness is designing all-type `--value` interpretation when the established command surface documents that flag for single-select values, creating unnecessary iteration queries and parsing semantics. ([cli.github.com](https://cli.github.com/manual/gh_project_item-edit)) It also retains contradictory text saying one page of 100 project items is assumed after resolving that issue with pagination, and it misses the silent `--id` plus `--title`/`--body` plus `--field`/`--value` combination. Exact application against the tagged tree and claims about pinned shared-query tests could not be verified because local read commands failed before execution."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 83,
+      "notes": "The review finds several real, consequential defects: project-item pagination, empty-value dispatch, misleading candidates, and silently ignored `--url` with draft-edit flags. Those findings are actionable and are visibly reflected in the submitted diff through pagination, empty-value validation, and new flag errors. Its largest miss is the analogous `--id DI_... --title ... --field ... --value ...` path, which still resolves a field and then silently executes only the draft update; it also never challenges the unsupported all-data-type expansion. Claims about shared query-test breakage and field-count limits remained unverifiable against the local checkout."
+    },
+    "testing": {
+      "completeness": 21,
+      "correctness": 19,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The plan has strong concrete oracles for mutation payloads, case-insensitive matching, pagination, clear behavior, invalid values, candidate-list errors, and legacy ID paths. The manual setup builds `bin/gh` but invokes bare `gh`, so it can accidentally test an installed binary, and several multi-type checks merely say `item-list` shows the value without an exact query or expected representation. The automated tests omit the mixed draft-edit and name-based-field case that exposes silent flag loss, and they use `assert` for error checks despite the repository instruction to use `require`. The reported test execution and live GraphQL compatibility were not independently verifiable."
+    },
+    "implementation": {
+      "completeness": 20,
+      "correctness": 17,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 74,
+      "notes": "The diff implements the submitted design end to end with new flags, owner/project lookup, field and option matching, iteration lookup, paginated item resolution, mutation reuse, and substantial focused tests. Its largest concrete defect is that validation rejects `--url` with `--title` or `--body` but permits an ID-addressed draft edit combined with `--field` and `--value`; after resolution, `runEditItem` takes the draft branch and silently ignores the requested field update. The patch also broadens `--value` beyond the officially documented single-select behavior, uses `assert` rather than required fatal assertions, and admits that the mandatory linter was not run. ([cli.github.com](https://cli.github.com/manual/gh_project_item-edit)) The patch's application, compilation, and claimed test results could not be independently checked because the local read-only command sandbox failed before running commands."
+    }
+  },
+  "task_score": 80.4,
+  "verdict": "The submission is detailed and mostly implementation-ready, but it over-expands the intended value semantics and leaves a silent mixed draft/field flag path in the code.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T16:30:42.941982Z",
+    "repo_ref": "v2.96.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 228676,
+      "cached_input_tokens": 112742,
+      "cache_write_input_tokens": 40243,
+      "output_tokens": 13392,
+      "reasoning_output_tokens": 11459
+    },
+    "duration_ms": 211341
+  }
+}
