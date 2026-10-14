@@ -1,6 +1,6 @@
 # Does a task rubric route better than today's swe-router?
 
-Phase 0 of replacing `swe-router`'s two free-form judgments with one rubric. Tested on the 21 tasks of `mcp-gateway-registry-v2` against the benchmark results already on disk. Nothing was re-run or re-judged.
+Phase 0 of replacing `swe-router`'s two free-form judgments with one rubric, tested on the 21 tasks of `mcp-gateway-registry-v2` against the benchmark results already on disk. Nothing was re-run or re-judged. How the rubric works: [swe-router-rubric-design.md](swe-router-rubric-design.md).
 
 **Verdict.** The rubric routes better than today's skill for a developer on Claude Opus 5.5: it saves more and drops below the quality bar on fewer tasks. For a developer on Claude Haiku 5.5 it works when the candidates are Amazon Bedrock models, at 4% of the judging cost; with self-hosted models allowed, it once sent a hard task to a model that failed it. Two refinements I expected to help, relative buckets and a fitted line per model, did not consistently improve on plain buckets. With 21 tasks run once each, the differences between these methods are within noise; more tasks, not more methods, is the next step.
 
