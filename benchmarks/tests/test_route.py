@@ -265,6 +265,182 @@ class SkillTriggerTest(unittest.TestCase):
     def test_skill_states_it_runs_once_per_task(self) -> None:
         self.assertIn("Once per task", self.text)
 
+    def test_skill_names_no_measured_model(self) -> None:
+        # Model names and their scores belong in models.json, which the build
+        # regenerates. A name in SKILL.md goes stale the next time it does.
+        models = json.loads(MODELS.read_text(encoding="utf-8"))["models"]
+        named = [m["model"] for m in models if m["model"] in self.text]
+        self.assertEqual(named, [])
+
+    def test_skill_runs_route_py_with_the_rubric(self) -> None:
+        self.assertIn("python3 route.py --confidence", self.text)
+        self.assertIn("rubric.md", self.text)
+
+
+def _rubric(**overrides: int) -> dict[str, int]:
+    """Six rubric scores, all 1 unless overridden."""
+    scores = {d: 1 for d in route.DIMENSIONS}
+    scores.update(overrides)
+    return scores
+
+
+def _models_file(models: list[dict]) -> Path:
+    """A schema-2 models.json holding just these models."""
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+    json.dump({"schema_version": "2.0", "models": models}, tmp)
+    tmp.close()
+    return Path(tmp.name)
+
+
+def _model(name: str, cost: float, scores: dict, completion: dict) -> dict:
+    return {
+        "model": name,
+        "score": 80.0,
+        "cost_per_task_usd": cost,
+        "score_by_difficulty": scores,
+        "completion_by_difficulty": completion,
+    }
+
+
+class RubricParseTest(unittest.TestCase):
+    def test_accepts_plain_nested_and_wrapped_scores(self) -> None:
+        plain = _rubric()
+        nested = {d: {"score": v, "evidence": "x"} for d, v in plain.items()}
+        for text in (plain, nested, {"scores": nested}):
+            self.assertEqual(route.parse_rubric(json.dumps(text)), plain)
+
+    def test_rejects_a_missing_dimension(self) -> None:
+        scores = _rubric()
+        del scores["ambiguity"]
+        with self.assertRaisesRegex(route.RouteError, "must score exactly"):
+            route.parse_rubric(json.dumps(scores))
+
+    def test_rejects_a_score_outside_0_to_2(self) -> None:
+        for bad in (3, -1, True, "1"):
+            with self.assertRaisesRegex(route.RouteError, "must be 0, 1 or 2"):
+                route.parse_rubric(json.dumps(_rubric(blast_radius=bad)))
+
+
+class RubricPolicyTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.policy = route.load_policy(route.DEFAULT_POLICY)
+
+    def test_shipped_policy_loads(self) -> None:
+        self.assertEqual(
+            list(self.policy["difficulty"]["buckets"]), list(route.BUCKETS)
+        )
+
+    def test_matches_the_benchmark_implementation_for_every_score(self) -> None:
+        # The build buckets benchmark tasks with swe_router_rubric.py; the skill
+        # buckets the developer's task with route.py. They must never disagree.
+        sys.path.insert(0, str(_REPO_ROOT / "benchmarks" / "scripts"))
+        import itertools
+
+        import swe_router_rubric as rubric
+
+        typed = rubric.load_policy(route.DEFAULT_POLICY)
+        for combo in itertools.product(route.SCORES, repeat=len(route.DIMENSIONS)):
+            scores = dict(zip(route.DIMENSIONS, combo))
+            self.assertEqual(
+                (
+                    route.bucket_for(scores, self.policy),
+                    route.required_quality(scores, self.policy),
+                ),
+                (rubric.bucket(scores, typed), rubric.required_quality(scores, typed)),
+                scores,
+            )
+
+    def test_blast_radius_and_verification_set_the_required_quality(self) -> None:
+        self.assertEqual(
+            route.required_quality(_rubric(blast_radius=0), self.policy), 60
+        )
+        self.assertEqual(
+            route.required_quality(
+                _rubric(blast_radius=2, verification=2), self.policy
+            ),
+            80,
+        )
+
+    def test_a_malformed_policy_fails_with_a_message(self) -> None:
+        policy = json.loads(route.DEFAULT_POLICY.read_text(encoding="utf-8"))
+        policy["difficulty"]["buckets"]["hard"] = "4-5"
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump(policy, tmp)
+        tmp.close()
+        with self.assertRaisesRegex(route.RouteError, "bucket hard must be"):
+            route.load_policy(Path(tmp.name))
+
+    def test_a_missing_policy_is_an_error(self) -> None:
+        with self.assertRaisesRegex(route.RouteError, "no routing policy"):
+            route.load_policy(Path("/nonexistent/routing-policy.json"))
+
+
+class RubricRoutingTest(unittest.TestCase):
+    def _go(self, models: list[dict], **kw) -> dict:
+        args = dict(
+            rubric=_rubric(), confidence="high", models_path=_models_file(models)
+        )
+        args.update(kw)
+        return _route(tie_band=None, **args)
+
+    def test_picks_the_cheapest_model_clearing_the_bucket_column(self) -> None:
+        # All ones: difficulty sum 4 (hard), blast radius 1 (70).
+        models = [
+            _model("small", 1.0, {"hard": 72.0}, {"hard": "10/10"}),
+            _model("large", 9.0, {"hard": 85.0}, {"hard": "10/10"}),
+        ]
+        r = self._go(models)
+        self.assertEqual(
+            (r["bucket"], r["required_quality"], r["recommended"]["model"]),
+            ("hard", 70.0, "small"),
+        )
+
+    def test_skips_a_model_that_failed_a_task_in_the_bucket(self) -> None:
+        models = [
+            _model("small", 1.0, {"hard": 90.0}, {"hard": "9/10"}),
+            _model("large", 9.0, {"hard": 85.0}, {"hard": "10/10"}),
+        ]
+        r = self._go(models)
+        self.assertEqual(
+            (r["recommended"]["model"], r["skipped_for_failures"][0]["model"]),
+            ("large", "small"),
+        )
+
+    def test_reads_the_next_harder_bucket_when_one_is_missing(self) -> None:
+        models = [_model("only", 1.0, {"hard": 75.0}, {"hard": "5/5"})]
+        r = self._go(models, rubric=_rubric(hidden_contract=0, ambiguity=0))
+        self.assertEqual(
+            (r["bucket"], r["scored_from_harder_bucket"]),
+            ("moderate", {"only": "hard"}),
+        )
+
+    def test_low_confidence_stays_on_the_current_model(self) -> None:
+        r = self._go([], confidence="low")
+        self.assertEqual((r["status"], r["recommended"]), ("unsure", None))
+
+    def test_schema_1_models_cannot_serve_the_rubric(self) -> None:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump(
+            {"schema_version": "1.1", "models": [{"model": "m", "score": 1}]}, tmp
+        )
+        tmp.close()
+        with self.assertRaisesRegex(route.RouteError, "no score_by_difficulty"):
+            self._go([], models_path=Path(tmp.name))
+
+    def test_the_shipped_data_pick_is_never_dominated(self) -> None:
+        for combo in ((0, 0, 0, 0), (1, 1, 1, 1), (2, 2, 1, 1), (2, 2, 2, 2)):
+            for radius in (0, 1, 2):
+                dims = dict(zip(route.DIMENSIONS[:4], combo), blast_radius=radius)
+                r = _route(tie_band=None, rubric=_rubric(**dims), confidence="high")
+                pick = r["recommended"]
+                if not pick:
+                    continue
+                for other in r["cleared_floor"]:
+                    self.assertFalse(
+                        other["score"] > pick["score"]
+                        and other["cost_per_task_usd"] < pick["cost_per_task_usd"]
+                    )
+
 
 class CliTest(unittest.TestCase):
     def test_runs_as_a_script_on_stdlib_alone(self) -> None:
@@ -305,6 +481,27 @@ class CliTest(unittest.TestCase):
         )
         self.assertEqual(out.returncode, 1)
         self.assertEqual(json.loads(out.stdout)["status"], "nothing_clears_floor")
+
+    def _cli(self, *argv: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(_VEND / "route.py"), "--no-allow-list", *argv],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_rubric_runs_as_a_script(self) -> None:
+        out = self._cli("--confidence", "high", "--rubric", json.dumps(_rubric()))
+        self.assertEqual(
+            (out.returncode, json.loads(out.stdout)["bucket"]), (0, "hard")
+        )
+
+    def test_needs_the_rubric_or_the_legacy_pair(self) -> None:
+        self.assertEqual(self._cli("--tier", "low").returncode, 2)
+
+    def test_rejects_the_rubric_with_a_tier(self) -> None:
+        out = self._cli("--rubric", json.dumps(_rubric()), "--tier", "low")
+        self.assertEqual(out.returncode, 2)
 
     def test_route_py_imports_nothing_outside_the_standard_library(self) -> None:
         src = (_VEND / "route.py").read_text(encoding="utf-8")

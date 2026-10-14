@@ -6,7 +6,7 @@ they use. It cannot import anything from this one. So the measurements it needs
 are copied into ``vend/swe-router/models.json``, which is committed and served
 raw, and this script is the only thing that writes it.
 
-Two differences from the internal ``docs/metrics/pareto-frontier-*.json`` it
+Three differences from the internal ``docs/metrics/pareto-frontier-*.json`` it
 reads:
 
 * **Every measured model is included, not just the frontier.** The skill ranks
@@ -20,6 +20,13 @@ reads:
   knows this repo. A vended file has no such reader, so it carries the schema
   version, when it was measured, the harness, the skill, the dataset and the
   judge. A consumer holding a stale copy can see that it is stale.
+* **Scores are grouped by difficulty bucket.** The skill compares a task's
+  required quality against each model's mean score over the benchmark tasks
+  in the same bucket (easy, moderate, hard, very hard). The bucket of each
+  benchmark task comes from the dataset's rubric scores file
+  (``docs/metrics/swe-router-rubric-<dataset>-<judge>.json``), recomputed here
+  from its six stored scores with the shipped ``routing-policy.json``, so a
+  policy edit never leaves a stale bucket behind.
 
 Usage:
     uv run scripts/build_vended_models.py
@@ -32,8 +39,11 @@ import argparse
 import json
 import logging
 import hashlib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+import swe_router_rubric as rubric
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,12 +60,20 @@ DEFAULT_SOURCE = _REPO_ROOT / "docs" / "metrics" / "pareto-frontier-omp-swe3.jso
 DEFAULT_RUNS_DIR = _REPO_ROOT / "benchmarks" / "swe-benchmark-data"
 TIERS = ("trivial", "low", "medium", "high")
 DEFAULT_OUT = _REPO_ROOT / "vend" / "swe-router" / "models.json"
+# The rubric pass whose buckets build the columns. One judge per dataset: Opus
+# 5.5 gave the same bucket across three repeats on 20 of 21 cli/cli tasks, where
+# Haiku 5.5 did on 13 (docs/results-cli-cli-v1.md).
+RUBRIC_JUDGE = "claude-opus-5-5"
+RUBRIC_SCORES_TEMPLATE = "swe-router-rubric-{dataset}-{judge}.json"
+DEFAULT_RUBRIC_DIR = _REPO_ROOT / "docs" / "metrics"
 
 # Bumped when the shape of models.json changes in a way a consumer would notice.
 # Consumers pin this; the skill refuses a major it does not know. 1.1 replaced
 # provenance.source_commit (a git sha) with source_sha256 (a content hash) and
-# took measured_on from the run summaries instead of a commit date.
-SCHEMA_VERSION = "1.1"
+# took measured_on from the run summaries instead of a commit date. 2.0 added
+# score_by_difficulty and completion_by_difficulty, which the skill now selects
+# on, and the rubric provenance behind them.
+SCHEMA_VERSION = "2.0"
 # provenance.source_sha256 length: enough to tell versions apart, short to read.
 SOURCE_HASH_CHARS = 12
 
@@ -155,6 +173,61 @@ def _relative_or_name(source: Path, repo_root: Path) -> str:
         return source.name
 
 
+def _per_level_stats(
+    runs_dir: Path,
+    harness: str,
+    skill: str,
+    dataset: str,
+    level_of: Callable[[dict[str, Any]], str | None],
+    levels: tuple[str, ...],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Group every model's task scores by a level and summarise each level.
+
+    Args:
+        runs_dir: The swe-benchmark-data root.
+        harness: Harness folder, e.g. "omp".
+        skill: Skill folder, e.g. "swe3".
+        dataset: Dataset scope folder.
+        level_of: Maps a run-summary task row to its level, or None to skip it.
+        levels: Every level, in output order.
+
+    Returns:
+        Model slug -> {"score": {level: mean}, "completion": {level: "n/m"}}.
+    """
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    pattern = f"*/{harness}/{skill}/{dataset}/run-summary.json"
+    for path in sorted(runs_dir.glob(pattern)):
+        summary = json.loads(path.read_text(encoding="utf-8"))
+        model = summary.get("model_slug")
+        scored: dict[str, list[float]] = {}
+        attempted: dict[str, int] = {}
+        for row in summary.get("tasks", []):
+            level = level_of(row)
+            if not level:
+                continue
+            attempted[level] = attempted.get(level, 0) + 1
+            score = row.get("task_score")
+            # A failed task scores 0 and is excluded, not averaged in -- the
+            # completion counter is where that failure shows up instead.
+            if score and not row.get("failed"):
+                scored.setdefault(level, []).append(score)
+        if not model or not attempted:
+            continue
+        out[model] = {
+            "score": {
+                level: round(sum(v) / len(v), 2)
+                for level in levels
+                if (v := scored.get(level))
+            },
+            "completion": {
+                level: f"{len(scored.get(level, []))}/{attempted[level]}"
+                for level in levels
+                if level in attempted
+            },
+        }
+    return out
+
+
 def per_tier_stats(
     runs_dir: Path, harness: str, skill: str, dataset: str
 ) -> dict[str, dict[str, dict[str, Any]]]:
@@ -186,42 +259,95 @@ def per_tier_stats(
     Returns:
         Model slug -> {"score": {tier: mean}, "completion": {tier: "n/m"}}.
     """
-    out: dict[str, dict[str, dict[str, Any]]] = {}
-    pattern = f"*/{harness}/{skill}/{dataset}/run-summary.json"
-    for path in sorted(runs_dir.glob(pattern)):
-        summary = json.loads(path.read_text(encoding="utf-8"))
-        model = summary.get("model_slug")
-        scored: dict[str, list[float]] = {}
-        attempted: dict[str, int] = {}
-        for row in summary.get("tasks", []):
-            tier = row.get("complexity")
-            if not tier:
-                continue
-            attempted[tier] = attempted.get(tier, 0) + 1
-            score = row.get("task_score")
-            # A failed task scores 0 and is excluded, not averaged in -- the
-            # completion counter is where that failure shows up instead.
-            if score and not row.get("failed"):
-                scored.setdefault(tier, []).append(score)
-        if not model or not attempted:
-            continue
-        out[model] = {
-            "score": {
-                tier: round(sum(v) / len(v), 2)
-                for tier in TIERS
-                if (v := scored.get(tier))
-            },
-            "completion": {
-                tier: f"{len(scored.get(tier, []))}/{attempted[tier]}"
-                for tier in TIERS
-                if tier in attempted
-            },
-        }
-    return out
+    return _per_level_stats(
+        runs_dir, harness, skill, dataset, lambda row: row.get("complexity"), TIERS
+    )
+
+
+def task_buckets(rubric_scores: Path, policy_path: Path) -> dict[str, str]:
+    """Each benchmark task's difficulty bucket, from its stored rubric scores.
+
+    The bucket is recomputed from the six scores with the current policy rather
+    than read from the file's ``bucket`` field, so moving a bucket edge in
+    ``routing-policy.json`` takes effect at the next build without a new pass.
+
+    Args:
+        rubric_scores: A rubric pass (``run-swe-router-headless.py --mode rubric``).
+        policy_path: The routing policy that sets the bucket ranges.
+
+    Returns:
+        Task id -> bucket.
+
+    Raises:
+        SystemExit: If the file is not a rubric pass.
+    """
+    data = json.loads(rubric_scores.read_text(encoding="utf-8"))
+    if data.get("mode") != "rubric":
+        raise SystemExit(f"{rubric_scores} is not a rubric pass")
+    policy = rubric.load_policy(policy_path)
+    return {
+        task_id: rubric.bucket(entry["scores"], policy)
+        for task_id, entry in (data.get("tasks") or {}).items()
+    }
+
+
+def per_bucket_stats(
+    runs_dir: Path, harness: str, skill: str, dataset: str, buckets: dict[str, str]
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Return model -> {"score": bucket->mean, "completion": bucket->"n/m"}.
+
+    The same arithmetic as ``per_tier_stats``, grouped by each task's rubric
+    bucket instead of the tier written in the dataset.
+
+    Raises:
+        SystemExit: If a benchmark task has no bucket, which would drop its
+            scores from every column without saying so.
+    """
+
+    def level_of(row: dict[str, Any]) -> str | None:
+        task = row.get("task")
+        if task not in buckets:
+            raise SystemExit(
+                f"task {task!r} has no rubric scores; re-run the rubric pass for "
+                f"{dataset} (run-swe-router-headless.py --mode rubric)"
+            )
+        return buckets[task]
+
+    return _per_level_stats(
+        runs_dir, harness, skill, dataset, level_of, rubric.BUCKET_ORDER
+    )
+
+
+def _rubric_provenance(
+    rubric_scores: Path | None, repo_root: Path
+) -> dict[str, Any] | None:
+    """Where the buckets came from, so a consumer can trace a column."""
+    if rubric_scores is None:
+        return None
+    data = json.loads(rubric_scores.read_text(encoding="utf-8"))
+    judged = data.get("judged_by") or {}
+    return {
+        "file": _relative_or_name(rubric_scores, repo_root),
+        "sha256": _source_sha256(rubric_scores),
+        "judge": judged.get("model"),
+        "repeats": judged.get("repeats"),
+        "buckets_recomputed_with": "vend/swe-router/routing-policy.json",
+    }
+
+
+def default_rubric_scores(dataset: str, rubric_dir: Path = DEFAULT_RUBRIC_DIR) -> Path:
+    """The rubric pass a dataset's columns are built from."""
+    return rubric_dir / RUBRIC_SCORES_TEMPLATE.format(
+        dataset=dataset, judge=RUBRIC_JUDGE
+    )
 
 
 def build(
-    source: Path, repo_root: Path, runs_dir: Path | None = None
+    source: Path,
+    repo_root: Path,
+    runs_dir: Path | None = None,
+    rubric_scores: Path | None = None,
+    policy_path: Path = rubric.DEFAULT_POLICY,
 ) -> dict[str, Any]:
     """Build the vended payload from a frontier JSON.
 
@@ -229,6 +355,10 @@ def build(
         source: Path to a ``pareto-frontier-*.json``.
         repo_root: Repository root, used to record the source path.
         runs_dir: The swe-benchmark-data root; defaults to the committed one.
+        rubric_scores: The dataset's rubric pass. None takes the default path
+            for the frontier's dataset, and builds no bucket columns when that
+            file does not exist.
+        policy_path: The routing policy that sets the bucket ranges.
 
     Returns:
         The payload to write as models.json.
@@ -256,6 +386,20 @@ def build(
         data.get("skill", ""),
         data.get("repo", ""),
     )
+    if rubric_scores is None:
+        candidate = default_rubric_scores(data.get("repo", ""))
+        rubric_scores = candidate if candidate.is_file() else None
+    if rubric_scores is None:
+        logger.warning("no rubric scores for %s; no bucket columns", data.get("repo"))
+        by_bucket: dict[str, dict[str, dict[str, Any]]] = {}
+    else:
+        by_bucket = per_bucket_stats(
+            runs_dir,
+            data.get("harness", ""),
+            data.get("skill", ""),
+            data.get("repo", ""),
+            task_buckets(rubric_scores, policy_path),
+        )
     measured_on = _latest_run_date(
         runs_dir,
         data.get("harness", ""),
@@ -289,6 +433,13 @@ def build(
                 # it as context; select on score_by_complexity.
                 "on_combined_frontier": name in combined,
                 "on_hosting_frontier": name in bedrock or name in self_hosted,
+                # What the skill selects on: the mean score over the benchmark
+                # tasks in each difficulty bucket, and how many it finished.
+                "score_by_difficulty": by_bucket.get(name, {}).get("score", {}),
+                "completion_by_difficulty": by_bucket.get(name, {}).get(
+                    "completion", {}
+                ),
+                # The dataset's hand-set tiers, kept for the legacy --tier path.
                 "score_by_complexity": by_tier.get(name, {}).get("score", {}),
                 "completion_by_complexity": by_tier.get(name, {}).get("completion", {}),
             }
@@ -305,6 +456,7 @@ def build(
             "skill": data.get("skill"),
             "dataset": data.get("repo"),
             "judge": JUDGE,
+            "rubric_scores": _rubric_provenance(rubric_scores, repo_root),
             "repository": "https://github.com/aarora79/agentic-coding-harness-benchmarks",
         },
         "measurement_basis": {
@@ -325,15 +477,25 @@ def build(
                 "nothing else beats on both score and cost across the WHOLE "
                 "dataset. They are context for a reader, not a selection key: "
                 "they come from overall means, so they can disagree with the "
-                "per-tier ranking. Select on score_by_complexity at the task's "
-                "tier. on_hosting_frontier is computed within one hosting basis "
+                "per-bucket ranking. Select on score_by_difficulty at the task's "
+                "bucket. on_hosting_frontier is computed within one hosting basis "
                 "(Bedrock or self-hosted), which is the apples-to-apples "
                 "comparison; on_combined_frontier mixes the two and is "
                 "directional."
             ),
+            "difficulty_buckets": (
+                "easy / moderate / hard / very_hard: each benchmark task's "
+                "difficulty level, from four rubric scores (hidden contract, "
+                "silent invariant, coordinated surfaces, ambiguity) summed and "
+                "bucketed by routing-policy.json. score_by_difficulty is a "
+                "model's mean over the tasks in a bucket, failures excluded; "
+                "completion_by_difficulty is where failures show. A bucket with "
+                "no benchmark task has no entry."
+            ),
             "complexity_tiers": (
-                "trivial / low / medium / high, assigned by the scope of the "
-                "change. The hardest tasks measured are bounded single-repo "
+                "trivial / low / medium / high, set by hand in the dataset from "
+                "the scope of the change; score_by_complexity serves the legacy "
+                "--tier path only. The hardest tasks measured are bounded single-repo "
                 "changes -- a rate-limiting subsystem, server-side OAuth token "
                 "storage. Nothing here approaches a rewrite or a language port, "
                 "so a task far beyond that range is outside what these numbers "
@@ -351,6 +513,13 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     p.add_argument("--out", type=Path, default=DEFAULT_OUT)
     p.add_argument(
+        "--rubric-scores",
+        type=Path,
+        default=None,
+        help="The dataset's rubric pass. Default: "
+        f"docs/metrics/{RUBRIC_SCORES_TEMPLATE.format(dataset='<dataset>', judge=RUBRIC_JUDGE)}.",
+    )
+    p.add_argument(
         "--check",
         action="store_true",
         help="Do not write; exit non-zero if the committed file is out of date.",
@@ -361,7 +530,13 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     """Generate models.json, or verify the committed copy matches."""
     args = _parse_args()
-    payload = build(args.source, _REPO_ROOT)
+    payload = build(args.source, _REPO_ROOT, rubric_scores=args.rubric_scores)
+    if payload["provenance"]["rubric_scores"] is None:
+        raise SystemExit(
+            "no rubric scores for this dataset, so models.json would have no "
+            "bucket columns. Run run-swe-router-headless.py --mode rubric, or "
+            "pass --rubric-scores."
+        )
     text = json.dumps(payload, indent=2) + "\n"
 
     if args.check:

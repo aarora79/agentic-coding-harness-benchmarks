@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How swe-router Works</title>
+<meta name="description" content="The three stages behind a swe-router recommendation: classify benchmark tasks, benchmark models, route a developer&#x27;s task.">
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --text: #1d1c1a; --muted: #5f5c55;
+  --border: #e3dfd6; --accent: #b4532a; --accent-soft: #f6e7df;
+  --note: #2f6f8f; --note-soft: #e2eef4; --code-bg: #f3f1ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171614; --surface: #201f1c; --text: #ece9e2; --muted: #a8a397;
+    --border: #36342f; --accent: #e08a5f; --accent-soft: #3a2a21;
+    --note: #7fb6d3; --note-soft: #1f2e36; --code-bg: #26241f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171614; --surface: #201f1c; --text: #ece9e2; --muted: #a8a397;
+  --border: #36342f; --accent: #e08a5f; --accent-soft: #3a2a21;
+  --note: #7fb6d3; --note-soft: #1f2e36; --code-bg: #26241f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+main { max-width: 900px; margin: 0 auto; padding: 40px 16px 80px; }
+h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 12px; }
+h2 { font-size: 1.3rem; margin: 48px 0 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+  background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+.callout { border-left: 4px solid var(--note); background: var(--note-soft); padding: 4px 16px; border-radius: 6px; margin: 18px 0; }
+.callout.important { border-color: var(--accent); background: var(--accent-soft); }
+.table-wrap { overflow-x: auto; margin: 12px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; background: var(--surface); }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+.diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin: 16px 0; overflow-x: auto; }
+.diagram pre.mermaid { background: none; padding: 0; margin: 0; text-align: center; }
+.theme-toggle { float: right; font: inherit; font-size: 0.8rem; padding: 4px 10px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted); border-radius: 6px; cursor: pointer; }
+@media (max-width: 560px) { h1 { font-size: 1.5rem; } }
+</style>
+</head>
+<body>
+<main>
+<button class="theme-toggle" id="theme" type="button">Theme</button>
+<h1 id="how-swe-router-picks-a-model">How swe-router picks a model</h1>
+<p><code>swe-router</code> tells a developer which model to use for a coding task: the cheapest one their organisation allows that is good enough for that task. The answer depends on the task's difficulty level, which this page calls its <strong>bucket</strong> (easy, moderate, hard or very hard). This page explains the three stages behind that answer. Two run once, on our side, against a benchmark dataset. The third runs every time a developer asks.</p>
+<div class="callout important"><p>This is how the skill works from version 0.2.0. Earlier versions asked the developer's model to pick a tier and a quality floor in its own words. The rubric replaced that after it routed better on two repositories; see <a href="swe-router-rubric-evaluation.md">swe-router-rubric-evaluation.md</a> and <a href="results-cli-cli-v1.md">results-cli-cli-v1.md</a>.</p></div>
+
+<div class="callout note"><p><strong>Terms.</strong><br />
+<strong>Rubric</strong>: six questions about a coding task, each answered 0, 1 or 2 (<a href="../vend/swe-router/rubric.md">rubric.md</a>).<br />
+<strong>Bucket</strong>: a task's <strong>difficulty level</strong>: easy, moderate, hard or very hard. This page calls a difficulty level a bucket because the build sorts every benchmark task into one of the four and averages each model's scores per level. Code computes it from four of the six answers.<br />
+<strong>Required quality</strong>: the benchmark score a model must reach for this task. Code computes it from the other two answers.<br />
+<strong>Column</strong>: one model's mean benchmark score over the tasks in one bucket.<br />
+<strong>Artifact judge</strong>: <code>openai.gpt-5.6-sol</code>, which grades what a model produced on a benchmark task, 0 to 100.</p></div>
+
+<h2 id="how-each-stage-feeds-the-next">How each stage feeds the next</h2>
+<p>Each arrow below carries the one thing a stage hands to the next.</p>
+<div class="diagram"><pre class="mermaid">flowchart LR
+    DS[(&quot;Benchmark dataset&lt;br/&gt;tasks + repository&quot;)]
+    S1[&quot;Stage 1&lt;br/&gt;Classify tasks&lt;br/&gt;&lt;i&gt;once per dataset&lt;/i&gt;&quot;]
+    S2[&quot;Stage 2&lt;br/&gt;Benchmark models&lt;br/&gt;&lt;i&gt;once per model&lt;/i&gt;&quot;]
+    BLD[&quot;Build&lt;br/&gt;build_vended_models.py&quot;]
+    S3[&quot;Stage 3&lt;br/&gt;Route a request&lt;br/&gt;&lt;i&gt;every request&lt;/i&gt;&quot;]
+    DEV([&quot;Developer&#x27;s task&quot;])
+    OUT([&quot;Recommended model&quot;])
+
+    DS --&gt;|tasks| S1
+    DS --&gt;|tasks| S2
+    S1 --&gt;|&quot;bucket per task&lt;br/&gt;(rubric scores file)&quot;| BLD
+    S2 --&gt;|&quot;score per model per task&lt;br/&gt;(eval.json)&quot;| BLD
+    BLD --&gt;|&quot;score per model per bucket&lt;br/&gt;(models.json)&quot;| S3
+    DEV --&gt; S3
+    S3 --&gt; OUT
+</pre></div>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Takes in</th>
+<th>Hands on</th>
+<th>To</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Classify tasks</td>
+<td>the dataset's tasks and repository</td>
+<td>a bucket for every task</td>
+<td>the build</td>
+</tr>
+<tr>
+<td>2. Benchmark models</td>
+<td>the same tasks</td>
+<td>each model's score on every task</td>
+<td>the build</td>
+</tr>
+<tr>
+<td>Build</td>
+<td>buckets and scores</td>
+<td>each model's mean score in each bucket</td>
+<td>stage 3, inside <code>models.json</code></td>
+</tr>
+<tr>
+<td>3. Route a request</td>
+<td>the developer's task and <code>models.json</code></td>
+<td>one recommended model</td>
+<td>the developer</td>
+</tr>
+</tbody>
+</table></div>
+<p>Stages 1 and 2 do not depend on each other. Stage 1 reads only the tasks and the repository, never a model's results. Stage 2 never sees the buckets. They meet only in the build step.</p>
+<h2 id="stage-1-classify-the-benchmark-tasks">Stage 1: classify the benchmark tasks</h2>
+<p>A frontier model reads each benchmark task and its repository and answers the six rubric questions. We use Claude Opus 5.5: on cli/cli its bucket held across all three repeats on 20 of 21 tasks, against 13 for Haiku 5.5.</p>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+    participant R as run-swe-router-headless.py
+    participant G as git
+    participant J as Judge (Opus 5.5)
+    participant P as routing-policy.json
+    participant F as Rubric scores file
+    loop each task, 3 repeats
+        R-&gt;&gt;G: clone the repository at the task&#x27;s ref
+        R-&gt;&gt;J: rubric.md + task description + clone path
+        J-&gt;&gt;J: read the repo map, code, tests
+        J--&gt;&gt;R: six answers (0-2), evidence, confidence
+    end
+    R-&gt;&gt;R: median of the 3 answers per question
+    R-&gt;&gt;P: difficulty sum and the two quality answers
+    P--&gt;&gt;R: bucket and required quality
+    R-&gt;&gt;F: write one entry per task
+</pre></div>
+<p>The judge sees only the questions. The bucket edges and quality numbers live in the policy file.</p>
+<p>The result is one file per dataset, such as <code>docs/metrics/swe-router-rubric-mcp-gateway-registry-v2-claude-opus-5-5.json</code>. A pass over 21 tasks costs about $20 and takes about 12 minutes. The file changes only when the tasks change or <code>rubric.md</code> changes. Benchmarking another model leaves it alone. Details: <a href="swe-router-rubric-scores.md">swe-router-rubric-scores.md</a>.</p>
+<h3 id="how-the-six-answers-become-a-bucket-and-a-required-quality">How the six answers become a bucket and a required quality</h3>
+<p>Each question takes 0, 1 or 2. The short anchors below summarise <a href="../vend/swe-router/rubric.md">rubric.md</a>, which gives the judge the full wording. The first four questions measure how hard the task is and set the <strong>bucket</strong>. The last two measure what a mistake would cost and set the <strong>required quality</strong>, the quality floor a model's work must reach.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Question</th>
+<th>0</th>
+<th>1</th>
+<th>2</th>
+<th>Sets</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hidden_contract: is the right behaviour defined outside the task?</td>
+<td>the task states it completely</td>
+<td>nearby code or project conventions imply it</td>
+<td>something outside the change fixes it: an earlier issue, another service's contract, a spec</td>
+<td>bucket</td>
+</tr>
+<tr>
+<td>silent_invariant: could a wrong change look like it works?</td>
+<td>a mistake is visible: an error, a wrong value</td>
+<td>a mistake shows only in edge cases: unusual input, another config or platform</td>
+<td>a security, data or concurrency mistake fails silently</td>
+<td>bucket</td>
+</tr>
+<tr>
+<td>coordinated_surfaces: how many places must change together?</td>
+<td>one</td>
+<td>two or three inside one component</td>
+<td>several components or layers, such as the API, the CLI and the deployment config</td>
+<td>bucket</td>
+</tr>
+<tr>
+<td>ambiguity: is there a tempting narrower fix?</td>
+<td>one obvious reading, and the obvious fix is right</td>
+<td>some interpretation; the repository makes the answer clear</td>
+<td>a narrower fix would pass a quick review and still miss the real problem</td>
+<td>bucket</td>
+</tr>
+<tr>
+<td>verification: would the repository's tests catch a mistake?</td>
+<td>strong tests cover it</td>
+<td>some tests, with gaps</td>
+<td>no meaningful tests</td>
+<td>required quality</td>
+</tr>
+<tr>
+<td>blast_radius: what happens if it ships wrong?</td>
+<td>throwaway or internal; a mistake costs a rerun</td>
+<td>users would notice; a revert fixes it</td>
+<td>security, money or data loss, or hard to undo</td>
+<td>required quality</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Bucket.</strong> The four difficulty answers add up to a sum from 0 to 8:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Sum</th>
+<th>0-1</th>
+<th>2-3</th>
+<th>4-5</th>
+<th>6-8</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bucket</td>
+<td>easy</td>
+<td>moderate</td>
+<td>hard</td>
+<td>very hard</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Required quality.</strong> <code>blast_radius</code> sets the floor, and <code>verification</code> adds 5 points when it is 2, since nothing would catch a mistake before it ships:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>blast_radius</th>
+<th style="text-align: right;">Required quality</th>
+<th style="text-align: right;">With verification 2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td style="text-align: right;">60</td>
+<td style="text-align: right;">65</td>
+</tr>
+<tr>
+<td>1</td>
+<td style="text-align: right;">70</td>
+<td style="text-align: right;">75</td>
+</tr>
+<tr>
+<td>2</td>
+<td style="text-align: right;">75</td>
+<td style="text-align: right;">80</td>
+</tr>
+</tbody>
+</table></div>
+<p>These numbers sit on the artifact judge's 0-100 scale. 60 is the bottom of its "strong" band, 75 the top, and 80 approaches its "excellent" band. <a href="../vend/swe-router/routing-policy.json">routing-policy.json</a> holds both tables, so a platform team can change them.</p>
+<p>Stage 1 records both results for every benchmark task, but the build uses only the bucket. The required quality matters in stage 3, where the developer's model answers the same two questions about their own task.</p>
+<h2 id="stage-2-benchmark-the-models">Stage 2: benchmark the models</h2>
+<p>Every model under test runs every task in the same dataset, and the artifact judge grades the result. This is the benchmark the repository already runs (<a href="../benchmarks/README.md">benchmarks/README.md</a>).</p>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+    participant H as Harness
+    participant M as Model under test
+    participant J as Artifact judge
+    loop each task
+        H-&gt;&gt;M: task + cloned repository
+        M--&gt;&gt;H: six artifacts (issue, design, tests, patch, ...)
+        H-&gt;&gt;J: artifacts + task + ground truth
+        J--&gt;&gt;H: eval.json, score 0-100
+    end
+</pre></div>
+<p>A model that leaves its artifacts in the wrong place, or produces none, counts as a failure on that task.</p>
+<h3 id="the-build-step-joins-stages-1-and-2">The build step joins stages 1 and 2</h3>
+<p><code>build_vended_models.py</code> files each score under its task's bucket and averages per bucket:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Bucket (stage 1)</th>
+<th style="text-align: right;">Haiku 5.5</th>
+<th style="text-align: right;">Sonnet 5.5</th>
+<th style="text-align: right;">Opus 5.5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>default-create-in-idp-checkbox-unchecked</td>
+<td>hard</td>
+<td style="text-align: right;">76.8</td>
+<td style="text-align: right;">83.0</td>
+<td style="text-align: right;">75.0</td>
+</tr>
+<tr>
+<td>fix-reserved-groups-var-in-service-account-script</td>
+<td>hard</td>
+<td style="text-align: right;">82.4</td>
+<td style="text-align: right;">82.0</td>
+<td style="text-align: right;">86.8</td>
+</tr>
+<tr>
+<td>cli-custom-egress-oauth-provider-flags</td>
+<td>hard</td>
+<td style="text-align: right;">76.6</td>
+<td style="text-align: right;">86.4</td>
+<td style="text-align: right;">88.0</td>
+</tr>
+<tr>
+<td>... 7 more hard tasks</td>
+<td>hard</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td><strong>Column: mean of the 10 hard tasks</strong></td>
+<td></td>
+<td style="text-align: right;"><strong>76.5</strong></td>
+<td style="text-align: right;"><strong>80.1</strong></td>
+<td style="text-align: right;"><strong>80.4</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>Doing this for every bucket gives <code>models.json</code>. On the v2 dataset:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Model</th>
+<th style="text-align: right;">Cost per task</th>
+<th style="text-align: right;">moderate</th>
+<th style="text-align: right;">hard</th>
+<th style="text-align: right;">very hard</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Haiku 5.5</td>
+<td style="text-align: right;">$0.14</td>
+<td style="text-align: right;">83.2</td>
+<td style="text-align: right;">76.5</td>
+<td style="text-align: right;">65.3 (8 of 9 finished)</td>
+</tr>
+<tr>
+<td>Sonnet 5.5</td>
+<td style="text-align: right;">$2.62</td>
+<td style="text-align: right;">86.5</td>
+<td style="text-align: right;">80.1</td>
+<td style="text-align: right;">77.2</td>
+</tr>
+<tr>
+<td>Opus 5.5</td>
+<td style="text-align: right;">$4.44</td>
+<td style="text-align: right;">89.7</td>
+<td style="text-align: right;">80.4</td>
+<td style="text-align: right;">80.2</td>
+</tr>
+</tbody>
+</table></div>
+<p>Source: Opus 5.5's rubric file for buckets, each model's <code>run-summary.json</code> under <code>benchmarks/swe-benchmark-data/&lt;model&gt;/omp/swe3/mcp-gateway-registry-v2/</code> for scores and cost. v2 has no task in the easy bucket.</p>
+<h2 id="stage-3-route-a-developers-task">Stage 3: route a developer's task</h2>
+<p>The developer runs the skill in their coding agent with whatever model they already use.</p>
+<div class="diagram"><pre class="mermaid">sequenceDiagram
+    actor D as Developer
+    participant A as Developer&#x27;s model (in the skill)
+    participant R as route.py
+    participant P as routing-policy.json
+    participant L as allowed-models.txt
+    participant M as models.json
+    D-&gt;&gt;A: &quot;which model for this task?&quot;
+    A-&gt;&gt;A: read the repo map and the task
+    A-&gt;&gt;A: answer the six rubric questions once, with evidence
+    A-&gt;&gt;R: six answers
+    R-&gt;&gt;P: look up bucket edges and quality bars
+    P--&gt;&gt;R: bucket, required quality
+    alt confidence is low
+        R--&gt;&gt;A: status &quot;unsure&quot;: stay on the current model
+    else
+        R-&gt;&gt;L: which models may we use?
+        R-&gt;&gt;M: each allowed model&#x27;s column and completion for this bucket
+        R-&gt;&gt;R: skip models that failed a benchmark task in this bucket
+        R--&gt;&gt;A: cheapest remaining model whose column clears the required quality
+    end
+    A--&gt;&gt;D: recommendation, with the numbers behind it
+</pre></div>
+<p>The developer's model answers the same six questions, and <code>route.py</code> turns them into a bucket and a required quality with the tables in <a href="#how-the-six-answers-become-a-bucket-and-a-required-quality">stage 1</a>.</p>
+<p>Three worked requests against the v2 columns above, choosing among the three Claude 5.5 models:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>The developer's model answers</th>
+<th>Bucket</th>
+<th style="text-align: right;">Required</th>
+<th style="text-align: right;">Haiku</th>
+<th style="text-align: right;">Sonnet</th>
+<th style="text-align: right;">Opus</th>
+<th>Pick</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>difficulty sum 5, blast radius 1, verification 1</td>
+<td>hard</td>
+<td style="text-align: right;">70</td>
+<td style="text-align: right;">76.5</td>
+<td style="text-align: right;">80.1</td>
+<td style="text-align: right;">80.4</td>
+<td>Haiku, the cheapest that clears</td>
+</tr>
+<tr>
+<td>difficulty sum 5, blast radius 2, verification 2</td>
+<td>hard</td>
+<td style="text-align: right;">80</td>
+<td style="text-align: right;">76.5</td>
+<td style="text-align: right;">80.1</td>
+<td style="text-align: right;">80.4</td>
+<td>Sonnet, the cheapest that clears, by 0.1 points</td>
+</tr>
+<tr>
+<td>difficulty sum 6, blast radius 1, verification 1</td>
+<td>very hard</td>
+<td style="text-align: right;">70</td>
+<td style="text-align: right;">65.3</td>
+<td style="text-align: right;">77.2</td>
+<td style="text-align: right;">80.2</td>
+<td>Sonnet; Haiku is also skipped, having failed 1 of the 9 very hard tasks</td>
+</tr>
+</tbody>
+</table></div>
+<p>If the developer's model reports low confidence in its answers, <code>route.py</code> returns <code>unsure</code> and the skill keeps the developer on their current model. If the benchmark has no task in the bucket, as v2 has none in easy, <code>route.py</code> reads the next harder bucket, which can only understate a model.</p>
+<h2 id="why-the-same-rubric-on-both-sides">Why the same rubric on both sides</h2>
+<p>The benchmark tasks (stage 1) and the developer's task (stage 3) go through the same six questions. That keeps "hard" meaning the same thing in the column and in the request. The benchmark tasks get three judgments from a frontier model because every request compares against their columns. The developer's task gets one judgment from whatever model they run, to keep each request quick and cheap.</p>
+<h2 id="what-updates-when">What updates when</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Stage 1 (rubric file)</th>
+<th>Stage 2 (benchmark)</th>
+<th>Build (<code>models.json</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New model to evaluate</td>
+<td>no change</td>
+<td>run it on the dataset</td>
+<td>rebuild</td>
+</tr>
+<tr>
+<td>New dataset</td>
+<td>new pass, about $20</td>
+<td>run every model on it</td>
+<td>rebuild</td>
+</tr>
+<tr>
+<td>Tasks added or removed</td>
+<td>new pass</td>
+<td>run the new tasks</td>
+<td>rebuild</td>
+</tr>
+<tr>
+<td><code>rubric.md</code> questions change</td>
+<td>new pass</td>
+<td>no change</td>
+<td>rebuild</td>
+</tr>
+<tr>
+<td>A bar or bucket edge in <code>routing-policy.json</code> moves</td>
+<td>no pass; recompute buckets from the stored answers</td>
+<td>no change</td>
+<td>rebuild</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="known-limits">Known limits</h2>
+<ul>
+<li>Each column averages a handful of tasks run once each. Differences under 3 points are noise, which is why the router treats them as ties.</li>
+<li>A column mean leaves out a model's failed tasks, so <code>route.py</code> skips a model that failed any benchmark task in the bucket (<code>min_completion_in_bucket</code> in the policy). That catches failures the benchmark recorded and no others: Haiku 5.5 finished all 10 hard v2 tasks, then failed a hard cli/cli task by writing to the wrong folder (<a href="results-cli-cli-v1.md">results-cli-cli-v1.md</a>).</li>
+<li>The developer's model judges once. A cheaper model gives less consistent answers: Haiku 5.5's bucket changed between repeats on 8 of 21 cli/cli tasks.</li>
+</ul>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  try { var saved = localStorage.getItem("theme"); if (saved) root.setAttribute("data-theme", saved); } catch (e) {}
+  var sources = Array.prototype.map.call(document.querySelectorAll("pre.mermaid"), function (el) { return el.textContent; });
+  function isDark() {
+    var t = root.getAttribute("data-theme");
+    return t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function render() {
+    if (!window.mermaid) return;
+    var nodes = document.querySelectorAll("pre.mermaid");
+    nodes.forEach(function (el, i) { el.removeAttribute("data-processed"); el.textContent = sources[i]; });
+    mermaid.initialize({ startOnLoad: false, theme: isDark() ? "dark" : "default", securityLevel: "strict" });
+    mermaid.run({ nodes: nodes });
+  }
+  render();
+  document.getElementById("theme").addEventListener("click", function () {
+    var next = isDark() ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("theme", next); } catch (e) {}
+    render();
+  });
+})();
+</script>
+</body>
+</html>

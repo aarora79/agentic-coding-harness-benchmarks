@@ -27,9 +27,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-_CONFIG_DIR = Path(__file__).resolve().parent.parent / "config" / "swe-router"
-DEFAULT_RUBRIC = _CONFIG_DIR / "rubric.md"
-DEFAULT_POLICY = _CONFIG_DIR / "routing-policy.json"
+# The rubric and policy ship with the skill, so the skill's copy is the only one.
+_SKILL_DIR = Path(__file__).resolve().parents[2] / "vend" / "swe-router"
+DEFAULT_RUBRIC = _SKILL_DIR / "rubric.md"
+DEFAULT_POLICY = _SKILL_DIR / "routing-policy.json"
 
 DIMENSIONS = (
     "hidden_contract",
@@ -122,6 +123,7 @@ class RoutingPolicy(BaseModel):
     required_quality: RequiredQuality
     difficulty: Difficulty
     tie_band_points: float = Field(default=3.0, ge=0)
+    min_completion_in_bucket: float = Field(default=1.0, ge=0, le=1)
     when_unsure: str = "stay_on_current_model"
 
 

@@ -24,11 +24,12 @@ SKILLS_DIR="${SWE_ROUTER_DIR:-.claude/skills}"
 FORCE="${SWE_ROUTER_FORCE:-0}"
 
 SKILL_NAME="swe-router"
-SKILL_FILES="SKILL.md route.py models.json model-aliases.json allowed-models.txt"
-JSON_FILES="models.json model-aliases.json"
-# The one file a user is expected to edit. An upgrade preserves it, because
-# overwriting it would silently replace an organisation's model policy.
-POLICY_FILE="allowed-models.txt"
+SKILL_FILES="SKILL.md rubric.md route.py models.json model-aliases.json routing-policy.json allowed-models.txt"
+JSON_FILES="models.json model-aliases.json routing-policy.json"
+# The files a user is expected to edit. An upgrade preserves them, because
+# overwriting either would silently replace an organisation's policy: which
+# models it allows, and what quality each kind of task must reach.
+POLICY_FILES="allowed-models.txt routing-policy.json"
 
 
 usage() {
@@ -42,9 +43,9 @@ Options:
                 to hold a version steady.
   --repo OWNER/NAME
                 Source repository (default: aarora79/agentic-coding-harness-benchmarks).
-  --force       Overwrite an existing allowed-models.txt. Without this, an
-                existing model policy is kept and the rest of the skill is
-                still upgraded.
+  --force       Overwrite an existing allowed-models.txt and routing-policy.json.
+                Without this, existing policy files are kept and the rest of
+                the skill is still upgraded.
   -h, --help    Show this help.
 
 Environment variables: SWE_ROUTER_DIR, SWE_ROUTER_REF, SWE_ROUTER_REPO,
@@ -121,12 +122,16 @@ fi
 
 mkdir -p "$TARGET"
 
-kept_policy=0
+kept=""
 for f in $SKILL_FILES; do
-    if [ "$f" = "$POLICY_FILE" ] && [ -f "${TARGET}/${f}" ] && [ "$FORCE" != "1" ]; then
-        kept_policy=1
-        continue
-    fi
+    case " $POLICY_FILES " in
+        *" $f "*)
+            if [ -f "${TARGET}/${f}" ] && [ "$FORCE" != "1" ]; then
+                kept="${kept} ${f}"
+                continue
+            fi
+            ;;
+    esac
     mv "${STAGE}/${f}" "${TARGET}/${f}"
 done
 
@@ -134,12 +139,17 @@ chmod +x "${TARGET}/route.py"
 
 echo
 echo "Installed ${SKILL_NAME} to ${TARGET}"
-if [ "$kept_policy" = "1" ]; then
-    echo "Kept your existing ${POLICY_FILE}. Re-run with --force to replace it."
-else
-    echo
-    echo "Next step, and do not skip it: edit ${TARGET}/${POLICY_FILE}"
-    echo "It ships allowing five models, four of them self-hosted. Left as-is in a"
-    echo "setup that cannot reach those, the skill will recommend a model nobody can"
-    echo "select. Cut the list down to what your setup actually serves."
+if [ -n "$kept" ]; then
+    echo "Kept your existing${kept}. Re-run with --force to replace them."
 fi
+case " $kept " in
+    *" allowed-models.txt "*) ;;
+    *)
+        echo
+        echo "Next step, and do not skip it: edit ${TARGET}/allowed-models.txt"
+        echo "It ships allowing the five models on the measured frontier, one of them"
+        echo "self-hosted. Left as-is in a setup that cannot reach that one, the skill"
+        echo "will recommend a model nobody can select. Cut the list down to what your"
+        echo "setup actually serves."
+        ;;
+esac

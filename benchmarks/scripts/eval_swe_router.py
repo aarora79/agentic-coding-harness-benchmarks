@@ -332,6 +332,7 @@ def _route_task(
     allowed_file: Path | None,
     no_allow_list: bool,
     tie_band: float,
+    min_completion: float = 0.0,
 ) -> dict[str, Any]:
     """Ask the router for one task's model.
 
@@ -343,6 +344,8 @@ def _route_task(
         allowed_file: Explicit allow-list path, or None to let route.py find one.
         no_allow_list: Ignore organisational policy entirely.
         tie_band: Points below which two models count as tied.
+        min_completion: Skip a model that finished less than this share of the
+            tasks in the column it is read from.
 
     Returns:
         The route.py result dict.
@@ -359,6 +362,7 @@ def _route_task(
         allowed_file=allowed_file,
         no_allow_list=no_allow_list,
         tie_band=tie_band,
+        min_completion=min_completion,
     )
 
 
@@ -459,6 +463,7 @@ def _evaluate(
     column_for: Callable[[str], dict[str, str]] | None = None,
     stats_for: Callable[[str], dict[str, dict[str, Any]]] | None = None,
     fixed_stats: dict[str, dict[str, Any]] | None = None,
+    min_completion: float = 0.0,
 ) -> dict[str, Any]:
     """Replay the router over every task and compare it to the baseline.
 
@@ -484,6 +489,8 @@ def _evaluate(
         fixed_stats: Every model's stats from ANOTHER dataset, routed against
             for every task. ``results`` then only supplies each routed task's
             outcome. ``column_for`` still names the routed task's column.
+        min_completion: Passed to route.py: skip a model whose completion in
+            the column falls below this share.
 
     Returns:
         A result mapping with ``rows`` (one per task) and ``totals``.
@@ -541,6 +548,7 @@ def _evaluate(
             allowed_file=allowed_file,
             no_allow_list=no_allow_list,
             tie_band=tie_band,
+            min_completion=min_completion,
         )
         row = _row(task_id, tier, floor, routed, results, baseline)
         row["dataset_complexity"] = task["complexity"]
@@ -1186,6 +1194,14 @@ def _parse_args() -> argparse.Namespace:
         help="Points below which two models count as tied. Default: %(default)s.",
     )
     parser.add_argument(
+        "--min-completion",
+        type=float,
+        default=0.0,
+        help="Skip a model that finished less than this share of the tasks in "
+        "the column it is read from, as the shipped policy's "
+        "min_completion_in_bucket does (1.0). Default: %(default)s, the old rule.",
+    )
+    parser.add_argument(
         "--holdout",
         action="store_true",
         help="Route each task from tier means that EXCLUDE that task "
@@ -1317,6 +1333,7 @@ def main() -> None:
                 column_for=column_for,
                 stats_for=stats_for,
                 fixed_stats=fixed_stats,
+                min_completion=args.min_completion,
             )
         except RouteError as exc:
             raise SystemExit(f"routing failed at floor {floor}: {exc}") from exc
@@ -1356,6 +1373,7 @@ def main() -> None:
             "tie_band": args.tie_band,
             "holdout": args.holdout,
             "columns_from": judged_meta.get("columns_from"),
+            "min_completion": args.min_completion,
             "judged_by": judged_meta,
             "floor_note": (
                 "Required quality per task, from the rubric pass by "
