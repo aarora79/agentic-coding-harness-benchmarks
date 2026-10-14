@@ -1,0 +1,64 @@
+{
+  "task": "release-verify-sha1-prefix",
+  "model": "us.anthropic.claude-haiku-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 88,
+      "notes": "The issue clearly defines the SHA-1/SHA-256 behavior for both release commands, with testable acceptance criteria and useful non-goals. The submitted patch contexts confirm the hard-coded `sha1` constructor calls in `verify.go` and `verify_asset.go`. Its main limitation is that no independent task statement establishes every claimed requirement, particularly malformed-ref rejection and GitHub's SHA-256 rollout behavior. It addresses compatibility and invalid input well, but attestation-service support for SHA-256 remains unverified."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The LLD is unusually concrete about data flow, constructor changes, error handling, and the two command integration points. Its cited `NewDigestedArtifactForRelease` call sites and test seams agree with the submitted source diff. The largest deficiency is minor internal inconsistency: the file-change table proposes `release_test.go`, while the testing and implementation artifacts create `artifact_test.go`; the claimed repository-wide caller search could not be independently rerun. It responsibly identifies malformed refs, backward compatibility, policy coverage, rollout, and unknown server indexing."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 19,
+      "specificity": 20,
+      "risk_awareness": 20,
+      "total": 78,
+      "notes": "The strongest review finding is the concrete demand for length-plus-hex validation and explicit coverage of `FetchParams.Digest` and the verifier-policy gap. It names actionable symbols such as `releaseRefAlgorithm`, `BuildDigestPolicyOption`, and `api.MockClient.OnGetByDigest`. Much of the multi-role review repeats approval rather than independently challenging the constructor API change, output coverage, or the test-file inconsistency. Its security framing overstates malformed API data as a query-injection concern, while the genuinely material SHA-256 service-indexing question remains unresolved."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 19,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 81,
+      "notes": "The plan gives concrete table inputs, test names, mock setup, and meaningful oracles for both digest algorithms and rejected refs. The implementation diff contains the described `OnGetByDigest` captures and assertions that malformed refs avoid the attestation call. Its largest gap is failure to directly assert the user-visible resolved-tag output or capture the artifact passed to the verifier, and it omits the repository-prescribed `go test ./...` and `make lint` checks. It also presents scoped package tests as final verification even though implementation.md says the full package trees were not rerun after the last test-table edit."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 20,
+      "total": 84,
+      "notes": "The patch implements the central behavior in both commands, derives the algorithm once, validates malformed refs, and adds focused SHA-1/SHA-256 and negative tests. Its diff contexts consistently target the existing constructor and command call sites, and the error handling follows the surrounding Go pattern. The main coverage deficiency is that no test observes the artifact received by `AttVerifier` or directly checks the resolved-tag output, although the shared object makes the intended propagation plausible. The summary incorrectly says the old constructor behavior was hard-coded `sha256` rather than `sha1`, and independent `git apply --check` execution was unavailable because the local command sandbox could not initialize."
+    }
+  },
+  "task_score": 84.2,
+  "verdict": "This is a strong, implementation-ready submission whose largest limitation is incomplete verification of the user-visible and verifier-policy propagation paths.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T14:25:16.931281Z",
+    "repo_ref": "v2.92.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 134875,
+      "cached_input_tokens": 82010,
+      "cache_write_input_tokens": 29605,
+      "output_tokens": 9055,
+      "reasoning_output_tokens": 7686
+    },
+    "duration_ms": 147172
+  }
+}

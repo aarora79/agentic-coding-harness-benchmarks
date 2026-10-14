@@ -1,0 +1,64 @@
+{
+  "task": "auth-refresh-hint-on-expired-token",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 21,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 90,
+      "notes": "The issue provides exact messages, token classifications, hostname mappings, testable acceptance criteria, and explicit exclusions. Its core problem matches upstream issue #13066, while the merged PR also corroborates the status-output scope. ([github.com](https://github.com/cli/cli/pull/13068), [github.com](https://github.com/cli/cli/issues/13066)) The largest deficiency is overbroad wording: an explicit Authorization header can make the failing token differ from ActiveToken, and invalid environment-token status entries do not necessarily print any reauthentication line. No independent task statement was supplied, so requirements beyond the identifier and corroborated upstream issue remain an evidence gap."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 91,
+      "notes": "The strongest aspect is its repository-specific data flow through internal/ghcmd/cmd.go, ActiveToken, NormalizeHostname, shared.IsRefreshableToken, and status.buildEntry. The submitted patch context supports those symbols and the design explicitly handles nil configuration, nil RequestURL, environment tokens, PATs, inactive accounts, and JSON stability. Its main weakness is reliance on duplicated private source strings plus the acknowledged header-override mismatch, with no mitigation beyond preserving the old fallback behavior. The claim about scope behavior after a rejected token could not be independently verified; the public manual only states that a normal refresh without scope flags maintains prior scopes. ([cli.github.com](https://cli.github.com/manual/gh_auth_refresh))"
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 22,
+      "total": 89,
+      "notes": "The review identifies concrete defects rather than merely approving: missing keyring coverage, brittle source literals, and misleading advice after an Authorization-header override. Those findings directly correspond to the proposed predicate, status active-account gate, and request-host lookup in the patch. Its largest omission is failure to challenge the issue's overbroad status criterion or the testing plan's keyring-isolation assumption. The active-account limitation is independently consistent with the gh auth refresh manual. ([cli.github.com](https://cli.github.com/manual/gh_auth_refresh))"
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 84,
+      "notes": "The plan has precise oracles for stored OAuth tokens, PATs, environment tokens, hostname normalization, inactive accounts, nil inputs, SAML behavior, missing scopes, JSON output, and recovery. Its automated paths, test names, httpmock style, and package commands agree with the submitted patch and repository conventions. The largest deficiency is that GH_CONFIG_DIR does not isolate credentials placed in the system keyring, so the manual setup can affect or leave real keyring state; it also tests authHint directly without an integration assertion through Main and omits the prescribed make lint command. The live revocation and recovery scenarios were not executed, so their operational assumptions remain unverified."
+    },
+    "implementation": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 88,
+      "notes": "The patch implements both output paths end to end, centralizes classification in IsRefreshableToken, preserves existing fallbacks, and adds focused positive and negative tests. Its file contexts and symbols are internally consistent with the baseline diff, and the official merged PR confirms the same feature shape and successful checks. ([github.com](https://github.com/cli/cli/pull/13068)) The largest residual risk is that the source-plus-prefix heuristic can describe a stored token rather than the token actually sent, while no test exercises the complete Main error-printing path. Local git apply and test execution could not be independently performed because the provided shell sandbox failed before command execution, leaving exact applicability as a harness evidence gap rather than a demonstrated candidate defect."
+    }
+  },
+  "task_score": 88.4,
+  "verdict": "This is a strong, implementation-ready submission whose largest material limitation is imperfect identification of the token that actually caused a 401, compounded by incomplete end-to-end and keyring-safe verification.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T20:01:42.867660Z",
+    "repo_ref": "v2.92.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 203491,
+      "cached_input_tokens": 125948,
+      "cache_write_input_tokens": 32764,
+      "output_tokens": 13275,
+      "reasoning_output_tokens": 11136
+    },
+    "duration_ms": 224278
+  }
+}

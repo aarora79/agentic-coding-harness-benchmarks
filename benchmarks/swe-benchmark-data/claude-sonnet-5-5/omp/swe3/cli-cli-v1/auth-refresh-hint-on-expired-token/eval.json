@@ -1,0 +1,64 @@
+{
+  "task": "auth-refresh-hint-on-expired-token",
+  "model": "us.anthropic.claude-sonnet-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 23,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 89,
+      "notes": "The issue clearly defines both affected message sites, token categories, host behavior, testable acceptance criteria, and focused non-goals. Its largest weakness is describing the source-plus-prefix heuristic as proof that a token was created by gh auth login, although a stored user-supplied gho_ token is indistinguishable. The core requirement agrees with issue #13066, and the named internal/ghcmd/cmd.go and auth status paths match the submitted repository contexts. No independent task statement establishes whether every added status behavior was mandatory, so that scope remains partly unverifiable."
+    },
+    "lld": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 87,
+      "notes": "The LLD is unusually concrete about real symbols and data flow, including HTTPError.RequestURL, NormalizeHostname, ActiveToken, buildEntry, and the rewritten TokenSource field. Its main correctness limitation is that IsLoginToken is only a conservative heuristic, while the prose repeatedly presents it as exact provenance; acknowledged unprefixed GHES tokens also miss the desired refresh hint. The active-account restriction, 401 gate, configuration fallback, environment-token handling, and request-host normalization address the important failure paths. Line estimates and the assertion that keyring access cannot newly prompt were not independently verifiable."
+    },
+    "review": {
+      "completeness": 21,
+      "correctness": 21,
+      "specificity": 22,
+      "risk_awareness": 22,
+      "total": 86,
+      "notes": "The review finds three material design defects: inactive-account refresh suggestions, PAT misclassification by source alone, and applying the status change to non-401 failures. It ties each finding to concrete implementation choices such as opts.active, the gho_ prefix, opts.tokenSource, and HTTPError.StatusCode. Its largest gap is limited challenge of the remaining provenance heuristic and the absence of an end-to-end assertion around Main's actual 401 output. The security discussion is specific, although the claim that a repeated keyring lookup cannot prompt again was not verified."
+    },
+    "testing": {
+      "completeness": 20,
+      "correctness": 20,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 80,
+      "notes": "The plan supplies concrete commands and expected commands for GitHub.com, GHES, tenancy hosts, environment tokens, PATs, nil inputs, inactive accounts, and non-401 failures. The strongest oracle is the exact auth status stderr output, supplemented by a realistic revoke-refresh-retry manual flow. The largest gap is that Test_reauthCommand tests only the selector and does not prove Main prints the selected command after an actual 401; the JSON byte-identity claim also lacks a named automated test. It ends with go vet rather than the repository-required make lint and provides limited operational checking beyond the manual flow."
+    },
+    "implementation": {
+      "completeness": 21,
+      "correctness": 20,
+      "specificity": 23,
+      "risk_awareness": 20,
+      "total": 84,
+      "notes": "The patch implements both message sites, centralizes the source-plus-prefix predicate, normalizes the failed request host, preserves login fallbacks, and restricts auth status refresh advice to active accounts receiving 401. The submitted contexts and symbols are consistent with internal/ghcmd/cmd.go, authEntry/buildEntry, shared helpers, and the repository's table-driven testing conventions; the feature also corresponds to merged PR #13068. The largest defect is that a gho_ token supplied manually into gh-managed storage is classified as login-created, while older unprefixed GHES login tokens are classified oppositely. The patch does not directly test Main's formatted 401 output, and its claimed reverse apply check could not be independently reproduced in the available execution environment."
+    }
+  },
+  "task_score": 85.2,
+  "verdict": "This is a strong, repository-grounded submission whose largest limitation is treating token source plus gho_ prefix as exact login-token provenance and not testing the top-level 401 output end to end.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-14T15:59:32.766505Z",
+    "repo_ref": "v2.92.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 167997,
+      "cached_input_tokens": 101911,
+      "cache_write_input_tokens": 27518,
+      "output_tokens": 10242,
+      "reasoning_output_tokens": 8779
+    },
+    "duration_ms": 173497
+  }
+}
