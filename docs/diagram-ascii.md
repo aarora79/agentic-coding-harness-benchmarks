@@ -16,23 +16,24 @@ This makes the cheaper choice the automatic one.
 |                                 +------------------------+ |  | +------------------------------+ |
 | +----------------------------+  | models.json            | |  | | A task begins                | |
 | | Available models           |  |   score + cost, per    | |  | |   swe-router is installed in | |
-| |   whatever security        |  |   tier                 | |  | |   the harness - it engages   | |
+| |   whatever security        |  |   difficulty bucket    | |  | |   the harness - it engages   | |
 | |   approved                 |  |                        | |  | |   on its own, nobody invokes | |
 | +----------------------------+  |   allowed-models.txt   | |  | |   it                         | |
 |                                 |   the approved list,   | |  | +------------------------------+ |
 | +----------------------------+  |   now the filter       | |  |                |                 |
 | | Your dataset               |  |                        | |  |   +------------+------------+    |
-| |   tasks from your repo     |  |   route.py             | |  |   v                         v    |
-| +----------------------------+  |   the decision, as     | |  |   +------------+  +------------+ |
-|               |                 |   code                 | |  |   | How bad if |  | How hard   | |
-|               v                 |                        | |  |   |   wrong?   |  |   is it?   | |
-| +----------------------------+  |   One curl to install. | |  |   |   -> a     |  |   -> a     | |
-| | Run the benchmark          |  |   Every developer      | |  |   |   floor    |  |   table    | |
+| |   tasks from your repo     |  |   rubric.md + route.py | |  |   v                         v    |
+| +----------------------------+  |   six questions, then  | |  |   +------------+  +------------+ |
+|               |                 |   the decision as code | |  |   | How hard?  |  | How bad if | |
+|               v                 |                        | |  |   | 4 questions|  |   wrong?   | |
+| +----------------------------+  |   One curl to install. | |  |   | -> a bucket|  | 2 questions| |
+| | Run the benchmark          |  |   Every developer      | |  |   |            |  | -> a bar   | |
 | |   every model x every      |  |   reads the same       | |  |   +------------+  +------------+ |
-| |   task, judged             |  |   numbers on the same  | |  |   +------------+------------+    |
-| +----------------------------+  |   day.                 | |  |                v                 |
-|               |                 +------------------------+ |  | +==============================+ |
-|               v                                            |  | | CHEAPEST MODEL OVER THE FLOOR| |
+| |   task, judged; each task  |  |   numbers on the same  | |  |   +------------+------------+    |
+| |   gets a difficulty bucket |  |   day.                 | |  |                v                 |
+| +----------------------------+  +------------------------+ |  | +==============================+ |
+|               |                                            |  | | CHEAPEST MODEL OVER THE BAR  | |
+|               v                                            |  | | IN THAT BUCKET               | |
 | +============================+                             |  | |   ranked over what this      | |
 | | YOUR FRONTIER              |                             |  | |   developer can actually     | |
 | |   not a vendor claim, not  |                             |  | |   select                     | |

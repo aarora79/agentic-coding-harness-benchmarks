@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rubric Scores File</title>
+<meta name="description" content="What the swe-router rubric scores file holds, how it is made, when it changes, and how the skill relates to it.">
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --text: #1d1c1a; --muted: #5f5c55;
+  --border: #e3dfd6; --accent: #b4532a; --accent-soft: #f6e7df;
+  --note: #2f6f8f; --note-soft: #e2eef4; --code-bg: #f3f1ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171614; --surface: #201f1c; --text: #ece9e2; --muted: #a8a397;
+    --border: #36342f; --accent: #e08a5f; --accent-soft: #3a2a21;
+    --note: #7fb6d3; --note-soft: #1f2e36; --code-bg: #26241f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171614; --surface: #201f1c; --text: #ece9e2; --muted: #a8a397;
+  --border: #36342f; --accent: #e08a5f; --accent-soft: #3a2a21;
+  --note: #7fb6d3; --note-soft: #1f2e36; --code-bg: #26241f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+main { max-width: 900px; margin: 0 auto; padding: 40px 16px 80px; }
+h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 12px; }
+h2 { font-size: 1.3rem; margin: 48px 0 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 28px 0 8px; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+  background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
+.callout { border-left: 4px solid var(--note); background: var(--note-soft); padding: 4px 16px; border-radius: 6px; margin: 18px 0; }
+.callout.important { border-color: var(--accent); background: var(--accent-soft); }
+.table-wrap { overflow-x: auto; margin: 12px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; background: var(--surface); }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+.diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin: 16px 0; overflow-x: auto; }
+.diagram pre.mermaid { background: none; padding: 0; margin: 0; text-align: center; }
+.theme-toggle { float: right; font: inherit; font-size: 0.8rem; padding: 4px 10px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted); border-radius: 6px; cursor: pointer; }
+@media (max-width: 560px) { h1 { font-size: 1.5rem; } }
+</style>
+</head>
+<body>
+<main>
+<button class="theme-toggle" id="theme" type="button">Theme</button>
+<h1 id="the-rubric-scores-file-what-it-is-how-it-is-made-and-who-reads-it">The rubric scores file: what it is, how it is made, and who reads it</h1>
+<p>Files named <code>docs/metrics/swe-router-rubric-&lt;dataset&gt;-&lt;judge&gt;.json</code> record how hard each benchmark task is, as judged with the swe-router rubric. Each task gets a difficulty level, which these docs call its <strong>bucket</strong>: easy, moderate, hard or very hard. This page explains what they hold, how they are made, when they change, and how they relate to the <code>swe-router</code> skill.</p>
+<p><strong>Short answer:</strong> the skill never opens this file. It is a build input: <code>build_vended_models.py</code> reads it to sort each model's benchmark scores into per-bucket columns in <code>models.json</code>, and the skill reads <code>models.json</code>. It is also the evidence that the rubric routes better than what came before; see <a href="#what-the-evidence-showed">What the evidence showed</a>.</p>
+<div class="callout note"><p><strong>Terms.</strong><br />
+<strong>Rubric</strong>: six questions about a coding task, each scored 0, 1 or 2 (<a href="../vend/swe-router/rubric.md">rubric.md</a>).<br />
+<strong>Judge</strong>: the model that answers those questions. Here, Claude Opus 5.5.<br />
+<strong>Bucket</strong>: a task's <strong>difficulty level</strong>: easy, moderate, hard or very hard. These docs call a difficulty level a bucket because the build sorts every benchmark task into one of the four and averages each model's scores per level. Code computes it from four of the six answers.<br />
+<strong>Required quality</strong>: the score a result must reach, from the other two scores.<br />
+<strong>Column</strong>: a model's mean benchmark score over the tasks in one bucket.<br />
+<strong>Artifact judge</strong>: <code>openai.gpt-5.6-sol</code>, which grades what a model <em>produced</em> on a task. A different job from the rubric judge, which grades the <em>task</em>.</p></div>
+
+<h2 id="what-the-file-holds">What the file holds</h2>
+<p>One file covers one dataset and one judge:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>swe-router-rubric-mcp-gateway-registry-v2-claude-opus-5-5.json</code></td>
+<td>v2 tasks, judged by Opus 5.5. The shipped <code>models.json</code> is built from this one</td>
+</tr>
+<tr>
+<td><code>swe-router-rubric-mcp-gateway-registry-v2-claude-haiku-5-5.json</code></td>
+<td>v2 tasks, judged by Haiku 5.5. Evidence that a cheap judge is less steady</td>
+</tr>
+<tr>
+<td><code>swe-router-rubric-cli-cli-v1-claude-opus-5-5.json</code></td>
+<td>cli/cli tasks, judged by Opus 5.5. Used for the cross-repo check in #221</td>
+</tr>
+<tr>
+<td><code>swe-router-rubric-cli-cli-v1-claude-haiku-5-5.json</code></td>
+<td>cli/cli tasks, judged by Haiku 5.5</td>
+</tr>
+</tbody>
+</table></div>
+<p>Each file has three parts:</p>
+<ul>
+<li><strong><code>judged_by</code></strong>: the judge, harness, dataset, repeat count, start and finish times, and what the pass cost.</li>
+<li><strong><code>tasks</code></strong>: one entry per task. <code>scores</code> holds the six numbers used for routing. <code>bucket</code> and <code>required_quality</code> are what code computed from them. <code>scores_seen</code> and <code>buckets_seen</code> keep each repeat's answer, so you can see where the judge wavered.</li>
+<li><strong><code>judgments</code></strong>: the raw output of every run, kept for audit.</li>
+</ul>
+<p>Here is one task from the v2 Opus file, trimmed:</p>
+<pre><code class="language-json">&quot;default-create-in-idp-checkbox-unchecked&quot;: {
+  &quot;scores&quot;: {&quot;hidden_contract&quot;: 1, &quot;silent_invariant&quot;: 1, &quot;coordinated_surfaces&quot;: 2,
+             &quot;ambiguity&quot;: 1, &quot;verification&quot;: 1, &quot;blast_radius&quot;: 1},
+  &quot;difficulty_sum&quot;: 5,
+  &quot;bucket&quot;: &quot;hard&quot;,
+  &quot;required_quality&quot;: 70.0,
+  &quot;scores_seen&quot;: {&quot;hidden_contract&quot;: [1, 1, 2], &quot;ambiguity&quot;: [1, 1, 2], &quot;...&quot;: &quot;...&quot;}
+}
+</code></pre>
+<p>The file says nothing about any model's results. It describes the task.</p>
+<h2 id="how-it-is-made">How it is made</h2>
+<p><a href="../benchmarks/scripts/run-swe-router-headless.py">run-swe-router-headless.py</a> in rubric mode makes it:</p>
+<pre><code class="language-bash">cd benchmarks
+uv run python scripts/run-swe-router-headless.py --mode rubric \
+    --agent omp --provider bedrock --model us.anthropic.claude-opus-5-5 \
+    --dataset dataset/cli-cli-v1.yaml --repeats 3
+</code></pre>
+<p>For each task in the dataset, the script:</p>
+<ol>
+<li>clones the repository at the task's ref;</li>
+<li>starts a fresh agent session with <a href="../vend/swe-router/rubric.md">rubric.md</a> and the task description, and tells it to score the six questions and change nothing;</li>
+<li>reads the six scores and a confidence level from the agent's final message;</li>
+<li>repeats this three times, since one run can put a borderline task in the wrong bucket;</li>
+<li>takes each score's median, rounding down to keep it 0, 1 or 2 (<code>[1, 1, 2]</code> becomes 1);</li>
+<li>computes the bucket and required quality from those medians with <a href="../vend/swe-router/routing-policy.json">routing-policy.json</a>.</li>
+</ol>
+<p>The judge never sees the numbers 60, 70 or 75, nor the bucket edges. It answers questions about the task, and the policy file turns the answers into numbers. Without <code>--out</code>, the script names the file after the dataset and the judge.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Pass</th>
+<th style="text-align: right;">Judgments</th>
+<th style="text-align: right;">Cost</th>
+<th style="text-align: right;">Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v2, Opus 5.5</td>
+<td style="text-align: right;">63</td>
+<td style="text-align: right;">$20.23</td>
+<td style="text-align: right;">12 min</td>
+</tr>
+<tr>
+<td>v2, Haiku 5.5</td>
+<td style="text-align: right;">62 of 63</td>
+<td style="text-align: right;">$0.84</td>
+<td style="text-align: right;">11 min</td>
+</tr>
+<tr>
+<td>cli/cli, Opus 5.5</td>
+<td style="text-align: right;">63</td>
+<td style="text-align: right;">$15.59</td>
+<td style="text-align: right;">13 min</td>
+</tr>
+<tr>
+<td>cli/cli, Haiku 5.5</td>
+<td style="text-align: right;">63</td>
+<td style="text-align: right;">$0.63</td>
+<td style="text-align: right;">11 min</td>
+</tr>
+</tbody>
+</table></div>
+<p>Source: the <code>judged_by</code> block of each file.</p>
+<h2 id="when-it-changes">When it changes</h2>
+<p>The bucket belongs to the task, not to any model, so benchmarking more models leaves the file alone.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Event</th>
+<th>What happens to the file</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A new model is benchmarked</td>
+<td>Nothing. Its scores go into the buckets already recorded</td>
+</tr>
+<tr>
+<td>A model is re-run</td>
+<td>Nothing</td>
+</tr>
+<tr>
+<td>A task is added to or removed from the dataset</td>
+<td>Run a new pass (about $20, 12 minutes)</td>
+</tr>
+<tr>
+<td>A new dataset</td>
+<td>A new file for that dataset</td>
+</tr>
+<tr>
+<td><code>rubric.md</code> changes its questions or anchors</td>
+<td>Run a new pass, because the scores now mean something else</td>
+</tr>
+<tr>
+<td><code>routing-policy.json</code> moves a bar or a bucket edge</td>
+<td>No new pass. Recompute bucket and required quality from the stored scores</td>
+</tr>
+</tbody>
+</table></div>
+<p>That last row works because the file stores the six raw scores. A platform team can move a bucket edge in a diff without paying for another pass.</p>
+<h2 id="how-the-skill-relates-to-it">How the skill relates to it</h2>
+<div class="diagram"><pre class="mermaid">flowchart LR
+    RF[&quot;Rubric scores file&lt;br/&gt;six answers per benchmark task&quot;]
+    POL[&quot;routing-policy.json&quot;]
+    EV[&quot;eval.json&lt;br/&gt;each model&#x27;s score per task&quot;]
+    B[&quot;build_vended_models.py&quot;]
+    MJ[&quot;models.json&lt;br/&gt;score per model per bucket&quot;]
+    SK[&quot;The skill: developer&#x27;s model&lt;br/&gt;answers the six questions once&quot;]
+    RP[&quot;route.py&quot;]
+    OUT([&quot;Recommended model&quot;])
+
+    RF --&gt;|&quot;answers -&gt; bucket per task&quot;| B
+    POL --&gt;|&quot;bucket edges&quot;| B
+    EV --&gt;|&quot;scores&quot;| B
+    B --&gt; MJ
+    SK --&gt;|&quot;six answers&quot;| RP
+    POL --&gt;|&quot;bucket edges, quality bars&quot;| RP
+    MJ --&gt;|&quot;columns for the task&#x27;s bucket&quot;| RP
+    RP --&gt; OUT
+</pre></div>
+<p>The file sits on the build side, left of <code>models.json</code>. The skill ships <code>SKILL.md</code>, <code>rubric.md</code>, <code>routing-policy.json</code>, <code>route.py</code>, <code>models.json</code>, <code>model-aliases.json</code> and <code>allowed-models.txt</code>. It does not ship this file and never reads it. The file's buckets reach the developer only through the columns in <code>models.json</code>.</p>
+<p>The build recomputes each bucket from the stored <code>scores</code> with the current policy and ignores the stored <code>bucket</code> field, so a policy change can never leave a stale bucket. Only one file per dataset feeds the build: the Opus 5.5 one, whose bucket held across all three repeats on 20 of 21 cli/cli tasks, against 13 for Haiku 5.5.</p>
+<p>Both sides use the same <code>rubric.md</code>. The judge bucketed the benchmark tasks with those six questions, and <code>route.py</code> buckets the developer's task with the same six, which keeps "hard" meaning the same thing on both sides of the comparison. The benchmark tasks get three judgments each, because every routing decision compares against their columns. The developer's task gets one, to keep each request quick and cheap.</p>
+<h3 id="what-the-evidence-showed">What the evidence showed</h3>
+<p>Before version 0.2.0 the skill asked the developer's model for a quality floor and one of four tiers in its own words, and read columns grouped by the tier written by hand in the dataset file. <a href="../benchmarks/scripts/eval_swe_router.py">eval_swe_router.py</a> replayed both ways of routing over every benchmark task, then looked up what the chosen model scored and cost on that task:</p>
+<ul>
+<li>On v2, against all 23 models, the rubric saved more (75.3% against 70.5%), lost less quality (−3.75 against −5.06 points) and missed the required quality on fewer tasks (4 against 9). Skipping models with failures in the bucket, as 0.2.0 does, gives 74.7% and −3.22. See <a href="swe-router-rubric-evaluation.md">swe-router-rubric-evaluation.md</a>.</li>
+<li>On cli/cli, columns built from v2 alone routed a Go repository with no adjustment and erred towards the stronger model. See <a href="results-cli-cli-v1.md">results-cli-cli-v1.md</a>.</li>
+</ul>
+<h2 id="summary-of-roles">Summary of roles</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Thing</th>
+<th>Made by</th>
+<th>Read by</th>
+<th>Shipped in the skill</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rubric.md</code></td>
+<td>us, by hand</td>
+<td>the rubric judge, and the developer's model at run time</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>routing-policy.json</code></td>
+<td>the platform team</td>
+<td>the rubric pass, <code>build_vended_models.py</code>, <code>route.py</code>, the replay</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Rubric scores file</td>
+<td><code>run-swe-router-headless.py --mode rubric</code></td>
+<td><code>build_vended_models.py</code>, the replay</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>eval.json</code> per task</td>
+<td>the artifact judge</td>
+<td><code>build_vended_models.py</code>, the replay</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>models.json</code></td>
+<td><code>build_vended_models.py</code></td>
+<td><code>route.py</code></td>
+<td>yes</td>
+</tr>
+</tbody>
+</table></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  try { var saved = localStorage.getItem("theme"); if (saved) root.setAttribute("data-theme", saved); } catch (e) {}
+  var sources = Array.prototype.map.call(document.querySelectorAll("pre.mermaid"), function (el) { return el.textContent; });
+  function isDark() {
+    var t = root.getAttribute("data-theme");
+    return t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function render() {
+    if (!window.mermaid) return;
+    var nodes = document.querySelectorAll("pre.mermaid");
+    nodes.forEach(function (el, i) { el.removeAttribute("data-processed"); el.textContent = sources[i]; });
+    mermaid.initialize({ startOnLoad: false, theme: isDark() ? "dark" : "default", securityLevel: "strict" });
+    mermaid.run({ nodes: nodes });
+  }
+  render();
+  document.getElementById("theme").addEventListener("click", function () {
+    var next = isDark() ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("theme", next); } catch (e) {}
+    render();
+  });
+})();
+</script>
+</body>
+</html>
