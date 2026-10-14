@@ -57,7 +57,7 @@ Source: `docs/metrics/swe-router-rubric-replays/{today,haiku-5-5-absolute,opus-5
 | Separation, bucket | 0.68 | 0.73 | |
 | Separation, required quality | 0.53 | 0.66 | |
 
-Source: `docs/metrics/swe-router-rubric-claude-{haiku-5-5,opus-5-5}.json` and the per-task scores in each model's `run-summary.json`.
+Source: `docs/metrics/swe-router-rubric-mcp-gateway-registry-v2-claude-{haiku-5-5,opus-5-5}.json` and the per-task scores in each model's `run-summary.json`.
 
 **The two judges agree.** Same bucket on 16 of 21 tasks, same required quality on 18 of 21, and never more than one bucket apart. Haiku 5.5 sorts tasks at least as well as Opus 5.5, at 4% of the cost per judgment.
 
@@ -147,12 +147,12 @@ From `benchmarks/`:
 # Rubric passes (Claude Code on Amazon Bedrock)
 uv run scripts/run-swe-router-headless.py --mode rubric --agent claude --provider bedrock \
     --model us.anthropic.claude-haiku-5-5 --aws-region us-east-1 --repeats 3 \
-    --out ../docs/metrics/swe-router-rubric-claude-haiku-5-5.json \
-    --out-md ../docs/swe-router-rubric-claude-haiku-5-5.md
+    --out ../docs/metrics/swe-router-rubric-mcp-gateway-registry-v2-claude-haiku-5-5.json \
+    --out-md ../docs/swe-router-rubric-mcp-gateway-registry-v2-claude-haiku-5-5.md
 
 # Replay, leave-one-out, every model available
 uv run scripts/eval_swe_router.py --holdout --no-allow-list \
-    --rubric-inputs ../docs/metrics/swe-router-rubric-claude-haiku-5-5.json --bucketing absolute
+    --rubric-inputs ../docs/metrics/swe-router-rubric-mcp-gateway-registry-v2-claude-haiku-5-5.json --bucketing absolute
 
 # Today's skill, the same way
 uv run scripts/eval_swe_router.py --holdout --no-allow-list \
