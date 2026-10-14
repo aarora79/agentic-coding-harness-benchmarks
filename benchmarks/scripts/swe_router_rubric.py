@@ -23,7 +23,7 @@ import re
 import statistics
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -75,9 +75,23 @@ class RequiredQuality(BaseModel):
 
 
 class Difficulty(BaseModel):
-    """Which dimensions add up to difficulty, and how the sum is bucketed."""
+    """Which dimensions add up to difficulty, and how the sum is bucketed.
+
+    ``absolute`` uses the fixed ``buckets`` ranges. ``relative`` splits the
+    difficulty sums of the benchmark's own tasks into quarters, so "hard" means
+    harder than most of the work that was measured. Models score the rubric
+    generously, so fixed ranges put almost every task in the top two buckets;
+    quarters keep the ranking whatever the overall level. ``buckets`` stays the
+    fallback when no benchmark tasks are available to take quarters of.
+
+    On the 21-task v2 set, quarters sorted tasks better but left columns of 3-12
+    tasks, too few for steady per-model means, and routed worse than absolute
+    buckets. Prefer ``relative`` only for a task set large enough to fill four
+    columns.
+    """
 
     dimensions: list[str]
+    bucketing: Literal["absolute", "relative"] = "absolute"
     buckets: dict[str, tuple[int, int]]
 
     @model_validator(mode="after")
@@ -144,6 +158,30 @@ def bucket(scores: dict[str, int], policy: RoutingPolicy) -> str:
         if lo <= total <= hi:
             return name
     raise RubricError(f"difficulty sum {total} falls in no bucket")
+
+
+def relative_edges(sums: list[int]) -> tuple[float, float, float]:
+    """Quartile cut points of the benchmark tasks' difficulty sums.
+
+    Raises:
+        RubricError: With fewer than four sums, where quarters mean nothing.
+    """
+    if len(sums) < 4:
+        raise RubricError(f"relative buckets need at least 4 tasks, got {len(sums)}")
+    q1, q2, q3 = statistics.quantiles(sums, n=4, method="inclusive")
+    return q1, q2, q3
+
+
+def relative_bucket(total: int, edges: tuple[float, float, float]) -> str:
+    """Place a difficulty sum among quartile cut points.
+
+    A sum equal to a cut point falls in the lower bucket, so a tie never
+    promotes a task.
+    """
+    for name, edge in zip(BUCKET_ORDER, edges):
+        if total <= edge:
+            return name
+    return BUCKET_ORDER[-1]
 
 
 def build_prompt(task_id: str, problem: str, clone_path: Path, rubric_text: str) -> str:

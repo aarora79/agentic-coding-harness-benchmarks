@@ -52,6 +52,7 @@ import sys
 import tempfile
 from collections import Counter
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 import yaml
@@ -78,7 +79,12 @@ _SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "swe-router"
 sys.path.insert(0, str(_SKILL_DIR))
 
 from route import RouteError, route  # noqa: E402
-from swe_router_rubric import BUCKET_TO_ROUTE_TIER  # noqa: E402
+from swe_router_rubric import (  # noqa: E402
+    BUCKET_TO_ROUTE_TIER,
+    load_policy,
+    relative_bucket,
+    relative_edges,
+)
 
 # Hardware-derived $/token for self-hosted models, same source and same
 # "cheapest sustainable concurrency level" rule plot_cost_quality.py uses, so a
@@ -350,6 +356,23 @@ def _route_task(
     )
 
 
+def _regrouped(
+    results: dict[str, dict[str, dict[str, Any]]],
+    columns: dict[str, str],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """A copy of the results with each task filed under the given column."""
+    return {
+        model: {
+            task_id: {
+                **record,
+                "complexity": columns.get(task_id, record["complexity"]),
+            }
+            for task_id, record in per_task.items()
+        }
+        for model, per_task in results.items()
+    }
+
+
 def _evaluate(
     tasks: list[dict[str, Any]],
     results: dict[str, dict[str, dict[str, Any]]],
@@ -362,6 +385,7 @@ def _evaluate(
     holdout: bool,
     provenance: dict[str, Any],
     judged_tiers: dict[str, str] | None = None,
+    column_for: Callable[[str], dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Replay the router over every task and compare it to the baseline.
 
@@ -378,6 +402,10 @@ def _evaluate(
         provenance: Provenance block for the synthesized models.json.
         judged_tiers: Per-task tier from a judged run, overriding the dataset's
             own ``complexity`` label. None keeps the dataset label.
+        column_for: Given the task being routed, the column of EVERY task, used
+            both to route it and to rebuild the columns it is routed against.
+            Lets the grouping itself depend on the held-out task, as relative
+            rubric buckets do. Overrides ``judged_tiers`` and the dataset label.
 
     Returns:
         A result mapping with ``rows`` (one per task) and ``totals``.
@@ -404,13 +432,16 @@ def _evaluate(
         # the router a perfect classifier it would not have in real use.
         tier = judged_tiers.get(task_id, task["complexity"])
         floor = floors.get(task_id, DEFAULT_FLOOR)
-        if holdout:
+        grouped = results
+        if column_for is not None:
+            columns = column_for(task_id)
+            tier = columns[task_id]
+            grouped = _regrouped(results, columns)
+        if holdout or column_for is not None:
             models_path = tmp_dir / f"models-{task_id}.json"
+            stats = _tier_stats(grouped, exclude_task=task_id if holdout else None)
             models_path.write_text(
-                json.dumps(
-                    _models_json(_tier_stats(results, exclude_task=task_id), provenance)
-                ),
-                encoding="utf-8",
+                json.dumps(_models_json(stats, provenance)), encoding="utf-8"
             )
         else:
             models_path = in_sample_path
@@ -554,9 +585,30 @@ def _totals(rows: list[dict[str, Any]], baseline: str) -> dict[str, Any]:
         "baseline_mean_score": round(base_mean, 2),
         "routed_mean_score": round(routed_mean, 2),
         "mean_score_delta": round(routed_mean - base_mean, 2),
+        # The same comparison over EVERY task, a failed run counted as 0. The
+        # paired means above leave out a task the routed model failed, which
+        # flatters a router that picks a model that then fails outright.
+        "baseline_mean_score_failures_as_zero": round(
+            statistics.fmean(r["baseline_score"] or 0.0 for r in rows), 2
+        )
+        if rows
+        else 0.0,
+        "routed_mean_score_failures_as_zero": round(
+            statistics.fmean(r["actual_score"] or 0.0 for r in rows), 2
+        )
+        if rows
+        else 0.0,
         # The router's own failure mode: it picked a model to clear a floor and
         # the model then landed under it. Counted for both arms so the baseline
         # is held to the same test.
+        "mean_score_delta_failures_as_zero": round(
+            statistics.fmean(
+                (r["actual_score"] or 0.0) - (r["baseline_score"] or 0.0) for r in rows
+            ),
+            2,
+        )
+        if rows
+        else 0.0,
         "tasks_below_floor_routed": sum(1 for r in rows if not r["met_floor"]),
         "tasks_below_floor_baseline": sum(
             1
@@ -840,25 +892,31 @@ def _load_tasks(dataset_path: Path) -> tuple[list[dict[str, Any]], str]:
 def _apply_rubric_inputs(
     path: Path,
     tasks: list[dict[str, Any]],
-    results: dict[str, dict[str, dict[str, Any]]],
-) -> tuple[dict[str, float], dict[str, str], dict[str, Any]]:
+    bucketing: str,
+    holdout: bool,
+) -> tuple[dict[str, float], Callable[[str], dict[str, str]], dict[str, Any]]:
     """Route on a rubric pass instead of the skill's floor and tier.
 
     Each task's required quality becomes its floor and its difficulty bucket its
-    column. The columns themselves are rebuilt to match: every model's existing
-    score on a task is filed under that task's bucket rather than its dataset
-    tier, so the router compares a task against measured scores on tasks the
-    same rubric called equally demanding. No run is repeated; only the grouping
-    changes. route.py still knows four tier names, so the buckets travel as
-    those keys (``BUCKET_TO_ROUTE_TIER``); the report names them by bucket.
+    column, and the columns are rebuilt to match: every model's existing score
+    on a task is filed under that task's bucket rather than its dataset tier.
+    No run is repeated; only the grouping changes.
+
+    ``absolute`` bucketing uses the bucket the rubric pass recorded.
+    ``relative`` cuts the tasks' difficulty sums into quarters -- with
+    ``holdout``, quarters of the OTHER tasks, so the routed task never shapes
+    the boundaries it is placed by. route.py still knows four tier names, so
+    the buckets travel as those keys (``BUCKET_TO_ROUTE_TIER``).
 
     Args:
         path: A rubric-inputs JSON from ``run-swe-router-headless.py --mode rubric``.
         tasks: Dataset tasks.
-        results: Output of ``_load_results``; regrouped in place.
+        bucketing: ``absolute`` or ``relative``.
+        holdout: Leave the routed task out of the quarters (relative only).
 
     Returns:
-        Per-task floors, per-task column keys, and the rubric pass's metadata.
+        Per-task floors, the per-task column function for ``_evaluate``, and the
+        rubric pass's metadata.
 
     Raises:
         SystemExit: If the file is not a rubric pass or misses a task.
@@ -873,14 +931,22 @@ def _apply_rubric_inputs(
             f"--rubric-inputs is missing {len(missing)} task(s): {', '.join(sorted(missing))}"
         )
     floors = {tid: float(v["required_quality"]) for tid, v in scored.items()}
-    columns = {tid: BUCKET_TO_ROUTE_TIER[v["bucket"]] for tid, v in scored.items()}
-    for per_task in results.values():
-        for task_id, record in per_task.items():
-            if task_id in columns:
-                record["complexity"] = columns[task_id]
+    sums = {tid: int(v["difficulty_sum"]) for tid, v in scored.items()}
+    absolute = {tid: BUCKET_TO_ROUTE_TIER[v["bucket"]] for tid, v in scored.items()}
+
+    def column_for(routed: str) -> dict[str, str]:
+        if bucketing == "absolute":
+            return absolute
+        reference = [s for tid, s in sums.items() if not (holdout and tid == routed)]
+        edges = relative_edges(reference)
+        return {
+            tid: BUCKET_TO_ROUTE_TIER[relative_bucket(s, edges)]
+            for tid, s in sums.items()
+        }
+
     meta = dict(data.get("judged_by") or {})
-    meta["mode"] = "rubric"
-    return floors, columns, meta
+    meta.update(mode="rubric", bucketing=bucketing)
+    return floors, column_for, meta
 
 
 def _parse_args() -> argparse.Namespace:
@@ -933,6 +999,14 @@ def _parse_args() -> argparse.Namespace:
         "required quality is its floor and its difficulty bucket its column; "
         "every model's existing scores are regrouped by bucket. Replaces "
         "--judged-inputs, --floor and the dataset's complexity label.",
+    )
+    parser.add_argument(
+        "--bucketing",
+        choices=("absolute", "relative"),
+        default=None,
+        help="Difficulty buckets for --rubric-inputs: absolute ranges, or "
+        "quarters of the tasks' own difficulty sums. Default: the routing "
+        "policy's difficulty.bucketing.",
     )
     parser.add_argument(
         "--floors-file",
@@ -1015,9 +1089,11 @@ def main() -> None:
     file_floors: dict[str, float] = {}
     if args.rubric_inputs and args.judged_inputs:
         raise SystemExit("use --rubric-inputs or --judged-inputs, not both")
+    column_for = None
     if args.rubric_inputs:
-        file_floors, judged_tiers, judged_meta = _apply_rubric_inputs(
-            args.rubric_inputs, tasks, results
+        bucketing = args.bucketing or load_policy().difficulty.bucketing
+        file_floors, column_for, judged_meta = _apply_rubric_inputs(
+            args.rubric_inputs, tasks, bucketing, args.holdout
         )
     if args.judged_inputs:
         judged = json.loads(args.judged_inputs.read_text(encoding="utf-8"))
@@ -1060,13 +1136,15 @@ def main() -> None:
                 holdout=args.holdout,
                 provenance=provenance,
                 judged_tiers=judged_tiers,
+                column_for=column_for,
             )
         except RouteError as exc:
             raise SystemExit(f"routing failed at floor {floor}: {exc}") from exc
         totals = evaluated["totals"]
         logger.info(
             "floor %.0f: %s -> $%.2f vs $%.2f baseline (%.1f%% saved), "
-            "mean score %.2f vs %.2f (%+.2f), %d task(s) under floor",
+            "mean score %.2f vs %.2f (%+.2f; %+.2f with failures as 0), "
+            "%d task(s) under floor",
             floor,
             "leave-one-out" if args.holdout else "in-sample",
             totals["routed_total_cost_usd"],
@@ -1075,6 +1153,7 @@ def main() -> None:
             totals["routed_mean_score"],
             totals["baseline_mean_score"],
             totals["mean_score_delta"],
+            totals["mean_score_delta_failures_as_zero"],
             totals["tasks_below_floor_routed"],
         )
         runs.append({"floor": None if file_floors else floor, **evaluated})
@@ -1115,7 +1194,8 @@ def main() -> None:
                 + "."
             ),
             "tier_note": (
-                "Difficulty bucket per task from the rubric pass; every model's "
+                f"Difficulty bucket per task from the rubric pass "
+                f"({judged_meta.get('bucketing')} bucketing); every model's "
                 "existing scores regrouped into bucket columns (easy, moderate, "
                 "hard, very hard shown as trivial, low, medium, high). The "
                 "dataset's own label is kept beside each row."

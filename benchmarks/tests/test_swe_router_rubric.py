@@ -198,31 +198,80 @@ class PromptTest(unittest.TestCase):
 
 
 class ReplayRubricInputsTest(unittest.TestCase):
-    def _inputs(self, tasks: dict) -> Path:
+    def _inputs(self, tasks: dict, mode: str = "rubric") -> Path:
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
-        json.dump({"mode": "rubric", "judged_by": {"model": "m"}, "tasks": tasks}, tmp)
+        json.dump({"mode": mode, "judged_by": {"model": "m"}, "tasks": tasks}, tmp)
         tmp.close()
         return Path(tmp.name)
 
-    def test_regroups_scores_by_bucket_and_sets_floors(self) -> None:
-        path = self._inputs({"a": {"required_quality": 75, "bucket": "very_hard"}})
-        results = {"m1": {"a": {"complexity": "trivial", "score": 80}}}
-        floors, columns, meta = ev._apply_rubric_inputs(path, [{"id": "a"}], results)
+    def _five(self) -> dict:
+        sums = {"a": 2, "b": 4, "c": 5, "d": 6, "e": 8}
+        return {
+            t: {"required_quality": 70, "bucket": "hard", "difficulty_sum": s}
+            for t, s in sums.items()
+        }
+
+    def test_absolute_uses_the_recorded_bucket_and_sets_floors(self) -> None:
+        path = self._inputs(
+            {"a": {"required_quality": 75, "bucket": "very_hard", "difficulty_sum": 7}}
+        )
+        floors, column_for, meta = ev._apply_rubric_inputs(
+            path, [{"id": "a"}], "absolute", holdout=True
+        )
         self.assertEqual(
-            (floors["a"], columns["a"], results["m1"]["a"]["complexity"], meta["mode"]),
-            (75.0, "high", "high", "rubric"),
+            (floors["a"], column_for("a")["a"], meta["bucketing"]),
+            (75.0, "high", "absolute"),
+        )
+
+    def test_relative_quarters_leave_out_the_routed_task(self) -> None:
+        tasks = [{"id": t} for t in "abcde"]
+        _, column_for, _ = ev._apply_rubric_inputs(
+            self._inputs(self._five()), tasks, "relative", holdout=True
+        )
+        # Routing e: quarters of a-d (2, 4, 5, 6), so e's 8 is very hard and a's 2 easy.
+        cols = column_for("e")
+        self.assertEqual((cols["a"], cols["e"]), ("trivial", "high"))
+
+    def test_relative_columns_differ_by_which_task_is_held_out(self) -> None:
+        tasks = [{"id": t} for t in "abcde"]
+        _, column_for, _ = ev._apply_rubric_inputs(
+            self._inputs(self._five()), tasks, "relative", holdout=True
+        )
+        self.assertNotEqual(column_for("a"), column_for("e"))
+
+    def test_regrouping_does_not_touch_the_original_results(self) -> None:
+        results = {"m1": {"a": {"complexity": "trivial", "score": 80}}}
+        grouped = ev._regrouped(results, {"a": "high"})
+        self.assertEqual(
+            (grouped["m1"]["a"]["complexity"], results["m1"]["a"]["complexity"]),
+            ("high", "trivial"),
         )
 
     def test_rejects_a_floor_mode_file(self) -> None:
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
-        json.dump({"mode": "floor", "tasks": {}}, tmp)
-        tmp.close()
         with self.assertRaisesRegex(SystemExit, "not a rubric pass"):
-            ev._apply_rubric_inputs(Path(tmp.name), [], {})
+            ev._apply_rubric_inputs(
+                self._inputs({}, mode="floor"), [], "absolute", False
+            )
 
     def test_rejects_a_file_missing_a_task(self) -> None:
         with self.assertRaisesRegex(SystemExit, "missing 1 task"):
-            ev._apply_rubric_inputs(self._inputs({}), [{"id": "a"}], {})
+            ev._apply_rubric_inputs(self._inputs({}), [{"id": "a"}], "absolute", False)
+
+
+class RelativeBucketTest(unittest.TestCase):
+    def test_needs_four_tasks(self) -> None:
+        with self.assertRaisesRegex(r.RubricError, "at least 4"):
+            r.relative_edges([1, 2, 3])
+
+    def test_a_tie_falls_to_the_lower_bucket(self) -> None:
+        edges = r.relative_edges([2, 4, 4, 5, 5, 5, 6, 6, 7, 7, 8])
+        self.assertEqual(r.relative_bucket(5, edges), "moderate")
+
+    def test_shipped_policy_is_absolute(self) -> None:
+        # Relative quarters sorted the 21 v2 tasks better but split them into
+        # columns of 3-12 tasks, too few for steady per-model means; absolute
+        # buckets routed better on that data (docs/swe-router-rubric-evaluation.md).
+        self.assertEqual(r.load_policy().difficulty.bucketing, "absolute")
 
 
 if __name__ == "__main__":
