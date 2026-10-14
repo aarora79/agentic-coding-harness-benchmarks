@@ -65,7 +65,7 @@ On ours, 23 models over 21 tasks: `claude-opus-5` scores highest at **82.83** fo
 
 ## Step 2 — Developers install the skill
 
-Five files copied into a skills directory. The skill imports nothing and needs no build step. Run this from the root of the repository you want it in, and it lands in `.claude/skills/swe-router`:
+Seven files copied into a skills directory. The skill imports nothing and needs no build step. Run this from the root of the repository you want it in, and it lands in `.claude/skills/swe-router`:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh | bash
@@ -77,9 +77,9 @@ To install it once for every repository instead, send it to your home directory:
 curl -sL https://raw.githubusercontent.com/aarora79/agentic-coding-harness-benchmarks/main/vend/swe-router/install.sh | bash -s -- --dir ~/.claude/skills
 ```
 
-Re-run either command to upgrade; your edited `allowed-models.txt` is kept.
+Re-run either command to upgrade; your edited `allowed-models.txt` and `routing-policy.json` are kept.
 
-`swe-router` engages on its own before a substantial task. It sets a quality floor from what happens if the change is wrong, classifies how hard the task is, and takes the cheapest model that clears that floor at that tier. **Edit `allowed-models.txt`.** The skill treats every name in it as a model the developer can select, so listing one your team cannot reach costs them the cheaper option.
+`swe-router` engages on its own before a substantial task. Your assistant's model answers six rubric questions about the task: four set its difficulty bucket (easy, moderate, hard or very hard), and two set the quality a model must reach, from what happens if the change is wrong. The skill then takes the cheapest permitted model whose benchmark score on tasks in that bucket clears the bar, skipping any model that failed a benchmark task there. [How it works](docs/swe-router-how-it-works.md). **Edit `allowed-models.txt`.** The skill treats every name in it as a model the developer can select, so listing one your team cannot reach costs them the cheaper option.
 
 Install notes, the file-by-file breakdown and the measured results: **[vend/swe-router/README.md](vend/swe-router/README.md)**.
 
@@ -146,8 +146,11 @@ Where to read more, by topic:
 | [.claude/skills/setup-machine/SKILL.md](.claude/skills/setup-machine/SKILL.md) | **Start here on a new machine.** What `/setup-machine` inspects and installs, why each component is needed, where the vLLM venv lands on a small root disk, and what it deliberately does not do. |
 | [.claude/skills/onboard-benchmark/SKILL.md](.claude/skills/onboard-benchmark/SKILL.md) | **Start here to benchmark your own code.** The `/onboard-benchmark` skill walks the first run on your own infrastructure: confirming one machine reaches both your model endpoint and your code host, picking the harness your gateway's API shape can drive, proving the agent and the judge with a real call, credentials for private and enterprise-hosted repositories, authoring a dataset from your closed issues, and one scored smoke task. |
 | [docs/results-swe3.md](docs/results-swe3.md) / [docs/results-swe2.md](docs/results-swe2.md) | Full benchmark results per skill: task-by-task tables, per-model leaderboard, cost/quality frontier, hardware, and what the data says. |
-| [.claude/skills/swe-router/SKILL.md](.claude/skills/swe-router/SKILL.md) | The `/swe-router` skill: how it sets a quality floor from the consequence of a change being wrong, picks the tier table to read it against, and selects the cheapest model that clears it. Advisory -- it recommends and stops. |
-| [docs/swe-router-judged-inputs.md](docs/swe-router-judged-inputs.md) | What `omp` + `claude-opus-5` judged each of the 21 v2 tasks to need: floor, tier, the reasoning, and how much those moved across three identical runs. |
+| [.claude/skills/swe-router/SKILL.md](.claude/skills/swe-router/SKILL.md) | The `/swe-router` skill: it answers the six questions in `rubric.md` about the task, and `route.py` turns the answers into a difficulty bucket and a required quality, then picks the cheapest permitted model that clears it in that bucket. Advisory -- it recommends and stops. |
+| [docs/swe-router-how-it-works.md](docs/swe-router-how-it-works.md) | How `swe-router` picks a model, in three stages with diagrams: classify the benchmark tasks with the rubric, benchmark the models, route a developer's task. Also as [HTML](docs/swe-router-how-it-works.html). |
+| [docs/swe-router-rubric-scores.md](docs/swe-router-rubric-scores.md) | The rubric scores file behind the skill's columns: what it holds, how it is made, when it changes, and why the skill never reads it. Also as [HTML](docs/swe-router-rubric-scores.html). |
+| [docs/swe-router-rubric-evaluation.md](docs/swe-router-rubric-evaluation.md) / [docs/results-cli-cli-v1.md](docs/results-cli-cli-v1.md) | The evidence for the rubric: replays against the previous skill on v2, and a zero-shot check on a second repository (cli/cli, in Go). |
+| [docs/swe-router-judged-inputs.md](docs/swe-router-judged-inputs.md) | Before the rubric (skill 0.1): what `omp` + `claude-opus-5` judged each of the 21 v2 tasks to need: floor, tier, the reasoning, and how much those moved across three identical runs. |
 | [docs/swe-router-evaluation-judged.md](docs/swe-router-evaluation-judged.md) | Whether routing on those judgments beats running one model on everything: per-task picks joined to the measured runs, with cost and quality deltas. |
 | [docs/vision.md](docs/vision.md) | The north star: a cost-aware harness that routes each task (and each phase) to the right model on the frontier -- frontier / workhorse / budget -- switching automatically. |
 | [benchmarks/README.md](benchmarks/README.md) | The benchmark harness landing page: the three hosting paths, how a run works, and how to reproduce the results above. |
