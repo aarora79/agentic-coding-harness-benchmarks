@@ -550,6 +550,7 @@ Read the doc that covers what you are about to do rather than rediscovering it. 
 - [docs/best-harness-selection.md](docs/best-harness-selection.md) -- how the combined cost/quality chart picks one harness per model.
 - [docs/results-swe3.md](docs/results-swe3.md), [docs/results-swe2.md](docs/results-swe2.md) -- published results and their footnotes.
 - [docs/results-swe3-v2.md](docs/results-swe3-v2.md) -- results on the v2 dataset (15 release-sourced tasks, complexity-balanced). **Never merge v2 scores into a v1 table**; the task sets, refs and difficulty mixes differ.
+- [docs/results-cli-cli-v1.md](docs/results-cli-cli-v1.md) -- the cross-repo check (#221): Claude 5.5 models on 21 cli/cli (Go) tasks, and whether v2's rankings, score levels and swe-router columns carry over. Keep its tables apart from v1 and v2.
 - [docs/model-selection-by-complexity.md](docs/model-selection-by-complexity.md) -- which model to use for which class of work, derived from the v2 complexity tiers.
 
 **Questions rather than reference pages:**

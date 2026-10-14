@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -256,6 +257,52 @@ class ReplayRubricInputsTest(unittest.TestCase):
     def test_rejects_a_file_missing_a_task(self) -> None:
         with self.assertRaisesRegex(SystemExit, "missing 1 task"):
             ev._apply_rubric_inputs(self._inputs({}), [{"id": "a"}], "absolute", False)
+
+
+class ZeroShotColumnsTest(unittest.TestCase):
+    def _columns(self, rubric_tasks: dict) -> dict:
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump({"mode": "rubric", "tasks": rubric_tasks}, tmp)
+        tmp.close()
+        rec = lambda s: {  # noqa: E731
+            "score": s,
+            "cost_usd": 1.0,
+            "failed": False,
+            "complexity": "low",
+        }
+        results = {"m1": {"a": rec(90.0), "b": rec(60.0)}}
+        tasks = [{"id": "a", "complexity": "low"}, {"id": "b", "complexity": "low"}]
+        with (
+            mock.patch.object(ev, "_load_tasks", return_value=(tasks, "other")),
+            mock.patch.object(ev, "_load_results", return_value=results),
+        ):
+            stats, _ = ev._columns_from_other_dataset(
+                Path("other.yaml"), Path(tmp.name), "omp", "swe3"
+            )
+        return stats["m1"]["score_by_complexity"]
+
+    def test_columns_are_the_other_datasets_bucket_means(self) -> None:
+        cols = self._columns(
+            {
+                "a": {"required_quality": 60, "bucket": "easy", "difficulty_sum": 0},
+                "b": {
+                    "required_quality": 70,
+                    "bucket": "very_hard",
+                    "difficulty_sum": 7,
+                },
+            }
+        )
+        self.assertEqual(cols, {"trivial": 90.0, "high": 60.0})
+
+    def test_rubric_entries_outside_that_dataset_are_ignored(self) -> None:
+        cols = self._columns(
+            {
+                "a": {"required_quality": 60, "bucket": "easy", "difficulty_sum": 0},
+                "b": {"required_quality": 70, "bucket": "easy", "difficulty_sum": 1},
+                "x": {"required_quality": 70, "bucket": "hard", "difficulty_sum": 4},
+            }
+        )
+        self.assertEqual(cols, {"trivial": 75.0})
 
 
 class RegressionColumnTest(unittest.TestCase):
