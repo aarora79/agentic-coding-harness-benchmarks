@@ -1,0 +1,1126 @@
+# =============================================================================
+# SWE benchmark dataset - cli/cli (the GitHub CLI), v1
+# =============================================================================
+#
+# A second repository for the harness, chosen to differ from
+# mcp-gateway-registry in language and in kind: a Go command-line client with
+# flag parsing, auth, terminal output and a REST/GraphQL client, where v2 is a
+# Python service with React, nginx and Terraform around it. Its first job is the
+# cross-repo check in issue #221: do model rankings, score levels and the
+# swe-router rubric carry over to a codebase nobody tuned them on?
+#
+# The schema is identical to mcp-gateway-registry-v2.yaml and is documented in
+# benchmarks/docs/harness-reference.md.
+#
+# -----------------------------------------------------------------------------
+# How the 21 tasks were chosen
+# -----------------------------------------------------------------------------
+# 1. Every task is a real cli/cli issue closed as completed, with a merged fix
+#    PR that changes Go source and shipped in a stable v2.x.y release.
+#
+# 2. Contamination rules: every fix merged on or after 2026-05-01, and every
+#    issue was opened in 2026. Fixes span 2026-05-02 to 2026-09-29 and shipped
+#    in v2.93.0 to v2.102.0. Long-running issues from 2020-2025, whose public
+#    threads often sketch the solution, are excluded.
+#
+# 3. Each task's `ref` pins the stable release immediately BEFORE the one that
+#    shipped the fix, so the defect or gap is present in the tree the agent
+#    clones. `fixed-in-*` in each task's tags records that release.
+#
+# 4. Tiers follow v2's mix, 5 trivial / 5 low / 6 medium / 5 high, set from the
+#    fix PR's shape and what the issue asks. They are provisional: as in v2, a
+#    task is re-tiered if the first three-model run shows a mislabel.
+#
+# 5. `gh skill` is capped at 2 tasks of the 13 eligible, so no area dominates.
+#    Areas: repo 4, pr 4, release 2, auth 2, project 2, skill 2, and one each
+#    of copilot, extension, codespace, issue, search.
+#
+# The full selection, with 10 reserves and every excluded candidate and its
+# reason, is in the cross-repo plan for issue #221.
+#
+# `ground_truth` records how upstream resolved each issue. It is
+# reviewer-facing only and is NEVER given to the agent.
+#
+# Building and testing needs Go 1.26 or later; with the default
+# GOTOOLCHAIN=auto, each ref fetches the toolchain its go.mod declares.
+# =============================================================================
+
+schema_version: "1.0"
+name: cli-cli-swe-v1
+title: GitHub CLI (cli/cli) - SWE tasks v1 (release-sourced, complexity-balanced)
+description: >-
+  Twenty-one software-engineering tasks drawn from real closed issues in
+  cli/cli, the GitHub CLI, fixed in releases v2.93.0 through v2.102.0. Each
+  task pins the release tag immediately before the fix landed, so the agent
+  clones a tree in which the bug or gap is present. Five tasks each at trivial,
+  low and high complexity and six at medium. Runs are instrumented for token
+  usage, latency, and the number of LLM turns the agent took.
+created: 2026-10-14
+default_ref: "v2.101.0"
+# Results folder name: cli/cli runs never share a folder or a table with v2.
+output_scope: cli-cli-v1
+
+metrics:
+  - input_tokens          # prompt tokens sent to the model across the run
+  - output_tokens         # completion tokens generated across the run
+  - cache_read_tokens     # prompt tokens served from cache (if reported)
+  - cache_creation_tokens # prompt tokens written to cache (if reported)
+  - latency_seconds       # wall-clock time for the run
+  - num_turns             # LLM calls (turns) the agent made to complete the task
+
+complexity_levels:
+  - trivial
+  - low
+  - medium
+  - high
+
+tasks:
+  # ---------------------------------------------------------------------------
+  # TRIVIAL COMPLEXITY (5)
+  # ---------------------------------------------------------------------------
+
+  - id: repo-create-reject-empty-name
+    repo: https://github.com/cli/cli
+    ref: "v2.100.0"
+    complexity: trivial
+    tags: [repo, go, cli, interactive-prompts, validation, fixed-in-2.101.0]
+    problem_statement: |
+      Interactive `gh repo create` accepts an empty repository name. When a
+      user picks "Create a new repository on github.com from scratch" and
+      leaves the "Repository name" prompt blank, gh carries on and asks for
+      the owner, description, visibility, README, .gitignore and license,
+      and then asks for confirmation to create "some-owner/". Only after the
+      user confirms does it fail with:
+
+        argument error: expected the "[HOST/]OWNER/REPO" format, got "some-owner/"
+
+      The user has answered every prompt for nothing and must start the
+      whole flow again.
+
+      To reproduce: run `gh repo create`, choose to create from scratch,
+      press Enter at the repository name prompt, and continue through the
+      remaining fields.
+
+      Expected behaviour: gh tells the user right away that the repository
+      name is empty, instead of failing after the last prompt. Valid names
+      must keep working as they do today.
+
+      Cover the change with tests for an empty name.
+    problem_issue_url: https://github.com/cli/cli/issues/14297
+    clarifying_answers: |
+      1. Interactive `gh repo create` accepts a blank repository name and only fails after every later prompt and the confirmation.
+      2. Anyone creating a repository interactively with `gh repo create`.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. Trivial - one input check in the interactive create flow, plus tests.
+    ground_truth:
+      approach: >-
+        Validate the repository name right after the interactive name prompt in
+        the create command, returning "repository name cannot be blank" for
+        empty or whitespace-only input before the owner or any later prompt
+        runs. The check sits beside the existing repo-name parsing so the from-
+        scratch, template and local-repository flows all share it.
+      expectations:
+        - "Rejects an empty repository name immediately after the name prompt, before owner, description, visibility or confirmation prompts."
+        - "Treats whitespace-only input as blank."
+        - "Leaves valid names and the existing OWNER/REPO parsing unchanged."
+        - "Adds createRun test cases for empty and whitespace-only names that assert the error and that no later prompts run."
+      reference_url: https://github.com/cli/cli/pull/14313
+
+  - id: copilot-not-installed-trailing-newline
+    repo: https://github.com/cli/cli
+    ref: "v2.98.0"
+    complexity: trivial
+    tags: [copilot, go, cli, terminal-output, fixed-in-2.99.0]
+    problem_statement: |
+      `gh copilot` leaves the terminal in a messy state when GitHub Copilot
+      CLI is not installed and the user declines to install it. gh prints
+      the warning `! Copilot CLI was not installed` without a trailing
+      newline, so the next shell prompt appears glued to the end of that
+      line:
+
+        ? GitHub Copilot CLI is not installed. Would you like to install it? No
+        ! Copilot CLI was not installedbarsik@home:~$
+
+      To reproduce:
+
+      1. Make sure GitHub Copilot CLI is not installed.
+      2. Run `gh copilot`.
+      3. Answer `n` at the prompt "GitHub Copilot CLI is not installed.
+         Would you like to install it? (Y/n)".
+
+      Expected behaviour: the warning ends with a newline, so the shell
+      prompt starts on its own line. The rest of the declined-install
+      behaviour should stay the same.
+
+      Cover the change with a test that asserts the exact output printed
+      when the user declines the install.
+    problem_issue_url: https://github.com/cli/cli/issues/14189
+    clarifying_answers: |
+      1. The "Copilot CLI was not installed" warning lacks a trailing newline, so the shell prompt lands on the same line.
+      2. Users who run `gh copilot` without Copilot CLI installed and decline the install prompt.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. Trivial - a one-character output fix plus a test of the exact output.
+    ground_truth:
+      approach: >-
+        Add a trailing newline to the warning printed when Copilot CLI
+        installation is declined. Upstream also asserted the exact stderr output
+        in the run-function table test, folding the existing execution-failure
+        test into that table.
+      expectations:
+        - "Changes the declined-install warning so it ends with a newline."
+        - "Leaves the warning text and the declined-install control flow otherwise unchanged."
+        - "Adds or updates a test that asserts the exact output, including the trailing newline, for the declined-install case."
+      reference_url: https://github.com/cli/cli/pull/14222
+
+  - id: repo-set-default-unset-without-repo
+    repo: https://github.com/cli/cli
+    ref: "v2.101.0"
+    complexity: trivial
+    tags: [repo, go, cli, tty, flags, fixed-in-2.102.0]
+    problem_statement: |
+      `gh repo set-default --unset` fails when stdin is not a terminal, for
+      example in a script or with redirected input:
+
+        $ gh repo set-default --unset </dev/null
+        repository required when not running interactively
+
+        Usage:  gh repo set-default [<repository>] [flags]
+
+      `--unset` removes whatever repository is currently the default, so a
+      repository argument makes no sense for it. The command already
+      accepts an argument with `--unset` but ignores it: with `upstream` as
+      the current default, `gh repo set-default --unset origin` succeeds and
+      unsets `upstream`.
+
+      `gh repo set-default --view` already runs without a repository
+      argument when not interactive. `--unset` should behave the same way.
+
+      Expected behaviour: `gh repo set-default --unset` succeeds without a
+      repository argument when not running interactively. A plain
+      `gh repo set-default` with no argument and no flags, run without a
+      terminal, should still fail with the existing "repository required"
+      error.
+
+      Cover the change with tests for non-interactive `--unset` and
+      `--view` without an argument, and for the error case that must stay.
+    problem_issue_url: https://github.com/cli/cli/issues/14521
+    clarifying_answers: |
+      1. `gh repo set-default --unset` demands a repository argument when stdin is not a terminal, though it never uses one.
+      2. Users and scripts that run `gh repo set-default --unset` non-interactively.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. Trivial - one condition in the command's argument handling, plus tests.
+    ground_truth:
+      approach: >-
+        Exempt `--unset` from the non-interactive "repository required" check in
+        the set-default command constructor, the same way `--view` is already
+        exempt. Constructor tests cover argument-free non-interactive `--unset`
+        and `--view` and keep the error for a bare non-interactive invocation.
+      expectations:
+        - "Allows `gh repo set-default --unset` with no repository argument when stdin is not a TTY."
+        - "Keeps the existing `--view` exemption working."
+        - "Still returns \"repository required when not running interactively\" for a bare non-interactive call with no flags."
+        - "Adds constructor test cases for the non-interactive `--unset` and `--view` paths and the preserved error."
+      reference_url: https://github.com/cli/cli/pull/14540
+
+  - id: pr-checks-all-cancelled-summary
+    repo: https://github.com/cli/cli
+    ref: "v2.95.0"
+    complexity: trivial
+    tags: [pr, go, cli, checks, terminal-output, fixed-in-2.96.0]
+    problem_statement: |
+      `gh pr checks` prints a blank summary line when every check on a pull
+      request was cancelled. The command already has a "Some checks were
+      cancelled" summary message, but it never appears in this case.
+
+      To reproduce: run `gh pr checks <PR>` against a pull request whose
+      only check runs are in the cancelled state, for example a single
+      workflow run that was cancelled, with no passing, failing, pending or
+      skipped checks alongside it.
+
+      Expected behaviour: the summary line reads "Some checks were
+      cancelled".
+
+      Actual behaviour: gh prints an empty line where the summary should be.
+
+      The summary for every other mix of check states should keep its
+      current wording.
+
+      Cover the change with a regression test for a pull request whose
+      checks are all cancelled, asserting that the expected summary text is
+      printed.
+    problem_issue_url: https://github.com/cli/cli/issues/13680
+    clarifying_answers: |
+      1. `gh pr checks` prints a blank summary instead of "Some checks were cancelled" when all checks were cancelled.
+      2. Anyone running `gh pr checks` on a pull request whose checks were all cancelled.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. Trivial - a one-line condition fix in the summary output, plus a regression test.
+    ground_truth:
+      approach: >-
+        Add the cancelled count to the condition that gates the summary block in
+        printSummary, so a cancelled-only result reaches the existing "Some
+        checks were cancelled" branch. A new TestPrintSummary covers the
+        cancelled-only case.
+      expectations:
+        - "Changes the summary guard in pkg/cmd/pr/checks/output.go so cancelled checks count toward showing the summary."
+        - "Prints \"Some checks were cancelled\" when every check is cancelled."
+        - "Leaves summaries for other check-state mixes unchanged."
+        - "Adds a regression test for the cancelled-only case."
+      reference_url: https://github.com/cli/cli/pull/13679
+
+  - id: extension-uninstall-alias
+    repo: https://github.com/cli/cli
+    ref: "v2.93.0"
+    complexity: trivial
+    tags: [extension, go, cli, cobra, ux, fixed-in-2.94.0]
+    problem_statement: |
+      `gh extension install` adds an extension, but the command that undoes
+      it is `gh extension remove`. Users who reach for the obvious opposite,
+      `gh extension uninstall`, find that it does not exist. `uninstall` is
+      a clearer antonym of `install` than `remove`.
+
+      Users can work around this today by defining their own gh alias, but
+      every user has to discover and set that up themselves.
+
+      Add `gh extension uninstall` as an official command that does exactly
+      what `gh extension remove` does. It should appear in the CLI help so
+      users can find it. Removing or renaming `gh extension remove` would
+      break existing scripts, so `remove` must keep working unchanged.
+
+      Done looks like: `gh extension uninstall <name>` removes an installed
+      extension the same way `gh extension remove <name>` does, and the help
+      output for the command lists `uninstall`.
+
+      Cover the change with tests, or explain clearly why the existing
+      tests already cover it.
+    problem_issue_url: https://github.com/cli/cli/issues/13598
+    clarifying_answers: |
+      1. Add `gh extension uninstall` as an official equivalent of `gh extension remove`, shown in help.
+      2. Users who manage gh extensions and expect `uninstall` to pair with `install`.
+      3. Go command-line tool, the GitHub CLI. No deadline; `remove` must not break.
+      4. Trivial - a small declarative change to one command definition.
+    ground_truth:
+      approach: >-
+        Register `uninstall` as a cobra alias on the existing `remove`
+        subcommand of `gh extension`, so it shares the same RunE and cobra lists
+        it under ALIASES in `--help`. `remove` stays the canonical name and no
+        docs or acceptance scripts change.
+      expectations:
+        - "Adds `uninstall` as an alias of the `gh extension remove` subcommand rather than a duplicate command."
+        - "Keeps `gh extension remove` working as the canonical name."
+        - "Makes the alias visible in the command's help output."
+        - "Either adds a test that invokes the alias or justifies relying on the existing remove tests."
+      reference_url: https://github.com/cli/cli/pull/13599
+
+  # ---------------------------------------------------------------------------
+  # LOW COMPLEXITY (5)
+  # ---------------------------------------------------------------------------
+
+  - id: pr-merge-delete-branch-owner-case
+    repo: https://github.com/cli/cli
+    ref: "v2.100.0"
+    complexity: low
+    tags: [pr, go, cli, git, remotes, fixed-in-2.101.0]
+    problem_statement: |
+      `gh pr merge <N> --delete-branch` deletes the local branch but leaves
+      the pull request's branch on GitHub when the owner name in
+      `remote.origin.url` uses different letter case from the owner's
+      canonical GitHub login. The command prints no error, so the user only
+      notices later.
+
+      To reproduce:
+
+      1. Turn OFF "Automatically delete head branches" in the repository's
+         pull request settings.
+      2. Clone the repository with a remote URL whose owner differs only in
+         letter case from the owner's GitHub login.
+      3. Push a branch to that same repository and open a pull request.
+      4. Run `gh pr merge <N> --delete-branch --squash` (or `--merge`).
+      5. Run `git fetch --all --prune`.
+
+      gh reports that it merged the pull request and deleted the local
+      branch, but the remote branch still exists and the fetch shows no
+      `[deleted]` line. With automatic head-branch deletion turned on the
+      branch disappears, but only because GitHub removed it.
+
+      Expected behaviour: for a pull request whose head branch lives in the
+      same repository, `--delete-branch` deletes the remote branch
+      regardless of how the owner's name is cased in the local remote URL.
+
+      Cover the change with a regression test for an owner-case mismatch.
+    problem_issue_url: https://github.com/cli/cli/issues/14404
+    clarifying_answers: |
+      1. `gh pr merge --delete-branch` skips deleting the remote branch when the remote URL's owner casing differs from GitHub's.
+      2. Users whose git remote URL spells the repository owner with different letter case, without auto-delete enabled.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. Low - a small logic change in the merge command and its query, plus a regression test.
+    ground_truth:
+      approach: >-
+        The merge command decided whether a PR was cross-repository by comparing
+        the head repository owner login with the owner parsed from the git
+        remote, case-sensitively. Upstream dropped that string comparison: the
+        merge context now requests the PR's `isCrossRepository` field from
+        GitHub and trusts it, and stops requesting `headRepositoryOwner`. A unit
+        test and the merge acceptance script cover the casing-only mismatch.
+      expectations:
+        - "Identifies the cross-repository check in the pr merge command as the reason remote deletion is skipped."
+        - "Stops treating an owner-case mismatch as a cross-repository PR, preferably by using GitHub's isCrossRepository rather than comparing login strings."
+        - "Still skips remote branch deletion for genuine fork pull requests."
+        - "Adds a regression test where the remote owner differs only in case and asserts the remote branch is deleted."
+      reference_url: https://github.com/cli/cli/pull/14429
+
+  - id: pr-view-json-number-on-issue
+    repo: https://github.com/cli/cli
+    ref: "v2.92.0"
+    complexity: low
+    tags: [pr, go, cli, json-output, api, fixed-in-2.93.0]
+    problem_statement: |
+      `gh pr view <N> --json number` prints `{"number":N}` and exits 0 even
+      when N is an issue number rather than a pull request. Scripts that use
+      this command to check whether a number is a pull request get false
+      positives for issues.
+
+      To reproduce, pick an issue number (not a PR) in a repository:
+
+        gh pr view 1099 --json number; echo "exit: $?"
+        {"number":1099}
+        exit: 0
+
+      Requesting any other pull-request field behaves correctly:
+
+        gh pr view 1099 --json number,headRefName; echo "exit: $?"
+        exit: 1
+
+      With only `number` requested, gh answers without asking GitHub
+      whether N is a pull request at all.
+
+      Expected behaviour: `gh pr view <N> --json number` exits non-zero
+      when N is not a pull request, the same as it does when other fields
+      are requested. When N is a pull request the output should stay
+      `{"number":N}`.
+
+      Cover the change with tests.
+    problem_issue_url: https://github.com/cli/cli/issues/13319
+    clarifying_answers: |
+      1. `gh pr view <N> --json number` succeeds for issue numbers because gh never checks that N is a pull request.
+      2. Scripts and users that use `gh pr view --json number` to tell pull requests from issues.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. Low - a small change to how pull requests are looked up by number, plus test updates.
+    ground_truth:
+      approach: >-
+        Remove the numberFieldOnly shortcut in pkg/cmd/pr/shared/finder.go that
+        returned a synthetic PullRequest when only `number` was requested, so
+        the finder always queries the API and fails for numbers that are not
+        pull requests. The finder test that asserted the shortcut was deleted.
+      expectations:
+        - "Makes a number-only `--json number` lookup hit the API so non-PR numbers produce an error and non-zero exit."
+        - "Keeps `{\"number\":N}` output for real pull requests."
+        - "Removes or updates tests that asserted the no-API shortcut."
+        - "Adds or keeps a test showing an issue or missing number now fails."
+      reference_url: https://github.com/cli/cli/pull/13327
+
+  - id: project-item-add-output-non-tty
+    repo: https://github.com/cli/cli
+    ref: "v2.97.0"
+    complexity: low
+    tags: [project, go, cli, tty, automation, fixed-in-2.98.0]
+    problem_statement: |
+      `gh project item-add` adds the item and exits 0, but prints nothing at
+      all when stdout is not a TTY. Run it with output redirected:
+
+        gh project item-add <project-number> --owner <owner> \
+          --url <issue-url> > output.txt
+
+      The item lands in the project, yet output.txt is empty. In an
+      interactive terminal the command prints "Added item", so the success
+      message only exists for humans.
+
+      This hurts scripts and coding agents. A caller that sees no output
+      cannot tell a successful mutation from a command that did nothing
+      useful, so agents retry the call. In repeated evaluations the same
+      one-line task took anywhere from 2 to 9 tool calls, because runs kept
+      invoking `gh project item-add` after the first call had already
+      succeeded.
+
+      Done looks like this: a successful non-TTY run prints a short, stable
+      confirmation, ideally one that includes the identifier of the added
+      project item. TTY output should stay as it is today, and the existing
+      `--format json` output must keep working for callers that want the
+      full item. Cover the change with tests for both TTY and non-TTY output.
+    problem_issue_url: https://github.com/cli/cli/issues/14055
+    clarifying_answers: |
+      1. `gh project item-add` prints no confirmation when stdout is not a TTY, so callers cannot observe success.
+      2. Scripts, CI jobs and coding agents that run gh without a terminal and then retry a call that already worked.
+      3. Go command-line tool, the GitHub CLI. Keep TTY output and `--format json` unchanged. No deadline.
+      4. Low - an output change in one command plus tests.
+    ground_truth:
+      approach: >-
+        Upstream changed the item-add result printer so that a non-TTY run
+        writes the ID of the created ProjectV2 item (taken from the existing
+        mutation result, so no extra API call) instead of returning silently.
+        TTY output still prints "Added item" and `--format` output is unchanged;
+        the tests were updated to assert both modes.
+      expectations:
+        - "Changes the item-add output path so a successful non-TTY run prints a terse confirmation containing the added item's ID."
+        - "Keeps the \"Added item\" message for TTY output and leaves `--format json` output unchanged."
+        - "Uses data already returned by the add mutation rather than making an extra API request."
+        - "Adds or updates tests in the item-add package covering TTY, non-TTY and JSON output."
+      reference_url: https://github.com/cli/cli/pull/14056
+
+  - id: release-create-404-scope-blame
+    repo: https://github.com/cli/cli
+    ref: "v2.97.0"
+    complexity: low
+    tags: [release, go, cli, auth, error-handling, fixed-in-2.98.0]
+    problem_statement: |
+      When `gh release create` gets an HTTP 404, it checks whether the token
+      carries the `workflow` scope. If it decides the scope is missing, it
+      replaces the error with a hint to run `gh auth refresh -s workflow`.
+      That check reports "no workflow scope" for almost every OAuth token,
+      including tokens that do hold the scope.
+
+      Two things go wrong. Users who already have `workflow` are told to
+      request it, and refreshing changes nothing. Worse, the real cause of
+      the 404 is hidden: a typo in the repo name, a repo that does not
+      exist, or missing push access all show up as a scope problem.
+
+      Reproduce with an OAuth token that has `workflow`:
+
+        GH_DEBUG=api GH_REPO=cli/definitely-not-a-real-repo-wm-9f3a \
+          gh release create v0.0.0 --notes test
+
+      The debug log shows `X-Oauth-Scopes: gist, project, read:org, repo,
+      user, workflow` on the response, yet gh prints the scope hint and
+      drops the 404.
+
+      Expected: when the token has `workflow`, gh reports the underlying
+      error, such as `HTTP 404: Not Found (...)`. The hint should still
+      appear when the token truly lacks the scope, since a tag that changes
+      workflow files does 404 without it. Cover the change with tests.
+    problem_issue_url: https://github.com/cli/cli/issues/14063
+    clarifying_answers: |
+      1. `gh release create` blames a missing `workflow` scope for every 404, even when the token has it, and hides the real error.
+      2. Anyone creating releases with an OAuth token who hits a 404 (wrong repo, no push access, and so on).
+      3. Go command-line tool, the GitHub CLI. Keep the hint for tokens that really lack `workflow`. No deadline.
+      4. Low - a parsing bug in one helper plus tests.
+    ground_truth:
+      approach: >-
+        The `X-Oauth-Scopes` header is comma-space separated, and
+        `tokenHasWorkflowScope` in pkg/cmd/release/create/http.go split it on
+        "," without trimming, so only the first scope could ever match. Upstream
+        trims each element before comparing, matching `generateScopesSuggestion`
+        in api/client.go, and added a new http_test.go plus fixed test stubs in
+        create_test.go to use the real header format.
+      expectations:
+        - "Finds the workflow-scope check used on the 404 path of release create and identifies the unhandled space after each comma."
+        - "Parses the scopes header so `workflow` is detected in any position, with or without surrounding whitespace."
+        - "Still shows the workflow-scope hint when the token genuinely lacks the scope, and surfaces the raw 404 otherwise."
+        - "Adds tests using realistic comma-space headers, covering scope present, scope absent and edge cases such as an empty header."
+      reference_url: https://github.com/cli/cli/pull/14065
+
+  - id: pr-comment-attach-ghu-tokens
+    repo: https://github.com/cli/cli
+    ref: "v2.101.0"
+    complexity: low
+    tags: [pr, go, cli, auth, attachments, fixed-in-2.102.0]
+    problem_statement: |
+      `gh pr comment --attach` refuses GitHub App user-to-server tokens
+      (the `ghu_` prefix) before it sends any request, and reports a
+      credential fault. The attachment upload endpoint accepts these tokens,
+      so gh rejects a credential that works.
+
+      This matters most inside GitHub Copilot cloud agent sessions, whose
+      credential is a `ghu_` token. There, `gh pr comment --attach` can
+      never work, even though the same upload with the same token succeeds
+      through curl.
+
+      To reproduce, put a `ghu_` token in `GH_TOKEN` and run:
+
+        gh pr comment <n> --attach file.png
+
+      It fails in the client with no request sent. Then post the same file
+      straight to the uploads URL with curl, using the header
+      `Authorization: token $GH_TOKEN`; the server answers HTTP 201 with an
+      attachment URL. (The endpoint wants the `token` scheme; `Bearer`
+      returns 404.)
+
+      Expected: `--attach` uploads the file when the token is a `ghu_`
+      token the server accepts, and the server's own error comes back when
+      it refuses one. Behaviour for the token types that already work must
+      not change. Cover the change with tests.
+    problem_issue_url: https://github.com/cli/cli/issues/14495
+    clarifying_answers: |
+      1. `--attach` rejects `ghu_` (GitHub App user-to-server) tokens client-side, although the upload endpoint accepts them.
+      2. Users authenticating with `ghu_` tokens, notably GitHub Copilot cloud agent sessions.
+      3. Go command-line tool, the GitHub CLI. Do not change behaviour for gho_, ghp_ or github_pat_ tokens. No deadline.
+      4. Low - widening one client-side token check plus tests.
+    ground_truth:
+      approach: >-
+        Upstream added the GitHub App user token type (`ghu_`) to
+        `uploadTokenTypes` in internal/attachments/client.go so the upload
+        endpoint, not the client, decides whether a given `ghu_` token is
+        acceptable. The client tests were updated so a `ghu_` token is no longer
+        expected to fail client-side, and the bundled gh skill doc was updated
+        to match.
+      expectations:
+        - "Locates the client-side allowlist of token types that gates attachment uploads."
+        - "Allows `ghu_` tokens through so the request reaches the upload endpoint with the `token` authorization scheme."
+        - "Keeps rejecting token types that are still unsupported, and keeps existing gho_, ghp_ and github_pat_ behaviour."
+        - "Updates or adds tests asserting a `ghu_` token is accepted by the client check."
+      reference_url: https://github.com/cli/cli/pull/14516
+
+  # ---------------------------------------------------------------------------
+  # MEDIUM COMPLEXITY (6)
+  # ---------------------------------------------------------------------------
+
+  - id: repo-clone-ghe-ssh-ca-url
+    repo: https://github.com/cli/cli
+    ref: "v2.100.0"
+    complexity: medium
+    tags: [repo, go, cli, git, ssh, ghe, fixed-in-2.101.0]
+    problem_statement: |
+      On GHE.com, `gh repo clone` over SSH fails for repositories whose
+      organization uses an SSH certificate authority. For those repos the
+      GitHub API returns an organization-specific SSH username:
+
+        TENANT_<ORG_ID>@TENANT.ghe.com:ORG/REPO.git
+
+      but gh runs git with a URL built from the tenant name instead:
+
+        TENANT@TENANT.ghe.com:ORG/REPO.git
+
+      That username cannot select the organization's SSH certificate, so
+      authentication fails with "Permission denied (publickey)".
+
+      To reproduce on such a tenant: run
+      `gh config set git_protocol ssh --host TENANT.ghe.com`, confirm with
+      `gh api repos/ORG/REPO --hostname TENANT.ghe.com --jq .ssh_url` that
+      the API returns the org-specific URL, then run
+      `GIT_TRACE=1 gh repo clone ORG/REPO` and see ssh connect as
+      `TENANT@TENANT.ghe.com`. Passing the correct SSH URL as the clone
+      argument does not help, because gh rewrites it.
+
+      Expected: when the configured protocol is SSH, `gh repo clone` uses
+      the SSH URL the API reports for the repository. The upstream remote
+      added when cloning a fork may have the same problem and should also
+      be correct. HTTPS cloning should not change. Cover the change with
+      tests.
+    problem_issue_url: https://github.com/cli/cli/issues/14344
+    clarifying_answers: |
+      1. SSH clones on GHE.com use a reconstructed URL with the wrong SSH username, so org-scoped SSH CA authentication fails.
+      2. Users cloning over SSH from GHE.com organizations that use an SSH certificate authority, including fork clones.
+      3. Go command-line tool, the GitHub CLI. HTTPS cloning must keep working as it does. No deadline.
+      4. Medium - changes the repository query and the clone URL logic across clone, fork-upstream and tests.
+    ground_truth:
+      approach: >-
+        Upstream added `sshUrl` to the `GitHubRepo` GraphQL fragment in
+        api/queries_repo.go and introduced a `remoteURL` helper in
+        pkg/cmd/repo/clone/clone.go that uses the API-provided SSH URL for SSH
+        clones, SSH wiki clones and the fork upstream remote, while HTTPS keeps
+        the existing formatter. It returns an explicit error if an SSH clone
+        response lacks `sshUrl`, and adds regression tests in both packages.
+      expectations:
+        - "Requests the repository's `sshUrl` from the API in the repository lookup used by clone."
+        - "Uses the API-provided SSH URL for SSH clones instead of rebuilding it from host, owner and name."
+        - "Applies the same handling to the upstream remote added for fork clones (and wiki clones if supported), leaving HTTPS URLs unchanged."
+        - "Handles a missing SSH URL with a clear error or safe fallback rather than silently using a wrong URL."
+        - "Adds tests covering an org-specific SSH URL on a ghe.com host, the fork upstream case, and HTTPS behaviour."
+      reference_url: https://github.com/cli/cli/pull/14346
+
+  - id: codespace-ports-forward-concurrent-map
+    repo: https://github.com/cli/cli
+    ref: "v2.95.0"
+    complexity: medium
+    tags: [codespace, go, cli, concurrency, race-condition, fixed-in-2.96.0]
+    problem_statement: |
+      `gh cs ports forward` crashes when you forward several ports in one
+      command. With a running codespace, run:
+
+        gh cs ports forward 80:80 8080:8080 3930:3930 -c <codespace-name>
+
+      The command fails intermittently. The most common failure is a Go
+      runtime crash, `fatal error: concurrent map writes`. Other attempts
+      fail with `create tunnel port failed: ... 400: Bad Request` or
+      `ssh: rejected: connect failed (Connection refused)`.
+
+      The stack trace points at the dev-tunnels `Manager.CreateTunnelPort`
+      call reached from the codespaces port forwarder, which `ForwardPorts`
+      in pkg/cmd/codespace/ports.go launches in one goroutine per port
+      through `errgroup.Go`. Several goroutines write to a shared map
+      without synchronization.
+
+      Expected: forwarding multiple ports in a single command works every
+      time, with no data race and no crash. Forwarding a single port must
+      keep working as before. Cover the change with a test that forwards
+      several ports at once.
+    problem_issue_url: https://github.com/cli/cli/issues/13399
+    clarifying_answers: |
+      1. Forwarding several codespace ports in one `gh cs ports forward` call crashes with "concurrent map writes".
+      2. Codespaces users who forward more than one port at a time.
+      3. Go command-line tool, the GitHub CLI. The race is inside calls to the dev-tunnels library, which gh does not own. No deadline.
+      4. Medium - a concurrency fix across the codespace connection and port forwarder, with a race test.
+    ground_truth:
+      approach: >-
+        Upstream stored the codespace connection in `CodespacesPortForwarder` as
+        a pointer instead of a shallow-copied value, added a `sync.Mutex`
+        (`ManagerMu`) to `CodespaceConnection`, and extracted a
+        `createTunnelPort` helper in port_forwarder.go that holds the lock (with
+        deferred unlock) around the TunnelManager calls that mutate the shared
+        Tunnel. It added `TestConcurrentForwardPortDoesNotRace`, which forwards
+        10 ports concurrently from one connection.
+      expectations:
+        - "Identifies that concurrent ForwardPort calls share one TunnelManager/Tunnel and race inside the dev-tunnels calls."
+        - "Serializes the shared-state TunnelManager operations (for example with a mutex on the shared connection) so concurrent forwards are safe."
+        - "Ensures all forwarders actually share the same lock, avoiding value copies of the connection that would duplicate it."
+        - "Unlocks on every error path (for example via defer) and keeps single-port forwarding working."
+        - "Adds a test forwarding many ports concurrently that passes under `go test -race`."
+      reference_url: https://github.com/cli/cli/pull/13313
+
+  - id: issue-view-comments-with-json
+    repo: https://github.com/cli/cli
+    ref: "v2.98.0"
+    complexity: medium
+    tags: [issue, go, cli, json-output, flags, fixed-in-2.99.0]
+    problem_statement: |
+      `gh issue view --comments` combined with `--json` silently ignores
+      `--comments` unless `comments` also appears in the JSON field list.
+
+      Reproduce with gh 2.96.0:
+
+        gh issue view 14209 --repo cli/cli --comments \
+          --json number,title,body
+
+      The JSON holds only `number`, `title` and `body`, with no comments.
+      The command succeeds without an error or a warning.
+
+      `--comments` is documented as "View issue comments", so accepting the
+      combination makes it look as if comments were fetched and included
+      when they were not. Scripts and agents can then carry on without the
+      comments they asked for. Today the only workaround is to name
+      `comments` in the `--json` list.
+
+      Expected: gh must no longer treat `--comments` as a silent no-op when
+      `--json` is given. The issue suggests two acceptable behaviours:
+      either `--comments` adds `comments` to the requested JSON fields, or
+      the two flags are mutually exclusive and the command fails with a
+      clear validation error. Using `--json` on its own, or `--comments` on
+      its own, must keep working as it does today. Cover the change with
+      tests.
+    problem_issue_url: https://github.com/cli/cli/issues/14214
+    clarifying_answers: |
+      1. `gh issue view --comments --json <fields>` silently drops `--comments`; it should either include comments or reject the combination.
+      2. Script and agent users of `gh issue view` (and similar view commands) who expect comments in the output.
+      3. Go command-line tool, the GitHub CLI. Either behaviour from the issue is acceptable; a clear validation error is the simpler choice. No deadline.
+      4. Medium - flag validation in several view commands with tests, while keeping unrelated `--comments` flags working.
+    ground_truth:
+      approach: >-
+        Upstream made the combination an error: `NewCmdView` in
+        pkg/cmd/issue/view, pkg/cmd/pr/view and pkg/cmd/discussion/view now
+        rejects `--comments` together with `--json` with "specify only one of
+        --comments or --json" before any API request. The shared JSON flag
+        handling was left untouched so string-valued `--comments` search
+        qualifiers keep working with `--json`. Constructor tests were added for
+        each command.
+      expectations:
+        - "Detects `--comments` used with `--json` in `gh issue view` and fails with a clear message instead of silently ignoring the flag (a correct alternative is adding comments to the fields, but rejection matches upstream)."
+        - "Ideally applies the same behaviour to the sibling `gh pr view` (and `gh discussion view`) commands that share these flags."
+        - "Validates during flag parsing, before any API request is made."
+        - "Does not break `gh search issues/prs --comments <n> --json ...`, where `--comments` is a qualifier."
+        - "Adds tests for the rejected combination in each affected view command."
+      reference_url: https://github.com/cli/cli/pull/14215
+
+  - id: release-verify-sha1-prefix
+    repo: https://github.com/cli/cli
+    ref: "v2.92.0"
+    complexity: medium
+    tags: [release, go, cli, attestation, sha256, fixed-in-2.93.0]
+    problem_statement: |
+      `gh release verify` and `gh release verify-asset` always label the
+      digest of a release tag's commit SHA with a `sha1:` prefix. The
+      prefix appears in user-facing output and is also used in the
+      attestation lookup.
+
+      GitHub is rolling out repositories that use SHA-256 object IDs for git
+      commits. In those repositories the ref the GitHub API returns is a
+      64-character SHA-256 hash, not a 40-character SHA-1 hash. Calling it
+      `sha1:` is wrong, misleads users, and will make attestation lookups
+      fail once SHA-256 repositories are supported end to end.
+
+      To observe it, run `gh release verify <tag>` or
+      `gh release verify-asset <asset> --tag <tag>` against a release, and
+      trigger an error path that prints the digest, for example a tag with
+      no attestations. The digest always reads `sha1:<digest>`, even when
+      the ref is 64 hex characters long.
+
+      Expected: the prefix matches the algorithm of the ref the API
+      returns, `sha1:<digest>` for SHA-1 repositories and `sha256:<digest>`
+      for SHA-256 repositories, in both commands. Existing SHA-1 behaviour
+      must stay the same. Cover the change with tests for both the SHA-1
+      and SHA-256 cases.
+    problem_issue_url: https://github.com/cli/cli/issues/13429
+    clarifying_answers: |
+      1. Both release verify commands hard-code `sha1:` for the tag commit digest, which is wrong for SHA-256 repositories.
+      2. Users verifying releases in repositories that use SHA-256 commit object IDs.
+      3. Go command-line tool, the GitHub CLI. SHA-1 behaviour must not change. No deadline.
+      4. Medium - a small change at two call sites, but it touches attestation lookup and needs tests in three packages.
+    ground_truth:
+      approach: >-
+        Upstream added a shared helper `DigestAlgForRef` in
+        pkg/cmd/release/shared/fetch.go that returns "sha256" for a 64-character
+        digest and "sha1" otherwise, and used it in place of the hard-coded
+        "sha1" in verify.go and verify_asset.go. It added unit tests for the
+        helper and SHA-256 variants of the no-attestations tests in both
+        commands asserting a `sha256:` prefix.
+      expectations:
+        - "Removes the hard-coded `sha1` algorithm at both call sites in release verify and release verify-asset."
+        - "Derives the algorithm from the ref (64 hex characters means sha256), defaulting to sha1 for backward compatibility."
+        - "Shares the derivation logic rather than duplicating divergent code in the two commands."
+        - "Adds tests for SHA-1 and SHA-256 refs, including an error-path test asserting the `sha256:` prefix appears in output."
+      reference_url: https://github.com/cli/cli/pull/13430
+
+  - id: auth-refresh-hint-on-expired-token
+    repo: https://github.com/cli/cli
+    ref: "v2.92.0"
+    complexity: medium
+    tags: [auth, go, cli, error-messages, fixed-in-2.93.0]
+    problem_statement: |
+      When a gh command fails because the stored token has expired or is no
+      longer accepted, the API returns HTTP 401 and gh tells the user to run
+      `gh auth login`. That advice sends people through the full login flow:
+      choosing a host, a protocol, an authentication method, and so on.
+
+      gh already has a shorter path for this case. `gh auth refresh`
+      re-authenticates an existing account in a few steps, but the 401 error
+      text never mentions it, so most users never learn it exists.
+
+      Change the guidance so that when a request returns 401 and the token in
+      use is one that `gh auth login` created, gh suggests `gh auth refresh`
+      instead of `gh auth login`. Tokens that `gh auth login` did not create
+      keep the current advice.
+
+      Done looks like this: a user with an expired login token sees a 401
+      message that names `gh auth refresh`, and other tokens keep today's
+      message. Cover the change with tests for a token `gh auth login` created
+      and for one it did not.
+    problem_issue_url: https://github.com/cli/cli/issues/13066
+    clarifying_answers: |
+      1. On a 401, gh suggests `gh auth login`; for tokens created by `gh auth login` it should suggest the quicker `gh auth refresh`.
+      2. Anyone whose gh token has expired or been revoked.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. Medium - the error path must tell refreshable tokens from others, and the message changes in more than one place.
+    ground_truth:
+      approach: >-
+        The top-level command error handler in internal/ghcmd/cmd.go now checks
+        whether the active token is refreshable (stored by gh itself rather than
+        supplied through an environment variable) when a request fails with 401,
+        and prints a `gh auth refresh` hint for those tokens. A small helper in
+        pkg/cmd/auth/shared reports whether the token source is writeable, and
+        `gh auth status` uses the same idea in its own guidance.
+      expectations:
+        - "Detects the 401 case in the shared command error handling rather than in each command."
+        - "Suggests `gh auth refresh` only when the token was stored by gh and can be refreshed."
+        - "Keeps `gh auth login` (or equivalent) advice for tokens from GH_TOKEN, GITHUB_TOKEN, or other non-writeable sources."
+        - "Adds tests covering the refreshable and non-refreshable cases and updates any affected `gh auth status` expectations."
+      reference_url: https://github.com/cli/cli/pull/13068
+
+  - id: secret-set-app-agents
+    repo: https://github.com/cli/cli
+    ref: "v2.92.0"
+    complexity: medium
+    tags: [secret, go, cli, github-api, fixed-in-2.93.0]
+    problem_statement: |
+      `gh secret` manages repository and organization secrets for a chosen
+      application through `--app`, which today accepts `actions`,
+      `codespaces` and `dependabot`. GitHub now also supports secrets for
+      agents, so a repository or organization can hold secrets that Copilot
+      agent sessions read. gh offers no way to manage them: passing
+      `--app agents` is rejected as an invalid value.
+
+      Teams adopting agents have to fall back to the REST API to create,
+      list or delete these secrets, while every other kind stays one gh
+      command away.
+
+      Add `agents` as an application for secrets, so that
+      `gh secret set NAME --app agents`, `gh secret list --app agents` and
+      `gh secret delete NAME --app agents` work against a repository and,
+      with `--org`, against an organization, behaving the way the existing
+      applications do. Help text that lists where a secret is available
+      should mention agents. GitHub's REST API documents the agents secrets
+      endpoints for repositories and organizations.
+
+      Cover the change with tests for setting, listing and deleting agents
+      secrets at repository and organization level.
+    problem_issue_url: https://github.com/cli/cli/issues/13419
+    clarifying_answers: |
+      1. `gh secret` supports actions, codespaces and dependabot secrets but not the new agents secrets.
+      2. Teams using GitHub's agents who manage secrets from the command line.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. Medium - a new application value threaded through set, list and delete and the shared secret logic, with tests.
+    ground_truth:
+      approach: >-
+        Add an Agents application alongside Actions, Codespaces and Dependabot
+        in the shared secret code, accept it in the --app flag of gh secret set,
+        list and delete, and route it to the agents secrets REST endpoints for
+        repositories and organizations. Help text now lists agents sessions
+        among the places a secret is available.
+      expectations:
+        - "Accepts agents for --app in gh secret set, list and delete, case-insensitively like the other applications."
+        - "Calls repos/{owner}/{repo}/agents/secrets and orgs/{org}/agents/secrets for repository and organization secrets."
+        - "Keeps the existing applications and their defaults unchanged."
+        - "Adds tests for agents secrets at repository and organization level across set, list and delete."
+      reference_url: https://github.com/cli/cli/pull/13421
+
+  # ---------------------------------------------------------------------------
+  # HIGH COMPLEXITY (5)
+  # ---------------------------------------------------------------------------
+
+  - id: repo-sync-checked-out-worktree
+    repo: https://github.com/cli/cli
+    ref: "v2.98.0"
+    complexity: high
+    tags: [repo, go, git, worktree, fixed-in-2.99.0]
+    problem_statement: |
+      `gh repo sync` can leave a git worktree in a broken state without any
+      warning. When the branch being synced (for example `main`) is checked
+      out in a different worktree from the one you run the command in, gh
+      moves the branch ref but leaves that other worktree's index and files
+      alone.
+
+      To reproduce, in a clone whose `main` is checked out in the main
+      worktree:
+
+        git worktree add ./wt -b feature
+        cd ./wt
+        gh repo sync
+        cd ..
+        git status
+
+      `git status` in the main worktree now shows every change between the
+      old and new `main` as staged changes, although the user changed
+      nothing. The issue notes that `executeLocalRepoSync` in
+      pkg/cmd/repo/sync/sync.go only compares the branch with the current
+      worktree's branch and never considers other worktrees.
+
+      This affects anyone who uses `git worktree` together with
+      `gh repo sync`.
+
+      Done looks like this: syncing a branch that another worktree has
+      checked out never leaves that worktree with phantom staged changes.
+      gh either updates it safely or stops with a clear message that names
+      the worktree and tells the user what to do. Syncing a branch nobody
+      has checked out keeps working. Cover the change with tests.
+    problem_issue_url: https://github.com/cli/cli/issues/12927
+    clarifying_answers: |
+      1. `gh repo sync` moves a branch ref that is checked out in another worktree, which corrupts that worktree's index.
+      2. Users who combine `git worktree` with `gh repo sync`.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. High - needs git worktree detection, a safe update path, and tests against real git repositories.
+    ground_truth:
+      approach: >-
+        Before updating a non-current branch, sync now reads `git worktree list
+        --porcelain` (parsed by a new git client helper) and refuses with an
+        error that names the worktree holding the branch and tells the user to
+        run `gh repo sync` there. The branch update itself switched from `git
+        update-ref` to `git branch --force`, which Git refuses for a checked-out
+        branch, as a second safety net. Unit, real-git, and acceptance tests
+        cover the cases.
+      expectations:
+        - "Detects whether the target branch is checked out in another worktree, handling detached and bare entries and paths with spaces."
+        - "Refuses (or safely updates) instead of moving the ref under another worktree, with an actionable error naming the worktree."
+        - "Stops using a bare ref update for non-current branches, or otherwise guards the mutation itself."
+        - "Keeps fast-forward and force-update behaviour for branches no worktree has checked out."
+        - "Adds tests, including one with a real linked worktree that asserts it stays clean."
+      reference_url: https://github.com/cli/cli/pull/14060
+
+  - id: auth-clipboard-config-default
+    repo: https://github.com/cli/cli
+    ref: "v2.100.0"
+    complexity: high
+    tags: [auth, go, cli, config, fixed-in-2.101.0]
+    problem_statement: |
+      `gh auth login` can copy the one-time device code to the clipboard,
+      but only when the user passes the `--clipboard` flag on every run.
+      People who switch between many GitHub accounts log in often, forget
+      the flag, and end up selecting and copying the code by hand each time.
+
+      Add a gh configuration setting that controls this behaviour, so a user
+      can turn clipboard copying on once and stop thinking about it. The
+      issue suggests a form like:
+
+        gh config set clipboard enabled
+
+      Done looks like this: with the setting on, `gh auth login` copies the
+      one-time code without the flag, and the existing `--clipboard` flag
+      keeps working. Cover the change with tests.
+    problem_issue_url: https://github.com/cli/cli/issues/13153
+    clarifying_answers: |
+      1. Add a config setting so `gh auth` copies the device code to the clipboard without passing `--clipboard` each time.
+      2. Users who log in to gh often, such as people with many GitHub accounts.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. High - a new config option wired through the config schema, `gh config set`, and the login and refresh flows, with flag precedence.
+    ground_truth:
+      approach: >-
+        A new global-only `clipboard` config option (default `enabled`) was
+        added, and the option's `PerHostOnly` boolean was replaced with a
+        `ConfigScope` enum so `gh config set clipboard ... --host` is rejected.
+        A shared helper in the auth login flow resolves precedence: an explicit
+        `--clipboard` or `--clipboard=false` wins, otherwise the config value
+        decides. Both `gh auth login` and `gh auth refresh` use it.
+      expectations:
+        - "Adds a clipboard setting to gh's config, set with gh config set, that makes gh auth login copy the one-time code without the flag."
+        - "Keeps the existing --clipboard flag working; letting an explicit flag override the setting either way is a plus (upstream did)."
+        - "Upstream also applied the setting to gh auth refresh, defaulted it to enabled, listed it in gh config list and treated it as machine-wide; credit these, do not require them."
+        - "Adds tests for the setting on, the setting off, and the flag."
+      reference_url: https://github.com/cli/cli/pull/14345
+
+  - id: project-item-edit-by-name
+    repo: https://github.com/cli/cli
+    ref: "v2.96.0"
+    complexity: high
+    tags: [project, go, cli, graphql, fixed-in-2.97.0]
+    problem_statement: |
+      `gh project item-edit` only accepts ProjectV2 node IDs for the
+      project, item, field and single-select option. To change one field a
+      user must first run `field-list` and `item-list`, then copy opaque IDs
+      into the edit command. This is painful for scripts and for agents
+      driving gh. Other item commands such as `item-add` already accept a
+      readable `[<number>] --owner --url` form, so `item-edit` is the odd
+      one out.
+
+      Add name-based addressing to `item-edit` that mirrors `item-add`:
+
+        gh project item-edit <number> --owner monalisa \
+          --url https://github.com/monalisa/myproj/issues/23 \
+          --field "Status" --value "In Progress"
+
+      Requirements from the issue:
+      - Keep the existing `--id`, `--field-id` and `--project-id` flags
+        working unchanged; the name flags are opt-in.
+      - Interpret `--value` by the field's data type; for a single-select
+        field it names the option.
+      - Match names case-insensitively.
+      - Resolve names before sending the update, so a bad name fails with
+        a clear message listing the candidates rather than `400 []`.
+
+      Only `item-edit` is in scope. Cover the change with tests.
+    problem_issue_url: https://github.com/cli/cli/issues/13816
+    clarifying_answers: |
+      1. `gh project item-edit` should accept a project number, owner, item URL, field name and value instead of only node IDs.
+      2. CLI users and automation or agents that edit GitHub Projects items.
+      3. Go command-line tool, the GitHub CLI. No deadline; must stay backward compatible with ID flags.
+      4. High - new GraphQL lookups, name resolution with error handling, flag validation, and many test cases.
+    ground_truth:
+      approach: >-
+        item-edit gained a positional project number plus `--owner`, `--url`,
+        `--field` and `--value`. New shared query helpers resolve the project,
+        the item by URL within it, the field by name and single-select option by
+        name (case-insensitive via strings.EqualFold), with distinct errors
+        listing candidates for not-found, ambiguous, wrong field type and item
+        not in project. Name and ID flags are mutually exclusive and checked
+        before any GraphQL request; `--id` stops being a required cobra flag but
+        one of `--id` or `--url` must be given.
+      expectations:
+        - "Leaves existing ID-based invocations working unchanged."
+        - "Resolves project, item, field and option names before the mutation, dispatching `--value` by field data type."
+        - "Matches names case-insensitively and reports not-found or ambiguous names with candidate lists."
+        - "Rejects conflicting name and ID flags, and name flags without a project number, before any API call."
+        - "Adds tests with mocked GraphQL responses for the happy path and each error case."
+      reference_url: https://github.com/cli/cli/pull/13807
+
+  - id: skill-update-dir-keeps-install-path
+    repo: https://github.com/cli/cli
+    ref: "v2.94.0"
+    complexity: high
+    tags: [skill, go, cli, filesystem, fixed-in-2.95.0]
+    problem_statement: |
+      `gh skill update --dir <dir>` can move a skill to a different
+      directory and delete the original install, without warning. Anything
+      that pointed at the old path (agent config, symlinks, tooling) breaks.
+
+      Reproduce in an empty project:
+
+        gh skill install --scope project --agent codex \
+          anthropics/skills claude-api \
+          --dir .agents/skills/anthropics-skills
+        # installs .agents/skills/anthropics-skills/claude-api/SKILL.md
+
+        gh skill update --dir ./.agents/skills
+
+      The update reports success for `anthropics-skills/claude-api`, but
+      the new copy lands at `.agents/skills/claude-api/` and the original
+      `.agents/skills/anthropics-skills/claude-api/` is removed, along with
+      its parent if it became empty. The issue traces this to how
+      pkg/cmd/skills/update/update.go derives the install base from a
+      namespaced skill name and to a cleanup step that deletes the old path.
+
+      Expected: `gh skill update` updates a skill's content in the place it
+      currently lives, for flat and namespaced layouts, with or without
+      `--dir`. It never relocates the skill and never deletes the previous
+      install path. Cover the change with tests.
+    problem_issue_url: https://github.com/cli/cli/issues/13370
+    clarifying_answers: |
+      1. `gh skill update --dir` installs a namespaced skill one level too shallow and deletes the original directory.
+      2. Users who install agent skills with gh under custom or namespaced directories.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. High - update must become in-place for every layout and must not lose files on failure.
+    ground_truth:
+      approach: >-
+        Each update is now staged into a sibling temporary directory on the same
+        filesystem, then swapped into the existing skill directory entry by
+        entry: originals move to a backup, staged entries move in, and the
+        backup is removed. Any failure rolls back from the backup. The
+        relocation and migration cleanup logic was removed, so updates always
+        land in place and the directory itself (its inode) is preserved.
+      expectations:
+        - "Writes updated content into the skill's current directory for both flat and namespaced layouts, with and without --dir."
+        - "Removes the code path that deletes the original install directory after an update."
+        - "Adds tests, including a namespaced --dir update that stays in place."
+        - "Upstream also removed stale files from the previous version and left the existing skill untouched when an update failed; credit these, do not require them."
+      reference_url: https://github.com/cli/cli/pull/13449
+
+  - id: skill-install-nested-discovery
+    repo: https://github.com/cli/cli
+    ref: "v2.93.0"
+    complexity: high
+    tags: [skill, go, cli, discovery, fixed-in-2.94.0]
+    problem_statement: |
+      `gh skill install <owner/repo>` does not find skills that live deeper
+      in a repository, even with `--allow-hidden-dirs`. It appears not to
+      look more than two directory levels down.
+
+      To reproduce, create a repository with a skill at:
+
+        <project-root>/foo/bar/skills/<skill-name>/SKILL.md
+
+      then run:
+
+        gh skill install <owner/repo> --allow-hidden-dirs
+
+      gh reports "no skills found".
+
+      Users who keep skills inside a monorepo or under a nested folder
+      cannot install them with gh at all.
+
+      Expected: gh finds and installs a SKILL.md that sits in a `skills`
+      directory nested at any depth in the repository, as the reporter
+      expected, and skills it finds today keep installing as they do now.
+      Cover the change with tests for a nested skill.
+    problem_issue_url: https://github.com/cli/cli/issues/13372
+    clarifying_answers: |
+      1. `gh skill install` reports "no skills found" for a SKILL.md nested deeper than two levels, even with `--allow-hidden-dirs`.
+      2. Skill authors and users whose repositories keep skills in nested folders.
+      3. Go command-line tool, the GitHub CLI. No deadline.
+      4. High - changes the shared discovery logic and how install and preview interpret skill arguments.
+    ground_truth:
+      approach: >-
+        The discovery package now matches hidden-directory conventions at any
+        repository depth when `--allow-hidden-dirs` is set. Install and preview
+        share one path-detection helper that treats an argument with two or more
+        slashes (for example `packages/agent-skills/my-skill`) as an exact repo-
+        relative path, while a one-slash selector like `owner/skill` stays a
+        namespaced skill name. Regression tests cover each case.
+      expectations:
+        - "Makes a SKILL.md in a skills directory nested deeper than two levels installable, whether by deeper discovery or by letting the user name the nested path; upstream did both for --allow-hidden-dirs and explicit paths."
+        - "Keeps skills that install today working, including one-slash owner/skill style selectors."
+        - "Treats shared code used by install and gh skill preview consistently, as upstream did; a submission that changes install alone is acceptable if it says why."
+        - "Adds tests that install a skill from a nested location."
+      reference_url: https://github.com/cli/cli/pull/13459
