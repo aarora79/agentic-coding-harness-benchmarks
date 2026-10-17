@@ -222,4 +222,8 @@ uv run scripts/run-swe-router-headless.py --mode rubric --agent omp --provider b
 
 ## Source
 
-Measurements, harness and methodology: [aarora79/agentic-coding-harness-benchmarks](https://github.com/aarora79/agentic-coding-harness-benchmarks). Design notes and open questions: issue #161.
+Measurements, harness and methodology: [aarora79/agentic-coding-harness-benchmarks](https://github.com/aarora79/agentic-coding-harness-benchmarks).
+
+- How the router picks a model, with diagrams: [docs/swe-router-how-it-works.md](../../docs/swe-router-how-it-works.md).
+- Why it routes on a rubric, and the replays behind that choice: [docs/swe-router-rubric-design.md](../../docs/swe-router-rubric-design.md) and [docs/swe-router-rubric-evaluation.md](../../docs/swe-router-rubric-evaluation.md).
+- Whether the measurements carry over to another repository: [docs/results-cli-cli-v1.md](../../docs/results-cli-cli-v1.md) and [issue #221](https://github.com/aarora79/agentic-coding-harness-benchmarks/issues/221), still open.
