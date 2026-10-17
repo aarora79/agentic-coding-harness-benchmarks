@@ -1,0 +1,64 @@
+{
+  "task": "derive-repo-url-from-skill-md",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 18,
+      "total": 87,
+      "notes": "The issue provides a strong, testable end-to-end contract covering parsing, editable auto-fill, listing, search, and both modals. Its largest gap is promising null for arbitrary non-GitHub hosts while the proposed implementation inherits broad `_is_github_hostname` matching, leaving GitHub-like hostnames ambiguous. The submitted diff contains the named `parse_skill_md`, `SkillInfo`, `SkillSearchResult`, Dashboard, and modal integration points, while the public architecture confirms the underlying skill URL fields. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/design/agent-skills-architecture.md)) Direct working-tree inspection and issue #846 verification were unavailable because the shell sandbox could not initialize."
+    },
+    "lld": {
+      "completeness": 23,
+      "correctness": 20,
+      "specificity": 24,
+      "risk_awareness": 22,
+      "total": 89,
+      "notes": "The LLD is unusually concrete about files, models, data flow, compatibility, UI state, indexing, and rollout, including actionable revisions R1-R5. Its main correctness weakness is that the Step 7 example still uses only a truthiness guard despite R1 requiring an HTTP-scheme guard, while broad hostname matching remains inconsistent with the arbitrary-host acceptance criterion. It correctly identifies both `SkillInfo` construction sites and the three DocumentDB hit builders, all of which are represented consistently in the submitted patch. The claim that no user tokens are logged is unsupported because its logging design does not require redacting credentials or query parameters from the supplied URL."
+    },
+    "review": {
+      "completeness": 22,
+      "correctness": 21,
+      "specificity": 23,
+      "risk_awareness": 23,
+      "total": 89,
+      "notes": "The review finds concrete defects rather than merely approving the design, especially stale auto-fill state, unsafe link schemes, old search documents, and URL edge cases. Its largest omission is failing to identify full-URL debug logging as a possible credential leak and treating broad GitHub hostname matching only as an accepted security risk rather than a behavioral contract violation. The recommendations map directly to the patch's `lastDerivedRepoUrlRef`, HTTP-scheme checks, `.git` handling, port preservation, and focused test module. The assertion that the file-backed search repository needs no change could not be independently verified from the working tree."
+    },
+    "testing": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 21,
+      "total": 84,
+      "notes": "The plan supplies concrete expected values across helper, API, list, search, UX, compatibility, deployment, rollback, and end-to-end levels. Its most obvious command defect is offering direct `uvicorn registry.main:app` while setting `REGISTRY_URL=http://localhost`; without an explicit port, Uvicorn defaults to 8000 rather than port 80. It also omits the known GitHub-like non-GitHub hostname case and any check that debug logs redact URL credentials or query tokens. The helper matrix and UX sequence have meaningful oracles, although most wiring and frontend checks remain manual and semantic-search assertions lack an indexing retry."
+    },
+    "implementation": {
+      "completeness": 22,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 17,
+      "total": 80,
+      "notes": "The patch implements the described flow across the helper, parse response, list and search models, index metadata, frontend types, edit state, auto-fill behavior, both modals, and focused unit tests. The largest defect is logging the complete user URL in `derive_repository_url`, which can expose embedded credentials or signed query parameters despite the LLD claiming no tokens are logged. Broad inherited GitHub-host matching also means some arbitrary hosts containing `github` can receive a repository URL, and the tests do not cover that contract edge. The diff contexts and symbols are internally consistent, but the claimed successful `git apply --check` and exact baseline fit could not be independently confirmed because repository shell access failed before execution."
+    }
+  },
+  "task_score": 85.8,
+  "verdict": "This is a strong, mostly implementation-ready submission whose largest limitation is insufficient URL trust handling, particularly full-URL logging and ambiguous GitHub-like host classification.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-17T17:13:14.121164Z",
+    "repo_ref": "v1.0.19",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 148758,
+      "cached_input_tokens": 91225,
+      "cache_write_input_tokens": 31043,
+      "output_tokens": 9697,
+      "reasoning_output_tokens": 8058
+    },
+    "duration_ms": 101059
+  }
+}
