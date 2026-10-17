@@ -1,0 +1,64 @@
+{
+  "task": "server-side-oauth-token-storage",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 16,
+      "correctness": 9,
+      "specificity": 22,
+      "risk_awareness": 16,
+      "total": 63,
+      "notes": "The issue provides unusually concrete acceptance criteria, configuration, failure behavior, and explicit non-goals. Its central diagnosis is incomplete: repository evidence identifies the existing serialized groups and broader session payload as the large-cookie cause, while this proposal removes no existing session fields and adds a token_ref. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) It also promises HKDF while the LLD and patch use PBKDF2, and the API-only change does not make the existing Get JWT Token UI return IdP tokens. No independent task statement was supplied, so the intended scope beyond the identifier and repository evidence remains uncertain."
+    },
+    "lld": {
+      "completeness": 17,
+      "correctness": 11,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 69,
+      "notes": "The LLD is highly specific about files, data models, indexes, endpoint contracts, route ordering, expiry checks, rollback, and degraded operation. Its load-bearing flaw is that the proposed cookie retains the existing user metadata, groups, and id_token while merely adding token_ref, so it cannot support the claimed fixed-size or sub-4096-byte behavior for large-group users. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) It also contradicts the issue's HKDF requirement by selecting PBKDF2 and defaults the feature on while leaving Helm and Terraform secret wiring to follow-ups. Exact baseline line references and the claimed clean patch application could not be independently verified because the local execution sandbox failed before commands ran."
+    },
+    "review": {
+      "completeness": 15,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 72,
+      "notes": "The review finds several real, actionable defects, including TTL-monitor lag, mixed bearer/cookie identity, cache control, logout revocation, timezone normalization, file-backend behavior, and router registration order. Its largest omission is failure to challenge whether storing only access and refresh tokens solves a cookie primarily enlarged by groups and the broader session payload. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971), [github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md)) It also overlooks the HKDF-versus-PBKDF2 contradiction and gives little scrutiny to returning a reusable refresh token to the browser. The findings it does raise are prioritized and tied to concrete proposed changes rather than generic reviewer approval."
+    },
+    "testing": {
+      "completeness": 18,
+      "correctness": 17,
+      "specificity": 22,
+      "risk_awareness": 19,
+      "total": 76,
+      "notes": "The plan has concrete HTTP statuses, headers, database state, encryption, expiry, revocation, rotation, outage, rollback, and backward-compatibility oracles. It lacks automated coverage for the public registry endpoint's mixed bearer/cookie identity case, logout integration, and the complete callback cookie contents and size; the submitted tests cover the store and internal routes instead. The Mongo command projects ciphertext out and therefore cannot support its ciphertext-content assertion, and requiring every IdP access token to decode as a JWT is unnecessarily provider-specific. Its manual large-group cookie test would at least expose the design's central failure against the repository's documented oversized-groups case. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971))"
+    },
+    "implementation": {
+      "completeness": 12,
+      "correctness": 11,
+      "specificity": 19,
+      "risk_awareness": 15,
+      "total": 57,
+      "notes": "The patch substantially implements its chosen design: encrypted Mongo storage, hashed references, TTL and owner checks, internal retrieval, registry proxying, revocation, configuration, and focused unit tests. The callback only adds token_ref and moves no existing groups or id_token out of the cookie, so the primary cookie-size acceptance criterion remains unimplemented; the repository's shipped resolution instead stores the complete OAuth session server-side. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/release-notes/1.24.1.md), [github.com](https://github.com/agentic-community/mcp-gateway-registry/issues/971)) It also uses PBKDF2 rather than the issue-required HKDF, lacks tests for the public route and logout path, and overstates that the cookie contains no tokens despite explicitly retaining id_token. Clean applicability could not be independently dry-run, and the summary's +1208 count is internally wrong because its listed diff hunks sum to +1180."
+    }
+  },
+  "task_score": 67.4,
+  "verdict": "The submission is concrete and security-conscious, but its token-only implementation does not address the repository's larger session payload and therefore misses the core cookie-size outcome, with requirement certainty further limited by the absent independent task statement.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-17T17:41:19.629508Z",
+    "repo_ref": "1.23.0",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 264875,
+      "cached_input_tokens": 156715,
+      "cache_write_input_tokens": 42326,
+      "output_tokens": 15585,
+      "reasoning_output_tokens": 13547
+    },
+    "duration_ms": 162752
+  }
+}
