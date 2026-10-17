@@ -1,0 +1,64 @@
+{
+  "task": "nginx-location-trailing-slash-route-hijack",
+  "model": "us.anthropic.claude-opus-5-5",
+  "scores": {
+    "github_issue": {
+      "completeness": 23,
+      "correctness": 22,
+      "specificity": 24,
+      "risk_awareness": 23,
+      "total": 92,
+      "notes": "The issue precisely explains the nginx prefix-matching failure and supplies testable criteria for `/a`, sibling routes, normalization, collisions, and unhealthy servers. Its exact-match rewrite proposal preserves bare POST behavior while clearly excluding virtual and A2A routes. The main weakness is that the reserved-prefix criterion does not explicitly call out known non-slash `^~` locations such as `/api/auth`, making the intended boundary easier to misimplement. No independent task statement was supplied, so broader requirement coverage cannot be verified."
+    },
+    "lld": {
+      "completeness": 19,
+      "correctness": 16,
+      "specificity": 23,
+      "risk_awareness": 19,
+      "total": 77,
+      "notes": "The LLD is unusually concrete about `registry/core/nginx_service.py`, `_create_location_block`, render ownership, proxy URI transformation, logging, rollout, and rollback. Its reserved set and synchronization test cover only slash-terminated prefixes and exact locations, omitting known literal prefixes such as `^~ /api/auth`, `/api/health`, and `/api/version`; generated exact and longer slash locations can supersede those routes. It also identifies `_generate_version_map` but leaves it using the raw stored path, so `/a/` or `//a//` can produce version-map expressions inconsistent with normalized locations. Dedupe determinism, live-block eligibility, and empty-block handling are otherwise well specified."
+    },
+    "review": {
+      "completeness": 19,
+      "correctness": 18,
+      "specificity": 23,
+      "risk_awareness": 18,
+      "total": 78,
+      "notes": "The review finds several real defects: unconditional empty-block appending, nondeterministic duplicate ownership, exact-location collisions, and unhealthy/local servers incorrectly participating in ownership. Each finding gives a consequence and concrete resolution, making the review substantially more than role-play. Its largest miss is the incomplete reserved-location model, particularly the non-slash `^~` API prefixes that the implementation can override. The backend review also declares the version map sound only for clean `/a`, overlooking raw trailing- or duplicate-slash registrations."
+    },
+    "testing": {
+      "completeness": 19,
+      "correctness": 15,
+      "specificity": 22,
+      "risk_awareness": 18,
+      "total": 74,
+      "notes": "The plan provides strong unit oracles for generated directives, rewrite behavior, sibling routing, deterministic dedupe, and unhealthy comments, plus deployment and rollback checks. However, `test_reserved_location_paths_cover_template_locations` deliberately ignores non-slash prefix locations, so it would pass while `/api/auth`, `/api/health`, or `/api/version` remain hijackable. It also lacks a version-routing case combining stored `/a/` or `//a//` with `/a/mcp`, and its E2E command uses `tools/list` although the repository documents the client subcommand as `list`. ([github.com](https://github.com/agentic-community/mcp-gateway-registry/blob/main/docs/testing.md)) Several manual checks use weak oracles such as “any MCP-hop status,” and no results were submitted."
+    },
+    "implementation": {
+      "completeness": 17,
+      "correctness": 15,
+      "specificity": 21,
+      "risk_awareness": 16,
+      "total": 69,
+      "notes": "The patch implements the core fix coherently: normalized exact-plus-slash locations, normalized proxy targets, deterministic live-server dedupe, empty-block filtering, and focused regression tests. The reserved set omits existing non-slash template prefixes such as `/api/auth`, `/api/health`, and `/api/version`, allowing a registration at those paths to override protected template routing and violating the issue’s template-owned-prefix criterion. `_generate_version_map` remains unchanged and uses the raw path, so version routing can fail when `/a/` or `//a//` is normalized to `/a`. The summary truthfully reports unexecuted verification, but patch applicability and runtime behavior could not be independently confirmed from the unavailable local command environment."
+    }
+  },
+  "task_score": 78.0,
+  "verdict": "Strong, repository-specific work that fixes the primary short-path hijack, but incomplete template-route protection and unnormalized version-map handling leave material routing and compatibility defects.",
+  "judge": {
+    "model": "openai.gpt-5.6-sol",
+    "provider": "codex-exec",
+    "repo_grounded": true,
+    "evaluated_at": "2026-10-17T17:30:38.526252Z",
+    "repo_ref": "1.27.1",
+    "reasoning_effort": "high",
+    "token_usage": {
+      "input_tokens": 207515,
+      "cached_input_tokens": 124920,
+      "cache_write_input_tokens": 34475,
+      "output_tokens": 12559,
+      "reasoning_output_tokens": 10800
+    },
+    "duration_ms": 127184
+  }
+}

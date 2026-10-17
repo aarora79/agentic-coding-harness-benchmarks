@@ -34,15 +34,16 @@ The same flag works with `--provider vllm`, which the MiniCPM5-2B run used, and 
 
 | Model | omp | `--agent strands` | `--agent strands-harness` |
 |---|---|---|---|
-| claude-sonnet-5-5 | not run | 76.73, 21/21, $0.96 | 77.81, 21/21, $1.12 |
+| claude-opus-5-5 | 81.16, 21/21, $4.44 | 81.21, 21/21, $2.46 | 80.80, 21/21, $2.42 |
+| claude-sonnet-5-5 | 79.49, 21/21, $2.62 | 76.73, 21/21, $0.96 | 77.81, 21/21, $1.12 |
 | claude-haiku-4-5 | 56.18, 21/21, $0.76 | 51.20, 20/21, $0.70 | 56.05, 21/21, $0.70 |
 | minicpm5-2b | 42.59, 19/21 | 45.28, 21/21 | 41.91, 20/21 |
 
-Each cell is the mean score, the tasks scored and, for Bedrock, the cost per task, from each harness's `run-summary.json` under `benchmarks/swe-benchmark-data/<model>/`. Per-task tables and charts: [harness-strands-harness-swe3.md](harness-strands-harness-swe3.md). On Sonnet 5.5 the harness scored 1.08 points above the hand-built agent and cost $0.16 more a task; there is no omp run of Sonnet 5.5 on this dataset. The MiniCPM5-2B harness run predates the loop guard, and two of its tasks looped; one of them used most of its tokens and ended at the recursion limit with no artifacts.
+Each cell is the mean score, the tasks scored and, for Bedrock, the cost per task, from each harness's `run-summary.json` under `benchmarks/swe-benchmark-data/<model>/`. Per-task tables and charts: [harness-strands-harness-swe3.md](harness-strands-harness-swe3.md). On Opus 5.5 the three harnesses score within 0.41 points of each other, and both Strands builds cost about 55% of omp per task. On Sonnet 5.5 the harness scored 1.08 points above the hand-built agent and cost $0.16 more a task, and omp scored 1.68 points above the harness at more than twice the cost. The MiniCPM5-2B harness run predates the loop guard, and two of its tasks looped; one of them used most of its tokens and ended at the recursion limit with no artifacts.
 
 ## Which one to use
 
-Use `--agent strands-harness` to measure Strands as its team recommends using it. On Haiku 4.5 it finished every task and matched omp, and its offloading removed the large-tool-result failures that cost the hand-built agent tasks on a 128K-token window. Use `--agent strands` to compare against earlier Strands results, which all ran on the hand-built agent.
+Use `--agent strands-harness` to measure Strands as its team recommends using it. On Opus 5.5 it matched omp's score at 55% of the cost, on Haiku 4.5 it finished every task and matched omp, and its offloading removed the large-tool-result failures that cost the hand-built agent tasks on a 128K-token window. Use `--agent strands` to compare against earlier Strands results, which all ran on the hand-built agent.
 
 ## Related
 
